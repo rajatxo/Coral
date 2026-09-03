@@ -1,0 +1,730 @@
+     1→package app.vitune.android.ui.screens.player
+     2→
+     3→import app.vitune.compose.routing.LocalRouteHandler
+     4→import androidx.annotation.OptIn
+     5→import androidx.compose.animation.AnimatedContent
+     6→import androidx.compose.animation.AnimatedVisibility
+     7→import androidx.compose.animation.fadeIn
+     8→import androidx.compose.animation.fadeOut
+     9→import androidx.compose.animation.togetherWith
+    10→import androidx.compose.foundation.Image
+    11→import androidx.compose.foundation.background
+    12→import androidx.compose.foundation.border
+    13→import androidx.compose.foundation.clickable
+    14→import androidx.compose.foundation.interaction.MutableInteractionSource
+    15→import androidx.compose.foundation.layout.Arrangement
+    16→import androidx.compose.foundation.layout.Box
+    17→import androidx.compose.foundation.layout.Column
+    18→import androidx.compose.foundation.layout.Row
+    19→import androidx.compose.foundation.layout.Spacer
+    20→import androidx.compose.foundation.layout.WindowInsets
+    21→import androidx.compose.foundation.layout.WindowInsetsSides
+    22→import androidx.compose.foundation.layout.asPaddingValues
+    23→import androidx.compose.foundation.layout.fillMaxHeight
+    24→import androidx.compose.foundation.layout.fillMaxSize
+    25→import androidx.compose.foundation.layout.fillMaxWidth
+    26→import androidx.compose.foundation.layout.height
+    27→import androidx.compose.foundation.layout.only
+    28→import androidx.compose.foundation.layout.padding
+    29→import androidx.compose.foundation.layout.size
+    30→import androidx.compose.foundation.layout.systemBars
+    31→import androidx.compose.foundation.layout.width
+    32→import androidx.compose.foundation.shape.CircleShape
+    33→import androidx.compose.foundation.shape.RoundedCornerShape
+    34→import androidx.compose.foundation.text.BasicText
+    35→import androidx.compose.material3.ripple
+    36→import androidx.compose.runtime.Composable
+    37→import androidx.compose.runtime.LaunchedEffect
+    38→import androidx.compose.runtime.SnapshotMutationPolicy
+    39→import androidx.compose.runtime.getValue
+    40→import androidx.compose.runtime.mutableFloatStateOf
+    41→import androidx.compose.runtime.mutableStateOf
+    42→import androidx.compose.runtime.neverEqualPolicy
+    43→import androidx.compose.runtime.remember
+    44→import androidx.compose.runtime.saveable.rememberSaveable
+    45→import androidx.compose.runtime.setValue
+    46→import androidx.compose.ui.Alignment
+    47→import androidx.compose.ui.Modifier
+    48→import androidx.compose.ui.draw.blur
+    49→import androidx.compose.ui.draw.clip
+    50→import androidx.compose.ui.draw.drawWithContent
+    51→import androidx.compose.ui.geometry.Offset
+    52→import androidx.compose.ui.geometry.Size
+    53→import androidx.compose.ui.graphics.Brush
+    54→import androidx.compose.ui.graphics.Color
+    55→import androidx.compose.ui.graphics.ColorFilter
+    56→import androidx.compose.ui.graphics.StrokeCap
+    57→import androidx.compose.ui.graphics.drawscope.Stroke
+    58→import androidx.compose.ui.graphics.graphicsLayer
+    59→import androidx.compose.ui.input.nestedscroll.nestedScroll
+    60→import androidx.compose.ui.layout.ContentScale
+    61→import androidx.compose.ui.res.painterResource
+    62→import androidx.compose.ui.res.stringResource
+    63→import androidx.compose.ui.text.style.TextOverflow
+    64→import androidx.compose.ui.unit.coerceAtMost
+    65→import androidx.compose.ui.unit.dp
+    66→import androidx.media3.common.MediaItem
+    67→import androidx.media3.common.Player
+    68→import androidx.media3.common.util.UnstableApi
+    69→import app.vitune.android.Database
+    70→import app.vitune.android.LocalPlayerServiceBinder
+    71→import app.vitune.android.R
+    72→import app.vitune.android.models.ui.toUiMedia
+    73→import app.vitune.android.preferences.PlayerPreferences
+    74→import app.vitune.android.query
+    75→import app.vitune.android.service.PlayerService
+    76→import app.vitune.android.transaction
+    77→import app.vitune.android.ui.components.BottomSheet
+    78→import app.vitune.android.ui.components.BottomSheetState
+    79→import app.vitune.android.ui.components.LocalMenuState
+    80→import app.vitune.android.ui.components.rememberBottomSheetState
+    81→import app.vitune.android.ui.screens.albumRoute
+    82→import app.vitune.android.ui.screens.artistRoute
+    83→import app.vitune.android.ui.components.themed.BaseMediaItemMenu
+    84→import app.vitune.android.ui.components.themed.IconButton
+    85→import app.vitune.android.ui.components.themed.SecondaryTextButton
+    86→import app.vitune.android.ui.components.themed.SliderDialog
+    87→import app.vitune.android.ui.components.themed.SliderDialogBody
+    88→import app.vitune.android.ui.modifiers.PinchDirection
+    89→import app.vitune.android.ui.modifiers.onSwipe
+    90→import app.vitune.android.ui.modifiers.pinchToToggle
+    91→import app.vitune.android.utils.DisposableListener
+    92→import app.vitune.android.utils.Pip
+    93→import app.vitune.android.utils.forceSeekToNext
+    94→import app.vitune.android.utils.forceSeekToPrevious
+    95→import app.vitune.android.utils.positionAndDurationState
+    96→import app.vitune.android.utils.rememberEqualizerLauncher
+    97→import app.vitune.android.utils.rememberPipHandler
+    98→import app.vitune.android.utils.seamlessPlay
+    99→import app.vitune.android.utils.secondary
+   100→import app.vitune.android.utils.semiBold
+   101→import app.vitune.android.utils.shouldBePlaying
+   102→import app.vitune.android.utils.thumbnail
+   103→import app.vitune.compose.persist.PersistMapCleanup
+   104→import app.vitune.compose.routing.OnGlobalRoute
+   105→import app.vitune.core.ui.Dimensions
+   106→import app.vitune.core.ui.LocalAppearance
+   107→import app.vitune.core.ui.ThumbnailRoundness
+   108→import app.vitune.core.ui.utils.isLandscape
+   109→import app.vitune.core.ui.utils.px
+   110→import app.vitune.core.ui.utils.roundedShape
+   111→import app.vitune.core.ui.utils.songBundle
+   112→import app.vitune.providers.innertube.models.NavigationEndpoint
+   113→import coil3.compose.AsyncImage
+   114→import kotlinx.coroutines.flow.distinctUntilChanged
+   115→import kotlin.math.absoluteValue
+   116→
+   117→@Composable
+   118→fun Player(
+   119→    layoutState: BottomSheetState,
+   120→    modifier: Modifier = Modifier,
+   121→    shape: RoundedCornerShape = RoundedCornerShape(
+   122→        topStart = 12.dp,
+   123→        topEnd = 12.dp
+   124→    ),
+   125→    windowInsets: WindowInsets = WindowInsets.systemBars
+   126→) {
+   127→    val routeHandler = LocalRouteHandler.current
+   128→    val menuState = LocalMenuState.current
+   129→    val (colorPalette, typography, thumbnailCornerSize) = LocalAppearance.current
+   130→    val binder = LocalPlayerServiceBinder.current
+   131→    val pipHandler = rememberPipHandler()
+   132→
+   133→    with(PlayerPreferences) {
+   134→        PersistMapCleanup(prefix = "queue/suggestions")
+   135→        var mediaItem by remember(binder) {
+   136→            mutableStateOf(
+   137→                value = binder?.player?.currentMediaItem,
+   138→                policy = neverEqualPolicy()
+   139→            )
+   140→        }
+   141→        
+   142→    var shouldBePlaying by remember(binder) { mutableStateOf(binder?.player?.shouldBePlaying == true) }
+   143→
+   144→    LaunchedEffect(mediaItem) {
+   145→        if (mediaItem != null && layoutState.dismissed) {
+   146→            layoutState.collapseSoft()
+   147→        }
+   148→    }
+   149→
+   150→    var likedAt by remember(mediaItem) {
+   151→        mutableStateOf(
+   152→            value = null,
+   153→            policy = object : SnapshotMutationPolicy<Long?> {
+   154→                override fun equivalent(a: Long?, b: Long?): Boolean {
+   155→                    mediaItem?.mediaId?.let {
+   156→                        query { Database.like(it, b) }
+   157→                    }
+   158→                    return a == b
+   159→                }
+   160→            }
+   161→        )
+   162→    }
+   163→
+   164→    LaunchedEffect(mediaItem) {
+   165→        mediaItem?.mediaId?.let { mediaId ->
+   166→            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+   167→                Database
+   168→                    .likedAt(mediaId)
+   169→                    .distinctUntilChanged()
+   170→                    .collect { likedAt = it }
+   171→            }
+   172→        }
+   173→    }
+   174→    
+   175→
+   176→    binder?.player.DisposableListener {
+   177→        object : Player.Listener {
+   178→            override fun onMediaItemTransition(newMediaItem: MediaItem?, reason: Int) {
+   179→                mediaItem = newMediaItem
+   180→            }
+   181→
+   182→            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+   183→                shouldBePlaying = binder?.player?.shouldBePlaying == true
+   184→            }
+   185→
+   186→            override fun onPlaybackStateChanged(playbackState: Int) {
+   187→                shouldBePlaying = binder?.player?.shouldBePlaying == true
+   188→            }
+   189→        }
+   190→    }
+   191→
+   192→    val (position, duration) = binder?.player.positionAndDurationState()
+   193→    val metadata = remember(mediaItem) { mediaItem?.mediaMetadata }
+   194→    val extras = remember(metadata) { metadata?.extras?.songBundle }
+   195→
+   196→    val horizontalBottomPaddingValues = windowInsets
+   197→        .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
+   198→        .asPaddingValues()
+   199→
+   200→    OnGlobalRoute { if (layoutState.expanded) layoutState.collapseSoft() }
+   201→
+   202→    val miniPlayerShape = RoundedCornerShape(32.dp)
+   203→
+   204→    if (mediaItem != null) BottomSheet(
+   205→        state = layoutState,
+   206→        modifier = modifier.fillMaxSize(),
+   207→        onDismiss = {
+   208→            binder?.let { onDismiss(it) }
+   209→            layoutState.dismissSoft()
+   210→        },
+   211→        backHandlerEnabled = !menuState.isDisplayed,
+   212→        collapsedContent = { innerModifier ->
+   213→            Box(
+   214→                modifier = Modifier
+   215→                    .padding(horizontal = 8.dp, vertical = 4.dp)
+   216→                    .then(innerModifier)
+   217→                    .let { modifier ->
+   218→                        if (horizontalSwipeToClose) modifier.onSwipe(
+   219→                            animateOffset = true,
+   220→                            onSwipeOut = { animationJob ->
+   221→                                binder?.let { onDismiss(it) }
+   222→                                animationJob.join()
+   223→                                layoutState.dismissSoft()
+   224→                            }
+   225→                        ) else modifier
+   226→                    }
+   227→                                        .fillMaxWidth()
+   228→                    .height(64.dp)
+   229→                    .clip(miniPlayerShape)
+   230→                    .background(colorPalette.background1)
+   231→                    .border(
+   232→                        width = 1.dp,
+   233→                        color = Color.White.copy(alpha = if (colorPalette.isDark) 0.20f else 0.40f),
+   234→                        shape = miniPlayerShape
+   235→                    )
+   236→                    .clickable(
+   237→                        indication = ripple(bounded = true),
+   238→                        interactionSource = remember { MutableInteractionSource() },
+   239→                        onClick = layoutState::expandSoft
+   240→                    )
+   241→            ) {
+   242→                AsyncImage(
+   243→                    model = metadata?.artworkUri?.thumbnail(Dimensions.thumbnails.song.px),
+   244→                    contentDescription = null,
+   245→                    contentScale = ContentScale.Crop,
+   246→                    modifier = Modifier
+   247→                        .fillMaxSize()
+   248→                        .graphicsLayer {
+   249→                            alpha = 0.35f
+   250→                            scaleX = 1.15f
+   251→                            scaleY = 1.15f
+   252→                        }
+   253→                        .blur(20.dp)
+   254→                )
+   255→
+   256→                Row(
+   257→                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+   258→                    verticalAlignment = Alignment.CenterVertically,
+   259→                    modifier = Modifier
+   260→                        .fillMaxSize()
+   261→                        .padding(horizontal = 10.dp)
+   262→                ) {
+   263→                    Box(
+   264→                        contentAlignment = Alignment.Center,
+   265→                        modifier = Modifier
+   266→                            .size(44.dp)
+   267→                            .drawWithContent {
+   268→                                drawContent()
+   269→
+   270→                                val progress = runCatching {
+   271→                                    (position.toFloat() / duration.absoluteValue).coerceIn(0f, 1f)
+   272→                                }.getOrElse { 0f }
+   273→
+   274→                                val stroke = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
+   275→                                val diameter = size.minDimension
+   276→                                val topLeft = Offset(
+   277→                                    x = (size.width - diameter) / 2f,
+   278→                                    y = (size.height - diameter) / 2f
+   279→                                )
+   280→
+   281→                                drawArc(
+   282→                                    color = colorPalette.text.copy(alpha = 0.15f),
+   283→                                    startAngle = 0f,
+   284→                                    sweepAngle = 360f,
+   285→                                    useCenter = false,
+   286→                                    topLeft = topLeft,
+   287→                                    size = Size(diameter, diameter),
+   288→                                    style = stroke
+   289→                                )
+   290→                                drawArc(
+   291→                                    color = colorPalette.text,
+   292→                                    startAngle = -90f,
+   293→                                    sweepAngle = 360f * progress,
+   294→                                    useCenter = false,
+   295→                                    topLeft = topLeft,
+   296→                                    size = Size(diameter, diameter),
+   297→                                    style = stroke
+   298→                                )
+   299→                            }
+   300→                            .clip(CircleShape)
+   301→                            .clickable(
+   302→                                indication = ripple(bounded = false),
+   303→                                interactionSource = remember { MutableInteractionSource() },
+   304→                                onClick = {
+   305→                                    
+   306→                                    if (shouldBePlaying) binder?.player?.pause()
+   307→                                    else {
+   308→                                        if (binder?.player?.playbackState == Player.STATE_IDLE) binder.player.prepare()
+   309→                                        binder?.player?.play()
+   310→                                    }
+   311→                                }
+   312→                            )
+   313→                    ) {
+   314→                        AsyncImage(
+   315→                            model = metadata?.artworkUri?.thumbnail(Dimensions.thumbnails.song.px),
+   316→                            contentDescription = null,
+   317→                            contentScale = ContentScale.Crop,
+   318→                            modifier = Modifier
+   319→                                .size(36.dp)
+   320→                                .clip(CircleShape)
+   321→                                .background(colorPalette.background0)
+   322→                        )
+   323→                        Box(
+   324→                            modifier = Modifier
+   325→                                .size(36.dp)
+   326→                                .clip(CircleShape)
+   327→                                .background(Color.Black.copy(alpha = if (shouldBePlaying) 0f else 0.35f))
+   328→                        )
+   329→                        if (!shouldBePlaying) AnimatedPlayPauseButton(
+   330→                            playing = shouldBePlaying,
+   331→                            modifier = Modifier.size(16.dp)
+   332→                        )
+   333→                    }
+   334→
+   335→                    Column(
+   336→                        verticalArrangement = Arrangement.Center,
+   337→                        modifier = Modifier
+   338→                            .height(44.dp)
+   339→                            .weight(1f)
+   340→                    ) {
+   341→                        AnimatedContent(
+   342→                            targetState = metadata?.title?.toString().orEmpty(),
+   343→                            label = "",
+   344→                            transitionSpec = { fadeIn() togetherWith fadeOut() }
+   345→                        ) { text ->
+   346→                            BasicText(
+   347→                                text = text,
+   348→                                style = typography.s.semiBold,
+   349→                                maxLines = 1,
+   350→                                overflow = TextOverflow.Ellipsis
+   351→                            )
+   352→                        }
+   353→                        AnimatedVisibility(visible = metadata?.artist != null) {
+   354→                            AnimatedContent(
+   355→                                targetState = metadata?.artist?.toString().orEmpty(),
+   356→                                label = "",
+   357→                                transitionSpec = { fadeIn() togetherWith fadeOut() }
+   358→                            ) { text ->
+   359→                                Row(
+   360→                                    verticalAlignment = Alignment.CenterVertically,
+   361→                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+   362→                                ) {
+   363→                                    BasicText(
+   364→                                        text = text,
+   365→                                        style = typography.xs.semiBold.secondary,
+   366→                                        maxLines = 1,
+   367→                                        overflow = TextOverflow.Ellipsis
+   368→                                    )
+   369→                                    AnimatedVisibility(visible = extras?.explicit == true) {
+   370→                                        Image(
+   371→                                            painter = painterResource(R.drawable.explicit),
+   372→                                            contentDescription = null,
+   373→                                            colorFilter = ColorFilter.tint(colorPalette.text),
+   374→                                            modifier = Modifier.size(14.dp)
+   375→                                        )
+   376→                                    }
+   377→                                }
+   378→                            }
+   379→                        }
+   380→                    }
+   381→
+   382→                    Box(
+   383→                        modifier = Modifier
+   384→                            .size(36.dp)
+   385→                            .clip(CircleShape)
+   386→                            .background(colorPalette.background1.copy(alpha = 0.42f))
+   387→                            .clickable(
+   388→                                indication = ripple(bounded = false),
+   389→                                interactionSource = remember { MutableInteractionSource() },
+   390→                                onClick = layoutState::expandSoft
+   391→                            ),
+   392→                        contentAlignment = Alignment.Center
+   393→                    ) {
+   394→                        Image(
+   395→                            painter = painterResource(R.drawable.headphones),
+   396→                            contentDescription = stringResource(R.string.auto_open_player),
+   397→                            colorFilter = ColorFilter.tint(colorPalette.text),
+   398→                            modifier = Modifier.size(18.dp)
+   399→                        )
+   400→                    }
+   401→
+   402→                    Box(
+   403→                        modifier = Modifier
+   404→                            .size(36.dp)
+   405→                            .clip(CircleShape)
+   406→                            .clickable(
+   407→                                indication = ripple(bounded = false),
+   408→                                interactionSource = remember { MutableInteractionSource() },
+   409→                                onClick = {
+   410→                                    likedAt = if (likedAt == null) System.currentTimeMillis() else null
+   411→                                }
+   412→                            ),
+   413→                        contentAlignment = Alignment.Center
+   414→                    ) {
+   415→                        Image(
+   416→                            painter = painterResource(
+   417→                                if (likedAt == null) R.drawable.heart_outline else R.drawable.heart
+   418→                            ),
+   419→                            contentDescription = stringResource(R.string.favorites),
+   420→                            colorFilter = ColorFilter.tint(
+   421→                                if (likedAt != null) Color(0xFFE0245E) else colorPalette.text
+   422→                            ),
+   423→                            modifier = Modifier.size(20.dp)
+   424→                        )
+   425→                    }
+   426→                }
+   427→            }
+   428→        }
+   429→    ) {
+   430→        var isShowingStatsForNerds by rememberSaveable { mutableStateOf(false) }
+   431→        var isShowingLyricsDialog by rememberSaveable { mutableStateOf(false) }
+   432→        var audioDialogOpen by rememberSaveable { mutableStateOf(false) }
+   433→        var boostDialogOpen by rememberSaveable { mutableStateOf(false) }
+   434→
+   435→        if (isShowingLyricsDialog) LyricsDialog(onDismiss = { isShowingLyricsDialog = false })
+   436→
+   437→        val playerBottomSheetState = rememberBottomSheetState(
+   438→            dismissedBound = 72.dp + horizontalBottomPaddingValues.calculateBottomPadding(),
+   439→            expandedBound = layoutState.expandedBound
+   440→        )
+   441→                val containerModifier = Modifier
+   442→            .clip(shape)
+   443→            .background(
+   444→                Brush.verticalGradient(
+   445→                    0.5f to colorPalette.background1,
+   446→                    1f to colorPalette.background0
+   447→                )
+   448→            )
+   449→            .padding(
+   450→                windowInsets
+   451→                    .only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
+   452→                    .asPaddingValues()
+   453→            )
+   454→            .padding(bottom = playerBottomSheetState.collapsedBound)
+   455→
+   456→        val thumbnailContent: @Composable (modifier: Modifier) -> Unit = { innerModifier ->
+   457→            Pip(
+   458→                numerator = 1,
+   459→                denominator = 1,
+   460→                modifier = innerModifier
+   461→            ) {
+   462→                Thumbnail(
+   463→                    isShowingLyrics = isShowingLyrics,
+   464→                    onShowLyrics = { isShowingLyrics = it },
+   465→                    isShowingStatsForNerds = isShowingStatsForNerds,
+   466→                    onShowStatsForNerds = { isShowingStatsForNerds = it },
+   467→                    onOpenDialog = { isShowingLyricsDialog = true },
+   468→                    likedAt = likedAt,
+   469→                    setLikedAt = { likedAt = it },
+   470→                    modifier = Modifier
+   471→                        .nestedScroll(layoutState.preUpPostDownNestedScrollConnection)
+   472→                        .pinchToToggle(
+   473→                            key = isShowingLyricsDialog,
+   474→                            direction = PinchDirection.Out,
+   475→                            threshold = 1.05f,
+   476→                            onPinch = {
+   477→                                if (isShowingLyrics) isShowingLyricsDialog = true
+   478→                            }
+   479→                        )
+   480→                        .pinchToToggle(
+   481→                            key = isShowingLyricsDialog,
+   482→                            direction = PinchDirection.In,
+   483→                            threshold = .95f,
+   484→                            onPinch = {
+   485→                                pipHandler.enterPictureInPictureMode()
+   486→                            }
+   487→                        )
+   488→                )
+   489→            }
+   490→        }
+   491→
+   492→        val controlsContent: @Composable (modifier: Modifier) -> Unit = { innerModifier ->
+   493→            Controls(
+   494→                media = mediaItem?.toUiMedia(duration),
+   495→                binder = binder,
+   496→                likedAt = likedAt,
+   497→                setLikedAt = { likedAt = it },
+   498→                shouldBePlaying = shouldBePlaying,
+   499→                position = position,
+   500→                modifier = innerModifier,
+   501→                onTitleClick = {
+   502→                    // TODO: Add your navigation action for the song/album here
+   503→                },
+   504→                onArtistClick = {
+   505→                    // TODO: Add your navigation action for the artist here
+   506→                }
+   507→            )
+   508→        }
+   509→        
+   510→        if (isLandscape) Row(
+   511→            verticalAlignment = Alignment.CenterVertically,
+   512→            modifier = containerModifier.padding(top = 32.dp)
+   513→        ) {
+   514→            Box(
+   515→                contentAlignment = Alignment.Center,
+   516→                modifier = Modifier
+   517→                    .weight(0.66f)
+   518→                    .padding(bottom = 16.dp)
+   519→            ) {
+   520→                thumbnailContent(Modifier.padding(horizontal = 16.dp))
+   521→            }
+   522→
+   523→            controlsContent(
+   524→                Modifier
+   525→                    .padding(vertical = 8.dp)
+   526→                    .fillMaxHeight()
+   527→                    .weight(1f)
+   528→            )
+   529→        } else Column(
+   530→            horizontalAlignment = Alignment.CenterHorizontally,
+   531→            modifier = containerModifier.padding(top = 54.dp)
+   532→        ) {
+   533→            BitChordPlayer(
+   534→                mediaItem = mediaItem!!,
+   535→                binder = binder!!,
+   536→                shouldBePlaying = shouldBePlaying,
+   537→                position = position,
+   538→                duration = duration,
+   539→                likedAt = likedAt,
+   540→                setLikedAt = { likedAt = it },
+   541→                isShowingLyrics = isShowingLyrics,
+   542→                onShowLyrics = { isShowingLyrics = it },
+   543→                onOpenQueue = {
+   544→                    menuState.display {
+   545→                        PlayerMenu(
+   546→                            onDismiss = menuState::hide,
+   547→                            mediaItem = mediaItem!!,
+   548→                            binder = binder!!,
+   549→                            onShowSpeedDialog = { audioDialogOpen = true },
+   550→                            onShowNormalizationDialog = {
+   551→                                boostDialogOpen = true
+   552→                            }.takeIf { volumeNormalization }
+   553→                        )
+   554→                    }
+   555→                },
+   556→                onTitleClick = {
+   557→                    // Title click navigation disabled to stabilize builds
+   558→                },
+   559→                onArtistClick = {
+   560→                    // Artist click navigation disabled to stabilize builds
+   561→                },  
+   562→                
+   563→                 modifier = Modifier
+   564→                    .padding(vertical = 8.dp)
+   565→                    .fillMaxWidth()
+   566→                    .weight(1f)
+   567→            )
+   568→        }
+   569→        
+   570→        if (audioDialogOpen) SliderDialog(
+   571→            onDismiss = { audioDialogOpen = false },
+   572→            title = stringResource(R.string.playback_settings)
+   573→        ) {
+   574→            SliderDialogBody(
+   575→                provideState = { remember(speed) { mutableFloatStateOf(speed) } },
+   576→                onSlideComplete = { speed = it },
+   577→                min = 0f,
+   578→                max = 2f,
+   579→                toDisplay = {
+   580→                    if (it <= 0.01f) stringResource(R.string.minimum_speed_value)
+   581→                    else stringResource(R.string.format_multiplier, "%.2f".format(it))
+   582→                },
+   583→                steps = 39,
+   584→                label = stringResource(R.string.playback_speed)
+   585→            )
+   586→            SliderDialogBody(
+   587→                provideState = { remember(pitch) { mutableFloatStateOf(pitch) } },
+   588→                onSlideComplete = { pitch = it },
+   589→                min = 0f,
+   590→                max = 2f,
+   591→                toDisplay = {
+   592→                    if (it <= 0.01f) stringResource(R.string.minimum_speed_value)
+   593→                    else stringResource(R.string.format_multiplier, "%.2f".format(it))
+   594→                },
+   595→                steps = 39,
+   596→                label = stringResource(R.string.playback_pitch)
+   597→            )
+   598→            Box(
+   599→                modifier = Modifier.fillMaxWidth(),                contentAlignment = Alignment.Center
+   600→            ) {
+   601→                SecondaryTextButton(
+   602→                    text = stringResource(R.string.reset),
+   603→                    onClick = {
+   604→                        speed = 1f
+   605→                        pitch = 1f
+   606→                    }
+   607→                )
+   608→            }
+   609→        }
+   610→
+   611→        if (boostDialogOpen) {
+   612→            fun submit(state: Float) = transaction {
+   613→                mediaItem?.mediaId?.let { mediaId ->
+   614→                    Database.setLoudnessBoost(
+   615→                        songId = mediaId,
+   616→                        loudnessBoost = state.takeUnless { it == 0f }
+   617→                    )
+   618→                }
+   619→            }
+   620→
+   621→            SliderDialog(
+   622→                onDismiss = { boostDialogOpen = false },
+   623→                title = stringResource(R.string.volume_boost)
+   624→            ) {
+   625→                SliderDialogBody(
+   626→                    provideState = {
+   627→                        val state = remember { mutableFloatStateOf(0f) }
+   628→                        LaunchedEffect(mediaItem) {
+   629→                            mediaItem?.mediaId?.let { mediaId ->
+   630→                                Database
+   631→                                    .loudnessBoost(mediaId)
+   632→                                    .distinctUntilChanged()
+   633→                                    .collect { state.floatValue = it ?: 0f }
+   634→                            }
+   635→                        }
+   636→                        state
+   637→                    },
+   638→                    onSlideComplete = { submit(it) },
+   639→                    min = -20f,
+   640→                    max = 20f,
+   641→                    toDisplay = { stringResource(R.string.format_db, "%.2f".format(it)) }
+   642→                )
+   643→                Box(
+   644→                    modifier = Modifier.fillMaxWidth(),
+   645→                    contentAlignment = Alignment.Center
+   646→                ) {
+   647→                    SecondaryTextButton(
+   648→                        text = stringResource(R.string.reset),
+   649→                        onClick = { submit(0f) }
+   650→                    )
+   651→                }
+   652→            }
+   653→        }
+   654→
+   655→        if (binder != null) Queue(
+   656→            layoutState = playerBottomSheetState,
+   657→            binder = binder,
+   658→            beforeContent = {
+   659→                if (playerLayout == PlayerPreferences.PlayerLayout.New) IconButton(
+   660→                    onClick = { trackLoopEnabled = !trackLoopEnabled },
+   661→                    icon = R.drawable.infinite,
+   662→                    enabled = trackLoopEnabled,
+   663→                    modifier = Modifier
+   664→                        .padding(vertical = 8.dp)
+   665→                        .size(20.dp)
+   666→                ) else Spacer(modifier = Modifier.width(20.dp))
+   667→            },
+   668→            afterContent = {
+   669→                IconButton(
+   670→                    icon = R.drawable.ellipsis_horizontal,
+   671→                    color = colorPalette.text,
+   672→                    onClick = {
+   673→                        mediaItem?.let {
+   674→                            menuState.display {
+   675→                                PlayerMenu(
+   676→                                    onDismiss = menuState::hide,
+   677→                                    mediaItem = it,
+   678→                                    binder = binder,
+   679→                                    onShowSpeedDialog = { audioDialogOpen = true },
+   680→                                    onShowNormalizationDialog = {
+   681→                                        boostDialogOpen = true
+   682→                                    }.takeIf { volumeNormalization }
+   683→                                )
+   684→                            }
+   685→                        }
+   686→                    },
+   687→                    modifier = Modifier
+   688→                        .padding(vertical = 8.dp)
+   689→                        .size(20.dp)
+   690→                )
+   691→            },
+   692→            modifier = Modifier.align(Alignment.BottomCenter),
+   693→            shape = shape
+   694→        )
+   695→      }
+   696→    }
+   697→}
+   698→
+   699→@Composable
+   700→@OptIn(UnstableApi::class)
+   701→private fun PlayerMenu(
+   702→    binder: PlayerService.Binder,
+   703→    mediaItem: MediaItem,
+   704→    onDismiss: () -> Unit,
+   705→    onShowSpeedDialog: (() -> Unit)? = null,
+   706→    onShowNormalizationDialog: (() -> Unit)? = null
+   707→) {
+   708→    val launchEqualizer by rememberEqualizerLauncher(audioSessionId = { binder.player.audioSessionId })
+   709→
+   710→    BaseMediaItemMenu(
+   711→        mediaItem = mediaItem,
+   712→        onStartRadio = {
+   713→            binder.stopRadio()
+   714→            binder.player.seamlessPlay(mediaItem)
+   715→            binder.setupRadio(NavigationEndpoint.Endpoint.Watch(videoId = mediaItem.mediaId))
+   716→        },
+   717→        onGoToEqualizer = launchEqualizer,
+   718→        onShowSleepTimer = {},
+   719→        onDismiss = onDismiss,
+   720→        onShowSpeedDialog = onShowSpeedDialog,
+   721→        onShowNormalizationDialog = onShowNormalizationDialog
+   722→    )
+   723→}
+   724→
+   725→private fun onDismiss(binder: PlayerService.Binder) {
+   726→    binder.stopRadio()
+   727→    binder.player.clearMediaItems()
+   728→}
+   729→
+   730→
