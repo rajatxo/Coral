@@ -1,0 +1,67 @@
+Here is the critical bug report based on the 18 screenshots of your **ViTune-BC** build compared to the target **BITCHORD** (Apple Music) design.
+
+### **Screenshot Overview**
+The screenshots show the "Now Playing" screen for a song by **Fujii Kaze**.
+*   **Top Half:** Displays a large, crisp album art image (black and white portrait).
+*   **Middle:** Song title, Artist name, and a scrolling **Lyric Strip** (e.g., "それでも時々浮つくmy heart").
+*   **Bottom Half:** A dark, blurred background (presumably the album art blurred) containing the Seekbar, Playback Controls (Prev/Pause/Next), and secondary controls (Shuffle/Repeat/Infinity).
+*   **Navigation:** A large "Queue" pill button sits at the very bottom.
+
+---
+
+### **CRITICAL BUG REPORT**
+
+#### **1. Album Art Coverage (The "Black Bar" Bug)**
+*   **Status:** **BROKEN / MAJOR VISUAL GLITCH**
+*   **Observation:** The album art does **NOT** cover the full screen. There is a distinct **solid black bar** at the very top of the screen, *above* the album art image.
+*   **Details:**
+    *   The black bar is approximately **30-40dp** high (roughly the height of the Android Status Bar area, though the status bar icons are floating *inside* this black void or just above it).
+    *   The album art starts *below* this black region.
+    *   **The Fix:** You need to set the window background to transparent or set the `ImageView` containing the album art to `match_parent` height and use `clipToOutline="false"` or `ScaleType.CROP` to ensure it extends behind the status bar/navigation bars. The background behind the album art should be the image itself, not black.
+
+#### **2. Blend Between Crisp Top and Blurred Bottom**
+*   **Status:** **JARRING / UNNATURAL**
+*   **Observation:** The transition from the sharp album art (top) to the blurred controls background (bottom) is a **hard horizontal cut**, not a smooth gradient fade.
+*   **Details:**
+    *   **Seam Location:** The hard line appears exactly where the song metadata text ("Fujii Kaze...") ends and the lyric strip begins, roughly at **45-50%** of the screen height.
+    *   **Visual Effect:** It looks like two separate images stacked on top of each other. In the BITCHORD design, the top image should gradually blur and darken into the bottom image using a **Gradient Overlay ( scrim )** that fades from transparent (top) to semi-transparent black (bottom) over the blurred section.
+    *   **The Fix:** Do not use two separate ImageViews if you can avoid it. Use one background image that covers the whole screen. Apply a `BlurView` or a blurred render script to the *bottom half*, and overlay a vertical `GradientDrawable` (Black to Transparent) starting from the bottom and fading out around the middle.
+
+#### **3. Bottom-Right Control Icon**
+*   **Status:** **INCORRECT ICON**
+*   **Observation:** The icon in the bottom-right corner of the control row (next to the Infinity icon) looks like a **"List with a musical note"** or a specific **Queue/Playlist icon**.
+*   **Details:**
+    *   It resembles an "Equalizer" or "Lyrics" toggle in some skins, but it looks cluttered here.
+    *   **Target Design (BITCHORD):** This position typically holds the **"More Options" (Three Vertical Dots)** menu or simply doesn't exist if the Queue button handles list navigation.
+    *   **The Fix:** Replace this icon with the standard **Vertical Three-Dots (⋮)** "More" menu icon to match standard Android/iOS music player conventions.
+
+#### **4. Lyrics Interaction (The Tap)**
+*   **Status:** **PARTIALLY IMPLEMENTED / CONFUSING**
+*   **Observation:** When you tap the lyric strip (seen in screenshots 11-16), it triggers a state change, but it behaves oddly.
+*   **Details:**
+    *   Instead of expanding into a full-screen immersive view *over* the album art (like Apple Music), tapping it seems to trigger a text header saying **"Lyrics are not available for this song"** appearing *above* the album art (screenshot 11), pushing the layout down or overlaying awkwardly.
+    *   In later screenshots (12-16), the lyrics strip remains, but the top of the screen turns solid black/dark, hiding the top of the album art.
+    *   **The Fix:** Tapping the lyric strip should animate the view into a **Full-Screen Lyrics Mode**. The album art should either zoom out to a small thumbnail (top-left) or fade away completely, and the lyrics should take up the center 60% of the screen with a dark blurred background.
+
+#### **5. Lyrics Expanded View Layout**
+*   **Status:** **MISSING ELEMENTS**
+*   **Observation:** The current "expanded" state (screenshots 11-16) is broken.
+*   **Details:**
+    *   **Album Art Thumbnail:** Missing. The main art stays huge but gets covered by a black box or text.
+    *   **Action Buttons:** I do not see a **Search (Magnifying Glass)** or **Settings (Gear)** icon in the expanded state shown.
+    *   **Close Button:** There is no visible "Down Arrow" or "Close" button to return to the Now Playing view (except maybe system back).
+    *   **The Fix:** Implement a dedicated Fullscreen Lyrics Fragment/View:
+        *   **Header:** Small Album Art (rounded corners) + Track Title + **Close Button (Chevron Down)**.
+        *   **Body:** Large scrolling lyrics text.
+        *   **Footer/Actions:** Keep playback controls at the bottom, but add a **Search Icon** (top right) for finding lyrics online.
+
+#### **6. Other Broken Elements (BITCHORD Signature Look)**
+*   **The "Queue" Button:** It is a massive, grey, floating pill at the very bottom. In the reference design, this is usually sleeker, often just an icon in the control row, or a text button that blends better. Currently, it looks like a generic Material Design button that doesn't fit the "Apple Music" aesthetic.
+*   **Seekbar Thumb:** The seekbar thumb (the circle you drag) looks like a default Android material circle. It should be a white or primary-color filled circle, slightly larger, to match the premium feel.
+*   **Status Bar Icons:** In screenshots 1-9, the status bar (time, battery) is white. In screenshots 10+, when the "Lyrics" mode glitches out, the status bar area turns black or the icons disappear/hide. This indicates the "Light Status Bar" flag is being lost during state transitions.
+
+### **Summary of Fixes Needed:**
+1.  **Remove the top black bar** (Fix layout constraints/margins).
+2.  **Add a Gradient Scrim** (Fade the sharp line between the cover art and the blurred bottom).
+3.  **Fix the Lyrics Tap** (It should open a new Fullscreen View, not just show error text).
+4.  **Update Icons** (Change the bottom-right icon to 3-dots; add Search/Close buttons to the lyrics view).

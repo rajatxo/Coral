@@ -113,6 +113,7 @@ fun BitChordPlayer(
     onOpenQueue: () -> Unit,
     onTitleClick: (() -> Unit)? = null,
     onArtistClick: (() -> Unit)? = null,
+    onOpenLyricsDialog: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val (colorPalette, typography) = LocalAppearance.current
@@ -330,12 +331,13 @@ fun BitChordPlayer(
                 }
         )
 
-        // 2. CRISP TOP IMAGE — top 55% of screen, fades out at its bottom edge
-        //    into the blurred background below — seamless blend.
+        // 2. CRISP TOP IMAGE — top 60% of screen, fades out smoothly into the
+        //    blurred background below. Fade is spread over a wide range (50%->80%
+        //    of image height) so there is NO hard seam.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.55f)
+                .fillMaxHeight(0.60f)
                 .align(Alignment.TopCenter)
         ) {
             AsyncImage(
@@ -346,11 +348,15 @@ fun BitChordPlayer(
                     .fillMaxSize()
                     .drawWithContent {
                         drawContent()
+                        // Long, gentle alpha mask: keep full opacity until 50% of
+                        // image height, then fade gradually to transparent at 100%.
+                        // This 50% wide fade range is what makes the blend seamless.
                         drawRect(
                             brush = Brush.verticalGradient(
                                 colorStops = arrayOf(
-                                    0.75f to Color.Black,
-                                    1.0f to Color.Transparent
+                                    0.00f to Color.Black,
+                                    0.50f to Color.Black,
+                                    1.00f to Color.Transparent
                                 )
                             ),
                             blendMode = BlendMode.DstIn
@@ -359,23 +365,29 @@ fun BitChordPlayer(
             )
         }
 
-        // 3. DARK SCRIM on the bottom half — for text legibility on the blurred bg
+        // 3. DARK SCRIM (multi-stop, very gentle) — for text legibility on the
+        //    blurred bg. Starts nearly transparent at 30%, reaches full 75% black
+        //    at the very bottom. Distributes darkening across the whole height
+        //    so no hard transition line is visible.
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
-                            0.40f to Color.Transparent,
-                            0.55f to Color.Black.copy(alpha = 0.25f),
-                            0.75f to Color.Black.copy(alpha = 0.55f),
-                            1.00f to Color.Black.copy(alpha = 0.75f)
+                            0.00f to Color.Black.copy(alpha = 0.10f),
+                            0.30f to Color.Black.copy(alpha = 0.15f),
+                            0.50f to Color.Black.copy(alpha = 0.35f),
+                            0.70f to Color.Black.copy(alpha = 0.55f),
+                            1.00f to Color.Black.copy(alpha = 0.80f)
                         )
                     )
                 )
         )
 
         // 4. Full lyrics overlay (when user taps the lyric strip)
+        //    onOpenDialog is now wired to onOpenLyricsDialog so the expand icon
+        //    (top-left of lyrics overlay) opens the LrcLib search dialog.
         Lyrics(
             mediaId = mediaItem.mediaId,
             isDisplayed = isShowingLyrics,
@@ -383,7 +395,7 @@ fun BitChordPlayer(
             ensureSongInserted = { Database.insert(mediaItem) },
             mediaMetadataProvider = { mediaItem.mediaMetadata },
             durationProvider = { binder.player.duration.takeIf { it > 0 } ?: C.TIME_UNSET },
-            onOpenDialog = {},
+            onOpenDialog = onOpenLyricsDialog,
             modifier = Modifier.fillMaxSize(),
             shouldShowSynchronizedLyrics = PlayerPreferences.isShowingSynchronizedLyrics,
             setShouldShowSynchronizedLyrics = { PlayerPreferences.isShowingSynchronizedLyrics = it },
@@ -674,7 +686,7 @@ fun BitChordPlayer(
                     )
                 }
 
-                // Queue
+                // Menu (three dots) — opens the player menu (queue, sleep timer, etc.)
                 Box(
                     modifier = Modifier
                         .size(44.dp)
@@ -684,8 +696,8 @@ fun BitChordPlayer(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = BitChordIcons.Queue,
-                        contentDescription = "Queue",
+                        imageVector = BitChordIcons.MoreVertical,
+                        contentDescription = "More",
                         tint = Color.White,
                         modifier = Modifier.size(22.dp)
                     )
