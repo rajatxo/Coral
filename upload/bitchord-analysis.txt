@@ -1,0 +1,161 @@
+Here is the extreme detail breakdown of the **BITCHORD (ViTune-BC)** "Now Playing" interface, followed by the concrete implementation specification for Jetpack Compose.
+
+### Part 1: Screenshot Analysis & Visual Breakdown
+
+**General Vibe:** The UI is a dark, immersive, full-screen music player. It uses a **full-bleed background image** (the album art) that is dimmed significantly to allow white text to pop. The layout is strictly vertical, centered, and minimalist.
+
+**Key Observations from Screenshots:**
+*   **Screens 1-3, 5, 10-16 (Main Player):** Show the standard playback view. The background is a black and white photo of an artist (Fuji Kaze). The UI elements are overlaid on top.
+*   **Screenshot 4 (Queue):** Shows a bottom sheet or overlay titled "Queue". It lists the current song, upcoming songs (Ariana Grande, imase), and an "AutoPlay" suggestion. This indicates the Queue button opens this specific list.
+*   **Screenshots 6-9 (Lyrics View):** Shows a transition to a **Full-Screen Lyrics** mode. The album art disappears (or moves to a tiny thumbnail in a top app bar), and the screen fills with scrolling text. The current lyric line is large and bold; past/future lines are grey and smaller.
+*   **Interactions:** We see the "Shuffle" icon being tapped (it highlights/fills in Screenshot 14). We see the "1" (Repeat One) button being toggled. The progress bar moves smoothly.
+
+---
+
+### Part 2: Concrete Implementation Spec (ViTune-BC)
+
+Use these exact values to build the `NowPlayingScreen.kt` composable.
+
+#### 1. Now Playing Screen Layout (Top-to-Bottom)
+The screen is a `Box` or `Column` with `Modifier.fillMaxSize()`. Content is center-aligned horizontally.
+
+1.  **Top Handle/Status Bar Area:** A small grey pill shape (`width ~40dp`, `height ~4dp`, `radius 2dp`) centered near the top (padding top ~30dp) to indicate this is a draggable sheet or modal.
+2.  **Audio Metadata Tag:** Small text centered below the handle.
+3.  **Album Art Container:** Large square area.
+4.  **Track Info Block:** Title and Artist text, left-aligned (or start-aligned) with a button on the far right.
+5.  **Lyric Strip:** A single clickable row.
+6.  **Seek Bar Section:** The progress slider with time stamps.
+7.  **Main Playback Controls:** Previous, Play/Pause, Next.
+8.  **Volume Slider:** A thin slider with speaker icons.
+9.  **Secondary Actions Row:** Shuffle, Repeat One, Loop/Infinity, Queue.
+
+#### 2. Album Art Treatment
+*   **Shape:** Square (`AspectRatio(1f)`).
+*   **Size:** Takes up roughly 45-50% of screen width. On a standard phone, approx **320dp x 320dp**.
+*   **Corner Radius:** **0dp (Sharp corners)**. It looks like a raw image crop matching the background.
+*   **Shadow:** Subtle drop shadow. Elevation ~8dp to lift it slightly off the background if there's a color difference, though here it blends into the background.
+*   **Background Treatment:** The album art serves as the **background** of the entire screen. It should be rendered in a `Box` behind everything else using `ContentScale.Crop`.
+*   **Overlay:** A scrim (dark overlay) is applied over the background image. Use `Brush.verticalGradient` with colors `Color.Black.copy(alpha = 0.4f)` to `Color.Black.copy(alpha = 0.7f)` to ensure legibility.
+*   **Animation:** When Paused -> Playing, the art likely has a subtle scale animation (e.g., 0.98 to 1.0).
+
+#### 3. Title + Artist Row
+*   **Layout:** `Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 24dp))`.
+*   **Title Text:**
+    *   **Content:** "死ぬのがいいわ - Shinunoga E..."
+    *   **Style:** Bold, White.
+    *   **Size:** **22sp**.
+    *   **Weight:** `FontWeight.Bold`.
+    *   **Overflow:** `TextOverflow.Ellipsis` (max lines 1).
+    *   **Modifier:** `weight(1f)` to push the button to the right.
+*   **Artist Text:**
+    *   **Content:** "Fuji Kaze"
+    *   **Style:** Regular/Light, Light Grey.
+    *   **Size:** **16sp**.
+    *   **Color:** `Color.LightGray` (approx #B0B0B0).
+    *   **Position:** Directly below Title.
+*   **Right Side Button:**
+    *   **Icon:** Three vertical dots (`Icons.Default.MoreVert`) inside a circle.
+    *   **Circle Size:** **40dp** diameter.
+    *   **Background:** `Color.White.copy(alpha = 0.2f)` (White with 20% opacity).
+    *   **Icon Color:** White.
+    *   **Alignment:** Centered vertically with the Title text (or the whole block).
+
+#### 4. Lyrics Inline Strip
+*   **Location:** Below Artist name, above Progress Bar.
+*   **Layout:** Clickable Row.
+*   **Text:**
+    *   **Content:** Current lyric line (e.g., "死ぬのがいいわ").
+    *   **Size:** **16sp**.
+    *   **Color:** `Color.White.copy(alpha = 0.7f)` (Slightly dimmer than title).
+*   **Chevron:**
+    *   **Icon:** `Icons.Default.ChevronRight`.
+    *   **Size:** **18-20dp**.
+    *   **Color:** Same as text.
+    *   **Position:** Trailing edge.
+*   **Action:** Clicking this navigates to the Full Screen Lyrics view (seen in Screens 6-9).
+
+#### 5. Progress / Seek Bar
+*   **Container:** `Row` with `Modifier.padding(horizontal = 24dp, vertical = 8dp)`.
+*   **Slider:**
+    *   **Height:** Thin track (~4dp).
+    *   **Thumb:** Visible, white circle (~12-14dp diameter).
+    *   **Colors:** Track background = `Color.White.copy(alpha = 0.3f)`. Active Track = White.
+*   **Timestamps:**
+    *   **Left (Current):** "1:09", "1:10", etc. Size **12sp**, Color Light Grey.
+    *   **Right (Remaining):** "-1:55", "-1:54". Note the **negative sign** indicating time left. Same styling as left.
+
+#### 6. Main Controls Row
+*   **Layout:** `Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth())`.
+*   **Padding:** Top ~16dp, Bottom ~8dp.
+*   **Previous Button:**
+    *   **Icon:** `Icons.Default.SkipPrevious` (or custom icon with tail).
+    *   **Size:** **36dp**.
+    *   **Color:** White.
+*   **Play/Pause Button (Center):**
+    *   **Container:** No circular background container visible (just the icon), OR a transparent container of ~70dp for touch target.
+    *   **Icon:** `Icons.Default.Pause` (two bars) or `Icons.Default.PlayArrow`.
+    *   **Size:** **48dp - 56dp** (Largest element).
+    *   **Color:** White.
+*   **Next Button:**
+    *   **Icon:** `Icons.Default.SkipNext`.
+    *   **Size:** **36dp**.
+    *   **Color:** White.
+
+#### 7. Secondary Controls Row
+*   **Location:** Bottom area, below Volume (or replacing volume in some views, but here it looks like Volume is above this).
+*   **Layout:** `Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth().padding(bottom = 32dp))`.
+*   **Items (Left to Right):**
+    1.  **Shuffle:** Icon `Icons.Default.Shuffle`. Size ~24dp.
+        *   *State:* Inactive = Grey/Transparent. Active = White (Screenshot 14 shows it active/white).
+    2.  **Repeat One ("1"):** Text "1" inside a Circle.
+        *   **Circle:** Diameter ~40dp. Background `Color.White.copy(alpha = 0.2f)`.
+        *   **Text:** "1", Bold, White, Size ~18sp.
+        *   *Note:* Tapping this likely cycles Off -> Repeat All -> Repeat One.
+    3.  **Loop / Infinity:** Icon `Icons.Default.AllInclusive` (infinity loop) inside a Circle.
+        *   **Circle:** Diameter ~40dp. Background `Color.White.copy(alpha = 0.2f)`.
+        *   **Icon:** White.
+    4.  **Queue:** Icon `Icons.Default.QueueMusic` (list with music note).
+        *   **Style:** Outline only, no circle background (or transparent circle). Size ~24dp. Color White/Grey.
+
+#### 8. Background
+*   **Type:** Image based (Album Art).
+*   **Processing:** Blur? It doesn't look heavily blurred, just darkened. Maybe a slight Gaussian blur (radius ~10-20dp) if the image is too detailed, but the screenshots show distinct facial features, so **blur is minimal or none**.
+*   **Dimming:** Crucial. Use a black overlay with ~60% opacity over the image.
+
+#### 9. Top App Bar
+*   **Visible Elements:**
+    *   System Status Bar (Time 9:41, Icons).
+    *   **Handle:** The small grey pill at the very top center.
+*   **Navigation:** No explicit "Back" arrow text/icon in the player view itself, implying swipe down or the handle acts as the grip. (In Lyrics view Screenshot 6, a thumbnail and title appear at the top left, acting as a mini-app-bar/collapse button).
+
+#### 10. Color Palette (Estimated Hex)
+*   **Background Base:** `#000000` (Black)
+*   **Scrim Overlay:** `#000000` @ 60% Alpha
+*   **Primary Text (Title):** `#FFFFFF` (White)
+*   **Secondary Text (Artist/Timestamps):** `#AAAAAA` (Light Grey)
+*   **Accent / Active Control:** `#FFFFFF` (White)
+*   **Inactive Control / Icon:** `#666666` (Dark Grey)
+*   **Button Surface (Circles):** `#FFFFFF` @ 20% Alpha
+
+#### 11. Spacing & Padding (Rough DP Values)
+*   **Horizontal Margin (Global):** **24dp** (used for Title, Slider, Lyrics).
+*   **Top Handle Margin Top:** **28dp**.
+*   **Art to Text Gap:** **32dp**.
+*   **Title to Artist Gap:** **4dp**.
+*   **Artist to Lyric Strip Gap:** **16dp**.
+*   **Lyric to Slider Gap:** **12dp**.
+*   **Slider to Main Controls Gap:** **20dp**.
+*   **Main Controls to Volume Gap:** **16dp**.
+*   **Volume to Bottom Row Gap:** **24dp**.
+*   **Bottom Safe Area Padding:** **16dp** (plus system nav bar).
+
+#### 12. Animations
+*   **Lyrics Update:** The inline lyric strip should use `Crossfade` or content animation to slide text left/right when the line changes.
+*   **Button Press:** `scale(0.9f)` on press for the Play/Shuffle buttons.
+*   **Page Transition:** The transition to Lyrics (Screens 6-9) looks like a vertical slide-up or a crossfade where the Album Art scales down into the top app bar.
+
+#### 13. Unique UI Patterns (vs Standard Material)
+*   **Negative Timestamp:** Showing remaining time as `-1:55` instead of total duration `3:05` on the right side of the seekbar.
+*   **Inline Lyric Ticker:** Most players hide lyrics behind a tab; this puts the current line prominently in the main flow as a navigation anchor.
+*   **"1" Button:** Using a literal text character "1" inside a circle for "Repeat One" is a specific stylistic choice (common in Asian music apps like QQ Music or NetEase Cloud Music, which ViTune/Bitchord often mimics).
+*   **No Artwork Shadow/Glow:** Unlike Spotify (circular, shadowed) or Apple Music (squircle, blurred), this uses a sharp, rectangular image that bleeds into the background.
