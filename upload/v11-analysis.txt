@@ -1,0 +1,82 @@
+Based on the 20 frames provided, here is the detailed analysis of the color transition animation in your current ViTune-BC build.
+
+### **Frame-by-Frame Color Analysis**
+
+**Phase 1: Song 1 (Trevor Daniel - Falling)**
+*   **Frames 1–3:**
+    *   **Dominant Color:** `#4A2C32` (Deep Muted Maroon/Brown).
+    *   **Type:** **Final Color.** This is extracted from the floral album art.
+    *   **Comparison:** Static. The color is stable and matches the artwork.
+
+**Phase 2: Transition to Song 2 (TheFatRat - We'll Meet Again)**
+*   **Frame 4 (The "Flash" Frame):**
+    *   **Dominant Color:** `#6D4449` (Lighter Muted Pinkish-Brown).
+    *   **Type:** **Neutral/Loading.** The album art is a blank grey placeholder.
+    *   **Comparison:** **Abrupt Shift.** The background has snapped to a lighter, desaturated version of the previous song's color or a generic default. It looks "washed out."
+*   **Frame 5:**
+    *   **Dominant Color:** `#2B3E50` (Deep Steel Blue).
+    *   **Type:** **Final Color.** Extracted from the blue sky in the new album art.
+    *   **Comparison:** **Hard Snap.** The color jumps instantly from the light pinkish-brown in Frame 4 to this deep blue. There is zero blending.
+
+**Phase 3: Transition to Song 3 (TheFatRat - Rise Up)**
+*   **Frame 7 (The "Flash" Frame):**
+    *   **Dominant Color:** `#37474F` (Dark Blue-Grey/Slate).
+    *   **Type:** **Neutral/Loading.** Album art is blank.
+    *   **Comparison:** **Hard Snap.** Jumps from the previous blue to this neutral dark grey.
+*   **Frame 8:**
+    *   **Dominant Color:** `#3E2723` (Dark Warm Grey/Charcoal).
+    *   **Type:** **Final Color.** Extracted from the dark areas of the sunset art.
+    *   **Comparison:** **Hard Snap.** Instant change to the final warm tone.
+
+**Phase 4: Transition to Song 4 (TheFatRat - Ghost Light)**
+*   **Frame 10 (The "Flash" Frame):**
+    *   **Dominant Color:** `#263238` (Very Dark Blue-Grey).
+    *   **Type:** **Neutral/Loading.** Album art is blank.
+    *   **Comparison:** **Hard Snap.**
+*   **Frame 11:**
+    *   **Dominant Color:** #1A3C40 (Dark Teal/Cyan).
+    *   **Type:** **Final Color.** Matches the ghostly teal artwork.
+    *   **Comparison:** **Hard Snap.**
+
+**Phase 5: Transition to Song 5 (TheFatRat - Fly Away)**
+*   **Frame 14 (The "Flash" Frame):**
+    *   **Dominant Color:** #263238 (Dark Blue-Grey - Same neutral as before).
+    *   **Type:** **Neutral/Loading.**
+    *   **Comparison:** **Hard Snap.**
+*   **Frame 15:**
+    *   **Dominant Color:** #1C252C (Midnight Blue).
+    *   **Type:** **Final Color.** Matches the night sky artwork.
+    *   **Comparison:** **Hard Snap.**
+
+---
+
+### **Transition Quality Analysis**
+
+**1. Is it smooth and flowing?**
+**No.** It is currently **stepped and janky**. The animation does not flow; it behaves like a state machine switching between "Old Song," "Loading," and "New Song."
+
+**2. Does it snap or crossfade?**
+It **Snaps Abruptly**.
+*   When the next song starts loading (Frame 4, 7, 10, 14), the background color changes **instantly** to a neutral placeholder color.
+*   When the album art finishes loading (Frame 5, 8, 11, 15), the background color **snaps again** to the new dominant color.
+*   **Result:** You see two distinct color changes per transition instead of one smooth morph.
+
+**3. Is there a visible "Grey Flash"?**
+**Yes, absolutely.**
+*   Look closely at **Frame 4**: When "Falling" ends and "We'll Meet Again" starts loading, the screen flashes to a lighter, ugly pinkish-grey (`#6D4449`) because the art is missing.
+*   This creates a visual "glitch" or stutter that breaks immersion.
+
+**4. Estimated Transition Time:**
+*   **~0ms (Instant).** There is no interpolation (lerping) between the hex colors. The CSS/View background property is being set immediately upon state change.
+
+**5. Does it match BITCHORD's style?**
+**No.**
+*   **BITCHORD Style:** The background color should morph seamlessly. As "Fading" (Maroon) ends, the background should slowly blend into the Blue of the next song over ~800ms, regardless of whether the image has loaded or not.
+*   **Your Build:** It acts like a broken traffic light: **Color A -> [Flash Neutral] -> Color B**.
+
+### **Summary of What is Wrong**
+Your logic is likely updating the background color **reactively** to the image load status:
+1.  **Song Ends** -> Image becomes null -> Background sets to **Default/Grey** (The Flash).
+2.  **Image Loads** -> Palette extracts color -> Background sets to **New Color** (The Snap).
+
+**To Fix:** You need to **interpolate (animate)** the background color from the *old* song's color directly to the *new* song's color, ignoring the intermediate "loading" state of the image view.
