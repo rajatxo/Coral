@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.C
@@ -76,6 +77,8 @@ import app.vitune.providers.lrclib.LrcLib
 import app.vitune.providers.lrclib.LrcParser
 import app.vitune.providers.lrclib.toLrcFile
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.coroutines.CancellationException
@@ -120,12 +123,9 @@ fun BitChordPlayer(
     val metadata = mediaItem.mediaMetadata
     val media = remember(mediaItem, duration) { mediaItem.toUiMedia(duration) }
 
-    // Subtle scale pulse on the background album art when play/pause toggles
-    val artScale by animateFloatAsState(
-        targetValue = if (shouldBePlaying) 1f else 0.96f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy),
-        label = "artScale"
-    )
+    // NOTE: Removed the artScale animation — it was causing the background
+    // to visibly shrink/expand on play/pause, which looked jarring.
+    // The album art now stays perfectly still (matches BITCHORD/YumaPlayer).
 
     var shuffleOn by remember { mutableStateOf(binder.player.shuffleModeEnabled) }
     var repeatMode by remember { mutableStateOf(binder.player.repeatMode) }
@@ -314,48 +314,70 @@ fun BitChordPlayer(
                       else 0f
 
     // ====================================================================
-    //  APPLE-MUSIC-STYLE NOW PLAYING
-    // ====================================================================
-    Box(modifier = modifier.fillMaxSize()) {
-        // 1. BLURRED BACKGROUND — full screen, blurred album art
+    //  HYBRID BACKGROUND (Apple Music / YumaPlayer style)
+    //
+    //  Layer 1: BLURRED FULL-SCREEN album art (background)
+    //           - Fills entire screen edge-to-edge
+    //           - 48dp blur radius → frosted glass effect
+    //           - Even low-res art looks smooth because it's blurred
+    //           - crossfade(400ms) for smooth song transitions
+    //
+    //  Layer 2: CRISP album art at NORMAL SIZE (horizontal rectangle)
+    //           - NOT stretched to fill screen → no pixelation
+    //           - Uses ContentScale.Fit → preserves aspect ratio, NO CROPPING
+    //             (people/faces stay visible!)
+    //           - Bottom edge FADES TO TRANSPARENT → seamless blend with blur
+    //           - Empty space around the art is filled by the blurred bg
+    //
+    //  Layer 3: MULTI-STOP DARK GRADIENT over the bottom half
+    //           - Text legibility on top of the blurred bg
+    //  ====================================================================
+    Box(modifier = Modifier.fillMaxSize()) {
+        // 1. BLURRED FULL-SCREEN BACKGROUND
         AsyncImage(
-            model = metadata.artworkUri?.thumbnail(Dimensions.thumbnails.player.song.px),
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(metadata.artworkUri?.thumbnail(Dimensions.thumbnails.player.song.px))
+                .crossfade(400)
+                .build(),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxSize()
-                .blur(32.dp)
-                .graphicsLayer {
-                    scaleX = artScale
-                    scaleY = artScale
-                }
+                .blur(48.dp)
         )
 
-        // 2. CRISP TOP IMAGE — top 60% of screen, fades out smoothly into the
-        //    blurred background below. Fade is spread over a wide range (50%->80%
-        //    of image height) so there is NO hard seam.
+        // 2. CRISP ALBUM ART — horizontal rectangle, ContentScale.Fit (NO CROPPING)
+        //    Size: full width × 240dp height
+        //    Position: top-center, 32dp from the top
+        //    Bottom edge fades from opaque to transparent over the bottom 40%
+        //    of its height → seamless blend with the blurred background below.
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.60f)
                 .align(Alignment.TopCenter)
+                .padding(top = 32.dp)
+                .fillMaxWidth()
+                .height(240.dp)
         ) {
             AsyncImage(
-                model = metadata.artworkUri?.thumbnail(Dimensions.thumbnails.player.song.px),
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(metadata.artworkUri?.thumbnail(Dimensions.thumbnails.player.song.px))
+                    .crossfade(400)
+                    .build(),
                 contentDescription = null,
-                contentScale = ContentScale.Crop,
+                contentScale = ContentScale.Fit,  // ← Fit = NO CROPPING, people stay visible
                 modifier = Modifier
                     .fillMaxSize()
+                    .clip(RoundedCornerShape(16.dp))
                     .drawWithContent {
                         drawContent()
-                        // Long, gentle alpha mask: keep full opacity until 50% of
-                        // image height, then fade gradually to transparent at 100%.
-                        // This 50% wide fade range is what makes the blend seamless.
+                        // Alpha mask: full opacity until 60% of image height,
+                        // then fade gradually to transparent at 100%.
+                        // This 40% wide fade zone creates the seamless blend.
                         drawRect(
                             brush = Brush.verticalGradient(
                                 colorStops = arrayOf(
                                     0.00f to Color.Black,
-                                    0.50f to Color.Black,
+                                    0.60f to Color.Black,
                                     1.00f to Color.Transparent
                                 )
                             ),
@@ -365,21 +387,20 @@ fun BitChordPlayer(
             )
         }
 
-        // 3. DARK SCRIM (multi-stop, very gentle) — for text legibility on the
-        //    blurred bg. Starts nearly transparent at 30%, reaches full 75% black
-        //    at the very bottom. Distributes darkening across the whole height
-        //    so no hard transition line is visible.
+        // 3. MULTI-STOP DARK GRADIENT (text legibility on blurred bg)
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
-                            0.00f to Color.Black.copy(alpha = 0.10f),
-                            0.30f to Color.Black.copy(alpha = 0.15f),
-                            0.50f to Color.Black.copy(alpha = 0.35f),
-                            0.70f to Color.Black.copy(alpha = 0.55f),
-                            1.00f to Color.Black.copy(alpha = 0.80f)
+                            0.00f to Color.Black.copy(alpha = 0.00f),
+                            0.30f to Color.Black.copy(alpha = 0.05f),
+                            0.45f to Color.Black.copy(alpha = 0.30f),
+                            0.55f to Color.Black.copy(alpha = 0.55f),
+                            0.70f to Color.Black.copy(alpha = 0.80f),
+                            0.85f to Color.Black.copy(alpha = 0.92f),
+                            1.00f to Color.Black.copy(alpha = 0.97f)
                         )
                     )
                 )
