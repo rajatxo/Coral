@@ -380,16 +380,18 @@ fun BitChordPlayer(
                     .clip(RoundedCornerShape(16.dp))
                     .drawWithContent {
                         drawContent()
-                        // Soft alpha mask: full opacity until 80% of image height,
+                        // Soft alpha mask: full opacity until 85% of image height,
                         // then fade gradually to transparent at 100%.
-                        // This 20% fade zone is the BOUNDARY fade — the cover's
-                        // colors stay intact, only the bottom edge becomes
-                        // gradually see-through to blend with the blur below.
+                        // Only the very bottom 15% fades — the rest of the cover
+                        // shows in its original colors. NO black band.
+                        // (This is the technique the RiMusic guy described:
+                        //  Brush.verticalGradient with BlendMode.DstIn, applied
+                        //  only at the bottom part of the box.)
                         drawRect(
                             brush = Brush.verticalGradient(
                                 colorStops = arrayOf(
                                     0.00f to Color.Black,
-                                    0.80f to Color.Black,
+                                    0.85f to Color.Black,
                                     1.00f to Color.Transparent
                                 )
                             ),
@@ -400,6 +402,10 @@ fun BitChordPlayer(
         }
 
         // 3. MULTI-STOP DARK GRADIENT (text legibility on blurred bg)
+        //    IMPORTANT: This gradient starts at 55% screen height (NOT 45%),
+        //    so it does NOT overlap the album art. The album art (420dp tall)
+        //    ends around 55% screen height, and the dark scrim only kicks in
+        //    AFTER that — keeping the cover's colors intact.
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -407,11 +413,10 @@ fun BitChordPlayer(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
                             0.00f to Color.Black.copy(alpha = 0.00f),
-                            0.30f to Color.Black.copy(alpha = 0.05f),
-                            0.45f to Color.Black.copy(alpha = 0.30f),
-                            0.55f to Color.Black.copy(alpha = 0.55f),
-                            0.70f to Color.Black.copy(alpha = 0.80f),
-                            0.85f to Color.Black.copy(alpha = 0.92f),
+                            0.50f to Color.Black.copy(alpha = 0.00f),
+                            0.55f to Color.Black.copy(alpha = 0.10f),
+                            0.65f to Color.Black.copy(alpha = 0.40f),
+                            0.80f to Color.Black.copy(alpha = 0.75f),
                             1.00f to Color.Black.copy(alpha = 0.97f)
                         )
                     )
