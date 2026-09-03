@@ -1,0 +1,2002 @@
+     1→package com.music.bitchord.ui.player
+     2→
+     3→import android.database.ContentObserver
+     4→import android.graphics.Bitmap
+     5→import android.media.AudioManager
+     6→import android.os.Build
+     7→import android.os.Handler
+     8→import android.os.Looper
+     9→import android.provider.Settings
+    10→import android.view.View
+    11→import android.window.OnBackInvokedCallback
+    12→import android.window.OnBackInvokedDispatcher
+    13→import androidx.activity.compose.BackHandler
+    14→import androidx.annotation.RequiresApi
+    15→import androidx.compose.animation.animateColorAsState
+    16→import androidx.compose.animation.core.Animatable
+    17→import androidx.compose.animation.core.FastOutSlowInEasing
+    18→import androidx.compose.animation.core.LinearEasing
+    19→import androidx.compose.animation.core.RepeatMode
+    20→import androidx.compose.animation.core.Spring
+    21→import androidx.compose.animation.core.animate
+    22→import androidx.compose.animation.core.animateFloat
+    23→import androidx.compose.animation.core.animateFloatAsState
+    24→import androidx.compose.animation.core.infiniteRepeatable
+    25→import androidx.compose.animation.core.rememberInfiniteTransition
+    26→import androidx.compose.animation.core.spring
+    27→import androidx.compose.animation.core.tween
+    28→import androidx.compose.foundation.background
+    29→import androidx.compose.foundation.clickable
+    30→import androidx.compose.foundation.gestures.awaitEachGesture
+    31→import androidx.compose.foundation.gestures.awaitFirstDown
+    32→import androidx.compose.foundation.gestures.awaitVerticalTouchSlopOrCancellation
+    33→import androidx.compose.foundation.gestures.detectDragGestures
+    34→import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+    35→import androidx.compose.foundation.gestures.verticalDrag
+    36→import androidx.compose.foundation.interaction.DragInteraction
+    37→import androidx.compose.foundation.interaction.MutableInteractionSource
+    38→import androidx.compose.foundation.layout.Arrangement
+    39→import androidx.compose.foundation.layout.Box
+    40→import androidx.compose.foundation.layout.BoxWithConstraints
+    41→import androidx.compose.foundation.layout.Column
+    42→import androidx.compose.foundation.layout.Row
+    43→import androidx.compose.foundation.layout.PaddingValues
+    44→import androidx.compose.ui.draw.BlurredEdgeTreatment
+    45→import androidx.compose.ui.draw.blur
+    46→import androidx.compose.animation.core.animateDpAsState
+    47→import kotlinx.coroutines.delay
+    48→import kotlin.math.abs
+    49→import androidx.compose.foundation.layout.Spacer
+    50→import androidx.compose.foundation.layout.IntrinsicSize
+    51→import androidx.compose.foundation.layout.aspectRatio
+    52→import androidx.compose.foundation.layout.fillMaxHeight
+    53→import androidx.compose.foundation.layout.fillMaxSize
+    54→import androidx.compose.foundation.layout.fillMaxWidth
+    55→import androidx.compose.foundation.layout.height
+    56→import androidx.compose.foundation.layout.WindowInsets
+    57→import androidx.compose.foundation.layout.asPaddingValues
+    58→import androidx.compose.foundation.layout.navigationBarsPadding
+    59→import androidx.compose.foundation.layout.statusBars
+    60→import androidx.compose.foundation.layout.offset
+    61→import androidx.compose.foundation.layout.padding
+    62→import androidx.compose.foundation.layout.size
+    63→import androidx.compose.foundation.layout.statusBarsPadding
+    64→import androidx.compose.foundation.layout.width
+    65→import androidx.compose.foundation.layout.widthIn
+    66→import androidx.compose.foundation.lazy.LazyColumn
+    67→import androidx.compose.foundation.lazy.LazyListItemInfo
+    68→import androidx.compose.foundation.lazy.LazyListState
+    69→import androidx.compose.foundation.lazy.itemsIndexed
+    70→import androidx.compose.foundation.lazy.rememberLazyListState
+    71→import androidx.compose.foundation.shape.CircleShape
+    72→import androidx.compose.foundation.shape.RoundedCornerShape
+    73→import androidx.compose.material.icons.Icons
+    74→import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+    75→import androidx.compose.material.icons.automirrored.rounded.VolumeDown
+    76→import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+    77→import androidx.compose.material.icons.rounded.Cast
+    78→import androidx.compose.material.icons.rounded.Close
+    79→import androidx.compose.material.icons.rounded.DragHandle
+    80→import androidx.compose.material.icons.rounded.FastForward
+    81→import androidx.compose.material.icons.rounded.FastRewind
+    82→import androidx.compose.material.icons.rounded.GraphicEq
+    83→import androidx.compose.material.icons.rounded.Headphones
+    84→import androidx.compose.material.icons.rounded.MoreHoriz
+    85→import androidx.compose.material.icons.rounded.Pause
+    86→import androidx.compose.material.icons.rounded.PlayArrow
+    87→import androidx.compose.material3.CircularProgressIndicator
+    88→import androidx.compose.material3.Icon
+    89→import androidx.compose.material3.MaterialTheme
+    90→import androidx.compose.material3.Text
+    91→import androidx.compose.runtime.Composable
+    92→import androidx.compose.runtime.DisposableEffect
+    93→import androidx.compose.runtime.LaunchedEffect
+    94→import androidx.compose.runtime.SideEffect
+    95→import androidx.compose.runtime.MutableFloatState
+    96→import androidx.compose.runtime.MutableLongState
+    97→import androidx.compose.runtime.getValue
+    98→import androidx.compose.runtime.derivedStateOf
+    99→import androidx.compose.runtime.mutableFloatStateOf
+   100→import androidx.compose.runtime.mutableIntStateOf
+   101→import androidx.compose.runtime.mutableLongStateOf
+   102→import androidx.compose.runtime.withFrameMillis
+   103→import androidx.compose.runtime.withFrameNanos
+   104→import androidx.compose.runtime.mutableStateOf
+   105→import androidx.compose.runtime.remember
+   106→import androidx.compose.runtime.rememberUpdatedState
+   107→import androidx.compose.runtime.rememberCoroutineScope
+   108→import androidx.compose.runtime.setValue
+   109→import androidx.compose.runtime.snapshotFlow
+   110→import kotlinx.coroutines.flow.first
+   111→import androidx.compose.ui.Alignment
+   112→import androidx.compose.ui.Modifier
+   113→import androidx.compose.ui.draw.clip
+   114→import androidx.compose.ui.draw.shadow
+   115→import androidx.compose.ui.draw.drawWithContent
+   116→import androidx.compose.ui.geometry.Offset
+   117→import androidx.compose.ui.graphics.BlendMode
+   118→import androidx.compose.ui.graphics.Brush
+   119→import androidx.compose.ui.graphics.CompositingStrategy
+   120→import androidx.compose.ui.graphics.Shadow
+   121→import androidx.compose.ui.graphics.Color
+   122→import androidx.compose.ui.graphics.TransformOrigin
+   123→import androidx.compose.ui.graphics.drawscope.ContentDrawScope
+   124→import androidx.compose.ui.graphics.drawscope.clipRect
+   125→import androidx.compose.ui.graphics.graphicsLayer
+   126→import androidx.compose.ui.graphics.vector.ImageVector
+   127→import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+   128→import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+   129→import androidx.compose.ui.input.nestedscroll.nestedScroll
+   130→import androidx.compose.ui.input.pointer.AwaitPointerEventScope
+   131→import androidx.compose.ui.input.pointer.PointerInputChange
+   132→import androidx.compose.ui.input.pointer.pointerInput
+   133→import androidx.compose.ui.input.pointer.positionChange
+   134→import androidx.compose.ui.input.pointer.util.VelocityTracker
+   135→import androidx.compose.ui.input.pointer.util.addPointerInputChange
+   136→import androidx.compose.ui.layout.ContentScale
+   137→import androidx.compose.ui.layout.LayoutCoordinates
+   138→import androidx.compose.ui.layout.boundsInRoot
+   139→import androidx.compose.ui.layout.layout
+   140→import androidx.compose.ui.layout.onGloballyPositioned
+   141→import androidx.compose.ui.layout.onSizeChanged
+   142→import androidx.compose.ui.layout.positionInRoot
+   143→import androidx.compose.ui.platform.LocalContext
+   144→import androidx.compose.ui.platform.LocalDensity
+   145→import androidx.compose.ui.platform.LocalView
+   146→import androidx.compose.ui.semantics.contentDescription
+   147→import androidx.compose.ui.semantics.semantics
+   148→import androidx.compose.ui.text.TextLayoutResult
+   149→import androidx.compose.ui.text.TextStyle
+   150→import androidx.compose.ui.text.font.FontWeight
+   151→import androidx.compose.ui.text.style.TextAlign
+   152→import androidx.compose.ui.text.style.TextOverflow
+   153→import androidx.compose.ui.unit.Dp
+   154→import androidx.compose.ui.unit.IntOffset
+   155→import androidx.compose.ui.unit.dp
+   156→import androidx.compose.ui.unit.lerp
+   157→import androidx.compose.ui.unit.Velocity
+   158→import androidx.compose.ui.unit.sp
+   159→import androidx.compose.ui.zIndex
+   160→import androidx.media3.common.Player
+   161→import coil3.compose.AsyncImage
+   162→import coil3.compose.AsyncImagePainter
+   163→import coil3.request.ImageRequest
+   164→import com.music.bitchord.ui.rememberIsForeground
+   165→import com.music.bitchord.ui.components.thumbnailBorder
+   166→import com.music.bitchord.ui.haptics.Haptic
+   167→import com.music.bitchord.ui.haptics.rememberHaptics
+   168→import com.music.bitchord.ui.icons.BitChordIcons
+   169→import androidx.lifecycle.compose.collectAsStateWithLifecycle
+   170→import com.music.bitchord.data.NerdStats
+   171→import com.music.bitchord.data.settings.TrackAnalysisState
+   172→import com.music.bitchord.data.canvas.CanvasArtwork
+   173→import com.music.bitchord.data.canvas.CanvasRepository
+   174→import com.music.bitchord.data.canvas.CanvasSource
+   175→import com.music.bitchord.data.lyrics.LyricLine
+   176→import com.music.bitchord.data.lyrics.LyricsSource
+   177→import com.music.bitchord.data.settings.AppSettings
+   178→import com.music.bitchord.data.settings.AudioQuality
+   179→import com.music.bitchord.data.model.LikeStatus
+   180→import com.music.bitchord.data.model.Song
+   181→import com.music.bitchord.data.model.artworkAt
+   182→import com.music.bitchord.playback.BACK_RESTARTS_AFTER_MS
+   183→import com.music.bitchord.playback.autoplaySectionStart
+   184→import kotlinx.coroutines.launch
+   185→import java.util.Locale
+   186→import java.util.concurrent.TimeUnit
+   187→import kotlin.math.abs
+   188→import kotlin.math.roundToInt
+   189→
+   190→/** Collapsed-header geometry, shared by the layout and its animation. */
+   191→/** Comfortably over the sleeve's drawn size on a phone, without wasting bytes. */
+   192→private const val ART_PX = 1200
+   193→
+   194→/**
+   195→ * How long a canvas lookup waits for the track's album name before giving up
+   196→ * on it. Long enough to cover the album lookup on a normal connection, short
+   197→ * enough not to be noticed on a track that has no album to find.
+   198→ */
+   199→private const val ALBUM_SETTLE_MS = 700L
+   200→
+   201→/**
+   202→ * How close the player's reported position has to get to a released scrub
+   203→ * handle before the handle stops being drawn where it was dropped. Wide enough
+   204→ * to swallow a coarse progress tick, tight enough that the handle doesn't hand
+   205→ * over while it is still visibly wrong.
+   206→ */
+   207→private const val SEEK_SETTLE_TOLERANCE_MS = 1_500L
+   208→
+   209→/**
+   210→ * How long that handle is held at the drop point regardless. A backstop, not a
+   211→ * schedule: a seek normally settles in a tick or two, and this only decides how
+   212→ * long a seek that never settles can freeze the bar for. Generous enough that a
+   213→ * slow buffer still hands over smoothly rather than snapping back.
+   214→ */
+   215→private const val SEEK_SETTLE_TIMEOUT_MS = 4_000L
+   216→
+   217→private val THUMB_SIZE = 54.dp
+   218→private val HEADER_HEIGHT = 60.dp
+   219→private val ART_TITLE_GAP = 20.dp
+   220→/**
+   221→ * How long the sleeve takes to travel the whole way between the full player and
+   222→ * the queue's header.
+   223→ *
+   224→ * Spent in proportion rather than in full: a drag released four fifths of the
+   225→ * way up has a fifth of the journey left and gets a fifth of the time for it.
+   226→ * Only the toggle, which travels end to end, ever spends all of it.
+   227→ */
+   228→private const val QUEUE_TRAVEL_MS = 420
+   229→/**
+   230→ * How far up the sleeve has to have been dragged for a release to carry on
+   231→ * opening the queue rather than falling back, as a share of the sleeve's travel.
+   232→ *
+   233→ * Well under half, because the gesture is only ever *started* deliberately —
+   234→ * there is nothing else an upward drag on the artwork could have meant — so the
+   235→ * doubt a halfway line exists to settle isn't there.
+   236→ */
+   237→private const val QUEUE_CARRY_FRACTION = 0.3f
+   238→/**
+   239→ * How fast a release has to be moving, in pixels a second, to decide the queue
+   240→ * on its own and overrule [QUEUE_CARRY_FRACTION].
+   241→ *
+   242→ * A flick is a whole gesture in its own right: it says "open" without ever
+   243→ * asking the finger to travel, and the distance it covered is beside the point.
+   244→ */
+   245→private const val QUEUE_FLICK_VELOCITY = 450f
+   246→/**
+   247→ * The handle strip above the artwork, which always hands drags to the sheet.
+   248→ *
+   249→ * It isn't the only place that does — the artwork and the credits under it pass
+   250→ * theirs on as well, which is what makes the whole top of the player closable
+   251→ * rather than just its topmost 44dp. See the dismiss band in `NowPlayingScreen`.
+   252→ */
+   253→private val DISMISS_STRIP_HEIGHT = 44.dp
+   254→/** The breathing room above the sleeve, needed twice: once to apply, once to measure past. */
+   255→private val ART_BOX_TOP_PAD = 14.dp
+   256→/**
+   257→ * Share of the motion-artwork banner's height given over to its dissolve.
+   258→ *
+   259→ * Generous on purpose: the banner has no card edge to stop at, so anything
+   260→ * short enough to still be reading as artwork where it ends reads as a picture
+   261→ * that was cut off rather than one that ran out.
+   262→ */
+   263→private const val HERO_FADE_FRACTION = 0.42f
+   264→
+   265→/** The player's side margin. Scrollable panels reach back across it. */
+   266→private val PLAYER_GUTTER = 30.dp
+   267→/**
+   268→ * How wide the player's content is ever allowed to get. A sleeve and a volume
+   269→ * slider stretched right across a tablet aren't a bigger player, just a coarser
+   270→ * one; past this the column stops growing and centres itself instead. Phones
+   271→ * are narrower than this, so for them it does nothing.
+   272→ */
+   273→private val PLAYER_MAX_WIDTH = 560.dp
+   274→/**
+   275→ * The pane's share of a window wide enough to dock in, and the bounds it takes
+   276→ * that share within.
+   277→ *
+   278→ * A fraction alone hands a 13in screen half a metre of player. The ceiling is a
+   279→ * phone's width because that is the shape the player was drawn for and the shape
+   280→ * it looks right in — a square sleeve, one line of credits, a row of oversized
+   281→ * glyphs. Widened past that the sleeve stops being able to grow with it (it is
+   282→ * bounded by the pane's height long before that) and all the extra pane buys is
+   283→ * a scrubber and a volume slider stretched thin either side of it, which is a
+   284→ * coarser player rather than a bigger one, and a column of feed given up to pay
+   285→ * for it. The floor is there because the fraction of the narrowest window that
+   286→ * qualifies is thinner than the controls want to be.
+   287→ */
+   288→private const val DOCKED_PLAYER_FRACTION = 0.42f
+   289→private val DOCKED_PLAYER_MIN_WIDTH = 340.dp
+   290→private val DOCKED_PLAYER_MAX_WIDTH = 420.dp
+   291→
+   292→/**
+   293→ * The narrowest the page is worth leaving while the player stands beside it.
+   294→ *
+   295→ * About a small phone: below this the shelves stop showing a second card, the
+   296→ * track rows lose their artist line to the ellipsis and a two-pane layout is
+   297→ * two things done badly instead of one done well.
+   298→ */
+   299→private val DOCKED_PAGE_MIN_WIDTH = 360.dp
+   300→/**
+   301→ * The room above a docked player's artwork, in place of the drag handle.
+   302→ *
+   303→ * The handle is a promise that the player can be pulled away, and a pane it is
+   304→ * pinned in cannot be — so what is left is the gap it used to sit in, minus the
+   305→ * strip the gesture needed.
+   306→ */
+   307→private val DOCKED_TOP_PAD = 12.dp
+   308→/**
+   309→ * How far a tall screen is allowed to push the transport from the blocks either
+   310→ * side of it.
+   311→ *
+   312→ * The spare height has to land somewhere, and above and below the play button is
+   313→ * where it reads as room rather than as a hole. Past this it stops reading as one
+   314→ * group of controls, so the rest goes back to the artwork block.
+   315→ */
+   316→private val CONTROL_GAP_SPREAD_MAX = 48.dp
+   317→/**
+   318→ * The spread [NowPlayingScreen] settled on the last time it was laid out.
+   319→ *
+   320→ * It follows from the window, so it is very nearly the same answer on every open
+   321→ * — and the player is torn down with its sheet, so without this the first frame
+   322→ * of each open would show the unspread gaps and then step to the real ones. Only
+   323→ * a head start: the frame after re-derives it either way. A plain var because
+   324→ * that is all it is, a cache of a measurement, not state anything observes.
+   325→ */
+   326→private var lastControlSpread: Dp = 0.dp
+   327→
+   328→/**
+   329→ * Whether the player is ever narrow enough in this window to run artwork edge to
+   330→ * edge — the gate on both the motion-artwork banner and
+   331→ * [AppSettings.fullBleedArtwork]. Public so the settings sheet can leave the
+   332→ * switch out entirely where it would do nothing.
+   333→ *
+   334→ * Two ways to qualify. A window narrow enough that the player fills it is one:
+   335→ * edge to edge there means the artwork *is* the screen, which is the whole idea.
+   336→ * A window wide enough to dock the player is the other, and for the same reason
+   337→ * rather than in spite of it — the pane is a phone's width by construction (see
+   338→ * [dockedPlayerWidth]), so edge to edge inside it reads exactly as it does on a
+   339→ * phone. Only the band between the two has nothing to offer: too wide for the
+   340→ * player to fill, too narrow to stand something beside it.
+   341→ */
+   342→fun fullBleedArtworkAvailable(windowWidth: Dp): Boolean =
+   343→    playerFillsWindow(windowWidth) || dockedPlayerAvailable(windowWidth)
+   344→
+   345→/**
+   346→ * Whether a player given the whole of a window this wide is still narrow enough
+   347→ * to run its artwork edge to edge.
+   348→ *
+   349→ * The player's own width is the question, always — this is just the form it takes
+   350→ * when the player *is* the window, which is the only time the window's width is
+   351→ * an answer to it. A docked pane has its own, much smaller width and does not go
+   352→ * through here.
+   353→ */
+   354→private fun playerFillsWindow(windowWidth: Dp): Boolean =
+   355→    windowWidth <= PLAYER_MAX_WIDTH + PLAYER_GUTTER * 2
+   356→
+   357→/**
+   358→ * Whether [windowWidth] is enough to keep the player open beside the page rather
+   359→ * than raising it over one: the least the page can live in and the least the
+   360→ * player can live in, side by side. Stated as the sum of the two minimums rather
+   361→ * than as a number of its own, so it cannot drift out of step with either.
+   362→ *
+   363→ * [windowWidth] is the width of the *window*, and it has to be measured rather
+   364→ * than read off `Configuration.screenWidthDp` — in a freeform or desktop window
+   365→ * that can report the display instead of the window, and it lands a beat late
+   366→ * when the window is dragged. Deciding a two-pane split from a width the app
+   367→ * does not have splits it at the wrong moment and in the wrong place.
+   368→ *
+   369→ * Public because it is not only the player's business: the page it stands next
+   370→ * to loses the mini player, gets its bottom inset back, and stops being able to
+   371→ * raise the sheet at all.
+   372→ */
+   373→fun dockedPlayerAvailable(windowWidth: Dp): Boolean =
+   374→    windowWidth >= DOCKED_PAGE_MIN_WIDTH + DOCKED_PLAYER_MIN_WIDTH
+   375→
+   376→/** How wide that pane is. Only meaningful where [dockedPlayerAvailable] is true. */
+   377→fun dockedPlayerWidth(windowWidth: Dp): Dp =
+   378→    (windowWidth * DOCKED_PLAYER_FRACTION)
+   379→        .coerceIn(DOCKED_PLAYER_MIN_WIDTH, DOCKED_PLAYER_MAX_WIDTH)
+   380→        // Never at the page's expense. The floor above is what the player wants;
+   381→        // this is what it may actually have, and where the two disagree the page
+   382→        // wins — [dockedPlayerAvailable] is the promise that they only disagree
+   383→        // in windows narrow enough that there is no pane at all.
+   384→        .coerceAtMost(windowWidth - DOCKED_PAGE_MIN_WIDTH)
+   385→
+   386→/** Share of a lyric line's own length spent fading out, and its bounds. */
+   387→private const val LYRIC_FADE_FRACTION = 0.28f
+   388→private const val LYRIC_FADE_MIN_MS = 160f
+   389→private const val LYRIC_FADE_MAX_MS = 700f
+   390→
+   391→/**
+   392→ * How far back the part of the playing line that hasn't been sung yet is held.
+   393→ *
+   394→ * The strip above the scrubber gets less of a gap than the full panel: it is
+   395→ * one line of small type with nothing around it to compare against, and taking
+   396→ * it as far down as the panel does left the words ahead of the highlight hard
+   397→ * to read at a glance.
+   398→ */
+   399→private const val UNSUNG_ALPHA = 0.45f
+   400→private const val UNSUNG_ALPHA_STRIP = 0.55f
+   401→
+   402→/**
+   403→ * The bloom behind the line being sung, at its very strongest.
+   404→ *
+   405→ * Kept well under half strength: the halo is drawn from the same white as the
+   406→ * text, so at full alpha it stops reading as light and starts reading as a
+   407→ * second, badly printed copy of the words. What is actually drawn is this
+   408→ * scaled by how long the word is being held, so only a properly carried note
+   409→ * ever sees the whole of it.
+   410→ */
+   411→private const val GLOW_ALPHA = 0.62f
+   412→private val GLOW_RADIUS = 9.dp
+   413→
+   414→/**
+   415→ * How far behind the sweep's leading edge the bloom reaches, at full strength.
+   416→ *
+   417→ * The glow belongs to the word being sung, not to everything sung so far —
+   418→ * lighting the whole revealed stretch made the line brighten as it went and
+   419→ * turned the last line of a verse into a slab of white. Scaled down towards
+   420→ * [GLOW_TRAIL_FLOOR] as the singing quickens; see
+   421→ * [LyricLine.glowIntensity][com.music.bitchord.data.lyrics.LyricLine.glowIntensity].
+   422→ */
+   423→private val GLOW_TRAIL = 62.dp
+   424→private const val GLOW_TRAIL_FLOOR = 0.55f
+   425→
+   426→/**
+   427→ * Room reserved inside each copy of a line for the halo to spread into.
+   428→ *
+   429→ * A blur is computed on its layer's own bitmap, so a halo with nowhere to go
+   430→ * inside those bounds is a halo with a hard edge — which is what cropped the
+   431→ * bloom to the line's box. Every copy carries the same inset so they still lay
+   432→ * out identically, and the list gives the width back by taking it off its own
+   433→ * padding and row spacing.
+   434→ */
+   435→private val GLOW_ROOM = 10.dp
+   436→
+   437→/**
+   438→ * How the answering vocal is drawn: smaller than the lead and a shade behind
+   439→ * it, the way Apple Music hangs a backing line under the one it answers.
+   440→ *
+   441→ * Small enough to be read as a second voice at a glance and no smaller —
+   442→ * these are the words of the song, not a caption.
+   443→ */
+   444→private val BACKING_FONT_SIZE = 19.sp
+   445→private val BACKING_LINE_HEIGHT = 24.sp
+   446→private const val BACKING_ALPHA = 0.72f
+   447→
+   448→/** Stands in for an instrumental stretch on the strip. */
+   449→private const val INSTRUMENTAL_MARK = "Instrumental"
+   450→
+   451→/**
+   452→ * Shown on the strip during the intro, before the first sung line — one picked
+   453→ * at random per track, so the wait for the vocals has some character to it.
+   454→ */
+   455→private val INTRO_LINES = listOf(
+   456→    "Beat's landing",
+   457→    "Song's starting",
+   458→    "Intro's cooking",
+   459→    "Warming up",
+   460→    "Here we go",
+   461→    "Setting the mood",
+   462→    "Drums are in",
+   463→    "Bass first, words later",
+   464→    "Turn it up",
+   465→    "Vibe check",
+   466→    "Wait for it",
+   467→    "Feel that build",
+   468→    "Let it ride",
+   469→    "Just the groove for now",
+   470→    "Speakers breathing",
+   471→    "Rolling in",
+   472→    "Hold tight",
+   473→    "Riff o'clock",
+   474→    "Strings first",
+   475→    "Hook's on the way",
+   476→    "Eyes closed",
+   477→    "Loading the vibe",
+   478→    "Almost words",
+   479→    "Pure heat, no words",
+   480→    "Tuning in",
+   481→    "Buckle up",
+   482→    "Let it breathe",
+   483→    "That opening though",
+   484→    "Bass is talking",
+   485→    "Lyrics loading",
+   486→    "Give it a sec",
+   487→    "Building something",
+   488→    "Cue the vocals",
+   489→    "Slow burn",
+   490→    "First notes in",
+   491→    "Nod along",
+   492→    "Groove's on deck",
+   493→    "Melody first",
+   494→    "Ease into it",
+   495→    "Big things coming",
+   496→    "Stage is set",
+   497→    "The calm before",
+   498→    "Sit with it",
+   499→    "Any second now",
+   500→    "Volume up, phone down",
+   501→    "Drums doing the talking",
+   502→    "Locked in",
+   503→    "Something's brewing",
+   504→    "Finding its feet",
+   505→    "Deep breath",
+   506→)
+   507→
+   508→/**
+   509→ * Shown on the strip while a lyrics lookup is still in flight — one picked
+   510→ * at random per track, in the same spirit as [INTRO_LINES].
+   511→ */
+   512→private val LYRICS_LOADING_LINES = listOf(
+   513→    "Getting lyrics",
+   514→    "Chasing the words",
+   515→    "Digging up the lyrics",
+   516→    "Words incoming",
+   517→    "On the hunt for lyrics",
+   518→    "Fetching the verses",
+   519→    "Tracking down the words",
+   520→    "Lyrics loading",
+   521→    "Reading between the lines",
+   522→    "Scanning for lyrics",
+   523→    "Words on the way",
+   524→    "Looking this one up",
+   525→    "Checking the lyric sheet",
+   526→    "Pulling up the words",
+   527→    "Searching the songbook",
+   528→    "Lining up the lyrics",
+   529→    "One sec, finding the words",
+   530→    "Combing through for lyrics",
+   531→    "Lyrics inbound",
+   532→    "Sourcing the verses",
+   533→    "Cross-checking the words",
+   534→    "Rounding up the lyrics",
+   535→    "Text hunt in progress",
+   536→    "Syncing up the words",
+   537→    "Peeking at the lyric sheet",
+   538→    "Almost got the words",
+   539→    "Fishing for lyrics",
+   540→    "Grabbing the transcript",
+   541→    "Lyrics, one moment",
+   542→    "Tuning in the words",
+   543→    "Locating the verses",
+   544→    "Words are en route",
+   545→    "Checking the archives",
+   546→    "Piecing the lyrics together",
+   547→    "Loading up the words",
+   548→    "Lyric search underway",
+   549→    "Finding the right words",
+   550→    "Tracking the lyric sheet",
+   551→    "Verses incoming",
+   552→    "Getting the words lined up",
+   553→    "Hang tight, fetching lyrics",
+   554→    "Looking for the hook",
+   555→    "Words are loading",
+   556→    "Lyrics on their way",
+   557→    "Checking what's sung here",
+   558→    "Reading the room for lyrics",
+   559→    "Lyric lookup in progress",
+   560→    "Bringing up the words",
+   561→    "Just a sec, finding words",
+   562→    "Lyrics coming together",
+   563→)
+   564→
+   565→private const val LYRICS_UNAVAILABLE_HOLD_MS = 5_000L
+   566→private const val LYRICS_UNAVAILABLE_FADE_MS = 900
+   567→
+   568→/**
+   569→ * Apple Music's Now Playing, closely: artwork that shrinks when paused, a
+   570→ * hairline scrubber with elapsed / remaining either side, oversized transport
+   571→ * glyphs, a volume capsule flanked by speaker icons, and lyrics / AirPlay /
+   572→ * queue along the bottom.
+   573→ */
+   574→@Composable
+   575→fun NowPlayingScreen(
+   576→    song: Song,
+   577→    isPlaying: Boolean,
+   578→    isLoading: Boolean,
+   579→    positionMs: Long,
+   580→    durationMs: Long,
+   581→    queue: List<Song>,
+   582→    queueIndex: Int,
+   583→    hasPrevious: Boolean,
+   584→    hasNext: Boolean,
+   585→    repeatMode: Int,
+   586→    shuffleEnabled: Boolean,
+   587→    autoplayEnabled: Boolean,
+   588→    signedIn: Boolean,
+   589→    likeStatus: LikeStatus,
+   590→    onToggleLike: () -> Unit,
+   591→    onPlayPause: () -> Unit,
+   592→    onNext: () -> Unit,
+   593→    onPrevious: () -> Unit,
+   594→    onSeek: (Long) -> Unit,
+   595→    /**
+   596→     * Seek to a fraction of the track, for the scrubber.
+   597→     *
+   598→     * Separate from [onSeek] because the scrubber is the one caller that knows
+   599→     * *where along the bar* it wants to go rather than a time. Converting that
+   600→     * here would use this screen's cached duration, which lags a track change by
+   601→     * however long the session takes to report the new one — long enough to drop
+   602→     * the handle on a bar still scaled to the previous song and seek to the
+   603→     * wrong fraction of the current one. The conversion belongs wherever the
+   604→     * freshest duration is.
+   605→     */
+   606→    onSeekFraction: (Float) -> Unit,
+   607→    onToggleShuffle: () -> Unit,
+   608→    onCycleRepeat: () -> Unit,
+   609→    onToggleAutoplay: () -> Unit,
+   610→    onJumpTo: (Int) -> Unit,
+   611→    onRemoveFromQueue: (Int) -> Unit,
+   612→    onMoveInQueue: (Int, Int) -> Unit,
+   613→    onClearQueue: () -> Unit,
+   614→    onOpenMenu: () -> Unit,
+   615→    onOpenAlbum: (String) -> Unit,
+   616→    onOpenArtist: (String) -> Unit,
+   617→    lyrics: List<LyricLine>?,
+   618→    lyricsSource: LyricsSource?,
+   619→    lyricsUnavailable: Boolean,
+   620→    /** The width of the window the player is in — see [fullBleedArtworkAvailable]. */
+   621→    windowWidth: Dp,
+   622→    /**
+   623→     * Whether the player is a pane the page sits beside rather than a sheet
+   624→     * raised over it — see [dockedPlayerAvailable].
+   625→     *
+   626→     * There is no sheet under a docked player to pull away, so the handle goes
+   627→     * and with it the strip of dead space that existed to pass drags down to one.
+   628→     * The artwork is unaffected: the pane is a phone's width, so it runs the
+   629→     * cover edge to edge exactly as a phone does — see [fullBleedArtworkAvailable].
+   630→     */
+   631→    docked: Boolean = false,
+   632→    modifier: Modifier = Modifier,
+   633→) {
+   634→    val context = LocalContext.current
+   635→    val density = LocalDensity.current
+   636→    val haptics = rememberHaptics()
+   637→
+   638→    val syncedLyricsEnabled by AppSettings.syncedLyrics.collectAsStateWithLifecycle()
+   639→    val hideVolumeBar by AppSettings.hideVolumeBar.collectAsStateWithLifecycle()
+   640→
+   641→    // Animated cover art: the looping video some labels publish alongside a
+   642→    // release, laid over the sleeve. A miss is the normal answer — see
+   643→    // CanvasRepository, which is also where the "is this actually the right
+   644→    // track" check lives.
+   645→    val canvasEnabled by AppSettings.animatedCanvas.collectAsStateWithLifecycle()
+   646→    val canvasOverCellular by AppSettings.canvasOverCellular.collectAsStateWithLifecycle()
+   647→    val meteredConnection by AppSettings.meteredConnection.collectAsStateWithLifecycle()
+   648→    // The switch turns the feature off outright; this is the narrower "not
+   649→    // over cellular" case — see [AppSettings.canvasOverCellular] for why a
+   650→    // clip's own loop makes that worth guarding separately from a still image.
+   651→    val canvasAllowedNow = canvasEnabled && (meteredConnection != true || canvasOverCellular)
+   652→    var canvas by remember(song.videoId) { mutableStateOf<CanvasArtwork?>(null) }
+   653→    // Whether the clip actually has a frame on screen right now, and one of
+   654→    // them — used to blow the sleeve out to the full-bleed hero treatment and
+   655→    // to re-tint the backdrop off the clip's own colours rather than the
+   656→    // still sleeve's.
+   657→    var canvasRendered by remember(song.videoId) { mutableStateOf(false) }
+   658→    var canvasFrame by remember(song.videoId) { mutableStateOf<Bitmap?>(null) }
+   659→    // How much of the still artwork the clip is covering, reported by the clip
+   660→    // itself. Read from a draw scope rather than in composition: it moves every
+   661→    // frame of the fade, and the still art it governs is an AsyncImage whose
+   662→    // request is rebuilt on each pass and so would not be skipped.
+   663→    val canvasCover = remember(song.videoId) { mutableFloatStateOf(0f) }
+   664→    // The one thing about it worth recomposing for: whether the clip is opaque
+   665→    // enough that the still frame under it can go entirely. Derived, so this
+   666→    // flips twice across a fade instead of once per frame of it.
+   667→    val stillCovered by remember(song.videoId) {
+   668→        derivedStateOf { canvasCover.floatValue > 0.999f }
+   669→    }
+   670→    val meshColors = rememberArtworkColors(song.thumbnailUrl, canvasFrame)
+   671→    // Spotify's own Canvas, specifically — see CanvasArtworkPlayer's
+   672→    // refreshFrameEveryMs for why this is scoped to that one source rather
+   673→    // than asked of every clip.
+   674→    val meshRefreshMs = if (canvas?.source == CanvasSource.SPOTIFY) 3_000L else null
+   675→    LaunchedEffect(song.videoId, song.albumName, canvasAllowedNow) {
+   676→        if (!canvasAllowedNow) {
+   677→            canvas = null
+   678→            return@LaunchedEffect
+   679→        }
+   680→        // Anything already settled for this track paints immediately: a
+   681→        // reopened player, or a track coming round again in the queue.
+   682→        canvas = CanvasRepository.cached(song) ?: canvas
+   683→
+   684→        // The album name is looked up separately and lands a moment after the
+   685→        // player opens, and it is the field that makes the catalogue searches
+   686→        // match. Give it that moment: if it arrives, this effect restarts and
+   687→        // all that was spent waiting is the wait. If it never does — a track
+   688→        // with no album, or a lookup that failed — the search still goes out,
+   689→        // just a beat later, which is imperceptible for decoration.
+   690→        if (canvas == null && song.albumName == null) delay(ALBUM_SETTLE_MS)
+   691→        // Keep what an earlier pass found if this one comes back empty, rather
+   692→        // than pulling a playing clip out from under itself.
+   693→        canvas = CanvasRepository.canvasFor(song) ?: canvas
+   694→    }
+   695→
+   696→    var scrubbing by remember { mutableStateOf(false) }
+   697→    var scrubValue by remember { mutableFloatStateOf(0f) }
+   698→    // The queue lives inside the player, Apple-style, rather than in a sheet.
+   699→    var queueOpen by remember { mutableStateOf(false) }
+   700→    var lyricsOpen by remember { mutableStateOf(false) }
+   701→    LaunchedEffect(song.videoId) { lyricsOpen = false }
+   702→
+   703→    // Back out of the lyrics panel to the player, and only from the player
+   704→    // itself out to the mini player.
+   705→    //
+   706→    // The BackHandler can't do that on its own. The player is a
+   707→    // ModalBottomSheet, and from API 33 the sheet puts its own dismiss
+   708→    // straight onto the window's OnBackInvokedDispatcher when its layout
+   709→    // attaches — at PRIORITY_DEFAULT, which is also where the dialog
+   710→    // dispatcher that every BackHandler in here feeds ends up. Equal
+   711→    // priority, and the platform picks whichever registered last: the
+   712→    // sheet's, every time. So back put the whole player away with the panel
+   713→    // still open on top of it.
+   714→    //
+   715→    // Outranking it while the panel is open is the fix, and only while it is
+   716→    // open: shut, the sheet keeps its own back handling and with it the
+   717→    // predictive-back shrink, which is the right animation for a gesture
+   718→    // that really is dismissing the player. Below 33 there is no window
+   719→    // dispatcher to outrank and the BackHandler is already the newest
+   720→    // callback on the dialog's, so it wins there unaided.
+   721→    BackHandler(enabled = lyricsOpen) { lyricsOpen = false }
+   722→    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+   723→        val view = LocalView.current
+   724→        DisposableEffect(view, lyricsOpen) {
+   725→            val callback = if (lyricsOpen) {
+   726→                OverlayBack.register(view) { lyricsOpen = false }
+   727→            } else {
+   728→                null
+   729→            }
+   730→            onDispose { OverlayBack.unregister(view, callback) }
+   731→        }
+   732→    }
+   733→
+   734→    // 0 = full sleeve, 1 = queue. Everything that moves reads off this.
+   735→    //
+   736→    // Plain state driven by an animation rather than [animateFloatAsState],
+   737→    // because it has two drivers and only one of them is an animation: the
+   738→    // toggle at the foot of the player, which travels end to end, and a finger
+   739→    // dragging the sleeve upward, which sets it outright. An animation keyed on
+   740→    // [queueOpen] cannot be pushed around mid-flight by a drag — and a drag that
+   741→    // could only move the *target* would have nothing to show for itself until
+   742→    // it was released, then jump from wherever the animation had got to.
+   743→    val queueSlide = remember { mutableFloatStateOf(0f) }
+   744→    val queueProgress = queueSlide.floatValue
+   745→    // Whether a finger is on the sleeve right now. Parks the settle below rather
+   746→    // than leaving the two to write the same value on alternate frames.
+   747→    var queueDragging by remember { mutableStateOf(false) }
+   748→    // Bumped when a drag hands the value back, so the settle runs again even
+   749→    // though [queueOpen] may not have moved: a swipe that gave up short of
+   750→    // [QUEUE_CARRY_FRACTION] has to fall back to 0 just as surely as one that
+   751→    // carried has to finish reaching 1.
+   752→    var queueReleased by remember { mutableIntStateOf(0) }
+   753→    LaunchedEffect(queueOpen, queueDragging, queueReleased) {
+   754→        if (queueDragging) return@LaunchedEffect
+   755→        val target = if (queueOpen) 1f else 0f
+   756→        val from = queueSlide.floatValue
+   757→        if (from == target) return@LaunchedEffect
+   758→        animate(
+   759→            initialValue = from,
+   760→            targetValue = target,
+   761→            animationSpec = tween(
+   762→                durationMillis = (QUEUE_TRAVEL_MS * abs(target - from)).roundToInt(),
+   763→                easing = FastOutSlowInEasing,
+   764→            ),
+   765→        ) { value, _ -> queueSlide.floatValue = value }
+   766→    }
+   767→
+   768→    // Horizontal fling anywhere on the player skips tracks; the artwork
+   769→    // follows the finger so the gesture has something to hold on to.
+   770→    val swipeThreshold = with(density) { 72.dp.toPx() }
+   771→    var swipeOffset by remember { mutableFloatStateOf(0f) }
+   772→    val swipeSettle by animateFloatAsState(
+   773→        targetValue = swipeOffset,
+   774→        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+   775→        label = "swipeOffset",
+   776→    )
+   777→
+   778→    // After releasing the scrubber the player needs to buffer before it
+   779→    // reports the new position. Keep showing where the user dropped it so the
+   780→    // handle doesn't snap back and then jump forward once loading finishes.
+   781→    var pendingSeek by remember { mutableStateOf<Float?>(null) }
+   782→
+   783→    val fraction = if (durationMs > 0) positionMs.toFloat() / durationMs else 0f
+   784→    val shown = when {
+   785→        scrubbing -> scrubValue
+   786→        pendingSeek != null -> pendingSeek!!
+   787→        else -> fraction.coerceIn(0f, 1f)
+   788→    }
+   789→
+   790→    // Released as soon as the player's own position agrees with where the handle
+   791→    // was dropped — and unconditionally a few seconds later whether it agrees or
+   792→    // not.
+   793→    //
+   794→    // The agreement test alone is not enough, because it is the only thing that
+   795→    // ever cleared the override: if the position never passes close to the
+   796→    // target — a clamped or rejected seek, a rendition swapped underneath, a
+   797→    // progress sample that steps straight over the window — nothing releases it
+   798→    // and the handle sits frozen at the drop point for the rest of the track.
+   799→    // Audio and lyrics follow the real position perfectly throughout, so the
+   800→    // failure looks like a stuck seek bar on a track that is playing fine.
+   801→    //
+   802→    // Tolerance is absolute rather than a share of the duration: two percent is
+   803→    // a quarter-second on a jingle and twelve seconds on a long mix, and it is
+   804→    // the wall-clock gap that decides whether the handle appears to jump.
+   805→    LaunchedEffect(positionMs, durationMs, pendingSeek) {
+   806→        val target = pendingSeek ?: return@LaunchedEffect
+   807→        if (durationMs > 0 && abs(positionMs - (target * durationMs).toLong()) < SEEK_SETTLE_TOLERANCE_MS) {
+   808→            pendingSeek = null
+   809→        }
+   810→    }
+   811→    LaunchedEffect(pendingSeek) {
+   812→        if (pendingSeek == null) return@LaunchedEffect
+   813→        delay(SEEK_SETTLE_TIMEOUT_MS)
+   814→        pendingSeek = null
+   815→    }
+   816→    LaunchedEffect(song.videoId) { pendingSeek = null }
+   817→
+   818→    // Signature Apple Music touch: the sleeve shrinks back while paused.
+   819→    val artScale by animateFloatAsState(
+   820→        targetValue = if (isPlaying) 1f else 0.86f,
+   821→        animationSpec = spring(
+   822→            dampingRatio = Spring.DampingRatioLowBouncy,
+   823→            stiffness = Spring.StiffnessLow,
+   824→        ),
+   825→        label = "artScale",
+   826→    )
+   827→
+   828→    val audioManager = remember(context) {
+   829→        context.getSystemService(AudioManager::class.java)
+   830→    }
+   831→    val maxVolume = remember(audioManager) {
+   832→        audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC)?.coerceAtLeast(1) ?: 15
+   833→    }
+   834→    val scope = rememberCoroutineScope()
+   835→    // Animatable rather than plain state: a hardware volume step is a jump of
+   836→    // 1/15th of the bar, which reads as a stutter unless it's tweened.
+   837→    val volume = remember {
+   838→        Animatable(
+   839→            (audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: 0).toFloat() / maxVolume,
+   840→        )
+   841→    }
+   842→    var volumeDragging by remember { mutableStateOf(false) }
+   843→    var systemVolume by remember { mutableFloatStateOf(volume.value) }
+   844→
+   845→    // Glide to the level the system reports, but never fight the finger — a
+   846→    // drag writes the stream, which calls straight back through here.
+   847→    LaunchedEffect(systemVolume) {
+   848→        if (!volumeDragging) {
+   849→            volume.animateTo(systemVolume, tween(durationMillis = 220, easing = FastOutSlowInEasing))
+   850→        }
+   851→    }
+   852→
+   853→    // Hardware volume keys and the system panel change the stream behind our
+   854→    // back — watch Settings for changes so the bar tracks them live.
+   855→    DisposableEffect(audioManager) {
+   856→        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+   857→            override fun onChange(selfChange: Boolean) {
+   858→                val current = audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: return
+   859→                systemVolume = current.toFloat() / maxVolume
+   860→            }
+   861→        }
+   862→        context.contentResolver.registerContentObserver(
+   863→            Settings.System.CONTENT_URI,
+   864→            true,
+   865→            observer,
+   866→        )
+   867→        onDispose { context.contentResolver.unregisterContentObserver(observer) }
+   868→    }
+   869→
+   870→    // 0 = the ordinary square sleeve, 1 = the artwork as a full-bleed banner.
+   871→    // Both states collapse the header, but the banner only ever shows over a
+   872→    // settled player: opening the queue or the lyrics hands the sleeve back its
+   873→    // card first.
+   874→    // How collapsed the sleeve is, whichever surface asked for it.
+   875→    //
+   876→    // This used to read `if (lyricsOpen) 1f else queueProgress`, which gave the
+   877→    // queue a 420ms ease and the lyrics nothing at all: opening them snapped
+   878→    // the sleeve to a thumbnail in a single frame while [heroT] — reading off
+   879→    // this same value — went on fading the banner out over the full 420. One
+   880→    // half of the artwork jumped, the other half glided after it, and the pair
+   881→    // read as a stutter rather than as either. One animation, both surfaces.
+   882→    val p by animateFloatAsState(
+   883→        targetValue = if (lyricsOpen || queueOpen) 1f else 0f,
+   884→        animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
+   885→        label = "sleeveCollapse",
+   886→    )
+   887→    val fullBleedArt by AppSettings.fullBleedArtwork.collectAsStateWithLifecycle()
+   888→    // Full-bleed is a phone idiom, and a docked pane is a phone's width — so it
+   889→    // is asked of the player's own width rather than of the window's. Asking the
+   890→    // window is what left the pane with a square sleeve floating in a field of
+   891→    // backdrop: the window is wide, but the player in it never is.
+   892→    //
+   893→    // What the width has to rule out is a player running a foot wider than the
+   894→    // column of controls under it — edge to edge meaning "a picture, and
+   895→    // separately some controls" rather than "the artwork *is* the player". A pane
+   896→    // cannot do that; only the band between phone-width and dockable can, and
+   897→    // that is the band [fullBleedArtworkAvailable] excludes.
+   898→    //
+   899→    // One question for the still cover and the clip both, rather than two that
+   900→    // could disagree — and they did, twice over. Dissolving a TextureView's
+   901→    // bottom edge needs a RenderEffect, so below API 31 the clip was held in its
+   902→    // sleeve while the cover behind it went edge to edge, and the artwork
+   903→    // changed shape the moment a clip arrived. In the other direction the clip
+   904→    // ignored [fullBleedArt] entirely, so turning the setting off still left a
+   905→    // clip running the full screen. CanvasArtworkPlayer masks itself on every
+   906→    // API level now, and both layers answer to this.
+   907→    val heroMode = fullBleedArt && (docked || playerFillsWindow(windowWidth))
+   908→    // Whether there's a still image to blow out — a placeholder tile is a card
+   909→    // or it is nothing, and going full-bleed with one would just tint the top
+   910→    // third of the screen.
+   911→    //
+   912→    // Keyed on the artwork rather than on the track, because that is what it
+   913→    // actually describes and because only Coil can set it back to true. Two
+   914→    // tracks off one album share a cover, so skipping between them leaves the
+   915→    // request below byte-identical: the painter keeps the Success it already
+   916→    // had and never re-emits, so the `onState` that is the sole writer here
+   917→    // never fires again. Keyed on the track this reset to false and stayed
+   918→    // there, which pinned the sleeve fully opaque (see the alpha it feeds) on
+   919→    // top of an equally opaque banner — the same cover drawn twice, card and
+   920→    // full-bleed at once. Keyed on the cover there is nothing to reset: the
+   921→    // bitmap really is still loaded, so the state stays true and the two
+   922→    // layers go on trading places as they should.
+   923→    var artLoaded by remember(song.artworkAt(ART_PX)) { mutableStateOf(false) }
+   924→    // Sticky, unlike [artLoaded]: the banner is the shape of the player rather
+   925→    // than a property of the track in it. Waiting on each new cover would
+   926→    // collapse the banner into a card and blow it back out on every skip —
+   927→    // twice the length of the whole screen's worth of movement for a change the
+   928→    // artwork itself already announces. The frame stays; the cover arrives in
+   929→    // it, fading in as Coil fades in everywhere else.
+   930→    //
+   931→    // Latched off the clip as well as the still art, for a cover that never
+   932→    // arrives at all and leaves the banner standing on the clip alone: the clip
+   933→    // gives its frame up and takes it back every time the app leaves the screen,
+   934→    // and a banner that answered only to that would collapse behind the user's
+   935→    // back and blow itself out again in front of them on the way in.
+   936→    var heroSettled by remember { mutableStateOf(false) }
+   937→    LaunchedEffect(artLoaded, canvasRendered) {
+   938→        if (artLoaded || canvasRendered) heroSettled = true
+   939→    }
+   940→    // The clip that gets the banner, if any. Hoisted because the still frame
+   941→    // underneath keys its handover on exactly what is mounted here: both are
+   942→    // decided in the same composition pass, so opening the queue or the lyrics —
+   943→    // which takes the clip away — brings the still frame back in the very frame
+   944→    // the clip goes, instead of a frame later with the sleeve behind it still
+   945→    // transparent and no artwork anywhere.
+   946→    val heroClip = canvas?.takeIf { heroMode && p < 0.5f }
+   947→    // Whether the banner is the presentation at all: full-bleed is on, and there
+   948→    // is something to blow out. The collapse is deliberately *not* part of this
+   949→    // — see [heroVisible].
+   950→    val heroT by animateFloatAsState(
+   951→        targetValue = if (
+   952→            heroMode && (canvasRendered || artLoaded || heroSettled)
+   953→        ) 1f else 0f,
+   954→        animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
+   955→        label = "heroCanvas",
+   956→    )
+   957→
+   958→    /**
+   959→     * How much of the banner is actually on screen: its own fade, dissolved by
+   960→     * the collapse rather than after it.
+   961→     *
+   962→     * The collapse used to be a threshold on this animation's *target* — the
+   963→     * banner was told to go once [p] passed a half. That chained two 420ms
+   964→     * animations end to end when they should have been the same one: for the
+   965→     * first half of the collapse the banner sat at full size and full opacity
+   966→     * with nothing appearing to move, since the card shrinking behind it is
+   967→     * transparent while the banner is up; then the card finished collapsing and
+   968→     * a full-screen banner cross-dissolved into a finished thumbnail. Two sizes
+   969→     * of the same artwork on screen at once, which is what made every trip in
+   970→     * and out of the lyrics look wrong.
+   971→     *
+   972→     * Multiplied by the collapse instead, the banner goes as the card shrinks:
+   973→     * one movement, and the card is fading in the whole way down.
+   974→     */
+   975→    val heroVisible = heroT * (1f - p)
+   976→    // How tall that banner is, worked out down in the layout where the sleeve's
+   977→    // own geometry is known. Zero until the first measure, which is fine: there
+   978→    // is nothing to show that early either.
+   979→    var heroHeight by remember { mutableStateOf(0.dp) }
+   980→    val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+   981→    // What sits between the status bar and the artwork: the drag strip in a
+   982→    // sheet, plain padding in a pane. Read in three places — the strip itself,
+   983→    // the scrim drawn over it and the banner's own height — which all have to
+   984→    // agree or the artwork and the credits under it move.
+   985→    val topStrip = if (docked) DOCKED_TOP_PAD else DISMISS_STRIP_HEIGHT
+   986→
+   987→    // The band of the player a vertical drag belongs to rather than to whatever
+   988→    // is under it: from the top of the artwork to the bottom of the credits, in
+   989→    // root coordinates. Everything in between is one block — the full sleeve
+   990→    // with the title and artist beneath it — and a drag on it closes the player
+   991→    // downwards and opens the queue upwards.
+   992→    //
+   993→    // Read off the layout rather than recomputed, so it stays the block's own
+   994→    // shape whatever the screen: a height-bound sleeve on a tablet, a full-bleed
+   995→    // banner on a phone.
+   996→    //
+   997→    // Only ever the *expanded* block, though. Once a panel is up the band is not
+   998→    // this pair at all but the header, worked out from the state instead — see
+   999→    // the gesture below. The two edges do travel with the sleeve as it collapses,
+  1000→    // which reads like the band could simply follow them the whole way, and that
+  1001→    // is exactly what went wrong: the sleeve takes [QUEUE_TRAVEL_MS] to get
+  1002→    // there, and for that whole half second the queue was already listed and
+  1003→    // scrollable underneath a band still lying across it. A drag on a row came
+  1004→    // out as the player closing.
+  1005→    //
+  1006→    // Bare numbers rather than a rect: the band runs the full width of the
+  1007→    // player either way, and on a height-bound sleeve the bare backdrop down
+  1008→    // each side of it should close the player too — it is part of the same
+  1009→    // gesture, and a hole there would be a strip the finger mysteriously
+  1010→    // slides off.
+  1011→    //
+  1012→    // Both start at zero, which is a band with no height and so no hole at all
+  1013→    // until the first layout pass. There is nothing on screen to drag then
+  1014→    // either.
+  1015→    var dismissBandTop by remember { mutableFloatStateOf(0f) }
+  1016→    var dismissBandBottom by remember { mutableFloatStateOf(0f) }
+  1017→    // The suppressing Column's own coordinates, to put a pointer's local
+  1018→    // position into the same space as the two edges above.
+  1019→    var dismissBandSpace by remember { mutableStateOf<LayoutCoordinates?>(null) }
+  1020→
+  1021→    Box(modifier = modifier.fillMaxSize()) {
+  1022→        // Keyed on the track: the backdrop drifts when the player opens and on
+  1023→        // every skip, then rests. Position ticks recompose this screen twice a
+  1024→        // second and must not drag a full-screen blur along with them, which is
+  1025→        // why the palette is passed as one immutable value.
+  1026→        MeshGradientBackground(palette = meshColors, trackKey = song.videoId)
+  1027→
+  1028→        // The artwork, edge to edge and running up behind the status bar,
+  1029→        // dissolving into the backdrop where the sleeve's bottom edge would
+  1030→        // have been. It lives out here rather than in the sleeve because that
+  1031→        // is the only way to escape the player's side gutter and its status-bar
+  1032→        // inset — a banner that stops short of either reads as a misplaced card
+  1033→        // rather than as the artwork the screen is made of.
+  1034→        if (heroHeight > 0.dp) {
+  1035→            // The still sleeve first, so a clip fading in on top of it never
+  1036→            // shows the backdrop through the gap between them — and only until
+  1037→            // that fade has run. Both layers carry the same bottom gradient, so
+  1038→            // a still frame left lit under a settled clip is not hidden by it:
+  1039→            // down in the fade the clip is only part-opaque, and what shows
+  1040→            // through it there is the cover art rather than the backdrop. That
+  1041→            // is the artwork and the clip on screen at once.
+  1042→            //
+  1043→            // So it is dropped outright once the clip is opaque, rather than
+  1044→            // held at alpha 0: nothing under a full-bleed clip is ever visible,
+  1045→            // and a full-screen AsyncImage kept mounted for no one is a bitmap
+  1046→            // and a layer the compositor still has to carry.
+  1047→            //
+  1048→            // Kept mounted through the handover in either direction rather than
+  1049→            // dropped the moment [p] crosses the collapse threshold: the sleeve
+  1050→            // behind it is still transparent at that point, so pulling the
+  1051→            // banner straight out leaves a frame or two with no artwork anywhere
+  1052→            // on screen before the card catches up.
+  1053→            if (heroMode && !(stillCovered && heroClip != null) &&
+  1054→                (p < 0.5f || heroVisible > 0.001f)
+  1055→            ) {
+  1056→                AsyncImage(
+  1057→                    // Decoded at the same size the sleeve asks for, so the two
+  1058→                    // share one entry in Coil's cache and one bitmap: the pair
+  1059→                    // cross-fade into each other, and asking twice at two sizes
+  1060→                    // would decode the same art twice and let the banner fade in
+  1061→                    // before its own copy had arrived.
+  1062→                    model = ImageRequest.Builder(context)
+  1063→                        .data(song.artworkAt(ART_PX))
+  1064→                        .size(ART_PX)
+  1065→                        .build(),
+  1066→                    contentDescription = null,
+  1067→                    contentScale = ContentScale.Crop,
+  1068→                    modifier = Modifier
+  1069→                        .align(Alignment.TopStart)
+  1070→                        .fillMaxWidth()
+  1071→                        .height(heroHeight)
+  1072→                        .graphicsLayer {
+  1073→                            // Hands its opacity to the clip as the clip takes
+  1074→                            // over, and takes it straight back if there is no
+  1075→                            // clip mounted to hand it to.
+  1076→                            alpha = heroVisible *
+  1077→                                (1f - if (heroClip != null) canvasCover.floatValue else 0f)
+  1078→                            // The mask below erases part of what this layer
+  1079→                            // drew, which it can only do in a buffer of its own.
+  1080→                            compositingStrategy = CompositingStrategy.Offscreen
+  1081→                        }
+  1082→                        .drawWithContent {
+  1083→                            drawContent()
+  1084→                            drawRect(
+  1085→                                brush = Brush.verticalGradient(
+  1086→                                    colors = listOf(Color.Black, Color.Transparent),
+  1087→                                    startY = size.height * (1f - HERO_FADE_FRACTION),
+  1088→                                    endY = size.height,
+  1089→                                ),
+  1090→                                blendMode = BlendMode.DstIn,
+  1091→                            )
+  1092→                        },
+  1093→                )
+  1094→            }
+  1095→
+  1096→            // Motion artwork over it, in the same frame.
+  1097→            //
+  1098→            // Always composed while there's a clip to play, never gated on
+  1099→            // [heroVisible]: the clip has to be mounted and decoding *before*
+  1100→            // it can report the first frame that raises heroT in the first place.
+  1101→            if (heroMode) {
+  1102→                heroClip?.let { clip ->
+  1103→                    CanvasArtworkPlayer(
+  1104→                        canvas = clip,
+  1105→                        isPlaying = isPlaying,
+  1106→                        onRenderedChanged = { canvasRendered = it },
+  1107→                        onFrameCaptured = { canvasFrame = it },
+  1108→                        refreshFrameEveryMs = meshRefreshMs,
+  1109→                        onCoverChanged = { canvasCover.floatValue = it },
+  1110→                        bottomFade = HERO_FADE_FRACTION,
+  1111→                        modifier = Modifier
+  1112→                            .align(Alignment.TopStart)
+  1113→                            .fillMaxWidth()
+  1114→                            .height(heroHeight),
+  1115→                    )
+  1116→                }
+  1117→            }
+  1118→
+  1119→            // The clock, the signal bars and the drag handle are all white, and
+  1120→            // the banner puts whatever the artwork happens to have up there
+  1121→            // directly behind them — a bright frame or a pale sleeve leaves the
+  1122→            // top of the screen unreadable. Faded in with the banner and gone
+  1123→            // with it.
+  1124→            if (heroVisible > 0.01f) {
+  1125→                Box(
+  1126→                    modifier = Modifier
+  1127→                        .align(Alignment.TopStart)
+  1128→                        .fillMaxWidth()
+  1129→                        .height(statusBarTop + topStrip)
+  1130→                        .background(
+  1131→                            Brush.verticalGradient(
+  1132→                                listOf(
+  1133→                                    Color.Black.copy(alpha = 0.38f * heroVisible),
+  1134→                                    Color.Transparent,
+  1135→                                ),
+  1136→                            ),
+  1137→                        ),
+  1138→                )
+  1139→            }
+  1140→        }
+  1141→
+  1142→        Column(
+  1143→            modifier = Modifier
+  1144→                .fillMaxSize()
+  1145→                .statusBarsPadding()
+  1146→                .navigationBarsPadding()
+  1147→                .pointerInput(Unit) {
+  1148→                    var total = 0f
+  1149→                    detectHorizontalDragGestures(
+  1150→                        onDragStart = { total = 0f },
+  1151→                        onDragCancel = { swipeOffset = 0f },
+  1152→                        onDragEnd = {
+  1153→                            // The same two buzzes the transport glyphs give, so
+  1154→                            // swiping the sleeve and tapping skip feel like one
+  1155→                            // gesture with two spellings.
+  1156→                            when {
+  1157→                                total <= -swipeThreshold && hasNext -> {
+  1158→                                    haptics.play(Haptic.SkipNext)
+  1159→                                    onNext()
+  1160→                                }
+  1161→                                total >= swipeThreshold && hasPrevious -> {
+  1162→                                    haptics.play(Haptic.SkipPrevious)
+  1163→                                    onPrevious()
+  1164→                                }
+  1165→                            }
+  1166→                            swipeOffset = 0f
+  1167→                        },
+  1168→                        onHorizontalDrag = { _, delta ->
+  1169→                            total += delta
+  1170→                            // Damped: it's a hint, not a drag-to-position.
+  1171→                            swipeOffset = total * 0.35f
+  1172→                        },
+  1173→                    )
+  1174→                },
+  1175→            horizontalAlignment = Alignment.CenterHorizontally,
+  1176→        ) {
+  1177→            // The only strip that passes drags through to the sheet, so the
+  1178→            // player closes from the handle and the space around it — not from
+  1179→            // a stray downward swipe on the artwork or the controls. Docked
+  1180→            // there is no sheet to pass anything to, so all that is left of it
+  1181→            // is the room it kept above the artwork.
+  1182→            Box(
+  1183→                modifier = Modifier
+  1184→                    .fillMaxWidth()
+  1185→                    .height(topStrip),
+  1186→                contentAlignment = Alignment.Center,
+  1187→            ) {
+  1188→                if (!docked) {
+  1189→                    Box(
+  1190→                        Modifier
+  1191→                            .width(38.dp)
+  1192→                            .height(5.dp)
+  1193→                            .clip(RoundedCornerShape(3.dp))
+  1194→                            .background(Color.White.copy(alpha = 0.32f)),
+  1195→                    )
+  1196→                }
+  1197→            }
+  1198→
+  1199→            Column(
+  1200→                modifier = Modifier
+  1201→                    .weight(1f)
+  1202→                    .fillMaxWidth()
+  1203→                    // Swallow vertical drags before the sheet can read them as
+  1204→                    // "dismiss me". Children that scroll consume first, so the
+  1205→                    // lists are unaffected. This sits outside the side padding
+  1206→                    // on purpose: inside it, the two gutters were left as bare
+  1207→                    // sheet, and a swipe that strayed into one closed the whole
+  1208→                    // player instead of scrolling the lyrics or the queue.
+  1209→                    //
+  1210→                    // With one hole in it, and where that hole is depends on
+  1211→                    // which screen of the player is up:
+  1212→                    //
+  1213→                    //  * The main player — the artwork-and-credits block. Down is
+  1214→                    //    left unconsumed for the sheet to dismiss with, so the
+  1215→                    //    player closes from the picture as well as from the
+  1216→                    //    handle; up is taken here and drags the queue in.
+  1217→                    //  * The queue or the lyrics — the header those panels sit
+  1218→                    //    below, and nothing else. Down closes the player, up does
+  1219→                    //    nothing: there is no sleeve left to pull away from.
+  1220→                    //
+  1221→                    // The header is worked out from the state rather than read
+  1222→                    // off the sleeve, which is the whole point of doing it here:
+  1223→                    // the sleeve is still on its way for [QUEUE_TRAVEL_MS] after
+  1224→                    // the queue opens, and a hole that waited for it spent that
+  1225→                    // half second lying across a list the finger was already
+  1226→                    // scrolling.
+  1227→                    .onGloballyPositioned { dismissBandSpace = it }
+  1228→                    .pointerInput(Unit) {
+  1229→                        awaitEachGesture {
+  1230→                            // Unconsumed on purpose, as the blanket version was:
+  1231→                            // the collapsed sleeve's own clickable — the way back
+  1232→                            // out of the queue — has taken the press by the time
+  1233→                            // an ancestor sees it.
+  1234→                            val down = awaitFirstDown(requireUnconsumed = false)
+  1235→                            val space = dismissBandSpace
+  1236→                            val y = space?.localToRoot(down.position)?.y
+  1237→                                ?: down.position.y
+  1238→                            // A panel is up from the moment it is asked for to
+  1239→                            // the moment the sleeve has finished growing back —
+  1240→                            // never mind where the sleeve is in between.
+  1241→                            val panelUp = queueOpen || lyricsOpen ||
+  1242→                                queueSlide.floatValue > 0.01f
+  1243→                            val bandTop: Float
+  1244→                            val bandBottom: Float
+  1245→                            if (panelUp) {
+  1246→                                bandTop = space?.positionInRoot()?.y ?: 0f
+  1247→                                bandBottom = bandTop +
+  1248→                                    (ART_BOX_TOP_PAD + HEADER_HEIGHT).toPx()
+  1249→                            } else {
+  1250→                                bandTop = dismissBandTop
+  1251→                                bandBottom = dismissBandBottom
+  1252→                            }
+  1253→                            if (y >= bandTop && y <= bandBottom) {
+  1254→                                if (!panelUp) {
+  1255→                                    dragQueueIn(
+  1256→                                        down = down,
+  1257→                                        travel = bandBottom - bandTop -
+  1258→                                            HEADER_HEIGHT.toPx(),
+  1259→                                        slide = queueSlide,
+  1260→                                        onHold = { queueDragging = it },
+  1261→                                        onSettle = { open ->
+  1262→                                            if (open != queueOpen) {
+  1263→                                                haptics.play(
+  1264→                                                    if (open) Haptic.Expand else Haptic.Tap,
+  1265→                                                )
+  1266→                                                queueOpen = open
+  1267→                                            }
+  1268→                                            queueReleased++
+  1269→                                        },
+  1270→                                    )
+  1271→                                }
+  1272→                                return@awaitEachGesture
+  1273→                            }
+  1274→                            // What detectVerticalDragGestures does, minus the
+  1275→                            // callbacks: cross the slop, then hold the gesture
+  1276→                            // to the end so nothing downstream of the first
+  1277→                            // event reaches the sheet either.
+  1278→                            val drag = awaitVerticalTouchSlopOrCancellation(down.id) { change, _ ->
+  1279→                                change.consume()
+  1280→                            }
+  1281→                            if (drag != null) verticalDrag(drag.id) { it.consume() }
+  1282→                        }
+  1283→                    }
+  1284→                    .padding(horizontal = PLAYER_GUTTER),
+  1285→                horizontalAlignment = Alignment.CenterHorizontally,
+  1286→            ) {
+  1287→            // ---- Top and centre: artwork, then the credits ----
+  1288→            // Everything that changes between the artwork and the queue lives
+  1289→            // in this one weighted box, so the controls below it never move.
+  1290→            // Read up here rather than down by the scrubber: the stats-for-nerds
+  1291→            // line now lives inside the sleeve itself, so the art Box below
+  1292→            // needs these before the seek bar does.
+  1293→            val showNerdStats by AppSettings.showNerdStats.collectAsStateWithLifecycle()
+  1294→            val nerdStats by NerdStats.current.collectAsStateWithLifecycle()
+  1295→            // Hoisted alongside the other two rather than read where it is drawn:
+  1296→            // the stats block is inside a condition that flips as the sleeve
+  1297→            // collapses, and re-subscribing to a flow on every frame of that
+  1298→            // collapse is a waste of a subscription.
+  1299→            val smartFadeOn by AppSettings.smartFadeEnabled.collectAsStateWithLifecycle()
+  1300→            val smartAnalysis by AppSettings.smartAnalysis.collectAsStateWithLifecycle()
+  1301→            // Height the artwork block below turns out not to need, spent by the
+  1302→            // controls at the foot of the screen. Filled in from inside the box,
+  1303→            // where the sleeve's real size is known; see [lastControlSpread].
+  1304→            var controlSpread by remember { mutableStateOf(lastControlSpread) }
+  1305→            BoxWithConstraints(
+  1306→                modifier = Modifier
+  1307→                    .weight(1f)
+  1308→                    .widthIn(max = PLAYER_MAX_WIDTH)
+  1309→                    .fillMaxWidth()
+  1310→                    .padding(top = ART_BOX_TOP_PAD, bottom = 18.dp),
+  1311→            ) {
+  1312→                // The height this box would have if the controls at the foot of
+  1313→                // the screen were at their natural size. They aren't: they are
+  1314→                // holding [controlSpread] of extra gap, which came out of here,
+  1315→                // so adding it back cancels the only thing down there that
+  1316→                // depends on what is decided up here.
+  1317→                //
+  1318→                // The sleeve and the slack below are both worked out from this
+  1319→                // rather than from the box as it actually stands, and that is
+  1320→                // what keeps the hand-off from creeping. Measured off the real
+  1321→                // height, granting the gaps 20dp came back as a box 20dp
+  1322→                // shorter and read as a *further* 20dp going spare — so any
+  1323→                // moment the controls were briefly shorter than usual (a track
+  1324→                // change, where the lyric strip drops back to its loading line,
+  1325→                // or coming back from the lyrics panel, where the strip is
+  1326→                // rebuilt from scratch) was pocketed for good. The gaps
+  1327→                // ratcheted open a little at a time and the sleeve paid for it.
+  1328→                val roomy = maxHeight + if (lyricsOpen) 0.dp else controlSpread
+  1329→                // The sleeve is square, so it is bounded by whichever of the
+  1330→                // two axes runs out first: the player's width on a phone, or —
+  1331→                // on a tablet, where there is width to spare — the height left
+  1332→                // over once the credits row and the gap above it have had
+  1333→                // theirs. Sizing it off the width alone is what pushed the
+  1334→                // credits down across the scrubber on anything but a phone.
+  1335→                val wantArt = minOf(maxWidth, roomy - ART_TITLE_GAP - HEADER_HEIGHT)
+  1336→                // Held to what the box has actually got, for the single frame it
+  1337→                // takes the gaps below to catch up with a change in their own
+  1338→                // height: a sleeve a few dp under for one frame is a better
+  1339→                // failure than a credits row overhanging the lyric strip.
+  1340→                val fullArt = minOf(wantArt, maxHeight - ART_TITLE_GAP - HEADER_HEIGHT)
+  1341→                    .coerceAtLeast(THUMB_SIZE)
+  1342→                // What's left over once the sleeve, the gap and the credits have
+  1343→                // had theirs. A few dp on a phone; the better part of a
+  1344→                // centimetre on anything taller, and since the group is centred,
+  1345→                // half of it used to land between the credits and the lyric strip
+  1346→                // as one wide hole in the middle of the controls.
+  1347→                val slack = (roomy - wantArt - ART_TITLE_GAP - HEADER_HEIGHT)
+  1348→                    .coerceAtLeast(0.dp)
+  1349→                // Handed to the two gaps around the transport row instead, which
+  1350→                // is where a tall screen should be doing its breathing.
+  1351→                //
+  1352→                // Assigned, not added to: [slack] is stated in terms the spread
+  1353→                // cannot move, so this is the whole answer in one step, and it
+  1354→                // gives the room back just as readily when the controls grow
+  1355→                // into it again.
+  1356→                //
+  1357→                // Left alone while the lyrics panel is up: the spacers it feeds
+  1358→                // aren't in the tree then, so there would be nothing to apply it.
+  1359→                //
+  1360→                // Granted in whole even pixels, and only when it actually moves.
+  1361→                // This is a measurement feeding the layout it was measured from,
+  1362→                // and [roomy] cancels that by adding the grant back — but only if
+  1363→                // this pass's [maxHeight] already reflects the grant about to be
+  1364→                // written, which needs the Column above to have re-measured the
+  1365→                // controls at that grant already. It doesn't always have: on some
+  1366→                // aspect ratios (a phone-shaped sheet as readily as a docked pane)
+  1367→                // the cancellation lands a pass late, the grant overshoots, the
+  1368→                // next pass corrects past it the other way, and the two chase
+  1369→                // each other through the same handful of values forever instead
+  1370→                // of settling — a full-amplitude standing oscillation, not the
+  1371→                // single-pixel shiver this rounding alone was built to absorb.
+  1372→                // See [granted] below for the fix.
+  1373→                if (!lyricsOpen) {
+  1374→                    val target = with(density) {
+  1375→                        val half = slack
+  1376→                            .coerceAtMost(CONTROL_GAP_SPREAD_MAX * 2)
+  1377→                            .toPx()
+  1378→                            .div(2f)
+  1379→                            .roundToInt()
+  1380→                        (half * 2).toDp()
+  1381→                    }
+  1382→                    // Stepped towards [target] rather than jumped there in one
+  1383→                    // grant, so a late cancellation (see above) decays instead of
+  1384→                    // standing: still one pass to settle when the cancellation
+  1385→                    // does land on time, and a fast-converging approach rather
+  1386→                    // than a full-amplitude swing on the passes where it doesn't.
+  1387→                    val granted = with(density) {
+  1388→                        val steppedPx = (controlSpread.toPx() +
+  1389→                            (target.toPx() - controlSpread.toPx()) * 0.4f)
+  1390→                            .roundToInt()
+  1391→                        steppedPx.toDp()
+  1392→                    }
+  1393→                    if (granted != controlSpread) {
+  1394→                        SideEffect {
+  1395→                            controlSpread = granted
+  1396→                            lastControlSpread = granted
+  1397→                        }
+  1398→                    }
+  1399→                }
+  1400→                // Artwork and the title row travel together as one block, so
+  1401→                // the pair sits centred while the queue is closed — in whatever
+  1402→                // the controls couldn't take, which on all but the tallest
+  1403→                // screens is nothing.
+  1404→                val groupTop = (maxHeight - fullArt - ART_TITLE_GAP - HEADER_HEIGHT)
+  1405→                    .coerceAtLeast(0.dp) / 2
+  1406→                val artSize = lerp(fullArt, THUMB_SIZE, p)
+  1407→                val artTop = lerp(groupTop, 0.dp, p)
+  1408→                // Expanded and height-bound, the sleeve is narrower than the
+  1409→                // player and has to be centred in it; collapsed, it belongs
+  1410→                // hard against the left edge with the credits beside it.
+  1411→                val artStart = lerp((maxWidth - fullArt) / 2, 0.dp, p)
+  1412→                val titleTop = lerp(groupTop + fullArt + ART_TITLE_GAP, 0.dp, p)
+  1413→                val titleStart = lerp(0.dp, THUMB_SIZE + 12.dp, p)
+  1414→
+  1415→                // How far down the *screen* the sleeve's bottom edge sits, which
+  1416→                // is where the full-bleed banner has to stop for the credits
+  1417→                // below it not to move when it appears. Everything between the
+  1418→                // screen's top and this box's own top is fixed padding, so it
+  1419→                // can simply be added back up rather than measured.
+  1420→                val bannerBottom = statusBarTop + topStrip + ART_BOX_TOP_PAD +
+  1421→                    groupTop + fullArt + ART_TITLE_GAP / 2
+  1422→                // Guarded, like the spread above: this runs on every pass, and a
+  1423→                // state write from inside a layout is a recomposition asked for
+  1424→                // from inside a layout. Writing the same answer back costs a
+  1425→                // comparison here and a whole frame if it is left to the snapshot
+  1426→                // to notice.
+  1427→                if (bannerBottom != heroHeight) {
+  1428→                    SideEffect { heroHeight = bannerBottom }
+  1429→                }
+  1430→
+  1431→                // Empty state lives on this Box, not the AsyncImage: a
+  1432→                // background *and* a painter both trying to fill the same
+  1433→                // clipped shape is what read as two overlapping squares
+  1434→                // whenever there was nothing to paint. One layer, one square.
+  1435→                // [artLoaded] is hoisted to the screen, where the banner needs
+  1436→                // it too.
+  1437→                Box(
+  1438→                    modifier = Modifier
+  1439→                        // The lambda overload deliberately: the Dp one reads
+  1440→                        // its arguments at composition, so an animated offset
+  1441→                        // recomposes and re-measures this Box — cover, clip and
+  1442→                        // all — once per frame. Read at placement instead, the
+  1443→                        // same movement costs a placement pass.
+  1444→                        .offset { IntOffset(artStart.roundToPx(), artTop.roundToPx()) }
+  1445→                        .size(artSize)
+  1446→                        // Where the dismiss band starts. Read here, above the
+  1447→                        // paused shrink below, so the band covers the sleeve's
+  1448→                        // slot rather than the 86% of it that is drawn while
+  1449→                        // paused — the ring of backdrop the shrink opens up is
+  1450→                        // still the artwork as far as a finger is concerned, and
+  1451→                        // a band that breathed with the shrink would hand it
+  1452→                        // back and forth on every play and pause.
+  1453→                        .onGloballyPositioned { dismissBandTop = it.boundsInRoot().top }
+  1454→                        .graphicsLayer {
+  1455→                            // The paused shrink and the swipe nudge only make
+  1456→                            // sense on the full sleeve.
+  1457→                            val idle = artScale + (1f - artScale) * p
+  1458→                            scaleX = idle
+  1459→                            scaleY = idle
+  1460→                            translationX = swipeSettle * (1f - p)
+  1461→                        }
+  1462→                        // Collapsed, the sleeve is the way back: tapping the
+  1463→                        // thumbnail puts the queue or the lyrics away again.
+  1464→                        .then(
+  1465→                            if (queueOpen || lyricsOpen) {
+  1466→                                Modifier.clickable {
+  1467→                                    queueOpen = false
+  1468→                                    lyricsOpen = false
+  1469→                                }
+  1470→                            } else {
+  1471→                                Modifier
+  1472→                            },
+  1473→                        ),
+  1474→                    contentAlignment = Alignment.Center,
+  1475→                ) {
+  1476→                    // The sleeve proper. Separated from the box around it so
+  1477→                    // the banner can dissolve the card — shadow, corners, tile
+  1478→                    // and all — without taking the stats line with it.
+  1479→                    //
+  1480→                    // Held fully opaque until this track's own art is in,
+  1481→                    // regardless of [heroT]: the banner is sticky across skips
+  1482→                    // by design (see [heroSettled]), but its still image is not
+  1483→                    // — a new track's cover has to come from somewhere while
+  1484→                    // the banner waits on Coil, and the sleeve underneath,
+  1485→                    // with its loading icon, is that somewhere. Once
+  1486→                    // [artLoaded] catches up the two are showing the same
+  1487→                    // bitmap, so hiding one behind the other is invisible.
+  1488→                    Box(
+  1489→                        modifier = Modifier
+  1490→                            .fillMaxSize()
+  1491→                            .graphicsLayer { alpha = if (artLoaded) 1f - heroVisible else 1f }
+  1492→                            // A drop shadow grounds a photo; on the flat
+  1493→                            // placeholder tile it has nothing to sit behind, so
+  1494→                            // it just reads as a second, darker square ringing
+  1495→                            // the first. Only cast it once there's actually art.
+  1496→                            .shadow(
+  1497→                                if (artLoaded) lerp(14.dp, 6.dp, p) else 0.dp,
+  1498→                                RoundedCornerShape(lerp(10.dp, 7.dp, p)),
+  1499→                            )
+  1500→                            .clip(RoundedCornerShape(lerp(10.dp, 7.dp, p)))
+  1501→                            .background(Color.Black.copy(alpha = 0.18f)),
+  1502→                        contentAlignment = Alignment.Center,
+  1503→                    ) {
+  1504→                        if (!artLoaded) {
+  1505→                            Icon(
+  1506→                                imageVector = BitChordIcons.MusicNote,
+  1507→                                contentDescription = null,
+  1508→                                tint = Color.White.copy(alpha = 0.35f),
+  1509→                                modifier = Modifier.size(lerp(40.dp, 20.dp, p)),
+  1510→                            )
+  1511→                        }
+  1512→                        AsyncImage(
+  1513→                            // Decode at the sleeve's *expanded* size, always.
+  1514→                            // Coil otherwise sizes the decode to however large
+  1515→                            // this is when the request goes out — and changing
+  1516→                            // track from the queue does that while the sleeve is
+  1517→                            // collapsed to a thumbnail, leaving a thumbnail-sized
+  1518→                            // bitmap to be blown back up when the queue closes.
+  1519→                            // Skipping tracks with the transport keeps it sharp
+  1520→                            // only because the sleeve happens to be full size at
+  1521→                            // that moment.
+  1522→                            //
+  1523→                            // Asked for at the source's own size rather than the
+  1524→                            // sleeve's: it is the same request the full-bleed
+  1525→                            // banner makes, and the banner is taller than the
+  1526→                            // sleeve is wide. One ask, one decode, one bitmap for
+  1527→                            // both — and nothing to upscale when the two swap.
+  1528→                            model = ImageRequest.Builder(LocalContext.current)
+  1529→                                .data(song.artworkAt(ART_PX))
+  1530→                                .size(ART_PX)
+  1531→                                .build(),
+  1532→                            contentDescription = null,
+  1533→                            // Video thumbnails are 16:9; letterboxing them inside
+  1534→                            // the square sleeve looks like a broken frame.
+  1535→                            contentScale = ContentScale.Crop,
+  1536→                            onState = { artLoaded = it is AsyncImagePainter.State.Success },
+  1537→                            modifier = Modifier.fillMaxSize(),
+  1538→                        )
+  1539→
+  1540→                        // Where the clip plays when it can't have the banner:
+  1541→                        // inside the same clip as the still art, taking the
+  1542→                        // sleeve's corners, shadow and paused shrink for free.
+  1543→                        if (!heroMode) {
+  1544→                            canvas?.takeIf { p < 0.5f }?.let { clip ->
+  1545→                                CanvasArtworkPlayer(
+  1546→                                    canvas = clip,
+  1547→                                    isPlaying = isPlaying,
+  1548→                                    onRenderedChanged = { canvasRendered = it },
+  1549→                                    onFrameCaptured = { canvasFrame = it },
+  1550→                                    refreshFrameEveryMs = meshRefreshMs,
+  1551→                                    modifier = Modifier.fillMaxSize(),
+  1552→                                )
+  1553→                            }
+  1554→                        }
+  1555→                    }
+  1556→
+  1557→                    // Measured stats, pinned to the sleeve's own bottom-centre
+  1558→                    // rather than squeezed under the seek bar with the
+  1559→                    // "Lossless" badge — the badge is a claim, this is the
+  1560→                    // evidence, and the two no longer swap for each other on a
+  1561→                    // tap. Fades out with the sleeve as it collapses to a
+  1562→                    // thumbnail, where there's no room to read it anyway.
+  1563→                    if (showNerdStats && p < 0.5f) {
+  1564→                        // A plain white line reads fine over the usual dark
+  1565→                        // tile, but a light stretch of an animated cover — sky,
+  1566→                        // snow, a pale sleeve — washes it out entirely. The
+  1567→                        // shadow costs nothing on a dark background and is what
+  1568→                        // keeps it legible on a bright one.
+  1569→                        val nerdStyle = MaterialTheme.typography.labelSmall.copy(
+  1570→                            shadow = Shadow(
+  1571→                                color = Color.Black.copy(alpha = 0.55f),
+  1572→                                offset = Offset(0f, 1f),
+  1573→                                blurRadius = 4f,
+  1574→                            ),
+  1575→                        )
+  1576→                        Column(
+  1577→                            horizontalAlignment = Alignment.CenterHorizontally,
+  1578→                            modifier = Modifier
+  1579→                                .align(Alignment.BottomCenter)
+  1580→                                .padding(horizontal = 10.dp, vertical = 8.dp)
+  1581→                                .graphicsLayer { alpha = 1f - p * 2f },
+  1582→                        ) {
+  1583→                            nerdStats?.describe()?.let { stats ->
+  1584→                                Text(
+  1585→                                    text = stats,
+  1586→                                    style = nerdStyle,
+  1587→                                    color = Color.White.copy(alpha = 0.65f),
+  1588→                                    maxLines = 1,
+  1589→                                    overflow = TextOverflow.Ellipsis,
+  1590→                                    textAlign = TextAlign.Center,
+  1591→                                )
+  1592→                            }
+  1593→                            // Only when Automix is actually switched on:
+  1594→                            // otherwise this would report on analysis nothing is
+  1595→                            // going to use, which is noise rather than a stat.
+  1596→                            if (smartFadeOn) {
+  1597→                                Text(
+  1598→                                    // Both sides always named, even when they
+  1599→                                    // agree, so the line reads the same way every
+  1600→                                    // time and the eye can find the half it wants
+  1601→                                    // without re-parsing the sentence.
+  1602→                                    text = "Automix · this song " +
+  1603→                                        smartAnalysis.current.label() +
+  1604→                                        " · next " + smartAnalysis.next.label(),
+  1605→                                    style = nerdStyle,
+  1606→                                    // Dimmer than the measured line above it: that
+  1607→                                    // one describes the audio, this one describes
+  1608→                                    // the app, and the ranking should show.
+  1609→                                    color = Color.White.copy(alpha = 0.5f),
+  1610→                                    maxLines = 1,
+  1611→                                    overflow = TextOverflow.Ellipsis,
+  1612→                                    textAlign = TextAlign.Center,
+  1613→                                )
+  1614→                            }
+  1615→                        }
+  1616→                    }
+  1617→                }
+  1618→
+  1619→                // Sits in the gap under the sleeve, clear of its rounded
+  1620→                // corners and shadow — no box, no clip, nothing for the art
+  1621→                // itself to be cropped by. Just a glyph that fades in with
+  1622→                // the drag to hint which way a release would skip.
+  1623→                //
+  1624→                // Shown under the banner as well as under the card, and it is
+  1625→                // the only feedback the drag has there: a card can slide with
+  1626→                // the finger, but a full-bleed image sliding would open a strip
+  1627→                // of bare backdrop down one edge of the screen. It lands where
+  1628→                // the banner has all but dissolved, so it reads against the
+  1629→                // backdrop rather than against the artwork.
+  1630→                val swipeHintProgress = (abs(swipeSettle) / swipeThreshold)
+  1631→                    .coerceIn(0f, 1f) * (1f - p)
+  1632→                if (swipeHintProgress > 0.01f) {
+  1633→                    val showNext = swipeSettle < 0f
+  1634→                    val enabled = if (showNext) hasNext else hasPrevious
+  1635→                    Icon(
+  1636→                        imageVector = if (showNext) Icons.Rounded.FastForward else Icons.Rounded.FastRewind,
+  1637→                        contentDescription = null,
+  1638→                        tint = Color.White.copy(
+  1639→                            alpha = swipeHintProgress * if (enabled) 0.85f else 0.3f,
+  1640→                        ),
+  1641→                        modifier = Modifier
+  1642→                            .align(Alignment.TopCenter)
+  1643→                            .offset(y = artTop + artSize + (ART_TITLE_GAP - 16.dp) / 2)
+  1644→                            .size(16.dp),
+  1645→                    )
+  1646→                }
+  1647→
+  1648→                // ---- Title + menu ----
+  1649→                Row(
+  1650→                    modifier = Modifier
+  1651→                        .fillMaxWidth()
+  1652→                        .offset(y = titleTop)
+  1653→                        .padding(start = titleStart)
+  1654→                        .height(HEADER_HEIGHT)
+  1655→                        // Where the dismiss band ends — see its top on the
+  1656→                        // artwork above. Taken from the row rather than added up
+  1657→                        // from the sleeve so the gap between the two is inside
+  1658→                        // the band as well: it is a gap in one block, not a seam
+  1659→                        // between two, and a finger should not be able to find it.
+  1660→                        .onGloballyPositioned { dismissBandBottom = it.boundsInRoot().bottom },
+  1661→                    verticalAlignment = Alignment.CenterVertically,
+  1662→                ) {
+  1663→                    Column(Modifier.weight(1f)) {
+  1664→                        // Shrinks as the header collapses, so the queue's
+  1665→                        // heading doesn't have to compete with it.
+  1666→                        val titleSize = lerp(20.sp, 16.sp, p)
+  1667→                        Text(
+  1668→                            text = song.title,
+  1669→                            style = MaterialTheme.typography.titleLarge.copy(
+  1670→                                fontSize = titleSize,
+  1671→                            ),
+  1672→                            color = Color.White,
+  1673→                            maxLines = 1,
+  1674→                            overflow = TextOverflow.Ellipsis,
+  1675→                            // Only the tracks YouTube hands us a browse id for
+  1676→                            // lead anywhere; the rest stay plain text.
+  1677→                            modifier = Modifier.opensPage(song.albumId, onOpenAlbum),
+  1678→                        )
+  1679→                        Text(
+  1680→                            text = song.artist,
+  1681→                            style = MaterialTheme.typography.titleLarge.copy(
+  1682→                                fontWeight = FontWeight.W500,
+  1683→                                fontSize = titleSize,
+  1684→                            ),
+  1685→                            color = Color.White.copy(alpha = 0.55f),
+  1686→                            maxLines = 1,
+  1687→                            overflow = TextOverflow.Ellipsis,
+  1688→                            modifier = Modifier.opensPage(song.artistId, onOpenArtist),
+  1689→                        )
+  1690→                    }
+  1691→                    Spacer(Modifier.width(10.dp))
+  1692→                    // Beside the credits rather than down in the toggle row:
+  1693→                    // liking is about *this song*, and the row below is about
+  1694→                    // how the queue plays. Guests get nothing to tap, since
+  1695→                    // there's no account to record it against — and neither
+  1696→                    // does a local file or a finished download, which carries
+  1697→                    // no YouTube identity to rate.
+  1698→                    if (signedIn && song.localUri == null) {
+  1699→                        val liked = likeStatus == LikeStatus.LIKE
+  1700→                        CircleGlyph(
+  1701→                            icon = if (liked) BitChordIcons.HeartFilled else BitChordIcons.Heart,
+  1702→                            contentDescription = if (liked) "Remove from Liked Music" else "Like",
+  1703→                            onClick = onToggleLike,
+  1704→                            active = liked,
+  1705→                            haptic = if (liked) Haptic.ToggleOff else Haptic.ToggleOn,
+  1706→                        )
+  1707→                        Spacer(Modifier.width(8.dp))
+  1708→                    }
+  1709→                    CircleGlyph(
+  1710→                        icon = Icons.Rounded.MoreHoriz,
+  1711→                        contentDescription = "More",
+  1712→                        onClick = onOpenMenu,
+  1713→                    )
+  1714→                }
+  1715→
+  1716→                if (lyricsOpen) {
+  1717→                    LyricsPanel(
+  1718→                        lines = lyrics.orEmpty(),
+  1719→                        positionMs = positionMs,
+  1720→                        isPlaying = isPlaying,
+  1721→                        onSeekToLine = onSeek,
+  1722→                        modifier = Modifier
+  1723→                            .fillMaxSize()
+  1724→                            .padding(top = HEADER_HEIGHT + 10.dp)
+  1725→                            // Arrives once the sleeve has finished collapsing
+  1726→                            // into the header, the same beat the queue below
+  1727→                            // already waits for — fading lyrics in over a
+  1728→                            // sleeve still mid-collapse doubled the same
+  1729→                            // movement in two places on screen at once.
+  1730→                            .graphicsLayer {
+  1731→                                alpha = ((p - 0.45f) / 0.55f).coerceIn(0f, 1f)
+  1732→                                translationY = (1f - p) * 26.dp.toPx()
+  1733→                            },
+  1734→                    )
+  1735→                }
+  1736→
+  1737→                // Toggles and the queue arrive after the sleeve has finished
+  1738→                // travelling, and leave before it starts coming back.
+  1739→                if (!lyricsOpen && queueProgress > 0.01f) {
+  1740→                    Column(
+  1741→                        modifier = Modifier
+  1742→                            .fillMaxSize()
+  1743→                            .padding(top = HEADER_HEIGHT + 10.dp)
+  1744→                            .graphicsLayer {
+  1745→                                alpha = ((queueProgress - 0.45f) / 0.55f).coerceIn(0f, 1f)
+  1746→                                translationY = (1f - queueProgress) * 26.dp.toPx()
+  1747→                            },
+  1748→                    ) {
+  1749→                        InlineQueue(
+  1750→                            queue = queue,
+  1751→                            currentIndex = queueIndex,
+  1752→                            autoplayEnabled = autoplayEnabled,
+  1753→                            onJumpTo = onJumpTo,
+  1754→                            onRemove = onRemoveFromQueue,
+  1755→                            onMove = onMoveInQueue,
+  1756→                            onClear = onClearQueue,
+  1757→                            modifier = Modifier.weight(1f),
+  1758→                        )
+  1759→                    }
+  1760→                }
+  1761→            }
+  1762→
+  1763→            // ---- Bottom: lyric strip, scrubber, transport, volume, toggles ----
+  1764→            // One block, measured at its natural height and pinned to the foot
+  1765→            // of the player. Whatever is left over above it is the artwork's,
+  1766→            // which is what keeps this row of controls in the same place on
+  1767→            // every screen instead of being shoved off the bottom of a tall one.
+  1768→            Column(
+  1769→                modifier = Modifier
+  1770→                    .widthIn(max = PLAYER_MAX_WIDTH)
+  1771→                    .fillMaxWidth(),
+  1772→                horizontalAlignment = Alignment.CenterHorizontally,
+  1773→            ) {
+  1774→            // Current lyric, one line, directly above the scrubber. It stays in
+  1775→            // the layout — and stays fully visible — whether or not the queue
+  1776→            // is open: dropping it would shorten this block and the controls
+  1777→            // under it would jump the moment the queue started sliding in, and
+  1778→            // fading it away behind the queue left this the one place in the
+  1779→            // player where the current line simply vanished.
+  1780→            //
+  1781→            // Switched off in Settings it goes entirely, rather than sitting
+  1782→            // there saying no lyrics were found: none were looked for. It is
+  1783→            // also the only way into the full lyrics panel, so with it gone
+  1784→            // the feature is properly gone.
+  1785→            if (!lyricsOpen && syncedLyricsEnabled) {
+  1786→                Box(
+  1787→                    modifier = Modifier
+  1788→                        .fillMaxWidth()
+  1789→                        // The slider's touch target reaches ~13dp above the
+  1790→                        // drawn bar, so the strip reads as further off it than
+  1791→                        // it is. Nudged down into that dead space, the same way
+  1792→                        // the timestamps below are pulled back up into it.
+  1793→                        .offset(y = 6.dp),
+  1794→                ) {
+  1795→                    if (!lyrics.isNullOrEmpty()) {
+  1796→                        CurrentLyricLine(
+  1797→                            lines = lyrics,
+  1798→                            trackKey = song.videoId,
+  1799→                            positionMs = positionMs,
+  1800→                            isPlaying = isPlaying,
+  1801→                            durationMs = durationMs,
+  1802→                            // Still visible over the queue, so still a valid way
+  1803→                            // in: opens the same full lyrics panel it always has,
+  1804→                            // closing the queue behind it the same way the "Up
+  1805→                            // next" glyph closes lyrics behind the queue.
+  1806→                            onClick = {
+  1807→                                queueOpen = false
+  1808→                                lyricsOpen = true
+  1809→                            },
+  1810→                            modifier = Modifier.fillMaxWidth(),
+  1811→                        )
+  1812→                    } else if (lyricsUnavailable) {
+  1813→                        LyricsUnavailableLine(
+  1814→                            trackKey = song.videoId,
+  1815→                            modifier = Modifier.fillMaxWidth(),
+  1816→                        )
+  1817→                    } else {
+  1818→                        LyricsLoadingLine(
+  1819→                            trackKey = song.videoId,
+  1820→                            modifier = Modifier.fillMaxWidth(),
+  1821→                        )
+  1822→                    }
+  1823→                }
+  1824→            }
+  1825→            val mixing by AppSettings.smartMixInProgress.collectAsStateWithLifecycle()
+  1826→            val transitionWindow by AppSettings.smartTransitionWindow.collectAsStateWithLifecycle()
+  1827→            ThinSlider(
+  1828→                value = shown,
+  1829→                onValueChange = {
+  1830→                    scrubbing = true
+  1831→                    scrubValue = it
+  1832→                },
+  1833→                onValueChangeFinished = {
+  1834→                    // On release only. Ticking the whole way along the bar turns
+  1835→                    // a scrub into a rattle, and the beat that matters is the one
+  1836→                    // that says where the playhead landed.
+  1837→                    haptics.play(Haptic.Select)
+  1838→                    pendingSeek = scrubValue
+  1839→                    onSeekFraction(scrubValue)
+  1840→                    scrubbing = false
+  1841→                },
+  1842→                // Suppressed under the finger: the bar is already thickening and
+  1843→                // tracking a drag, and a sheen sweeping through that reads as a
+  1844→                // rendering glitch rather than as a signal.
+  1845→                mixing = mixing && !scrubbing,
+  1846→                // Hidden while scrubbing for the same reason as the sheen: the
+  1847→                // planner is still describing where the transition *would* be,
+  1848→                // and a marker sitting under a finger that is moving the
+  1849→                // playhead invites reading it as a drag target.
+  1850→                transitionWindow = transitionWindow
+  1851→                    ?.takeIf { !scrubbing && it.end > it.start }
+  1852→                    ?.let { it.start..it.end },
+  1853→            )
+  1854→            val wifiQuality by AppSettings.audioQualityWifi.collectAsStateWithLifecycle()
+  1855→            val cellularQuality by AppSettings.audioQualityCellular.collectAsStateWithLifecycle()
+  1856→            val metered by AppSettings.meteredConnection.collectAsStateWithLifecycle()
+  1857→            // Whether this playback session is even asking for a lossless
+  1858→            // stream — the same computation SourceResolver.requestForNow()
+  1859→            // makes, mirrored here so "Loading lossless" only appears when a
+  1860→            // lossless fetch is actually in flight, not on every buffering
+  1861→            // YouTube track.
+  1862→            val losslessRequested =
+  1863→                (if (metered == true) cellularQuality else wifiQuality) == AudioQuality.HIGH
+  1864→            // Whether a module is still racing YouTube for this exact track —
+  1865→            // see [NerdStats.racingLossless]. YouTube can win that race and
+  1866→            // already be playing while the module lookup is still running
+  1867→            // detached in the background, and the badge should keep saying
+  1868→            // "loading" through that stretch rather than going blank only to
+  1869→            // possibly say "loading" again a moment later.
+  1870→            val racingLossless by NerdStats.racingLossless.collectAsStateWithLifecycle()
+  1871→            val stillRacing = song.videoId in racingLossless
+  1872→            Box(
+  1873→                modifier = Modifier
+  1874→                    .fillMaxWidth()
+  1875→                    // The slider's touch target extends well past the drawn
+  1876→                    // bar, so pull the labels back up under it.
+  1877→                    .offset(y = (-9).dp),
+  1878→            ) {
+  1879→                Row(
+  1880→                    modifier = Modifier.fillMaxWidth(),
+  1881→                    horizontalArrangement = Arrangement.SpaceBetween,
+  1882→                ) {
+  1883→                    Text(
+  1884→                        text = formatTime((shown * durationMs).toLong()),
+  1885→                        style = MaterialTheme.typography.labelMedium,
+  1886→                        color = Color.White.copy(alpha = 0.55f),
+  1887→                    )
+  1888→                    Text(
+  1889→                        text = "-" + formatTime(durationMs - (shown * durationMs).toLong()),
+  1890→                        style = MaterialTheme.typography.labelMedium,
+  1891→                        color = Color.White.copy(alpha = 0.55f),
+  1892→                    )
+  1893→                }
+  1894→                // Pinned to the box's own center rather than squeezed into the
+  1895→                // gap between the two timestamps: that gap's width changes by
+  1896→                // a digit's worth every time a minute rolls over, which was
+  1897→                // dragging this along with it every tick. The screen's center
+  1898→                // doesn't move.
+  1899→                LosslessOrStats(
+  1900→                    isLoading = isLoading,
+  1901→                    stillRacing = stillRacing,
+  1902→                    losslessRequested = losslessRequested,
+  1903→                    nerdStats = nerdStats,
+  1904→                    modifier = Modifier
+  1905→                        .align(Alignment.Center)
+  1906→                        .padding(horizontal = 8.dp),
+  1907→                )
+  1908→            }
+  1909→
+  1910→            if (lyricsOpen) {
+  1911→                Spacer(Modifier.height(16.dp))
+  1912→                // The credit, and beside it the way out. Tapping the sleeve
+  1913→                // above also closes the panel, but that is an invisible target
+  1914→                // you have to be told about; the button says so. With four
+  1915→                // databases behind the panel, whose timings you are looking at
+  1916→                // is worth the room the credit takes next to it.
+  1917→                Row(
+  1918→                    // Measured at the pill's own height so the button can be
+  1919→                    // sized off it rather than off a number that happens to
+  1920→                    // match today: the pill is as tall as the label's line
+  1921→                    // height plus its padding, which moves with the font scale,
+  1922→                    // and the circle has to keep matching it when it does.
+  1923→                    modifier = Modifier.height(IntrinsicSize.Min),
+  1924→                    verticalAlignment = Alignment.CenterVertically,
+  1925→                ) {
+  1926→                    Box(
+  1927→                        modifier = Modifier
+  1928→                            .clip(RoundedCornerShape(percent = 50))
+  1929→                            .background(Color.White.copy(alpha = 0.10f))
+  1930→                            .padding(horizontal = 18.dp, vertical = 8.dp),
+  1931→                    ) {
+  1932→                        Text(
+  1933→                            // A missing source and missing lyrics are not the
+  1934→                            // same thing: lyrics read back out of a downloaded
+  1935→                            // file have no service to credit, and billing those
+  1936→                            // as "No lyrics found" said the opposite of what
+  1937→                            // the screen was showing.
+  1938→                            text = when {
+  1939→                                lyricsSource != null -> "Lyrics by ${lyricsSource.label}"
+  1940→                                lyrics.isNullOrEmpty() -> "No lyrics found"
+  1941→                                else -> "Lyrics saved with this download"
+  1942→                            },
+  1943→                            style = MaterialTheme.typography.labelLarge,
+  1944→                            color = Color.White.copy(alpha = 0.7f),
+  1945→                        )
+  1946→                    }
+  1947→                    Spacer(Modifier.width(8.dp))
+  1948→                    Box(
+  1949→                        modifier = Modifier
+  1950→                            // Height from the row, width from the height: a
+  1951→                            // circle, not an oval, whatever the pill measures.
+  1952→                            .fillMaxHeight()
+  1953→                            .aspectRatio(1f, matchHeightConstraintsFirst = true)
+  1954→                            .clip(CircleShape)
+  1955→                            .background(Color.White.copy(alpha = 0.10f))
+  1956→                            .clickable(
+  1957→                                interactionSource = remember { MutableInteractionSource() },
+  1958→                                indication = null,
+  1959→                            ) {
+  1960→                                haptics.play(Haptic.Tap)
+  1961→                                lyricsOpen = false
+  1962→                            },
+  1963→                        contentAlignment = Alignment.Center,
+  1964→                    ) {
+  1965→                        Icon(
+  1966→                            imageVector = Icons.Rounded.Close,
+  1967→                            contentDescription = "Close lyrics",
+  1968→                            tint = Color.White.copy(alpha = 0.7f),
+  1969→                            modifier = Modifier.size(16.dp),
+  1970→                        )
+  1971→                    }
+  1972→                }
+  1973→                Spacer(Modifier.height(20.dp))
+  1974→            } else {
+  1975→
+  1976→            // The transport rides midway between the two blocks it separates:
+  1977→            // the scrubber above it, and the volume bar and toggle row below,
+  1978→            // which sit close enough together to read as one. Both of its own
+  1979→            // gaps take half the spread, so on a tall screen it holds the
+  1980→            // centre rather than drifting up under the seek bar.
+  1981→            Spacer(Modifier.height(14.dp + controlSpread / 2))
+  1982→
+  1983→            // ---- Transport ----
+  1984→            Row(
+  1985→                modifier = Modifier.fillMaxWidth(),
+  1986→                horizontalArrangement = Arrangement.SpaceEvenly,
+  1987→                verticalAlignment = Alignment.CenterVertically,
+  1988→            ) {
+  1989→                TransportGlyph(
+  1990→                    icon = Icons.Rounded.FastRewind,
+  1991→                    contentDescription = "Previous",
+  1992→                    size = 46.dp,
+  1993→                    onClick = onPrevious,
+  1994→                    // Lit whenever back has something to do — either a track to
+  1995→                    // step to, or enough elapsed for it to restart this one.
+  1996→                    enabled = hasPrevious || positionMs > BACK_RESTARTS_AFTER_MS,
+  1997→                    haptic = Haptic.SkipPrevious,
+  1998→                )
+  1999→                // While the stream URL resolves and buffers, the play glyph
+  2000→                // would be a lie — show progress instead.
+
+[showing lines 1-2000 of 4162; use offset=2001 with limit to continue reading]
