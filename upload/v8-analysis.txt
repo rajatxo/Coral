@@ -1,0 +1,91 @@
+Here is the concrete analysis of your **current** ViTune-BC build based on the 16 screenshots provided.
+
+### **The Core Problem**
+You are currently running a **"Full-Bleed / Hero Image" layout**. The album art is stretched to fill the entire width of the screen (or close to it), acting as the background for the top half of the player. This is why you cannot see the "blurred background around it"—the image *is* the background.
+
+To get back to the "before" look, you need to switch the **Album Art Mode** from `Full Width` or `Fit` to **`Square`** or **`Fixed Size`**.
+
+---
+
+### **Detailed Breakdown per Screenshot**
+
+**1. Screenshot 1 (Base State)**
+*   **Art Shape:** Horizontal Rectangle (approx. 1:1.2 aspect ratio). It is **not** a perfect square; it fills the screen width.
+*   **Position:** Top-aligned, filling edge-to-edge.
+*   **Edge:** Hard edge at the bottom where the art meets the dark gradient.
+*   **Gradient:** Yes, there is a heavy black gradient overlaying the bottom ~15% of the album art to ensure text readability.
+*   **Controls:** Positioned in the lower half of the screen on top of a blurred/darkened version of the background.
+*   **Chevron-Up:** Visible at the bottom center (above nav bar).
+*   **Broken/Missing:** The "Square" framing is missing. The background blur is hidden behind the large image.
+*   **Comparison:** This looks like Spotify's "Now Playing" view (Canvas style), not the classic iPod/standard player view you want.
+
+**2. Screenshot 2 (Action: Shuffle tapped)**
+*   **Art Shape:** Same horizontal rectangle.
+*   **Visual Glitch:** You can see a faint white circle/ripple effect on the left side of the face (near the hair). This indicates touch feedback is rendering on top of the art.
+*   **Controls:** The Shuffle icon has a highlight/glow state.
+
+**3. Screenshot 3 (Lyrics Update)**
+*   **Text Change:** Lyrics line changed to "Yeah I ain't nothin but ya baby".
+*   **Layout:** Identical to Screenshot 1. The art is still full-width.
+
+**4. Screenshot 4 (Action: More Options tapped)**
+*   **Visual Glitch:** A small white glowing dot appeared on the far right (where the "More" options button usually is). It looks like a touch ripple or a notification dot that isn't positioned correctly.
+
+**5. Screenshot 5 (Static)**
+*   **Observation:** No change in layout. Confirms the persistent state of the "Full-Width Art".
+
+**6. Screenshot 6 (Status Bar / Notification interaction?)**
+*   **Layout Shift:** There is a black bar at the very top now, pushing the album art down slightly.
+*   **Glitch:** A white circle (looks like a volume slider knob or a touch point) is floating on the left side of the image.
+*   **Issue:** The UI doesn't seem to handle status bar expansion gracefully; it just pushes content down rather than overlaying it.
+
+**7. Screenshot 7 (Lyrics Update)**
+*   **Text Change:** Japanese lyrics "失って初めて気がつくなんて".
+*   **Layout:** Back to full-screen art (top bar gone).
+
+**8. Screenshot 8 (Mini-Player / Queue Peek)**
+*   **New Element:** A "Mini Player" or "Up Next" bar has appeared at the bottom showing "G-Eazy".
+*   **Conflict:** This proves the main view is treating the art as a background layer. The mini-player floats over the controls area.
+
+**9. Screenshot 9 (Queue Expanded)**
+*   **State:** The queue list is visible at the bottom.
+*   **Issue:** The main album art is still huge and uncompressed. In a standard "Square Art" mode, this list would slide up over the controls, and the art would stay small at the top. Here, the art dominates the visual space.
+
+**10. Screenshot 10 (Queue Interaction)**
+*   **Action:** Tapping "Shuffle" in the main controls caused the icon to change state (highlighted).
+
+**11. Screenshot 11 (Queue Visible)**
+*   **State:** Queue is still visible. Layout remains "Full Bleed".
+
+**12. Screenshot 12 (Queue + Status Bar)**
+*   **Observation:** Combination of the queue being open and the status bar expansion seen earlier.
+
+**13. Screenshot 13 (Queue Scrolled)**
+*   **Change:** The current song in the queue ("Fuji Kaze") is now highlighted/active in the list at the bottom.
+
+**14. Screenshot 14 (Action: Repeat tapped)**
+*   **Feedback:** The "Repeat" icon (loop arrow) has a glow effect, indicating it was pressed.
+
+**15. Screenshot 15 (Action: Pause -> Play transition)**
+*   **Icon Change:** The center button changed from `||` (Pause) to `>` (Play).
+*   **Ripple:** There is a circular ripple effect on the Play button.
+
+**16. Screenshot 16 (Playing State)**
+*   **State:** Music is playing (`>` icon).
+*   **Time:** Progress bar moved to 1:33.
+
+---
+
+### **Summary of What Needs Fixing**
+
+To restore the **"Before" (Standard)** look:
+
+1.  **Change Album Art Constraint:**
+    *   **Current:** `match_parent` (width) with `wrap_content` (height) or similar.
+    *   **Target:** Fixed size (e.g., `300dp x 300dp`) or Aspect Ratio `1:1`, centered horizontally with margins on the left and right.
+2.  **Fix the Background Layer:**
+    *   Currently, the background seems to be hidden or the opacity is 0 because the foreground art covers it all.
+    *   Once you shrink the art to a square, the **Blurred Background** will automatically become visible in the gaps around the square.
+3.  **Fix the Gradient:**
+    *   The black gradient currently sits on top of the giant image.
+    *   In the "Before" version, this gradient should ideally be part of the background container, fading from transparent (at the top) to dark (at the bottom), sitting *behind* the text but potentially *over* the blurred background.
