@@ -1,0 +1,610 @@
+     1→package app.vitune.android.ui.screens.player
+     2→
+     3→import androidx.compose.animation.AnimatedContent
+     4→import androidx.compose.animation.core.Spring
+     5→import androidx.compose.animation.core.animateFloatAsState
+     6→import androidx.compose.animation.core.spring
+     7→import androidx.compose.animation.fadeIn
+     8→import androidx.compose.animation.fadeOut
+     9→import androidx.compose.animation.togetherWith
+    10→import androidx.compose.foundation.Image
+    11→import androidx.compose.foundation.background
+    12→import androidx.compose.foundation.clickable
+    13→import androidx.compose.foundation.layout.Arrangement
+    14→import androidx.compose.foundation.layout.Box
+    15→import androidx.compose.foundation.layout.Column
+    16→import androidx.compose.foundation.layout.Row
+    17→import androidx.compose.foundation.layout.Spacer
+    18→import androidx.compose.foundation.layout.aspectRatio
+    19→import androidx.compose.foundation.layout.fillMaxSize
+    20→import androidx.compose.foundation.layout.fillMaxWidth
+    21→import androidx.compose.foundation.layout.height
+    22→import androidx.compose.foundation.layout.padding
+    23→import androidx.compose.foundation.layout.size
+    24→import androidx.compose.foundation.layout.width
+    25→import androidx.compose.foundation.shape.RoundedCornerShape
+    26→import androidx.compose.foundation.text.BasicText
+    27→import androidx.compose.runtime.Composable
+    28→import androidx.compose.runtime.LaunchedEffect
+    29→import androidx.compose.runtime.getValue
+    30→import androidx.compose.runtime.mutableIntStateOf
+    31→import androidx.compose.runtime.mutableStateOf
+    32→import androidx.compose.runtime.remember
+    33→import androidx.compose.runtime.setValue
+    34→import androidx.compose.ui.Alignment
+    35→import androidx.compose.ui.Modifier
+    36→import androidx.compose.ui.draw.clip
+    37→import androidx.compose.ui.graphics.Brush
+    38→import androidx.compose.ui.graphics.Color
+    39→import androidx.compose.ui.graphics.ColorFilter
+    40→import androidx.compose.ui.graphics.graphicsLayer
+    41→import androidx.compose.ui.layout.ContentScale
+    42→import androidx.compose.ui.res.painterResource
+    43→import androidx.compose.ui.text.style.TextOverflow
+    44→import androidx.compose.ui.unit.dp
+    45→import androidx.media3.common.C
+    46→import androidx.media3.common.MediaItem
+    47→import androidx.media3.common.Player
+    48→import app.vitune.android.Database
+    49→import app.vitune.android.R
+    50→import app.vitune.android.models.Lyrics as LyricsData
+    51→import app.vitune.android.models.ui.toUiMedia
+    52→import app.vitune.android.preferences.PlayerPreferences
+    53→import app.vitune.android.service.LOCAL_KEY_PREFIX
+    54→import app.vitune.android.service.PlayerService
+    55→import app.vitune.android.transaction
+    56→import app.vitune.android.ui.components.SeekBar
+    57→import app.vitune.android.ui.components.themed.IconButton
+    58→import app.vitune.android.utils.SynchronizedLyrics
+    59→import app.vitune.android.utils.SynchronizedLyricsState
+    60→import app.vitune.android.utils.forceSeekToNext
+    61→import app.vitune.android.utils.forceSeekToPrevious
+    62→import app.vitune.android.utils.semiBold
+    63→import app.vitune.android.utils.thumbnail
+    64→import app.vitune.core.ui.Dimensions
+    65→import app.vitune.core.ui.LocalAppearance
+    66→import app.vitune.core.ui.favoritesIcon
+    67→import app.vitune.core.ui.utils.px
+    68→import app.vitune.providers.innertube.Innertube
+    69→import app.vitune.providers.innertube.models.bodies.NextBody
+    70→import app.vitune.providers.innertube.requests.lyrics
+    71→import app.vitune.providers.kugou.KuGou
+    72→import app.vitune.providers.lrclib.LrcLib
+    73→import app.vitune.providers.lrclib.LrcParser
+    74→import app.vitune.providers.lrclib.toLrcFile
+    75→import coil3.compose.AsyncImage
+    76→import kotlinx.collections.immutable.toImmutableList
+    77→import kotlinx.collections.immutable.toImmutableMap
+    78→import kotlinx.coroutines.CancellationException
+    79→import kotlinx.coroutines.Dispatchers
+    80→import kotlinx.coroutines.async
+    81→import kotlinx.coroutines.coroutineScope
+    82→import kotlinx.coroutines.delay
+    83→import kotlinx.coroutines.ensureActive
+    84→import kotlinx.coroutines.flow.cancellable
+    85→import kotlinx.coroutines.flow.distinctUntilChanged
+    86→import kotlinx.coroutines.withContext
+    87→import kotlin.time.Duration.Companion.milliseconds
+    88→
+    89→private const val INLINE_LYRIC_UPDATE_DELAY = 50L
+    90→private const val LYRIC_SEARCH_PHRASE_INTERVAL_MS = 1800L
+    91→
+    92→private val LYRIC_SEARCH_PHRASES = listOf(
+    93→    "Almost words",
+    94→    "Still looking",
+    95→    "Matching the track",
+    96→    "One more source to check"
+    97→)
+    98→
+    99→@Composable
+   100→fun BitChordPlayer(
+   101→    mediaItem: MediaItem,
+   102→    binder: PlayerService.Binder,
+   103→    shouldBePlaying: Boolean,
+   104→    position: Long,
+   105→    duration: Long,
+   106→    likedAt: Long?,
+   107→    setLikedAt: (Long?) -> Unit,
+   108→    isShowingLyrics: Boolean,
+   109→    onShowLyrics: (Boolean) -> Unit,
+   110→    onOpenQueue: () -> Unit,
+   111→    onTitleClick: (() -> Unit)? = null,
+   112→    onArtistClick: (() -> Unit)? = null,
+   113→    modifier: Modifier = Modifier
+   114→) {
+   115→    val (colorPalette, typography) = LocalAppearance.current
+   116→    val metadata = mediaItem.mediaMetadata
+   117→    val media = remember(mediaItem, duration) { mediaItem.toUiMedia(duration) }
+   118→
+   119→    // Subtle scale pulse on the background album art when play/pause toggles
+   120→    val artScale by animateFloatAsState(
+   121→        targetValue = if (shouldBePlaying) 1f else 0.96f,
+   122→        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy),
+   123→        label = "artScale"
+   124→    )
+   125→
+   126→    var shuffleOn by remember { mutableStateOf(binder.player.shuffleModeEnabled) }
+   127→    var repeatMode by remember { mutableStateOf(binder.player.repeatMode) }
+   128→
+   129→    // --- inline synced lyric line, with background auto-fetch ---
+   130→    var storedLyrics by remember(mediaItem.mediaId) { mutableStateOf<LyricsData?>(null) }
+   131→    var isFetchingLyrics by remember(mediaItem.mediaId) { mutableStateOf(false) }
+   132→
+   133→    LaunchedEffect(mediaItem.mediaId) {
+   134→        runCatching {
+   135→            withContext(Dispatchers.IO) {
+   136→                Database
+   137→                    .lyrics(mediaItem.mediaId)
+   138→                    .distinctUntilChanged()
+   139→                    .cancellable()
+   140→                    .collect { currentLyrics ->
+   141→                        storedLyrics = currentLyrics
+   142→
+   143→                        if (currentLyrics?.fixed != null && currentLyrics.synced != null) {
+   144→                            isFetchingLyrics = false
+   145→                            return@collect
+   146→                        }
+   147→
+   148→                        isFetchingLyrics = true
+   149→
+   150→                        val album = metadata.albumTitle?.toString()
+   151→                        val artist = metadata.artist?.toString().orEmpty()
+   152→                        val title = metadata.title?.toString().orEmpty().let {
+   153→                            if (mediaItem.mediaId.startsWith(LOCAL_KEY_PREFIX)) it
+   154→                                .substringBeforeLast('.')
+   155→                                .trim()
+   156→                            else it
+   157→                        }
+   158→                        val strippedTitle = title.split("(")[0].trim()
+   159→
+   160→                        coroutineScope {
+   161→                            val durationDeferred = async {
+   162→                                var d = withContext(Dispatchers.Main) {
+   163→                                    binder.player.duration.takeIf { it > 0 } ?: C.TIME_UNSET
+   164→                                }
+   165→                                while (d == C.TIME_UNSET) {
+   166→                                    delay(100)
+   167→                                    d = withContext(Dispatchers.Main) {
+   168→                                        binder.player.duration.takeIf { it > 0 } ?: C.TIME_UNSET
+   169→                                    }
+   170→                                }
+   171→                                d
+   172→                            }
+   173→
+   174→                            val innertube = async(Dispatchers.IO) {
+   175→                                runCatching {
+   176→                                    Innertube.lyrics(NextBody(videoId = mediaItem.mediaId))?.getOrNull()
+   177→                                }.getOrNull()
+   178→                            }
+   179→
+   180→                            val fixed = currentLyrics?.fixed ?: innertube.await() ?: run {
+   181→                                val d = durationDeferred.await()
+   182→                                runCatching {
+   183→                                    LrcLib.bestLyrics(
+   184→                                        artist = artist,
+   185→                                        title = title,
+   186→                                        duration = d.milliseconds,
+   187→                                        album = album,
+   188→                                        synced = false
+   189→                                    )?.map { it?.text }?.getOrNull()
+   190→                                }.getOrNull()
+   191→                            }
+   192→
+   193→                            val synced = currentLyrics?.synced ?: run {
+   194→                                val d = durationDeferred.await()
+   195→
+   196→                                val lrcMain = async(Dispatchers.IO) {
+   197→                                    runCatching {
+   198→                                        LrcLib.bestLyrics(
+   199→                                            artist = artist,
+   200→                                            title = title,
+   201→                                            duration = d.milliseconds,
+   202→                                            album = album
+   203→                                        )?.map { it?.text }?.getOrNull()
+   204→                                    }.getOrNull()
+   205→                                }
+   206→                                val lrcRetry = async(Dispatchers.IO) {
+   207→                                    runCatching {
+   208→                                        LrcLib.bestLyrics(
+   209→                                            artist = artist,
+   210→                                            title = strippedTitle,
+   211→                                            duration = d.milliseconds,
+   212→                                            album = album
+   213→                                        )?.map { it?.text }?.getOrNull()
+   214→                                    }.getOrNull()
+   215→                                }
+   216→                                val kugou = async(Dispatchers.IO) {
+   217→                                    runCatching {
+   218→                                        KuGou.lyrics(
+   219→                                            artist = artist,
+   220→                                            title = title,
+   221→                                            duration = d / 1000
+   222→                                        )?.map { it?.value }?.getOrNull()
+   223→                                    }.getOrNull()
+   224→                                }
+   225→                                lrcMain.await() ?: lrcRetry.await() ?: kugou.await()
+   226→                            }
+   227→
+   228→                            LyricsData(
+   229→                                songId = mediaItem.mediaId,
+   230→                                fixed = fixed.orEmpty(),
+   231→                                synced = synced.orEmpty()
+   232→                            ).also {
+   233→                                ensureActive()
+   234→                                transaction {
+   235→                                    runCatching {
+   236→                                        Database.insert(mediaItem)
+   237→                                        Database.upsert(it)
+   238→                                    }
+   239→                                }
+   240→                            }
+   241→                        }
+   242→
+   243→                        isFetchingLyrics = false
+   244→                    }
+   245→            }
+   246→        }.exceptionOrNull()?.let {
+   247→            if (it is CancellationException) throw it
+   248→            isFetchingLyrics = false
+   249→        }
+   250→    }
+   251→
+   252→    val lyricsState = remember(storedLyrics) {
+   253→        val file = storedLyrics?.synced?.takeIf { it.isNotBlank() }?.let {
+   254→            LrcParser.parse(it)?.toLrcFile()
+   255→        }
+   256→
+   257→        SynchronizedLyricsState(
+   258→            sentences = file?.lines,
+   259→            offset = file?.offset?.inWholeMilliseconds ?: 0L
+   260→        )
+   261→    }
+   262→
+   263→    val synchronizedLyrics = remember(lyricsState) {
+   264→        lyricsState.sentences?.let {
+   265→            SynchronizedLyrics(it.toImmutableMap()) {
+   266→                binder.player.currentPosition + INLINE_LYRIC_UPDATE_DELAY + lyricsState.offset -
+   267→                    (storedLyrics?.startTime ?: 0L)
+   268→            }
+   269→        }
+   270→    }
+   271→
+   272→    LaunchedEffect(synchronizedLyrics) {
+   273→        val current = synchronizedLyrics ?: return@LaunchedEffect
+   274→        while (true) {
+   275→            delay(INLINE_LYRIC_UPDATE_DELAY)
+   276→            current.update()
+   277→        }
+   278→    }
+   279→
+   280→    val currentSentenceRaw = synchronizedLyrics?.let {
+   281→        it.sentences.values.toImmutableList().getOrNull(it.index)
+   282→    }
+   283→    val currentLyricLine = currentSentenceRaw?.takeIf { it.isNotBlank() }
+   284→    val isInstrumentalGap = currentSentenceRaw != null && currentSentenceRaw.isBlank()
+   285→
+   286→    var searchPhraseIndex by remember(mediaItem.mediaId) { mutableIntStateOf(0) }
+   287→    LaunchedEffect(mediaItem.mediaId, isFetchingLyrics) {
+   288→        if (!isFetchingLyrics) return@LaunchedEffect
+   289→        while (true) {
+   290→            delay(LYRIC_SEARCH_PHRASE_INTERVAL_MS)
+   291→            searchPhraseIndex = (searchPhraseIndex + 1) % LYRIC_SEARCH_PHRASES.size
+   292→        }
+   293→    }
+   294→
+   295→    val showSearchingGlyph = isFetchingLyrics && currentLyricLine == null && !isInstrumentalGap
+   296→    val showNoteGlyph = showSearchingGlyph || isInstrumentalGap
+   297→    val lyricStripText = when {
+   298→        currentLyricLine != null -> currentLyricLine
+   299→        isInstrumentalGap -> "Instrumental"
+   300→        isFetchingLyrics -> LYRIC_SEARCH_PHRASES[searchPhraseIndex]
+   301→        else -> "Tap for lyrics"
+   302→    }
+   303→    // --- end inline synced lyric line ---
+   304→
+   305→    // ====================================================================
+   306→    //  NEW BITCHORD-STYLE UI
+   307→    //  - Full-bleed album art as background
+   308→    //  - Vertical dark gradient overlay for legibility
+   309→    //  - Bottom-aligned content column
+   310→    //  - White text/icons overlaid on dim art
+   311→    // ====================================================================
+   312→    Box(modifier = modifier.fillMaxSize()) {
+   313→        // 1. Full-bleed album art background (subtle scale pulse on play/pause)
+   314→        AsyncImage(
+   315→            model = metadata.artworkUri?.thumbnail(Dimensions.thumbnails.player.song.px),
+   316→            contentDescription = null,
+   317→            contentScale = ContentScale.Crop,
+   318→            modifier = Modifier
+   319→                .fillMaxSize()
+   320→                .graphicsLayer {
+   321→                    scaleX = artScale
+   322→                    scaleY = artScale
+   323→                }
+   324→        )
+   325→
+   326→        // 2. Dark gradient overlay (top: 50% black, bottom: 85% black)
+   327→        //    Makes white text legible on any album art.
+   328→        Box(
+   329→            modifier = Modifier
+   330→                .fillMaxSize()
+   331→                .background(
+   332→                    Brush.verticalGradient(
+   333→                        colors = listOf(
+   334→                            Color.Black.copy(alpha = 0.5f),
+   335→                            Color.Black.copy(alpha = 0.85f)
+   336→                        )
+   337→                    )
+   338→                )
+   339→        )
+   340→
+   341→        // 3. Full lyrics overlay (when user taps the lyric strip)
+   342→        Lyrics(
+   343→            mediaId = mediaItem.mediaId,
+   344→            isDisplayed = isShowingLyrics,
+   345→            onDismiss = { onShowLyrics(false) },
+   346→            ensureSongInserted = { Database.insert(mediaItem) },
+   347→            mediaMetadataProvider = { mediaItem.mediaMetadata },
+   348→            durationProvider = { binder.player.duration.takeIf { it > 0 } ?: C.TIME_UNSET },
+   349→            onOpenDialog = {},
+   350→            modifier = Modifier.fillMaxSize(),
+   351→            shouldShowSynchronizedLyrics = PlayerPreferences.isShowingSynchronizedLyrics,
+   352→            setShouldShowSynchronizedLyrics = { PlayerPreferences.isShowingSynchronizedLyrics = it },
+   353→            showControls = true
+   354→        )
+   355→
+   356→        // 4. Top drag-handle pill (like a bottom-sheet grabber)
+   357→        Box(
+   358→            modifier = Modifier
+   359→                .align(Alignment.TopCenter)
+   360→                .padding(top = 12.dp)
+   361→                .width(40.dp)
+   362→                .height(4.dp)
+   363→                .clip(RoundedCornerShape(2.dp))
+   364→                .background(Color.White.copy(alpha = 0.4f))
+   365→        )
+   366→
+   367→        // 5. Main content column — bottom aligned
+   368→        Column(
+   369→            horizontalAlignment = Alignment.CenterHorizontally,
+   370→            verticalArrangement = Arrangement.Bottom,
+   371→            modifier = Modifier
+   372→                .fillMaxSize()
+   373→                .padding(horizontal = 24.dp)
+   374→                .padding(top = 40.dp, bottom = 32.dp)
+   375→        ) {
+   376→            // ---- Title + Artist + Heart row ----
+   377→            Row(
+   378→                horizontalArrangement = Arrangement.SpaceBetween,
+   379→                verticalAlignment = Alignment.CenterVertically,
+   380→                modifier = Modifier.fillMaxWidth()
+   381→            ) {
+   382→                Column(modifier = Modifier.weight(1f)) {
+   383→                    BasicText(
+   384→                        text = metadata.title?.toString().orEmpty(),
+   385→                        style = typography.l.semiBold.copy(color = Color.White),
+   386→                        maxLines = 1,
+   387→                        overflow = TextOverflow.Ellipsis,
+   388→                        modifier = Modifier.let {
+   389→                            if (onTitleClick != null) it.clickable(onClick = onTitleClick) else it
+   390→                        }
+   391→                    )
+   392→                    BasicText(
+   393→                        text = metadata.artist?.toString().orEmpty(),
+   394→                        style = typography.s.semiBold.copy(color = Color.White.copy(alpha = 0.7f)),
+   395→                        maxLines = 1,
+   396→                        overflow = TextOverflow.Ellipsis,
+   397→                        modifier = Modifier.let {
+   398→                            if (onArtistClick != null) it.clickable(onClick = onArtistClick) else it
+   399→                        }
+   400→                    )
+   401→                }
+   402→
+   403→                // Heart inside a 40dp translucent circle (BITCHORD-style)
+   404→                Box(
+   405→                    modifier = Modifier
+   406→                        .size(40.dp)
+   407→                        .clip(RoundedCornerShape(50))
+   408→                        .background(Color.White.copy(alpha = 0.2f))
+   409→                        .clickable {
+   410→                            setLikedAt(if (likedAt == null) System.currentTimeMillis() else null)
+   411→                        },
+   412→                    contentAlignment = Alignment.Center
+   413→                ) {
+   414→                    Image(
+   415→                        painter = painterResource(
+   416→                            if (likedAt == null) R.drawable.heart_outline else R.drawable.heart
+   417→                        ),
+   418→                        contentDescription = null,
+   419→                        colorFilter = ColorFilter.tint(
+   420→                            if (likedAt != null) colorPalette.favoritesIcon else Color.White
+   421→                        ),
+   422→                        modifier = Modifier.size(20.dp)
+   423→                    )
+   424→                }
+   425→            }
+   426→
+   427→            Spacer(modifier = Modifier.height(16.dp))
+   428→
+   429→            // ---- Inline lyric strip (white 70% alpha) ----
+   430→            Row(
+   431→                verticalAlignment = Alignment.CenterVertically,
+   432→                modifier = Modifier
+   433→                    .fillMaxWidth()
+   434→                    .clickable { onShowLyrics(true) }
+   435→                    .padding(vertical = 10.dp)
+   436→            ) {
+   437→                if (showNoteGlyph) {
+   438→                    Image(
+   439→                        painter = painterResource(R.drawable.musical_notes),
+   440→                        contentDescription = null,
+   441→                        colorFilter = ColorFilter.tint(Color.White.copy(alpha = 0.6f)),
+   442→                        modifier = Modifier.size(12.dp)
+   443→                    )
+   444→                    Spacer(modifier = Modifier.width(6.dp))
+   445→                }
+   446→                AnimatedContent(
+   447→                    targetState = lyricStripText,
+   448→                    transitionSpec = { fadeIn() togetherWith fadeOut() },
+   449→                    label = "inlineLyricLine",
+   450→                    modifier = Modifier.weight(1f, fill = false)
+   451→                ) { line ->
+   452→                    BasicText(
+   453→                        text = line,
+   454→                        style = typography.xs.semiBold.copy(color = Color.White.copy(alpha = 0.7f)),
+   455→                        maxLines = 1,
+   456→                        overflow = TextOverflow.Ellipsis
+   457→                    )
+   458→                }
+   459→                Spacer(modifier = Modifier.width(4.dp))
+   460→                BasicText(
+   461→                    text = "\u203A",
+   462→                    style = typography.xs.semiBold.copy(color = Color.White.copy(alpha = 0.7f))
+   463→                )
+   464→            }
+   465→
+   466→            Spacer(modifier = Modifier.height(12.dp))
+   467→
+   468→            // ---- SeekBar (unchanged) ----
+   469→            SeekBar(
+   470→                binder = binder,
+   471→                position = position,
+   472→                media = media,
+   473→                alwaysShowDuration = true,
+   474→                style = PlayerPreferences.SeekBarStyle.Static
+   475→            )
+   476→
+   477→            Spacer(modifier = Modifier.height(20.dp))
+   478→
+   479→            // ---- Main controls: prev / play-pause / next ----
+   480→            Row(
+   481→                horizontalArrangement = Arrangement.SpaceEvenly,
+   482→                verticalAlignment = Alignment.CenterVertically,
+   483→                modifier = Modifier.fillMaxWidth()
+   484→            ) {
+   485→                IconButton(
+   486→                    icon = R.drawable.play_skip_back,
+   487→                    color = Color.White,
+   488→                    onClick = { binder.player.forceSeekToPrevious() },
+   489→                    modifier = Modifier.size(36.dp)
+   490→                )
+   491→
+   492→                // Play/Pause — just the icon, no filled circle background (BITCHORD style)
+   493→                Box(
+   494→                    modifier = Modifier
+   495→                        .size(64.dp)
+   496→                        .clickable {
+   497→                            if (shouldBePlaying) binder.player.pause() else {
+   498→                                if (binder.player.playbackState == Player.STATE_IDLE) binder.player.prepare()
+   499→                                binder.player.play()
+   500→                            }
+   501→                        },
+   502→                    contentAlignment = Alignment.Center
+   503→                ) {
+   504→                    AnimatedPlayPauseButton(
+   505→                        playing = shouldBePlaying,
+   506→                        modifier = Modifier.size(48.dp)
+   507→                    )
+   508→                }
+   509→
+   510→                IconButton(
+   511→                    icon = R.drawable.play_skip_forward,
+   512→                    color = Color.White,
+   513→                    onClick = { binder.player.forceSeekToNext() },
+   514→                    modifier = Modifier.size(36.dp)
+   515→                )
+   516→            }
+   517→
+   518→            Spacer(modifier = Modifier.height(24.dp))
+   519→
+   520→            // ---- Secondary row: Shuffle / Repeat / Loop / Queue ----
+   521→            Row(
+   522→                horizontalArrangement = Arrangement.SpaceEvenly,
+   523→                verticalAlignment = Alignment.CenterVertically,
+   524→                modifier = Modifier.fillMaxWidth()
+   525→            ) {
+   526→                // Shuffle (text, white when active)
+   527→                Box(
+   528→                    modifier = Modifier
+   529→                        .clickable {
+   530→                            shuffleOn = !shuffleOn
+   531→                            binder.player.shuffleModeEnabled = shuffleOn
+   532→                        }
+   533→                        .padding(horizontal = 8.dp, vertical = 8.dp)
+   534→                ) {
+   535→                    BasicText(
+   536→                        text = "Shuffle",
+   537→                        style = typography.xs.semiBold.copy(
+   538→                            color = if (shuffleOn) Color.White
+   539→                                    else Color.White.copy(alpha = 0.4f)
+   540→                        )
+   541→                    )
+   542→                }
+   543→
+   544→                // Repeat — "1" inside circle when Repeat One, "↻" otherwise
+   545→                Box(
+   546→                    modifier = Modifier
+   547→                        .size(40.dp)
+   548→                        .clip(RoundedCornerShape(50))
+   549→                        .background(
+   550→                            if (repeatMode != Player.REPEAT_MODE_OFF) Color.White.copy(alpha = 0.2f)
+   551→                            else Color.Transparent
+   552→                        )
+   553→                        .clickable {
+   554→                            repeatMode = when (repeatMode) {
+   555→                                Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+   556→                                Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+   557→                                else -> Player.REPEAT_MODE_OFF
+   558→                            }
+   559→                            binder.player.repeatMode = repeatMode
+   560→                        },
+   561→                    contentAlignment = Alignment.Center
+   562→                ) {
+   563→                    BasicText(
+   564→                        text = if (repeatMode == Player.REPEAT_MODE_ONE) "1" else "\u21BB",
+   565→                        style = typography.s.semiBold.copy(
+   566→                            color = if (repeatMode != Player.REPEAT_MODE_OFF) Color.White
+   567→                                    else Color.White.copy(alpha = 0.4f)
+   568→                        )
+   569→                    )
+   570→                }
+   571→
+   572→                // Infinity loop inside circle
+   573→                Box(
+   574→                    modifier = Modifier
+   575→                        .size(40.dp)
+   576→                        .clip(RoundedCornerShape(50))
+   577→                        .background(
+   578→                            if (PlayerPreferences.trackLoopEnabled) Color.White.copy(alpha = 0.2f)
+   579→                            else Color.Transparent
+   580→                        )
+   581→                        .clickable {
+   582→                            PlayerPreferences.trackLoopEnabled = !PlayerPreferences.trackLoopEnabled
+   583→                        },
+   584→                    contentAlignment = Alignment.Center
+   585→                ) {
+   586→                    Image(
+   587→                        painter = painterResource(R.drawable.infinite),
+   588→                        contentDescription = null,
+   589→                        colorFilter = ColorFilter.tint(
+   590→                            if (PlayerPreferences.trackLoopEnabled) Color.White
+   591→                            else Color.White.copy(alpha = 0.4f)
+   592→                        ),
+   593→                        modifier = Modifier.size(20.dp)
+   594→                    )
+   595→                }
+   596→
+   597→                // Queue (ellipsis icon)
+   598→                IconButton(
+   599→                    icon = R.drawable.ellipsis_horizontal,
+   600→                    color = Color.White,
+   601→                    onClick = onOpenQueue,
+   602→                    modifier = Modifier.size(28.dp)
+   603→                )
+   604→            }
+   605→
+   606→            Spacer(modifier = Modifier.height(8.dp))
+   607→        }
+   608→    }
+   609→}
+   610→
