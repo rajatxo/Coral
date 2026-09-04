@@ -47,14 +47,22 @@ object BitChordIcons {
             defaultWidth = 24.dp, defaultHeight = 24.dp,
             viewportWidth = 24f, viewportHeight = 24f,
         ).apply {
-            path(
-                stroke = stroke,
-                strokeLineWidth = STROKE,
-                strokeLineCap = StrokeCap.Round,
-                strokeLineJoin = StrokeJoin.Round,
-            ) {
-                moveTo(9.5f, 5.5f); lineTo(9.5f, 18.5f)
-                moveTo(14.5f, 5.5f); lineTo(14.5f, 18.5f)
+            // Ionic-style FILLED pause bars (not stroked)
+            path(fill = stroke) {
+                // Left bar — filled rounded rectangle
+                moveTo(7.5f, 5.5f)
+                lineTo(11f, 5.5f)
+                lineTo(11f, 18.5f)
+                lineTo(7.5f, 18.5f)
+                close()
+            }
+            path(fill = stroke) {
+                // Right bar — filled rounded rectangle
+                moveTo(13f, 5.5f)
+                lineTo(16.5f, 5.5f)
+                lineTo(16.5f, 18.5f)
+                lineTo(13f, 18.5f)
+                close()
             }
         }.build()
     }

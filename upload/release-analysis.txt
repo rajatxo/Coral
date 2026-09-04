@@ -1,0 +1,24 @@
+Based on the provided screenshots, here is the concrete analysis of the song transition behavior in ViTune-BC:
+
+**1. The Empty Box / Placeholder**
+*   **Appearance:** Yes, a distinct **empty placeholder box** appears. It is a **solid, dark-colored rectangle** (appearing as a very dark grey or black) with **rounded corners**, matching the shape and dimensions of the album art container.
+*   **Location:** It occupies the exact center-top position where the album art thumbnail is displayed.
+*   **Duration:** It appears for at least one frame (screenshot) during every song change. In this release build, it acts as an explicit "loading" state that clears the previous image before the new one renders.
+
+**2. Gradient Animation Smoothness**
+*   The gradient animation is **not smooth in these frames**; it behaves like a **hard cut or snap**.
+*   There is no visible interpolation (fading or morphing) between the background color of the previous song and the next. The background color changes instantly to match the new song's palette.
+
+**3. Timing: Gradient vs. Thumbnail**
+*   The gradient transition happens **BEFORE** (or simultaneously with the start of) the thumbnail load.
+*   **The "Empty State" Moment:** There is a distinct moment where **the gradient is NEW but the thumbnail is EMPTY**.
+    *   *Evidence:* Look at the transition from Image 5 to 6 ("Tere Naam" -> "Panchhi"). In Image 6, the background has already snapped to the new **Yellow/Orange** gradient, but the thumbnail area is just a **dark empty box**. The actual image for "Panchhi" does not appear until Image 7.
+
+**4. Order of Events**
+When a song changes, the specific order of operations observed is:
+
+1.  **User Action:** User presses Next/Previous (or song ends).
+2.  **Metadata & Background Snap:** The Song Title, Artist, and **Background Gradient** update immediately to the new song's data.
+3.  **Thumbnail Clearing:** The old album art is removed, revealing the **Solid Dark Placeholder Box**.
+4.  **Thumbnail Load:** After a brief delay (visible as the placeholder frame), the new Album Art image loads and replaces the placeholder box.
+5.  **Playback:** The progress bar resets, and the new duration is displayed.

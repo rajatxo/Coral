@@ -470,10 +470,10 @@ fun BitChordPlayer(
                 .padding(top = 40.dp)
                 .navigationBarsPadding()
         ) {
-            // ---- "Now Playing..." header + tiny bar ----
-            // BRIGHT WHITE, slightly bigger (typography.m instead of s), with "..."
+            // ---- "Now Playing" header + tiny bar ----
+            // BRIGHT WHITE, slightly bigger (typography.m), no dots.
             BasicText(
-                text = "Now Playing...",
+                text = "Now Playing",
                 style = typography.m.semiBold.copy(
                     color = Color.White,
                     shadow = androidx.compose.ui.graphics.Shadow(
@@ -497,10 +497,19 @@ fun BitChordPlayer(
             // ---- Album art (square, 10dp corners, BIG shadow, double-tap to favorite) ----
             // FULL WIDTH (fillMaxWidth) so the right edge aligns with the seekbar/buttons below.
             // Height = 320dp (slightly bigger than before).
+            //
+            // EMPTY BOX FIX: The shadow is on the PARENT Box (not the AsyncImage),
+            // so when the image is loading, you don't see an "empty box" — you see
+            // the black background of the parent Box, which blends with the gradient.
+            // The AsyncImage's crossfade(400) keeps the OLD image visible until
+            // the new one loads, so there's never a gap.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(320.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .shadow(20.dp, RoundedCornerShape(10.dp))
+                    .background(animatedBottomColor)  // Match gradient so loading is invisible
                     .pointerInput(mediaItem.mediaId) {
                         detectTapGestures(
                             onDoubleTap = {
@@ -511,16 +520,12 @@ fun BitChordPlayer(
                     }
             ) {
                 AsyncImage(
-                    model = ImageRequest.Builder(context)
-                        .data(metadata.artworkUri?.thumbnail(Dimensions.thumbnails.player.song.px))
-                        .crossfade(400)
-                        .build(),
+                    model = metadata.artworkUri?.thumbnail(Dimensions.thumbnails.player.song.px),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxSize()
                         .clip(RoundedCornerShape(10.dp))
-                        .shadow(20.dp, RoundedCornerShape(10.dp))
                 )
                 // Heart pop animation on double-tap.
                 // Simpler approach: just show the heart when showHeartPop is true.
@@ -682,20 +687,33 @@ fun BitChordPlayer(
             }
 
             // ---- Song duration (below center of seekbar) ----
-            // Shows the TOTAL song duration so user can see what the actual
-            // song length is (useful when searching lyrics from LrcLib).
-            BasicText(
-                text = "Duration: ${formatTime(duration)}",
-                style = typography.xs.semiBold.copy(
-                    color = Color.White.copy(alpha = 0.5f),
-                    shadow = androidx.compose.ui.graphics.Shadow(
-                        color = Color.Black.copy(alpha = 0.4f),
-                        blurRadius = 2f,
-                        offset = androidx.compose.ui.geometry.Offset(1f, 1f)
+            // Clock icon + duration time (replaces "Duration:" text)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp)
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.clock),
+                    contentDescription = null,
+                    colorFilter = ColorFilter.tint(Color.White.copy(alpha = 0.5f)),
+                    modifier = Modifier.size(12.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                BasicText(
+                    text = formatTime(duration),
+                    style = typography.xs.semiBold.copy(
+                        color = Color.White.copy(alpha = 0.5f),
+                        shadow = androidx.compose.ui.graphics.Shadow(
+                            color = Color.Black.copy(alpha = 0.4f),
+                            blurRadius = 2f,
+                            offset = androidx.compose.ui.geometry.Offset(1f, 1f)
+                        )
                     )
-                ),
-                modifier = Modifier.padding(top = 2.dp)
-            )
+                )
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
