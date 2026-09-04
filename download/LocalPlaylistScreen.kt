@@ -1,0 +1,59 @@
+package app.vitune.android.ui.screens.localplaylist
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import app.vitune.android.Database
+import app.vitune.android.models.Playlist
+import app.vitune.android.models.Song
+import app.vitune.android.ui.screens.GlobalRoutes
+import app.vitune.android.ui.screens.Route
+import app.vitune.compose.persist.PersistMapCleanup
+import app.vitune.compose.persist.persist
+import app.vitune.compose.persist.persistList
+import app.vitune.compose.routing.RouteHandler
+import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+
+@Route
+@Composable
+fun LocalPlaylistScreen(playlistId: Long) {
+    PersistMapCleanup(prefix = "localPlaylist/$playlistId/")
+
+    RouteHandler {
+        GlobalRoutes()
+
+        Content {
+            var playlist by persist<Playlist?>("localPlaylist/$playlistId/playlist")
+            var songs by persistList<Song>("localPlaylist/$playlistId/songs")
+
+            LaunchedEffect(Unit) {
+                Database
+                    .playlist(playlistId)
+                    .filterNotNull()
+                    .distinctUntilChanged()
+                    .collect { playlist = it }
+            }
+
+            LaunchedEffect(Unit) {
+                Database
+                    .playlistSongs(playlistId)
+                    .distinctUntilChanged()
+                    .collect { songs = it.toImmutableList() }
+            }
+
+            // Pass the raw thumbnail URL directly — no adaptiveThumbnailContent wrapper.
+            // LocalPlaylistSongs will render it as a FULL-SCREEN background (no card, no clip).
+            playlist?.let {
+                LocalPlaylistSongs(
+                    playlist = it,
+                    songs = songs,
+                    thumbnailUrl = it.thumbnail,
+                    onDelete = pop
+                )
+            }
+        }
+    }
+}
