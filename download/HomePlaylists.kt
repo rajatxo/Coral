@@ -365,31 +365,31 @@ fun FluidInterlockingPlaylistPill(
         )
     }
 
-    // Rich luminous color gradient fill inside the pill so text and background stand out clearly on AMOLED/Pure Black
-    val interiorGradient = Brush.verticalGradient(
-        colors = listOf(
-            colorTint.copy(alpha = 0.28f),
-            colorPalette.background1.copy(alpha = 0.95f),
-            colorPalette.background0.copy(alpha = 0.98f)
-        )
-    )
-
+    // ---- SUBTLE GLASS for built-in playlist buttons ----
+    // Same style as playlist cards: 5% white fill + 20% white border.
+    // Color tint adds a subtle colored glow (red for Favorites, etc.)
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(60.dp)
-            .clip(shape)
-            .background(brush = interiorGradient)
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        colorTint.copy(alpha = 0.12f),
+                        Color.White.copy(alpha = 0.05f)
+                    )
+                )
+            )
             .border(
                 width = 1.dp,
-                brush = Brush.linearGradient(
-                    colors = listOf(
-                        colorTint.copy(alpha = 0.9f),
-                        colorPalette.accent.copy(alpha = 0.4f),
-                        colorPalette.background0
-                    )
-                ),
-                shape = shape
+                color = Color.White.copy(alpha = 0.2f),
+                shape = RoundedCornerShape(20.dp)
+            )
+            .shadow(
+                elevation = 6.dp,
+                shape = RoundedCornerShape(20.dp),
+                clip = false
             )
             .clickable(onClick = onClick)
             .padding(horizontal = 20.dp),

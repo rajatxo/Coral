@@ -23,13 +23,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -57,15 +57,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-
-// ====================================================================
-//  LIQUID GLASS PLAYLIST ITEM (Apple iOS 26 / Vision Pro style)
-//  - Entire card is a frosted glass container with subtle blur
-//  - Playlist cover sits on top, slightly raised (with shadow)
-//  - Playlist name floats on the glass below the cover
-//  - Glossy white highlight on top edge for "wet glass" feel
-//  - Interlocking-friendly rounded corners (squircle-like)
-// ====================================================================
 
 @Composable
 fun PlaylistItem(
@@ -190,7 +181,11 @@ fun PlaylistItem(
 )
 
 // ====================================================================
-//  MAIN PLAYLIST ITEM — Liquid Glass Edition
+//  MAIN PLAYLIST ITEM — Subtle Glass Edition
+//  - VERY subtle glass (5% white — barely visible, not a "rectangle")
+//  - Thin white border (20% — glass edge highlight)
+//  - Cover image with shadow for depth
+//  - Playlist name CENTERED below cover, tight
 // ====================================================================
 @Composable
 fun PlaylistItem(
@@ -204,82 +199,92 @@ fun PlaylistItem(
 ) {
     val (colorPalette, typography, thumbnailShapeCorners) = LocalAppearance.current
 
-    // ---- NO GLASS BOX ----
-    // The user explicitly asked to remove the box shape behind the text and cover.
-    // The glass background and border have been REMOVED (opacity 0).
-    // Only the shadow on the cover remains for depth.
-    Column(
-        horizontalAlignment = if (alternative) Alignment.CenterHorizontally else Alignment.Start,
-        modifier = modifier.fillMaxWidth()
+    // ---- SUBTLE GLASS CONTAINER ----
+    // Very low alpha (5%) so it looks like frosted glass, NOT a grey rectangle.
+    // The thin white border (20%) creates the "glass edge" without a visible fill.
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color.White.copy(alpha = 0.05f))
+            .border(
+                width = 1.dp,
+                color = Color.White.copy(alpha = 0.2f),
+                shape = RoundedCornerShape(20.dp)
+            )
     ) {
-        // ---- PLAYLIST COVER (with shadow only, no box) ----
-        Box(
-            modifier = Modifier
-                .then(
-                    if (alternative) Modifier.fillMaxWidth().aspectRatio(1f)
-                    else Modifier.requiredSize(thumbnailSize)
-                )
-                .clip(RoundedCornerShape(14.dp))
-                .shadow(
-                    elevation = 8.dp,
-                    shape = RoundedCornerShape(14.dp),
-                    clip = false
-                )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            thumbnailContent(Modifier.fillMaxSize())
-
-            // Song count badge
-            songCount?.let {
-                BasicText(
-                    text = "$songCount",
-                    style = typography.xxs.medium.color(colorPalette.onOverlay),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .padding(all = Dimensions.items.gap)
-                        .background(
-                            color = colorPalette.overlay,
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                        .align(Alignment.BottomEnd)
+            // ---- PLAYLIST COVER (with shadow) ----
+            Box(
+                modifier = Modifier
+                    .then(
+                        if (alternative) Modifier.fillMaxWidth().aspectRatio(1f)
+                        else Modifier.requiredSize(thumbnailSize)
                     )
+                    .padding(6.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .shadow(
+                        elevation = 8.dp,
+                        shape = RoundedCornerShape(14.dp),
+                        clip = false
+                    )
+            ) {
+                thumbnailContent(Modifier.fillMaxSize())
+
+                songCount?.let {
+                    BasicText(
+                        text = "$songCount",
+                        style = typography.xxs.medium.color(colorPalette.onOverlay),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .padding(all = Dimensions.items.gap)
+                            .background(
+                                color = colorPalette.overlay,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                            .align(Alignment.BottomEnd)
+                    )
+                }
             }
+
+            // ---- PLAYLIST NAME (CENTERED, directly below cover, tight) ----
+            BasicText(
+                text = name.orEmpty(),
+                style = typography.xs.semiBold.center.copy(
+                    color = colorPalette.text,
+                    shadow = Shadow(
+                        color = Color.Black.copy(alpha = 0.5f),
+                        blurRadius = 3f,
+                        offset = Offset(1f, 1f)
+                    )
+                ),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            )
+
+            if (channelName?.isNotBlank() == true) BasicText(
+                text = channelName,
+                style = typography.xs.semiBold.secondary.copy(
+                    shadow = Shadow(
+                        color = Color.Black.copy(alpha = 0.4f),
+                        blurRadius = 2f,
+                        offset = Offset(1f, 1f)
+                    )
+                ),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 2.dp)
+            )
         }
-
-        // ---- PLAYLIST NAME (compact, no box) ----
-        // Tight padding (4dp top, 2dp bottom) so the text area isn't expanded.
-        BasicText(
-            text = name.orEmpty(),
-            style = typography.xs.semiBold.let {
-                if (alternative && channelName.isNullOrBlank()) it.center else it
-            }.copy(
-                color = colorPalette.text,
-                shadow = androidx.compose.ui.graphics.Shadow(
-                    color = Color.Black.copy(alpha = 0.5f),
-                    blurRadius = 3f,
-                    offset = androidx.compose.ui.geometry.Offset(1f, 1f)
-                )
-            ),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
-        )
-
-        // Channel name (if present)
-        if (channelName?.isNotBlank() == true) BasicText(
-            text = channelName,
-            style = typography.xs.semiBold.secondary.copy(
-                shadow = androidx.compose.ui.graphics.Shadow(
-                    color = Color.Black.copy(alpha = 0.4f),
-                    blurRadius = 2f,
-                    offset = androidx.compose.ui.geometry.Offset(1f, 1f)
-                )
-            ),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 2.dp, bottom = 2.dp)
-        )
     }
 }
 
@@ -291,27 +296,31 @@ fun PlaylistItemPlaceholder(
 ) {
     val (colorPalette, _, _, thumbnailShape) = LocalAppearance.current
 
-    // No glass box — matches PlaylistItem (shadow only on cover)
-    Column(
-        horizontalAlignment = if (alternative) Alignment.CenterHorizontally else Alignment.Start,
-        modifier = modifier.fillMaxWidth()
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color.White.copy(alpha = 0.05f))
+            .border(
+                width = 1.dp,
+                color = Color.White.copy(alpha = 0.2f),
+                shape = RoundedCornerShape(20.dp)
+            )
     ) {
-        // Cover placeholder (with shadow only)
-        Spacer(
-            modifier = Modifier
-                .then(
-                    if (alternative) Modifier.fillMaxWidth().aspectRatio(1f)
-                    else Modifier.requiredSize(thumbnailSize)
-                )
-                .clip(RoundedCornerShape(14.dp))
-                .background(color = colorPalette.shimmer)
-        )
-
-        // Text placeholders (compact, no box)
-        TextPlaceholder(modifier = Modifier.padding(top = 4.dp))
-        TextPlaceholder()
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Spacer(
+                modifier = Modifier
+                    .then(
+                        if (alternative) Modifier.fillMaxWidth().aspectRatio(1f)
+                        else Modifier.requiredSize(thumbnailSize)
+                    )
+                    .padding(6.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(color = colorPalette.shimmer)
+            )
+            TextPlaceholder(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+        }
     }
 }
-
-// Local import to avoid breaking the existing ItemContainer/ItemInfoContainer references
-// (Custom Column wrapper removed — using standard androidx.compose.foundation.layout.Column directly)
