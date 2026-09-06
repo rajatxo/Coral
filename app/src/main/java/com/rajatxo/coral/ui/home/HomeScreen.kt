@@ -162,6 +162,7 @@ fun HomeScreen(
                     )
                     CoralTab.Songs -> SongsScreen(
                         songs = songs,
+                        currentSongId = currentSongId,
                         currentSongTitle = currentSongTitle,
                         onSongClick = onSongClick
                     )
