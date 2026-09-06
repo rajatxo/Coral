@@ -357,7 +357,7 @@ private fun SongRow(song: Song, isCurrent: Boolean, onClick: () -> Unit) {
                 AsyncImage(
                     model = coil3.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
                         .data(song.albumArtUri)
-                        .crossfade(false)  // disable fade — it causes jank during fast scroll
+                        .crossfade(0)  // 0ms = no fade — prevents jank during fast scroll
                         .build(),
                     contentDescription = "Album art",
                     contentScale = ContentScale.Crop,
