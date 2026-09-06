@@ -27,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -74,14 +75,16 @@ fun LyricsSheet(
     onSeek: (Long) -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val repository = remember { LyricsRepository(context) }
 
     var lyric by remember { mutableStateOf<Lyric?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+    var refreshTrigger by remember { mutableStateOf(0) }
 
-    // Fetch lyrics when the song changes
-    LaunchedEffect(trackName, artistName) {
+    // Fetch lyrics when the song changes OR when refreshTrigger changes
+    LaunchedEffect(trackName, artistName, refreshTrigger) {
         if (trackName.isBlank() || artistName.isBlank()) {
             isLoading = false
             error = "No track info available"
@@ -90,12 +93,21 @@ fun LyricsSheet(
         isLoading = true
         error = null
         try {
-            val fetched = repository.getLyrics(
-                track = trackName,
-                artist = artistName,
-                album = albumName,
-                durationMs = durationMs
-            )
+            val fetched = if (refreshTrigger == 0) {
+                repository.getLyrics(
+                    track = trackName,
+                    artist = artistName,
+                    album = albumName,
+                    durationMs = durationMs
+                )
+            } else {
+                repository.refreshLyrics(
+                    track = trackName,
+                    artist = artistName,
+                    album = albumName,
+                    durationMs = durationMs
+                )
+            }
             lyric = fetched
             if (fetched == null) error = "No lyrics found for this track"
         } catch (e: Exception) {
@@ -104,22 +116,9 @@ fun LyricsSheet(
         isLoading = false
     }
 
-    // Manual refresh
+    // Manual refresh — bumps refreshTrigger which re-runs the LaunchedEffect above
     fun refresh() {
-        if (trackName.isBlank() || artistName.isBlank()) return
-        isLoading = true
-        error = null
-        LaunchedEffect(trackName, artistName, System.currentTimeMillis()) {
-            val refreshed = repository.refreshLyrics(
-                track = trackName,
-                artist = artistName,
-                album = albumName,
-                durationMs = durationMs
-            )
-            lyric = refreshed
-            if (refreshed == null) error = "No lyrics found for this track"
-            isLoading = false
-        }
+        refreshTrigger++
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
