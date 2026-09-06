@@ -73,6 +73,7 @@ fun CoralApp() {
     val songs = remember { mutableStateListOf<Song>() }
 
     var mediaController by remember { mutableStateOf<MediaController?>(null) }
+    var currentSongId by remember { mutableStateOf<Long?>(null) }
     var currentSongTitle by remember { mutableStateOf<String?>(null) }
     var currentSongArtist by remember { mutableStateOf<String?>(null) }
     var currentSongArt by remember { mutableStateOf<android.net.Uri?>(null) }
@@ -90,6 +91,9 @@ fun CoralApp() {
                 currentSongTitle = mediaItem?.mediaMetadata?.title?.toString()
                 currentSongArtist = mediaItem?.mediaMetadata?.artist?.toString()
                 currentSongArt = mediaItem?.mediaMetadata?.artworkUri
+                // Resolve the song's MediaStore ID from the mediaId we set when building MediaItems.
+                // This lets us look it up for favorites / playlist membership.
+                currentSongId = mediaItem?.mediaId?.toLongOrNull()
             }
             override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
         })
@@ -163,6 +167,7 @@ fun CoralApp() {
                 HomeScreen(
                     songs = songs,
                     mediaController = mediaController,
+                    currentSongId = currentSongId,
                     currentSongTitle = currentSongTitle,
                     currentSongArtist = currentSongArtist,
                     currentSongArt = currentSongArt,
@@ -182,6 +187,21 @@ fun CoralApp() {
                             }
                             val index = songs.indexOf(song)
                             controller.setMediaItems(allMediaItems, index, 0)
+                            controller.prepare()
+                            controller.play()
+                        }
+                    },
+                    onSongClickWithQueue = { song, songList ->
+                        // Used by PlaylistDetailScreen — sets the queue to the playlist's
+                        // songs (in their playlist order) and starts from the tapped song.
+                        mediaController?.let { controller ->
+                            val mediaItems = songList.map { s ->
+                                MediaItem.Builder().setUri(s.uri).setMediaId(s.id.toString())
+                                    .setMediaMetadata(MediaMetadata.Builder().setTitle(s.title).setArtist(s.artist).setAlbumTitle(s.album).setArtworkUri(s.albumArtUri).build())
+                                    .build()
+                            }
+                            val index = songList.indexOf(song).coerceAtLeast(0)
+                            controller.setMediaItems(mediaItems, index, 0)
                             controller.prepare()
                             controller.play()
                         }

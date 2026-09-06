@@ -26,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,6 +50,7 @@ import androidx.media3.session.MediaController
 import coil3.compose.AsyncImage
 import com.rajatxo.coral.ui.components.ThinSlider
 import com.rajatxo.coral.ui.icons.CoralIcons
+import com.rajatxo.coral.data.store.PlaylistStore
 import com.rajatxo.coral.util.CoralPalette
 import com.rajatxo.coral.util.extractPalette
 import kotlinx.coroutines.delay
@@ -91,6 +93,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun FullPlayer(
     mediaController: MediaController?,
+    songId: Long?,
     title: String,
     artist: String,
     albumArtUri: Uri?,
@@ -125,13 +128,13 @@ fun FullPlayer(
         }
     }
 
-    // ---------- Favorite state (visual only for Phase 4 — wired in Phase 5) ----------
-    var isFavorite by remember { mutableStateOf(false) }
+    // ---------- Favorite state (persisted in PlaylistStore) ----------
+    val favorites by PlaylistStore.favorites.collectAsState()
+    val isFavorite = songId != null && songId in favorites.songIds
     var showHeartPop by remember { mutableStateOf(false) }
 
-    // Reset favorite state when the song changes (so a new song starts unfavorite)
-    LaunchedEffect(title, artist) {
-        isFavorite = false
+    // Reset heart pop when the song changes (new song = fresh pop opportunity)
+    LaunchedEffect(songId) {
         showHeartPop = false
     }
 
@@ -256,8 +259,10 @@ fun FullPlayer(
                     .pointerInput(title, artist) {
                         detectTapGestures(
                             onDoubleTap = {
-                                isFavorite = !isFavorite
-                                showHeartPop = true
+                                if (songId != null) {
+                                    val nowFavorite = PlaylistStore.toggleFavorite(songId)
+                                    if (nowFavorite) showHeartPop = true
+                                }
                             }
                         )
                     },
@@ -328,8 +333,10 @@ fun FullPlayer(
                         .size(40.dp)
                         .clip(CircleShape)
                         .clickable {
-                            isFavorite = !isFavorite
-                            if (isFavorite) showHeartPop = true
+                            if (songId != null) {
+                                val nowFavorite = PlaylistStore.toggleFavorite(songId)
+                                if (nowFavorite) showHeartPop = true
+                            }
                         },
                     contentAlignment = Alignment.Center
                 ) {

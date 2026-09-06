@@ -43,8 +43,10 @@ import com.rajatxo.coral.ui.components.CoralNavRail
 import com.rajatxo.coral.ui.components.CoralTab
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.player.FullPlayer
+import com.rajatxo.coral.ui.screens.PlaylistDetailScreen
 import com.rajatxo.coral.ui.screens.PlaylistsScreen
 import com.rajatxo.coral.ui.screens.SettingsScreen
+import com.rajatxo.coral.ui.screens.SongPickerScreen
 import com.rajatxo.coral.ui.screens.SongsScreen
 
 /**
@@ -68,6 +70,7 @@ import com.rajatxo.coral.ui.screens.SongsScreen
 fun HomeScreen(
     songs: List<Song>,
     mediaController: MediaController?,
+    currentSongId: Long?,
     currentSongTitle: String?,
     currentSongArtist: String?,
     currentSongArt: android.net.Uri?,
@@ -77,17 +80,24 @@ fun HomeScreen(
     onPrevClick: () -> Unit,
     onSeek: (Long) -> Unit,
     onSongClick: (Song) -> Unit,
+    onSongClickWithQueue: (Song, List<Song>) -> Unit,
     onMiniPlayerClick: () -> Unit,
     showFullPlayer: Boolean,
     onFullPlayerDismiss: () -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(CoralTab.Songs) }
+    var selectedPlaylist by remember { mutableStateOf<com.rajatxo.coral.data.model.Playlist?>(null) }
+    var showSongPicker by remember { mutableStateOf(false) }
+    var playlistForPicker by remember { mutableStateOf<com.rajatxo.coral.data.model.Playlist?>(null) }
 
     Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0A))) {
         Row(modifier = Modifier.fillMaxSize()) {
             CoralNavRail(
                 selectedTab = selectedTab,
-                onTabSelected = { selectedTab = it }
+                onTabSelected = {
+                    selectedTab = it
+                    selectedPlaylist = null  // reset detail when switching tabs
+                }
             )
 
             Column(
@@ -102,7 +112,32 @@ fun HomeScreen(
                             currentSongTitle = currentSongTitle,
                             onSongClick = onSongClick
                         )
-                        CoralTab.Playlists -> PlaylistsScreen()
+                        CoralTab.Playlists -> {
+                            val playlist = selectedPlaylist
+                            if (playlist != null) {
+                                PlaylistDetailScreen(
+                                    playlist = playlist,
+                                    allSongs = songs,
+                                    currentSongTitle = currentSongTitle,
+                                    onBackClick = { selectedPlaylist = null },
+                                    onPlayAll = { songList -> onSongClickWithQueue(songList.first(), songList) },
+                                    onShuffle = { songList ->
+                                        // Simple shuffle: pick a random start, queue rest in order
+                                        val shuffled = songList.shuffled()
+                                        if (shuffled.isNotEmpty()) onSongClickWithQueue(shuffled.first(), shuffled)
+                                    },
+                                    onSongClick = { song, songList -> onSongClickWithQueue(song, songList) },
+                                    onAddSongsClick = {
+                                        playlistForPicker = playlist
+                                        showSongPicker = true
+                                    }
+                                )
+                            } else {
+                                PlaylistsScreen(
+                                    onPlaylistClick = { selectedPlaylist = it }
+                                )
+                            }
+                        }
                         CoralTab.Settings -> SettingsScreen()
                     }
                 }
@@ -126,6 +161,25 @@ fun HomeScreen(
             }
         }
 
+        // Song picker modal (slides up over the playlist detail)
+        if (showSongPicker && playlistForPicker != null) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = true,
+                enter = androidx.compose.animation.slideInVertically { it },
+                exit = androidx.compose.animation.slideOutVertically { it },
+                modifier = Modifier.fillMaxSize()
+            ) {
+                SongPickerScreen(
+                    playlist = playlistForPicker!!,
+                    allSongs = songs,
+                    onDone = {
+                        showSongPicker = false
+                        playlistForPicker = null
+                    }
+                )
+            }
+        }
+
         // Full-screen now-playing screen
         AnimatedVisibility(
             visible = showFullPlayer,
@@ -134,6 +188,7 @@ fun HomeScreen(
         ) {
             FullPlayer(
                 mediaController = mediaController,
+                songId = currentSongId,
                 title = currentSongTitle ?: "",
                 artist = currentSongArtist ?: "",
                 albumArtUri = currentSongArt,
