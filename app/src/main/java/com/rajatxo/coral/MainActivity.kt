@@ -4,6 +4,8 @@ import android.Manifest
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -40,12 +42,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.fragment.app.FragmentActivity
 import coil3.compose.AsyncImage
 import com.rajatxo.coral.data.scanner.MusicScanner
 import com.rajatxo.coral.domain.model.Song
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+class MainActivity : FragmentActivity() {
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        enableEdgeToEdge()
+        super.onCreate(savedInstanceState)
+        setContent {
+            CoralApp()
+        }
+    }
+}
 
 @Composable
 fun CoralApp() {
@@ -56,13 +69,11 @@ fun CoralApp() {
     var isLoading by remember { mutableStateOf(false) }
     val songs = remember { mutableStateListOf<Song>() }
 
-    // Permission launcher
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         hasPermission = permissions.values.all { it }
         if (hasPermission) {
-            // Scan music
             isLoading = true
             scope.launch {
                 val scannedSongs = withContext(Dispatchers.IO) {
@@ -77,7 +88,6 @@ fun CoralApp() {
         }
     }
 
-    // Request permission on first launch
     LaunchedEffect(Unit) {
         val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             arrayOf(Manifest.permission.READ_MEDIA_AUDIO)
@@ -94,7 +104,6 @@ fun CoralApp() {
     ) {
         when {
             !hasPermission -> {
-                // Permission screen
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -146,7 +155,6 @@ fun CoralApp() {
             }
 
             isLoading -> {
-                // Loading screen
                 Column(
                     modifier = Modifier.fillMaxSize(),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -162,7 +170,6 @@ fun CoralApp() {
             }
 
             songs.isEmpty() -> {
-                // Empty state
                 Column(
                     modifier = Modifier.fillMaxSize(),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -189,11 +196,9 @@ fun CoralApp() {
             }
 
             else -> {
-                // Song list
                 Column(
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    // Header
                     Text(
                         text = "Songs",
                         color = Color.White,
@@ -208,7 +213,6 @@ fun CoralApp() {
                         modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
                     )
 
-                    // Song list
                     LazyColumn(
                         modifier = Modifier.fillMaxSize()
                     ) {
@@ -231,7 +235,6 @@ private fun SongRow(song: Song) {
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Album art
         Box(
             modifier = Modifier
                 .size(48.dp)
@@ -256,7 +259,6 @@ private fun SongRow(song: Song) {
 
         Spacer(modifier = Modifier.size(12.dp))
 
-        // Title + Artist
         Column(
             modifier = Modifier.weight(1f)
         ) {
@@ -275,7 +277,6 @@ private fun SongRow(song: Song) {
             )
         }
 
-        // Duration
         val minutes = song.duration / 60000
         val seconds = (song.duration % 60000) / 1000
         Text(
