@@ -251,7 +251,6 @@ private fun AlphabetScrollbar(
                         currentDragIndex = null
                         onDragEnd()
                     },
-                    onHorizontalDrag = { _, _ -> /* ignore horizontal */ },
                     onVerticalDrag = { change, _ ->
                         val itemHeight = size.height.toFloat() / letters.size
                         val newIndex = (change.position.y / itemHeight).toInt().coerceIn(0, letters.lastIndex)
