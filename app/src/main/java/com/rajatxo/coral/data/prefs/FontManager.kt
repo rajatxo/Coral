@@ -1,5 +1,11 @@
 package com.rajatxo.coral.data.prefs
 
+import android.content.Context
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontVariation
+import com.rajatxo.coral.R
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -11,93 +17,108 @@ import kotlinx.coroutines.flow.asStateFlow
  * [displayName] (shown in the picker UI) and a [family] that gets applied
  * to the app's MaterialTheme typography.
  *
- * Adding a new font:
- *   1. Drop the .ttf file in res/font/ (lowercase, underscores).
- *   2. Add a FontFamily entry here pointing to it.
- *   3. Add a new [CoralFont] enum entry with a unique id, name, and family.
+ * Two types of fonts:
+ *  - **Static fonts** (Poppins): one .ttf file per weight. We list each
+ *    weight separately so Compose picks the right file for each FontWeight.
+ *  - **Variable fonts** (Inter, Manrope, Nunito, Space Grotesk): one .ttf
+ *    file contains ALL weights along a 'wght' axis. We use FontVariation
+ *    to tell Compose which weight value (100-900) to use for each
+ *    FontWeight we request.
  *
- * Fonts are loaded synchronously on first access — they're tiny (~150KB each)
- * and Android's font cache keeps them resident.
+ * The OLD approach was to call Font(R.font.inter_variable, FontWeight.Thin)
+ * 9 times — but Compose's basic Font(int, FontWeight) constructor doesn't
+ * know how to use the variable font's axis, so it tries to find a static
+ * weight that doesn't exist and crashes. The FontVariation approach is
+ * the correct way.
  */
 enum class CoralFont(
     val id: String,
     val displayName: String,
-    val family: androidx.compose.ui.text.font.FontFamily
+    val family: FontFamily
 ) {
     System(
         id = "system",
         displayName = "System default",
-        family = androidx.compose.ui.text.font.FontFamily.Default
+        family = FontFamily.Default
     ),
     Poppins(
         id = "poppins",
         displayName = "Poppins",
-        family = androidx.compose.ui.text.font.FontFamily(
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.poppins_thin, androidx.compose.ui.text.font.FontWeight.Thin),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.poppins_extralight, androidx.compose.ui.text.font.FontWeight.ExtraLight),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.poppins_light, androidx.compose.ui.text.font.FontWeight.Light),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.poppins_regular, androidx.compose.ui.text.font.FontWeight.Normal),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.poppins_medium, androidx.compose.ui.text.font.FontWeight.Medium),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.poppins_semibold, androidx.compose.ui.text.font.FontWeight.SemiBold),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.poppins_bold, androidx.compose.ui.text.font.FontWeight.Bold),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.poppins_extrabold, androidx.compose.ui.text.font.FontWeight.ExtraBold),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.poppins_black, androidx.compose.ui.text.font.FontWeight.Black)
+        // 9 static .ttf files — one per weight.
+        family = FontFamily(
+            Font(R.font.poppins_thin, FontWeight.Thin),
+            Font(R.font.poppins_extralight, FontWeight.ExtraLight),
+            Font(R.font.poppins_light, FontWeight.Light),
+            Font(R.font.poppins_regular, FontWeight.Normal),
+            Font(R.font.poppins_medium, FontWeight.Medium),
+            Font(R.font.poppins_semibold, FontWeight.SemiBold),
+            Font(R.font.poppins_bold, FontWeight.Bold),
+            Font(R.font.poppins_extrabold, FontWeight.ExtraBold),
+            Font(R.font.poppins_black, FontWeight.Black)
         )
     ),
     Inter(
         id = "inter",
         displayName = "Inter",
-        family = androidx.compose.ui.text.font.FontFamily(
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.inter_variable, androidx.compose.ui.text.font.FontWeight.Thin),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.inter_variable, androidx.compose.ui.text.font.FontWeight.ExtraLight),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.inter_variable, androidx.compose.ui.text.font.FontWeight.Light),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.inter_variable, androidx.compose.ui.text.font.FontWeight.Normal),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.inter_variable, androidx.compose.ui.text.font.FontWeight.Medium),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.inter_variable, androidx.compose.ui.text.font.FontWeight.SemiBold),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.inter_variable, androidx.compose.ui.text.font.FontWeight.Bold),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.inter_variable, androidx.compose.ui.text.font.FontWeight.ExtraBold),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.inter_variable, androidx.compose.ui.text.font.FontWeight.Black)
+        // Variable font — single .ttf file. Use FontVariation to pick the
+        // weight value (100-900) for each FontWeight we want to support.
+        family = FontFamily(
+            Font(R.font.inter_variable, FontWeight.Thin, FontVariation.Settings(FontVariation.weight(100f))),
+            Font(R.font.inter_variable, FontWeight.ExtraLight, FontVariation.Settings(FontVariation.weight(200f))),
+            Font(R.font.inter_variable, FontWeight.Light, FontVariation.Settings(FontVariation.weight(300f))),
+            Font(R.font.inter_variable, FontWeight.Normal, FontVariation.Settings(FontVariation.weight(400f))),
+            Font(R.font.inter_variable, FontWeight.Medium, FontVariation.Settings(FontVariation.weight(500f))),
+            Font(R.font.inter_variable, FontWeight.SemiBold, FontVariation.Settings(FontVariation.weight(600f))),
+            Font(R.font.inter_variable, FontWeight.Bold, FontVariation.Settings(FontVariation.weight(700f))),
+            Font(R.font.inter_variable, FontWeight.ExtraBold, FontVariation.Settings(FontVariation.weight(800f))),
+            Font(R.font.inter_variable, FontWeight.Black, FontVariation.Settings(FontVariation.weight(900f)))
         )
     ),
     Manrope(
         id = "manrope",
         displayName = "Manrope",
-        family = androidx.compose.ui.text.font.FontFamily(
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.manrope_variable, androidx.compose.ui.text.font.FontWeight.Thin),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.manrope_variable, androidx.compose.ui.text.font.FontWeight.ExtraLight),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.manrope_variable, androidx.compose.ui.text.font.FontWeight.Light),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.manrope_variable, androidx.compose.ui.text.font.FontWeight.Normal),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.manrope_variable, androidx.compose.ui.text.font.FontWeight.Medium),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.manrope_variable, androidx.compose.ui.text.font.FontWeight.SemiBold),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.manrope_variable, androidx.compose.ui.text.font.FontWeight.Bold),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.manrope_variable, androidx.compose.ui.text.font.FontWeight.ExtraBold),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.manrope_variable, androidx.compose.ui.text.font.FontWeight.Black)
+        // Manrope variable font supports weights 200-800.
+        family = FontFamily(
+            Font(R.font.manrope_variable, FontWeight.Thin, FontVariation.Settings(FontVariation.weight(200f))),
+            Font(R.font.manrope_variable, FontWeight.ExtraLight, FontVariation.Settings(FontVariation.weight(300f))),
+            Font(R.font.manrope_variable, FontWeight.Light, FontVariation.Settings(FontVariation.weight(400f))),
+            Font(R.font.manrope_variable, FontWeight.Normal, FontVariation.Settings(FontVariation.weight(500f))),
+            Font(R.font.manrope_variable, FontWeight.Medium, FontVariation.Settings(FontVariation.weight(600f))),
+            Font(R.font.manrope_variable, FontWeight.SemiBold, FontVariation.Settings(FontVariation.weight(700f))),
+            Font(R.font.manrope_variable, FontWeight.Bold, FontVariation.Settings(FontVariation.weight(800f))),
+            Font(R.font.manrope_variable, FontWeight.ExtraBold, FontVariation.Settings(FontVariation.weight(700f))),
+            Font(R.font.manrope_variable, FontWeight.Black, FontVariation.Settings(FontVariation.weight(800f)))
         )
     ),
     Nunito(
         id = "nunito",
         displayName = "Nunito Sans",
-        family = androidx.compose.ui.text.font.FontFamily(
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.nunito_variable, androidx.compose.ui.text.font.FontWeight.Thin),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.nunito_variable, androidx.compose.ui.text.font.FontWeight.ExtraLight),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.nunito_variable, androidx.compose.ui.text.font.FontWeight.Light),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.nunito_variable, androidx.compose.ui.text.font.FontWeight.Normal),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.nunito_variable, androidx.compose.ui.text.font.FontWeight.Medium),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.nunito_variable, androidx.compose.ui.text.font.FontWeight.SemiBold),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.nunito_variable, androidx.compose.ui.text.font.FontWeight.Bold),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.nunito_variable, androidx.compose.ui.text.font.FontWeight.ExtraBold),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.nunito_variable, androidx.compose.ui.text.font.FontWeight.Black)
+        family = FontFamily(
+            Font(R.font.nunito_variable, FontWeight.Thin, FontVariation.Settings(FontVariation.weight(200f))),
+            Font(R.font.nunito_variable, FontWeight.ExtraLight, FontVariation.Settings(FontVariation.weight(300f))),
+            Font(R.font.nunito_variable, FontWeight.Light, FontVariation.Settings(FontVariation.weight(400f))),
+            Font(R.font.nunito_variable, FontWeight.Normal, FontVariation.Settings(FontVariation.weight(500f))),
+            Font(R.font.nunito_variable, FontWeight.Medium, FontVariation.Settings(FontVariation.weight(600f))),
+            Font(R.font.nunito_variable, FontWeight.SemiBold, FontVariation.Settings(FontVariation.weight(700f))),
+            Font(R.font.nunito_variable, FontWeight.Bold, FontVariation.Settings(FontVariation.weight(800f))),
+            Font(R.font.nunito_variable, FontWeight.ExtraBold, FontVariation.Settings(FontVariation.weight(700f))),
+            Font(R.font.nunito_variable, FontWeight.Black, FontVariation.Settings(FontVariation.weight(800f)))
         )
     ),
     SpaceGrotesk(
         id = "spacegrotesk",
         displayName = "Space Grotesk",
-        family = androidx.compose.ui.text.font.FontFamily(
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.spacegrotesk_variable, androidx.compose.ui.text.font.FontWeight.Light),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.spacegrotesk_variable, androidx.compose.ui.text.font.FontWeight.Normal),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.spacegrotesk_variable, androidx.compose.ui.text.font.FontWeight.Medium),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.spacegrotesk_variable, androidx.compose.ui.text.font.FontWeight.SemiBold),
-            androidx.compose.ui.text.font.Font(com.rajatxo.coral.R.font.spacegrotesk_variable, androidx.compose.ui.text.font.FontWeight.Bold)
+        // Space Grotesk variable font only supports weights 300-700.
+        family = FontFamily(
+            Font(R.font.spacegrotesk_variable, FontWeight.Thin, FontVariation.Settings(FontVariation.weight(300f))),
+            Font(R.font.spacegrotesk_variable, FontWeight.ExtraLight, FontVariation.Settings(FontVariation.weight(300f))),
+            Font(R.font.spacegrotesk_variable, FontWeight.Light, FontVariation.Settings(FontVariation.weight(300f))),
+            Font(R.font.spacegrotesk_variable, FontWeight.Normal, FontVariation.Settings(FontVariation.weight(400f))),
+            Font(R.font.spacegrotesk_variable, FontWeight.Medium, FontVariation.Settings(FontVariation.weight(500f))),
+            Font(R.font.spacegrotesk_variable, FontWeight.SemiBold, FontVariation.Settings(FontVariation.weight(600f))),
+            Font(R.font.spacegrotesk_variable, FontWeight.Bold, FontVariation.Settings(FontVariation.weight(700f))),
+            Font(R.font.spacegrotesk_variable, FontWeight.ExtraBold, FontVariation.Settings(FontVariation.weight(700f))),
+            Font(R.font.spacegrotesk_variable, FontWeight.Black, FontVariation.Settings(FontVariation.weight(700f)))
         )
     );
 
@@ -110,15 +131,8 @@ enum class CoralFont(
 /**
  * Singleton that holds the user's font choice as a StateFlow.
  *
- * Persistence strategy:
- *  - Uses SharedPreferences (simple key-value, fine for one setting).
- *  - Reads the saved value synchronously on first access (fast — file is
- *    tiny and Android caches SharedPreferences in memory after first read).
- *  - Writes are synchronous too — this is a once-per-app-launch setting,
- *    no need for async I/O.
- *
- * The rest of the app observes [currentFont] as a StateFlow and rebuilds
- * the MaterialTheme typography whenever it changes.
+ * Persistence: SharedPreferences ('font_id' key in 'coral_prefs').
+ * Reads synchronously on init (<1ms), writes synchronously on change.
  */
 object FontManager {
 
@@ -130,8 +144,8 @@ object FontManager {
     private val _currentFont = MutableStateFlow(CoralFont.Poppins)
     val currentFont: StateFlow<CoralFont> = _currentFont.asStateFlow()
 
-    fun init(context: android.content.Context) {
-        prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+    fun init(context: Context) {
+        prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         _currentFont.value = CoralFont.fromId(prefs.getString(KEY_FONT_ID, null))
     }
 
