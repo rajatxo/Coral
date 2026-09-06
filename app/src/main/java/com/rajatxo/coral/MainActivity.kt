@@ -59,14 +59,24 @@ import kotlinx.coroutines.withContext
 class MainActivity : ComponentActivity() {
     @androidx.compose.foundation.ExperimentalFoundationApi
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Force BOTH system bars (status + navigation) to be fully transparent
-        // with no scrim. This is what makes the system gesture indicator
-        // blend into the app background — the ViTune-style seamless look.
-        // Default enableEdgeToEdge() applies a translucent scrim that
-        // creates the visible "gray bar" the user reported.
+        // Force BOTH system bars (status + navigation) to be FULLY TRANSPARENT
+        // with NO scrim. This is what makes the system gesture indicator blend
+        // into the app background — the ViTune-style seamless look.
+        //
+        // Why SystemBarStyle.dark(0) and not SystemBarStyle.auto(0, 0)?
+        //   auto(0, 0) lets the system pick a scrim based on the system theme.
+        //   If the user's system is in light mode, Android applies a dark scrim
+        //   on top of our transparent background — that's the visible "fade"
+        //   behind the nav buttons.
+        //
+        //   dark(0) explicitly tells Android: 'this app is dark-themed, apply
+        //   NO scrim, ever, regardless of system theme.' This is what ViTune
+        //   does to get the seamless edge-to-edge look.
+        //
+        //   The `0` parameter is the explicit transparent color.
         enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.auto(0, 0),
-            navigationBarStyle = SystemBarStyle.auto(0, 0)
+            statusBarStyle = SystemBarStyle.dark(0),
+            navigationBarStyle = SystemBarStyle.dark(0)
         )
         super.onCreate(savedInstanceState)
         setContent {
