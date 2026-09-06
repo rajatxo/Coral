@@ -1,5 +1,10 @@
 package com.rajatxo.coral.ui.home
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -10,25 +15,22 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -37,7 +39,30 @@ import androidx.compose.ui.unit.sp
 import androidx.media3.session.MediaController
 import coil3.compose.AsyncImage
 import com.rajatxo.coral.domain.model.Song
+import com.rajatxo.coral.ui.components.CoralNavRail
+import com.rajatxo.coral.ui.components.CoralTab
+import com.rajatxo.coral.ui.icons.CoralIcons
+import com.rajatxo.coral.ui.screens.PlaylistsScreen
+import com.rajatxo.coral.ui.screens.SettingsScreen
+import com.rajatxo.coral.ui.screens.SongsScreen
 
+/**
+ * Root composable for the post-launch experience.
+ *
+ * Layout:
+ *   Row {
+ *     CoralNavRail       // 72dp vertical rail on the left
+ *     Column {
+ *       Screen content   // SongsScreen / PlaylistsScreen / SettingsScreen
+ *       MiniPlayer       // only if there's a current song
+ *     }
+ *   }
+ *   FullPlayerOverlay    // expands on top when showFullPlayer = true
+ *
+ * This is the engine-room composable — all UI state lives here and is passed
+ * down. Phase 4 will replace the FullPlayerOverlay with the real BitChord-style
+ * now-playing screen.
+ */
 @Composable
 fun HomeScreen(
     songs: List<Song>,
@@ -53,172 +78,67 @@ fun HomeScreen(
     showFullPlayer: Boolean,
     onFullPlayerDismiss: () -> Unit
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedTab by remember { mutableStateOf(CoralTab.Songs) }
 
-    Row(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0A))) {
-        CoralNavRail(
-            selectedTab = selectedTab,
-            onTabSelected = { selectedTab = it }
-        )
+    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0A))) {
+        Row(modifier = Modifier.fillMaxSize()) {
+            CoralNavRail(
+                selectedTab = selectedTab,
+                onTabSelected = { selectedTab = it }
+            )
 
-        Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-            Box(modifier = Modifier.weight(1f)) {
-                when (selectedTab) {
-                    0 -> SongsTab(songs = songs, currentSongTitle = currentSongTitle, onSongClick = onSongClick)
-                    1 -> PlaylistsTab()
-                    2 -> SettingsTab()
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            ) {
+                Box(modifier = Modifier.weight(1f)) {
+                    when (selectedTab) {
+                        CoralTab.Songs -> SongsScreen(
+                            songs = songs,
+                            currentSongTitle = currentSongTitle,
+                            onSongClick = onSongClick
+                        )
+                        CoralTab.Playlists -> PlaylistsScreen()
+                        CoralTab.Settings -> SettingsScreen()
+                    }
+                }
+
+                // Mini player — slides up only when a song is loaded
+                AnimatedVisibility(
+                    visible = currentSongTitle != null,
+                    enter = slideInVertically { it } + fadeIn(),
+                    exit = slideOutVertically { it } + fadeOut()
+                ) {
+                    MiniPlayer(
+                        title = currentSongTitle ?: "",
+                        artist = currentSongArtist ?: "",
+                        albumArtUri = currentSongArt,
+                        isPlaying = isPlaying,
+                        onPlayPauseClick = onPlayPauseClick,
+                        onNextClick = onNextClick,
+                        onClick = onMiniPlayerClick
+                    )
                 }
             }
-
-            if (currentSongTitle != null) {
-                MiniPlayer(
-                    title = currentSongTitle ?: "",
-                    artist = currentSongArtist ?: "",
-                    albumArtUri = currentSongArt,
-                    isPlaying = isPlaying,
-                    onPlayPauseClick = onPlayPauseClick,
-                    onNextClick = onNextClick,
-                    onClick = onMiniPlayerClick
-                )
-            }
         }
-    }
 
-    if (showFullPlayer) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.95f))
-                .clickable(onClick = onFullPlayerDismiss)
+        // Full-screen player overlay (placeholder — Phase 4 will replace this)
+        AnimatedVisibility(
+            visible = showFullPlayer,
+            enter = slideInVertically { it },
+            exit = slideOutVertically { it }
         ) {
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(text = "🪸", fontSize = 64.sp, color = Color.White)
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(text = currentSongTitle ?: "", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                Text(text = currentSongArtist ?: "", color = Color(0xFFB0B0B0), fontSize = 16.sp)
-                Spacer(modifier = Modifier.height(32.dp))
-                Text(text = "Full player coming soon!", color = Color(0xFFB0B0B0))
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(text = "Tap anywhere to close", color = Color(0xFF666666), fontSize = 12.sp)
-            }
+            FullPlayerPlaceholder(
+                title = currentSongTitle ?: "",
+                artist = currentSongArtist ?: "",
+                albumArtUri = currentSongArt,
+                isPlaying = isPlaying,
+                onPlayPauseClick = onPlayPauseClick,
+                onNextClick = onNextClick,
+                onDismiss = onFullPlayerDismiss
+            )
         }
-    }
-}
-
-@Composable
-private fun CoralNavRail(selectedTab: Int, onTabSelected: (Int) -> Unit) {
-    val tabs = listOf("Songs", "Playlists", "Settings")
-    val icons = listOf("🎵", "📋", "⚙️")
-
-    Box(
-        modifier = Modifier
-            .width(56.dp)
-            .fillMaxHeight()
-            .background(Color(0xFF111111))
-    ) {
-        Column(
-            modifier = Modifier.fillMaxHeight().padding(vertical = 48.dp),
-            verticalArrangement = Arrangement.spacedBy(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            tabs.forEachIndexed { index, label ->
-                NavItem(
-                    icon = icons[index],
-                    label = label,
-                    isSelected = selectedTab == index,
-                    onClick = { onTabSelected(index) }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun NavItem(icon: String, label: String, isSelected: Boolean, onClick: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(text = icon, fontSize = 20.sp, color = if (isSelected) Color(0xFFFF6B6B) else Color(0xFF888888))
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = label,
-            fontSize = 10.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-            color = if (isSelected) Color.White else Color(0xFF888888),
-            modifier = Modifier.graphicsLayer { rotationZ = -90f }
-        )
-    }
-}
-
-@Composable
-private fun SongsTab(songs: List<Song>, currentSongTitle: String?, onSongClick: (Song) -> Unit) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        Text(text = "Songs", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(16.dp))
-        Text(text = "${songs.size} songs", color = Color(0xFFB0B0B0), fontSize = 14.sp, modifier = Modifier.padding(start = 16.dp, bottom = 8.dp))
-
-        LazyColumn(modifier = Modifier.weight(1f)) {
-            items(songs) { song ->
-                SongRow(song = song, isCurrent = currentSongTitle == song.title, onClick = { onSongClick(song) })
-            }
-        }
-    }
-}
-
-@Composable
-private fun SongRow(song: Song, isCurrent: Boolean, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .background(if (isCurrent) Color(0xFF1A1A1A) else Color.Transparent)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF1A1A1A)), contentAlignment = Alignment.Center) {
-            if (song.albumArtUri != null) {
-                AsyncImage(model = song.albumArtUri, contentDescription = "Album art", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-            } else {
-                Text(text = "🎵", color = Color(0xFFB0B0B0))
-            }
-        }
-        Spacer(modifier = Modifier.size(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = song.title, color = if (isCurrent) Color(0xFFFF6B6B) else Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(text = song.artist, color = Color(0xFFB0B0B0), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        val minutes = song.duration / 60000
-        val seconds = (song.duration % 60000) / 1000
-        Text(text = "$minutes:${String.format("%02d", seconds)}", color = Color(0xFFB0B0B0), fontSize = 13.sp)
-    }
-}
-
-@Composable
-private fun PlaylistsTab() {
-    Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Text(text = "📋", fontSize = 64.sp)
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(text = "Playlists", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(text = "Coming soon", color = Color(0xFFB0B0B0), fontSize = 14.sp)
-    }
-}
-
-@Composable
-private fun SettingsTab() {
-    Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Text(text = "⚙️", fontSize = 64.sp)
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(text = "Settings", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(text = "Coming soon", color = Color(0xFFB0B0B0), fontSize = 14.sp)
     }
 }
 
@@ -241,25 +161,216 @@ private fun MiniPlayer(
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xFF2A2A2A)), contentAlignment = Alignment.Center) {
+        // Album art 40x40 rounded
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(Color(0xFF2A2A2A)),
+            contentAlignment = Alignment.Center
+        ) {
             if (albumArtUri != null) {
-                AsyncImage(model = albumArtUri, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                AsyncImage(
+                    model = albumArtUri,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
             } else {
-                Text(text = "🎵", color = Color(0xFFB0B0B0))
+                Icon(
+                    imageVector = CoralIcons.Music,
+                    contentDescription = null,
+                    tint = Color(0xFFB0B0B0),
+                    modifier = Modifier.size(18.dp)
+                )
             }
         }
         Spacer(modifier = Modifier.size(10.dp))
+
+        // Title + artist
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(text = artist, color = Color(0xFFB0B0B0), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = artist,
+                color = Color(0xFFB0B0B0),
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
         Spacer(modifier = Modifier.size(8.dp))
-        Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(50)).clickable(onClick = onPlayPauseClick), contentAlignment = Alignment.Center) {
-            Text(text = if (isPlaying) "⏸" else "▶", color = Color.White, fontSize = 20.sp)
+
+        // Play/pause
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(50))
+                .clickable(onClick = onPlayPauseClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = if (isPlaying) CoralIcons.Pause else CoralIcons.Play,
+                contentDescription = if (isPlaying) "Pause" else "Play",
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
+            )
         }
         Spacer(modifier = Modifier.size(8.dp))
-        Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(50)).clickable(onClick = onNextClick), contentAlignment = Alignment.Center) {
-            Text(text = "⏭", color = Color.White, fontSize = 20.sp)
+
+        // Skip next
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(50))
+                .clickable(onClick = onNextClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = CoralIcons.SkipNext,
+                contentDescription = "Skip to next",
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Placeholder full player. Phase 4 will swap this for the immersive
+ * BitChord-style screen — palette-driven gradient background, large album
+ * art with crossfade, ThinSlider scrubber, custom icon row.
+ *
+ * For now it's a clean dark overlay with album art, title, artist, and the
+ * three transport buttons so you can already control playback from here.
+ */
+@Composable
+private fun FullPlayerPlaceholder(
+    title: String,
+    artist: String,
+    albumArtUri: android.net.Uri?,
+    isPlaying: Boolean,
+    onPlayPauseClick: () -> Unit,
+    onNextClick: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF050505))
+            .clickable(onClick = onDismiss)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Album art (large)
+            Box(
+                modifier = Modifier
+                    .size(280.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0xFF1A1A1A)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (albumArtUri != null) {
+                    AsyncImage(
+                        model = albumArtUri,
+                        contentDescription = "Album art",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(
+                        imageVector = CoralIcons.Music,
+                        contentDescription = null,
+                        tint = Color(0xFF444444),
+                        modifier = Modifier.size(80.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.size(32.dp))
+
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.size(4.dp))
+            Text(
+                text = artist,
+                color = Color(0xFFB0B0B0),
+                fontSize = 15.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.size(40.dp))
+
+            // Transport row
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(48.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color(0xFFFF6B6B))
+                        .clickable(onClick = onPlayPauseClick),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isPlaying) CoralIcons.Pause else CoralIcons.Play,
+                        contentDescription = if (isPlaying) "Pause" else "Play",
+                        tint = Color.White,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(50))
+                        .clickable(onClick = onNextClick),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = CoralIcons.SkipNext,
+                        contentDescription = "Skip to next",
+                        tint = Color.White,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.size(40.dp))
+
+            Text(
+                text = "Tap anywhere to close",
+                color = Color(0xFF666666),
+                fontSize = 12.sp
+            )
+            Spacer(modifier = Modifier.size(8.dp))
+            Text(
+                text = "Phase 4 will bring the full BitChord-style player",
+                color = Color(0xFF444444),
+                fontSize = 11.sp
+            )
         }
     }
 }
