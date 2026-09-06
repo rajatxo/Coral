@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rajatxo.coral.data.premium.PremiumManager
+import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.icons.CoralIcons
 
 /**
@@ -210,7 +211,7 @@ private fun VersionRow(
             modifier = Modifier
                 .size(32.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color(0xFF1F1F1F)),
+                .background(CoralColors.SurfaceVariant),
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -260,7 +261,7 @@ private fun SettingsSection(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp))
-                .background(Color(0xFF141414))
+                .background(CoralColors.SurfaceVariant)
         ) {
             content()
         }
@@ -292,7 +293,7 @@ private fun SettingsRow(
             modifier = Modifier
                 .size(32.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color(0xFF1F1F1F)),
+                .background(CoralColors.SurfaceVariant),
             contentAlignment = Alignment.Center
         ) {
             Icon(

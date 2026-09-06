@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rajatxo.coral.data.premium.SleepTimer
 import com.rajatxo.coral.data.premium.SleepTimerState
+import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.icons.CoralIcons
 
 /**
@@ -49,7 +50,7 @@ fun SleepTimerSheet(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF1A1A1A))
+            .background(CoralColors.SurfaceVariant)
             .navigationBarsPadding()
             .padding(horizontal = 20.dp, vertical = 16.dp)
     ) {

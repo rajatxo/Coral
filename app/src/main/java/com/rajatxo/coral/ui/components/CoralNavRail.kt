@@ -1,8 +1,5 @@
 package com.rajatxo.coral.ui.components
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -13,48 +10,32 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.rajatxo.coral.ui.icons.CoralIcons
 
 /**
- * The 3 destinations reachable from the rail.
+ * Coral's vertical navigation rail — ViTune-style.
  *
- * Keeping this enum (instead of raw ints) makes future changes — like adding a
- * "Search" tab — a compile-time refactor instead of a silent bug.
- */
-enum class CoralTab(val label: String, val icon: ImageVector) {
-    Songs("Songs", CoralIcons.Music),
-    Playlists("Playlists", CoralIcons.ListMusic),
-    Settings("Settings", CoralIcons.Settings)
-}
-
-/**
- * Coral's vertical navigation rail.
- *
- * Visual contract:
- *  - 72dp wide, full height, dark (#0F0F10) background
- *  - A small coral emoji logo sits at the very top
- *  - Three nav items stacked vertically, centered horizontally
- *  - The selected item has a frosted-glass pill behind it (white 8 % alpha)
- *  - The selected icon turns coral (#FF6B6B); unselected icons are #888
- *  - Selection animates: pill scale + color crossfade (~220ms)
- *
- * Designed to evoke the ViTune / SimpMusic rail without copying their assets.
+ * Design contract (matches ViTune exactly):
+ *  - Width: 56dp (narrower than Material's 72dp default)
+ *  - Background: same as the app surface (#121212 dark gray) — no separate color
+ *  - Content: rotated text labels only, NO icons
+ *  - Rotation: -90° (text reads bottom-to-top)
+ *  - Active state: pure White + Bold weight
+ *  - Inactive state: muted gray (#888888) + Regular weight
+ *  - No pill background, no underline, no indicator — color + weight only
+ *  - Labels are stacked vertically with even spacing
+ *  - Status bar padding handled by parent (statusBarsPadding)
  */
 @Composable
 fun CoralNavRail(
@@ -64,27 +45,19 @@ fun CoralNavRail(
 ) {
     Box(
         modifier = modifier
-            .width(72.dp)
+            .width(56.dp)
             .fillMaxHeight()
-            .background(Color(0xFF0F0F10))
+            .background(CoralColors.Surface)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxHeight()
-                .padding(vertical = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Top),
+                .padding(vertical = 48.dp),
+            verticalArrangement = Arrangement.spacedBy(36.dp, Alignment.Top),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Coral logo / brand mark
-            Text(
-                text = "🪸",
-                fontSize = 24.sp,
-                modifier = Modifier.padding(bottom = 24.dp)
-            )
-
             CoralTab.values().forEach { tab ->
-                RailItem(
-                    icon = tab.icon,
+                RailLabel(
                     label = tab.label,
                     isSelected = tab == selectedTab,
                     onClick = { onTabSelected(tab) }
@@ -95,64 +68,56 @@ fun CoralNavRail(
 }
 
 @Composable
-private fun RailItem(
-    icon: ImageVector,
+private fun RailLabel(
     label: String,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val iconColor by animateColorAsState(
-        targetValue = if (isSelected) Color(0xFFFF6B6B) else Color(0xFF888888),
-        animationSpec = tween(220),
-        label = "iconColor"
-    )
-    val pillAlpha by animateFloatAsState(
-        targetValue = if (isSelected) 1f else 0f,
-        animationSpec = tween(220),
-        label = "pillAlpha"
-    )
-
-    Box(
+    Text(
+        text = label,
+        color = if (isSelected) Color.White else CoralColors.TextMuted,
+        fontSize = 13.sp,
+        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
         modifier = Modifier
-            .size(width = 56.dp, height = 56.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .rotate(-90f)  // text reads bottom-to-top, like ViTune
             .clickable(
-                interactionSource = MutableInteractionSource(),
+                interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        // Glass pill — only visible when selected
-        if (pillAlpha > 0.01f) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = 0.10f),
-                                Color.White.copy(alpha = 0.04f)
-                            )
-                        )
-                    )
             )
-        }
+            .padding(horizontal = 4.dp, vertical = 8.dp)
+    )
+}
 
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = iconColor,
-                modifier = Modifier.size(22.dp)
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = label,
-                color = iconColor,
-                fontSize = 9.sp,
-                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
-            )
-        }
-    }
+/**
+ * Coral's color palette — ViTune-style.
+ *
+ * ViTune uses dark gray (#121212) surfaces, NOT pure black. This makes the
+ * UI feel warmer and less harsh on OLED screens (counterintuitive but true —
+ * pure black removes depth, dark gray keeps it).
+ */
+object CoralColors {
+    /** Main app surface — dark gray, same as ViTune's background. */
+    val Surface: Color = Color(0xFF121212)
+
+    /** Slightly lighter gray for cards / mini player / nav rail pills. */
+    val SurfaceVariant: Color = Color(0xFF1F1F1F)
+
+    /** Primary text — pure white. */
+    val TextPrimary: Color = Color.White
+
+    /** Secondary text — muted gray for inactive items, subtitles, etc. */
+    val TextMuted: Color = Color(0xFF888888)
+
+    /** Coral accent — the brand color, used for active states + buttons. */
+    val Coral: Color = Color(0xFFFF6B6B)
+}
+
+/**
+ * The 3 destinations reachable from the rail.
+ */
+enum class CoralTab(val label: String) {
+    Songs("Songs"),
+    Playlists("Playlists"),
+    Settings("Settings")
 }

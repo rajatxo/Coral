@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.rajatxo.coral.data.model.Playlist
 import com.rajatxo.coral.data.store.PlaylistStore
+import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.icons.CoralIcons
 
 /**
@@ -67,7 +68,7 @@ fun PlaylistsScreen(
     val playlists by PlaylistStore.playlists.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0A))) {
+    Box(modifier = Modifier.fillMaxSize().background(CoralColors.Surface)) {
         if (playlists.isEmpty()) {
             EmptyPlaylistsState(onCreateClick = { showCreateDialog = true })
         } else {
@@ -294,7 +295,7 @@ private fun CreatePlaylistDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF1A1A1A),
+        containerColor = CoralColors.SurfaceVariant,
         titleContentColor = Color.White,
         title = { Text("New playlist") },
         text = {

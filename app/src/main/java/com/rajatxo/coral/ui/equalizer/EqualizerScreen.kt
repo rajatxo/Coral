@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import com.rajatxo.coral.audio.EqualizerBand
 import com.rajatxo.coral.audio.EqualizerController
 import com.rajatxo.coral.audio.EqualizerPreset
+import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.icons.CoralIcons
 
 /**
@@ -67,7 +68,7 @@ fun EqualizerScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0A0A0A))
+            .background(CoralColors.Surface)
     ) {
         Column(
             modifier = Modifier

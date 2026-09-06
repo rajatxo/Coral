@@ -44,6 +44,7 @@ import coil3.compose.AsyncImage
 import com.rajatxo.coral.data.model.Playlist
 import com.rajatxo.coral.data.store.PlaylistStore
 import com.rajatxo.coral.domain.model.Song
+import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.icons.CoralIcons
 
 /**
@@ -181,7 +182,7 @@ fun PlaylistDetailScreen(
                             .aspectRatio(1f)
                             .clip(RoundedCornerShape(20.dp))
                             .shadow(20.dp, RoundedCornerShape(20.dp))
-                            .background(Color(0xFF1A1A1A)),
+                            .background(CoralColors.SurfaceVariant),
                         contentAlignment = Alignment.Center
                     ) {
                         if (livePlaylist.coverUri != null) {
@@ -370,7 +371,7 @@ private fun PlaylistSongRow(
             modifier = Modifier
                 .size(44.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(Color(0xFF1A1A1A)),
+                .background(CoralColors.SurfaceVariant),
             contentAlignment = Alignment.Center
         ) {
             if (song.albumArtUri != null) {

@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.rajatxo.coral.domain.model.Song
+import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.icons.CoralIcons
 
 /**
@@ -80,7 +81,7 @@ private fun SongRow(song: Song, isCurrent: Boolean, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .background(if (isCurrent) Color(0xFF1A1A1A) else Color.Transparent)
+            .background(if (isCurrent) CoralColors.SurfaceVariant else Color.Transparent)
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -89,7 +90,7 @@ private fun SongRow(song: Song, isCurrent: Boolean, onClick: () -> Unit) {
             modifier = Modifier
                 .size(48.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color(0xFF1A1A1A)),
+                .background(CoralColors.SurfaceVariant),
             contentAlignment = Alignment.Center
         ) {
             if (song.albumArtUri != null) {

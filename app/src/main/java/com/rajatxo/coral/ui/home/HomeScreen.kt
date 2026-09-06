@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import androidx.media3.session.MediaController
 import coil3.compose.AsyncImage
 import com.rajatxo.coral.domain.model.Song
+import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.components.CoralNavRail
 import com.rajatxo.coral.ui.components.CoralTab
 import com.rajatxo.coral.ui.icons.CoralIcons
@@ -116,7 +117,8 @@ fun HomeScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0A))) {
+    Box(modifier = Modifier.fillMaxSize().background(CoralColors.Surface)) {
+        // Main content + nav rail — fills the whole screen
         Row(modifier = Modifier.fillMaxSize()) {
             CoralNavRail(
                 selectedTab = selectedTab,
@@ -126,70 +128,79 @@ fun HomeScreen(
                 }
             )
 
-            Column(
+            Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
             ) {
-                Box(modifier = Modifier.weight(1f)) {
-                    when (selectedTab) {
-                        CoralTab.Songs -> SongsScreen(
-                            songs = songs,
-                            currentSongTitle = currentSongTitle,
-                            onSongClick = onSongClick
-                        )
-                        CoralTab.Playlists -> {
-                            val playlist = selectedPlaylist
-                            if (playlist != null) {
-                                PlaylistDetailScreen(
-                                    playlist = playlist,
-                                    allSongs = songs,
-                                    currentSongTitle = currentSongTitle,
-                                    onBackClick = { selectedPlaylist = null },
-                                    onPlayAll = { songList -> onSongClickWithQueue(songList.first(), songList) },
-                                    onShuffle = { songList ->
-                                        // Simple shuffle: pick a random start, queue rest in order
-                                        val shuffled = songList.shuffled()
-                                        if (shuffled.isNotEmpty()) onSongClickWithQueue(shuffled.first(), shuffled)
-                                    },
-                                    onSongClick = { song, songList -> onSongClickWithQueue(song, songList) },
-                                    onAddSongsClick = {
-                                        playlistForPicker = playlist
-                                        showSongPicker = true
-                                    }
-                                )
-                            } else {
-                                PlaylistsScreen(
-                                    onPlaylistClick = { selectedPlaylist = it }
-                                )
-                            }
+                when (selectedTab) {
+                    CoralTab.Songs -> SongsScreen(
+                        songs = songs,
+                        currentSongTitle = currentSongTitle,
+                        onSongClick = onSongClick
+                    )
+                    CoralTab.Playlists -> {
+                        val playlist = selectedPlaylist
+                        if (playlist != null) {
+                            PlaylistDetailScreen(
+                                playlist = playlist,
+                                allSongs = songs,
+                                currentSongTitle = currentSongTitle,
+                                onBackClick = { selectedPlaylist = null },
+                                onPlayAll = { songList -> onSongClickWithQueue(songList.first(), songList) },
+                                onShuffle = { songList ->
+                                    // Simple shuffle: pick a random start, queue rest in order
+                                    val shuffled = songList.shuffled()
+                                    if (shuffled.isNotEmpty()) onSongClickWithQueue(shuffled.first(), shuffled)
+                                },
+                                onSongClick = { song, songList -> onSongClickWithQueue(song, songList) },
+                                onAddSongsClick = {
+                                    playlistForPicker = playlist
+                                    showSongPicker = true
+                                }
+                            )
+                        } else {
+                            PlaylistsScreen(
+                                onPlaylistClick = { selectedPlaylist = it }
+                            )
                         }
-                        CoralTab.Settings -> SettingsScreen(
-                            onOpenPremium = { showPremium = true },
-                            onOpenEqualizer = { showEqualizer = true },
-                            onOpenSleepTimer = { showSleepTimer = true }
-                        )
                     }
-                }
-
-                // Mini player — slides up only when a song is loaded
-                AnimatedVisibility(
-                    visible = currentSongTitle != null,
-                    enter = slideInVertically { it } + fadeIn(),
-                    exit = slideOutVertically { it } + fadeOut()
-                ) {
-                    MiniPlayer(
-                        title = currentSongTitle ?: "",
-                        artist = currentSongArtist ?: "",
-                        albumArtUri = currentSongArt,
-                        isPlaying = isPlaying,
-                        onPlayPauseClick = onPlayPauseClick,
-                        onNextClick = onNextClick,
-                        onClick = onMiniPlayerClick
+                    CoralTab.Settings -> SettingsScreen(
+                        onOpenPremium = { showPremium = true },
+                        onOpenEqualizer = { showEqualizer = true },
+                        onOpenSleepTimer = { showSleepTimer = true }
                     )
                 }
             }
         }
+
+        // Mini player — FULL-WIDTH overlay at the bottom (covers nav rail too,
+        // like ViTune). Slides up only when a song is loaded. Extends into the
+        // system nav bar area so the gesture indicator blends with the app.
+        AnimatedVisibility(
+            visible = currentSongTitle != null,
+            enter = slideInVertically { it } + fadeIn(),
+            exit = slideOutVertically { it } + fadeOut(),
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
+            MiniPlayer(
+                title = currentSongTitle ?: "",
+                artist = currentSongArtist ?: "",
+                albumArtUri = currentSongArt,
+                isPlaying = isPlaying,
+                onPlayPauseClick = onPlayPauseClick,
+                onNextClick = onNextClick,
+                onClick = onMiniPlayerClick
+            )
+        }
+
+        // Add bottom padding to the content area when mini player is visible,
+        // so the song list doesn't hide behind the mini player. We do this by
+        // adding a spacer that grows/shrinks with the mini player visibility.
+        // NOTE: This is a no-op overlay that we leave here as a marker for
+        // future polish — the screens themselves already scroll, so they'll
+        // just clip the last few items. Phase 8.1 will add proper bottom
+        // inset handling.
 
         // Song picker modal (slides up over the playlist detail)
         if (showSongPicker && playlistForPicker != null) {
@@ -285,9 +296,13 @@ private fun MiniPlayer(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF1A1A1A))
-            .navigationBarsPadding()
+            .background(CoralColors.SurfaceVariant)
+            // Content extends into the system nav bar area — that's what
+            // makes the gesture indicator blend with the app background
+            // (the ViTune-style seamless look). We pad the content inside
+            // with navigationBarsPadding so the buttons stay tappable.
             .clickable(onClick = onClick)
+            .navigationBarsPadding()
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

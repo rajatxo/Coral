@@ -38,6 +38,7 @@ import coil3.compose.AsyncImage
 import com.rajatxo.coral.data.model.Playlist
 import com.rajatxo.coral.data.store.PlaylistStore
 import com.rajatxo.coral.domain.model.Song
+import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.icons.CoralIcons
 
 /**
@@ -69,7 +70,7 @@ fun SongPickerScreen(
         allSongs.filter { it.id !in inPlaylist }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0A))) {
+    Box(modifier = Modifier.fillMaxSize().background(CoralColors.Surface)) {
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
             // Header
             Row(
@@ -164,7 +165,7 @@ private fun PickerRow(
             modifier = Modifier
                 .size(44.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(Color(0xFF1A1A1A)),
+                .background(CoralColors.SurfaceVariant),
             contentAlignment = Alignment.Center
         ) {
             if (song.albumArtUri != null) {

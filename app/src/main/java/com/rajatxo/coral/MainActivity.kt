@@ -47,6 +47,7 @@ import androidx.media3.session.SessionToken
 import com.rajatxo.coral.data.scanner.MusicScanner
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.service.CoralPlaybackService
+import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.home.HomeScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.guava.await
@@ -131,7 +132,7 @@ fun CoralApp() {
         else context.startService(intent)
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0A))) {
+    Box(modifier = Modifier.fillMaxSize().background(CoralColors.Surface)) {
         when {
             !hasPermission -> {
                 Column(modifier = Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
