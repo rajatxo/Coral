@@ -150,11 +150,20 @@ fun CoralApp() {
         permissionLauncher.launch(permissions)
     }
 
-    LaunchedEffect(Unit) {
-        val intent = android.content.Intent(context, CoralPlaybackService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
-        else context.startService(intent)
-    }
+    // NOTE: We intentionally do NOT call startForegroundService() here.
+    //
+    // Previous bug: calling startForegroundService() on app launch started
+    // a 5-second countdown. If no song was playing within 5 seconds (which
+    // is the normal case — the user is browsing their song list), Android
+    // threw ForegroundServiceDidNotStartInTimeException and crashed the app.
+    // This was the "crash after 8-10 seconds" bug.
+    //
+    // Fix: Don't start the service explicitly. Media3's MediaController
+    // will bind to the service automatically when MediaController.Builder()
+    // .buildAsync() is called (in the LaunchedEffect above). The service
+    // starts as a regular bound service. When the user taps a song and
+    // playback begins, MediaSessionService promotes itself to foreground
+    // automatically and shows the media notification — no timing issues.
 
     Box(modifier = Modifier.fillMaxSize().background(CoralColors.Surface)) {
         when {
