@@ -171,6 +171,8 @@ fun CoralApp() {
                         if (isPlaying) mediaController?.pause() else mediaController?.play()
                     },
                     onNextClick = { mediaController?.seekToNextMediaItem() },
+                    onPrevClick = { mediaController?.seekToPreviousMediaItem() },
+                    onSeek = { positionMs -> mediaController?.seekTo(positionMs) },
                     onSongClick = { song ->
                         mediaController?.let { controller ->
                             val allMediaItems = songs.map { s ->

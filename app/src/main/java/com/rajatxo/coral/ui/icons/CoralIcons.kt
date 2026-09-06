@@ -174,4 +174,101 @@ object CoralIcons {
         lineTo(12f, 9f)
         lineTo(18f, 15f)
     }
+
+    /** Simple chevron pointing down — used to dismiss the full player. */
+    val ChevronDown: ImageVector = stroke("ChevronDown") {
+        moveTo(6f, 9f)
+        lineTo(12f, 15f)
+        lineTo(18f, 9f)
+    }
+
+    /** Two crossed arrows — shuffle. */
+    val Shuffle: ImageVector = stroke("Shuffle") {
+        // top arrow
+        moveTo(16f, 3f)
+        lineToRelative(5f, 0f)
+        lineToRelative(0f, 5f)
+        moveTo(21f, 3f)
+        lineToRelative(-7f, 7f)
+        moveTo(3f, 21f)
+        lineToRelative(7f, -7f)
+        // bottom arrow
+        moveTo(16f, 21f)
+        lineToRelative(5f, 0f)
+        lineToRelative(0f, -5f)
+        moveTo(21f, 21f)
+        lineToRelative(-5f, -5f)
+        moveTo(3f, 3f)
+        lineToRelative(5f, 5f)
+    }
+
+    /** Circular arrows — repeat. */
+    val Repeat: ImageVector = stroke("Repeat") {
+        moveTo(17f, 2f)
+        lineToRelative(4f, 4f)
+        lineToRelative(-4f, 4f)
+        moveTo(3f, 11f)
+        verticalLineToRelative(-1f)
+        arcToRelative(4f, 4f, 0f, false, true, 4f, -4f)
+        horizontalLineToRelative(14f)
+        moveTo(7f, 22f)
+        lineToRelative(-4f, -4f)
+        lineToRelative(4f, -4f)
+        moveTo(21f, 13f)
+        verticalLineToRelative(1f)
+        arcToRelative(4f, 4f, 0f, false, true, -4f, 4f)
+        horizontalLineToRelative(-14f)
+    }
+
+    /** Outline heart — not favorited. */
+    val Heart: ImageVector = stroke("Heart") {
+        moveTo(19f, 14f)
+        curveTo(19.55f, 13.42f, 20f, 12.65f, 20f, 11.7f)
+        arcToRelative(3.1f, 3.1f, 0f, false, false, -3.1f, -3.1f)
+        curveToRelative(-1.4f, 0f, -2.7f, 0.8f, -3.3f, 2f)
+        curveToRelative(-0.6f, -1.2f, -1.9f, -2f, -3.3f, -2f)
+        arcTo(3.1f, 3.1f, 0f, false, false, 7.2f, 11.7f)
+        curveToRelative(0f, 0.95f, 0.45f, 1.72f, 1f, 2.3f)
+        lineToRelative(5f, 5f)
+        close()
+    }
+
+    /** Filled heart — favorited. */
+    val HeartFilled: ImageVector = filled("HeartFilled") {
+        moveTo(12f, 21f)
+        lineToRelative(-1.45f, -1.32f)
+        curveTo(5.4f, 15.36f, 2f, 12.28f, 2f, 8.5f)
+        arcTo(5.5f, 5.5f, 0f, false, true, 7.5f, 3f)
+        curveToRelative(1.74f, 0f, 3.41f, 0.81f, 4.5f, 2.09f)
+        curveTo(13.09f, 3.81f, 14.76f, 3f, 16.5f, 3f)
+        arcTo(5.5f, 5.5f, 0f, false, true, 22f, 8.5f)
+        curveToRelative(0f, 3.78f, -3.4f, 6.86f, -8.55f, 11.18f)
+        close()
+    }
+
+    /** Stacked lines — queue/list. */
+    val Queue: ImageVector = stroke("Queue") {
+        moveTo(3f, 6f)
+        horizontalLineTo(21f)
+        moveTo(3f, 12f)
+        horizontalLineTo(21f)
+        moveTo(3f, 18f)
+        horizontalLineTo(15f)
+    }
+
+    /** Three vertical dots — more options. */
+    val MoreVertical: ImageVector = filled("MoreVertical") {
+        moveTo(12f, 7f)
+        arcTo(1f, 1f, 0f, false, true, 12f, 5f)
+        arcTo(1f, 1f, 0f, false, true, 12f, 7f)
+        close()
+        moveTo(12f, 13f)
+        arcTo(1f, 1f, 0f, false, true, 12f, 11f)
+        arcTo(1f, 1f, 0f, false, true, 12f, 13f)
+        close()
+        moveTo(12f, 19f)
+        arcTo(1f, 1f, 0f, false, true, 12f, 17f)
+        arcTo(1f, 1f, 0f, false, true, 12f, 19f)
+        close()
+    }
 }

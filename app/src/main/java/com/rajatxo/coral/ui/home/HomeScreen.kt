@@ -42,6 +42,7 @@ import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.components.CoralNavRail
 import com.rajatxo.coral.ui.components.CoralTab
 import com.rajatxo.coral.ui.icons.CoralIcons
+import com.rajatxo.coral.ui.player.FullPlayer
 import com.rajatxo.coral.ui.screens.PlaylistsScreen
 import com.rajatxo.coral.ui.screens.SettingsScreen
 import com.rajatxo.coral.ui.screens.SongsScreen
@@ -73,6 +74,8 @@ fun HomeScreen(
     isPlaying: Boolean,
     onPlayPauseClick: () -> Unit,
     onNextClick: () -> Unit,
+    onPrevClick: () -> Unit,
+    onSeek: (Long) -> Unit,
     onSongClick: (Song) -> Unit,
     onMiniPlayerClick: () -> Unit,
     showFullPlayer: Boolean,
@@ -123,19 +126,22 @@ fun HomeScreen(
             }
         }
 
-        // Full-screen player overlay (placeholder — Phase 4 will replace this)
+        // Full-screen now-playing screen
         AnimatedVisibility(
             visible = showFullPlayer,
             enter = slideInVertically { it },
             exit = slideOutVertically { it }
         ) {
-            FullPlayerPlaceholder(
+            FullPlayer(
+                mediaController = mediaController,
                 title = currentSongTitle ?: "",
                 artist = currentSongArtist ?: "",
                 albumArtUri = currentSongArt,
                 isPlaying = isPlaying,
                 onPlayPauseClick = onPlayPauseClick,
                 onNextClick = onNextClick,
+                onPrevClick = onPrevClick,
+                onSeek = onSeek,
                 onDismiss = onFullPlayerDismiss
             )
         }
@@ -242,135 +248,3 @@ private fun MiniPlayer(
     }
 }
 
-/**
- * Placeholder full player. Phase 4 will swap this for the immersive
- * BitChord-style screen — palette-driven gradient background, large album
- * art with crossfade, ThinSlider scrubber, custom icon row.
- *
- * For now it's a clean dark overlay with album art, title, artist, and the
- * three transport buttons so you can already control playback from here.
- */
-@Composable
-private fun FullPlayerPlaceholder(
-    title: String,
-    artist: String,
-    albumArtUri: android.net.Uri?,
-    isPlaying: Boolean,
-    onPlayPauseClick: () -> Unit,
-    onNextClick: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF050505))
-            .clickable(onClick = onDismiss)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            // Album art (large)
-            Box(
-                modifier = Modifier
-                    .size(280.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xFF1A1A1A)),
-                contentAlignment = Alignment.Center
-            ) {
-                if (albumArtUri != null) {
-                    AsyncImage(
-                        model = albumArtUri,
-                        contentDescription = "Album art",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Icon(
-                        imageVector = CoralIcons.Music,
-                        contentDescription = null,
-                        tint = Color(0xFF444444),
-                        modifier = Modifier.size(80.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.size(32.dp))
-
-            Text(
-                text = title,
-                color = Color.White,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.size(4.dp))
-            Text(
-                text = artist,
-                color = Color(0xFFB0B0B0),
-                fontSize = 15.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            Spacer(modifier = Modifier.size(40.dp))
-
-            // Transport row
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(48.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(Color(0xFFFF6B6B))
-                        .clickable(onClick = onPlayPauseClick),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = if (isPlaying) CoralIcons.Pause else CoralIcons.Play,
-                        contentDescription = if (isPlaying) "Pause" else "Play",
-                        tint = Color.White,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(RoundedCornerShape(50))
-                        .clickable(onClick = onNextClick),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = CoralIcons.SkipNext,
-                        contentDescription = "Skip to next",
-                        tint = Color.White,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.size(40.dp))
-
-            Text(
-                text = "Tap anywhere to close",
-                color = Color(0xFF666666),
-                fontSize = 12.sp
-            )
-            Spacer(modifier = Modifier.size(8.dp))
-            Text(
-                text = "Phase 4 will bring the full BitChord-style player",
-                color = Color(0xFF444444),
-                fontSize = 11.sp
-            )
-        }
-    }
-}
