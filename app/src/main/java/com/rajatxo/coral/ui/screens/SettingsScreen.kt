@@ -165,62 +165,19 @@ fun SettingsScreen(
 
         SettingsSection(title = "About") {
             // The version row has the hidden long-press trigger for debug unlock
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .combinedClickable(
-                        onClick = {
-                            // Single tap on version row increments the counter.
-                            // 7 taps within 5 seconds = debug unlock.
-                            versionTapCount++
-                            if (versionTapCount >= 7) {
-                                versionTapCount = 0
-                                val nowPremium = PremiumManager.debugUnlock()
-                            }
-                        },
-                        onLongClick = {
-                            // Long press also triggers for accessibility
-                            val nowPremium = PremiumManager.debugUnlock()
-                        }
-                    )
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFF1F1F1F)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = CoralIcons.Music,
-                        contentDescription = null,
-                        tint = Color(0xFFFF6B6B),
-                        modifier = Modifier.size(16.dp)
-                    )
+            VersionRow(
+                isPremium = isPremium,
+                onTap = {
+                    versionTapCount++
+                    if (versionTapCount >= 7) {
+                        versionTapCount = 0
+                        PremiumManager.debugUnlock()
+                    }
+                },
+                onLongPress = {
+                    PremiumManager.debugUnlock()
                 }
-                Spacer(modifier = Modifier.size(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Version",
-                        color = Color.White,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Text(
-                        text = if (isPremium) "1.0.0 (Premium unlocked)" else "1.0.0",
-                        color = Color(0xFFB0B0B0),
-                        fontSize = 12.sp
-                    )
-                }
-                Text(
-                    text = if (isPremium) "✓" else "",
-                    color = Color(0xFFFF6B6B),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
+            )
             SettingsRow(
                 icon = CoralIcons.Settings,
                 title = "Open-source licenses",
@@ -228,6 +185,60 @@ fun SettingsScreen(
                 value = "→"
             )
         }
+    }
+}
+
+@androidx.compose.foundation.ExperimentalFoundationApi
+@Composable
+private fun VersionRow(
+    isPremium: Boolean,
+    onTap: () -> Unit,
+    onLongPress: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = onTap,
+                onLongClick = onLongPress
+            )
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0xFF1F1F1F)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = CoralIcons.Music,
+                contentDescription = null,
+                tint = Color(0xFFFF6B6B),
+                modifier = Modifier.size(16.dp)
+            )
+        }
+        Spacer(modifier = Modifier.size(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Version",
+                color = Color.White,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = if (isPremium) "1.0.0 (Premium unlocked)" else "1.0.0",
+                color = Color(0xFFB0B0B0),
+                fontSize = 12.sp
+            )
+        }
+        Text(
+            text = if (isPremium) "✓" else "",
+            color = Color(0xFFFF6B6B),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 

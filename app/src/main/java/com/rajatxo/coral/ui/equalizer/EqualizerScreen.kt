@@ -278,7 +278,7 @@ private fun VerticalBandSlider(
     Box(
         modifier = modifier
             .width(40.dp)
-            .pointerInput(bandIndex = value) {
+            .pointerInput(value) {
                 detectVerticalDragGestures { change, dragAmount ->
                     val sliderHeight = size.height.toFloat()
                     if (sliderHeight == 0f) return@detectVerticalDragGestures
