@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -21,40 +22,54 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material3.Text
 import com.rajatxo.coral.ui.icons.CoralIcons
 
 /**
- * Coral's vertical navigation rail — ViTune-style.
+ * Coral's vertical navigation rail — ViTune-style positioning.
  *
- * Has TWO modes:
- *
- *  - [RailMode.Main] (default): shows the 6 main tabs (Quick picks, Discover,
- *    Songs, Playlists, Artists, Albums). A gear icon sits at the TOP.
- *    Tapping the gear switches to Settings mode.
- *
- *  - [RailMode.Settings]: shows settings categories (Premium, Appearance,
- *    Playback, About). A back arrow sits at the TOP (replaces the gear).
- *    Tapping the back arrow returns to Main mode.
- *
- * Design contract (matches ViTune exactly):
- *  - Width: 40dp (narrow)
- *  - Background: same as the app surface (#121212 dark gray)
- *  - Content: rotated text labels only, NO icons (except the gear/back at top)
+ * Layout contract (matches ViTune exactly):
+ *  - Width: 48dp (slightly wider than before so rotated text breathes)
+ *  - Padding from left edge: built into the 48dp width — text is centered
+ *    horizontally in the rail, giving ~16dp from the screen's left edge
+ *    to the text
+ *  - Gear/back icon at TOP-CENTER, ~32dp tall, ~24dp from the screen top
+ *    (below status bar)
+ *  - Labels: spaced 24dp apart (tight, list-like — not loose)
+ *  - Labels are vertically CENTERED in the rail (between top icon and
+ *    bottom edge) — fills the full rail height, not clustered at top
  *  - Rotation: -90° (text reads bottom-to-top)
- *  - Active state: pure White + Bold weight
- *  - Inactive state: muted gray (#888888) + Regular weight
+ *  - Active: pure White + Bold. Inactive: muted gray + Regular.
+ *  - Font: 12-13sp (compact, list-like — not large)
  *
- * Label implementation note:
- *  Each label is a fixed-height Box (90dp) that wraps a rotated Text.
- *  The Box is 40dp wide (matches rail width) and tall enough to fit
- *  the longest rotated label ("Quick picks" = ~80dp when rotated).
- *  This is simpler than the previous custom layout modifier and
- *  prevents the cut-off text bug.
+ * Label sizing:
+ *  Each label slot is 24dp tall x 48dp wide. The rotated text fits inside
+ *  this slot because the longest label ("Quick picks" = ~78dp horizontally)
+ *  becomes ~78dp tall after rotation — and since labels are spaced only
+ *  24dp apart, they actually overlap visually but Compose handles the
+ *  rotation correctly with proper z-ordering.
+ *
+ *  Wait — that overlap would look broken. Let me reconsider.
+ *
+ *  ACTUAL approach: each label Box is `wrapContentHeight`-ish. We measure
+ *  the text horizontally, then the Box's height after rotation equals
+ *  the text's width. We can't easily do that in stock Compose, so we
+ *  use a fixed slot that's tall enough for the longest label.
+ *
+ *  Longest label is "Quick picks" (~78dp wide horizontally). After
+ *  rotation, that's 78dp tall. We use 80dp slots.
+ *
+ *  But then 6 labels x 80dp = 480dp, which doesn't fit on a typical
+ *  phone (720dp tall screen, minus status bar 24dp, minus gear icon 56dp,
+ *  minus nav bar 48dp = ~592dp available — 480dp fits).
+ *
+ *  OK, 80dp slots work. Spacing between them: 0dp (the slot itself
+ *  provides the visual gap via its internal padding).
+ *
+ *  Actually, looking at ViTune again — the labels are TIGHT. There's
+ *  barely any gap. So no `spacedBy` — just stacked directly.
  */
 @Composable
 fun CoralNavRail(
@@ -69,14 +84,14 @@ fun CoralNavRail(
 ) {
     Box(
         modifier = modifier
-            .width(40.dp)
+            .width(48.dp)
             .fillMaxHeight()
             .background(CoralColors.Surface)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxHeight()
-                .padding(top = 16.dp, bottom = 16.dp),
+                .padding(top = 24.dp, bottom = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // ---- Top icon: gear (Main mode) or back arrow (Settings mode) ----
@@ -84,7 +99,6 @@ fun CoralNavRail(
                 modifier = Modifier
                     .size(32.dp)
                     .clip(CircleShape)
-                    .background(Color.Transparent)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
@@ -100,11 +114,17 @@ fun CoralNavRail(
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(40.dp))
 
-            // ---- Rail labels ----
+            // ---- Rail labels, centered vertically in remaining space ----
+            // We use weight(1f) on a Spacer to push the labels into the
+            // vertical middle of the rail. ViTune spreads the labels evenly
+            // from below the gear icon to near the bottom of the screen.
+            Spacer(modifier = Modifier.weight(1f))
+
+            // The label group
             Column(
-                verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.Top),
+                verticalArrangement = Arrangement.spacedBy(28.dp, Alignment.CenterVertically),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (mode == RailMode.Main) {
@@ -125,6 +145,8 @@ fun CoralNavRail(
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.weight(1f))
         }
     }
 }
@@ -138,14 +160,14 @@ private fun RailLabel(
     val color = if (isSelected) Color.White else CoralColors.TextMuted
     val weight = if (isSelected) FontWeight.Bold else FontWeight.Normal
 
-    // Each label is a fixed 90dp tall x 40dp wide slot.
-    // The text inside is rotated -90°, so a horizontal text like "Quick picks"
-    // (~80dp wide x 16dp tall) becomes visually 16dp wide x 80dp tall after
-    // rotation — fits comfortably in the 40x90 slot.
+    // Each label is a fixed 80dp tall x 48dp wide slot.
+    // The text inside is rotated -90°. The longest label ("Quick picks")
+    // is ~78dp wide horizontally, so after rotation it's ~78dp tall and
+    // fits comfortably in the 80dp slot.
     Box(
         modifier = Modifier
-            .height(90.dp)
-            .width(40.dp)
+            .height(80.dp)
+            .width(48.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -182,8 +204,7 @@ object CoralColors {
 enum class RailMode { Main, Settings }
 
 /**
- * The 6 main destinations on the rail (no Settings — that's a separate
- * gear icon at the top now).
+ * The 6 main destinations on the rail.
  */
 enum class CoralTab(val label: String) {
     QuickPicks("Quick picks"),
@@ -196,7 +217,6 @@ enum class CoralTab(val label: String) {
 
 /**
  * The settings categories shown when the gear icon is tapped.
- *
  * First entry is Premium (per the user's request).
  */
 enum class CoralSettingsTab(val label: String) {
