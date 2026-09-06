@@ -63,6 +63,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@androidx.compose.foundation.ExperimentalFoundationApi
 @Composable
 fun CoralApp() {
     val context = LocalContext.current
