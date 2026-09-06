@@ -6,6 +6,7 @@ import com.rajatxo.coral.data.model.Playlist
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
 /**
@@ -52,7 +53,7 @@ object PlaylistStore {
     private fun loadPlaylists() {
         _playlists.value = try {
             if (playlistsFile.exists()) {
-                json.decodeFromString<List<Playlist>>(playlistsFile.readText())
+                json.decodeFromString(ListSerializer(Playlist.serializer()), playlistsFile.readText())
             } else emptyList()
         } catch (e: Exception) {
             emptyList()
@@ -61,7 +62,9 @@ object PlaylistStore {
 
     private fun persistPlaylists() {
         try {
-            playlistsFile.writeText(json.encodeToString<List<Playlist>>(_playlists.value))
+            playlistsFile.writeText(
+                json.encodeToString(ListSerializer(Playlist.serializer()), _playlists.value)
+            )
         } catch (_: Exception) { /* best-effort */ }
     }
 
@@ -128,7 +131,7 @@ object PlaylistStore {
     private fun loadFavorites() {
         _favorites.value = try {
             if (favoritesFile.exists()) {
-                json.decodeFromString<Favorites>(favoritesFile.readText())
+                json.decodeFromString(Favorites.serializer(), favoritesFile.readText())
             } else Favorites()
         } catch (e: Exception) {
             Favorites()
@@ -137,7 +140,9 @@ object PlaylistStore {
 
     private fun persistFavorites() {
         try {
-            favoritesFile.writeText(json.encodeToString<Favorites>(_favorites.value))
+            favoritesFile.writeText(
+                json.encodeToString(Favorites.serializer(), _favorites.value)
+            )
         } catch (_: Exception) { /* best-effort */ }
     }
 
