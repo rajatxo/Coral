@@ -354,11 +354,11 @@ private fun SongRow(song: Song, isCurrent: Boolean, onClick: () -> Unit) {
             contentAlignment = Alignment.Center
         ) {
             if (song.albumArtUri != null) {
+                // Plain AsyncImage with no ImageRequest customization —
+                // Coil3 defaults to NO crossfade (which is what we want for
+                // fast scrolling). Memory cache is on by default.
                 AsyncImage(
-                    model = coil3.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
-                        .data(song.albumArtUri)
-                        .crossfade(0)  // 0ms = no fade — prevents jank during fast scroll
-                        .build(),
+                    model = song.albumArtUri,
                     contentDescription = "Album art",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
