@@ -5,6 +5,7 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontVariation
+import androidx.compose.ui.text.ExperimentalTextApi
 import com.rajatxo.coral.R
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +32,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * weight that doesn't exist and crashes. The FontVariation approach is
  * the correct way.
  */
+@OptIn(ExperimentalTextApi::class)
 enum class CoralFont(
     val id: String,
     val displayName: String,
