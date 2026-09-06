@@ -63,9 +63,13 @@ class MainActivity : ComponentActivity() {
         // blend into the app background — the ViTune-style seamless look.
         // Default enableEdgeToEdge() applies a translucent scrim that
         // creates the visible "gray bar" the user reported.
+        // SystemBarStyle.auto(transparentScrim, transparentScrim) means:
+        //   - Light icons on transparent bg (the '0' param)
+        //   - Dark icons on transparent bg (the '0' param)
+        //   - Both transparent — no scrim at all.
         enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.transparent(),
-            navigationBarStyle = SystemBarStyle.transparent()
+            statusBarStyle = SystemBarStyle.auto(0, 0),
+            navigationBarStyle = SystemBarStyle.auto(0, 0)
         )
         super.onCreate(savedInstanceState)
         setContent {
