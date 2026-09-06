@@ -66,6 +66,7 @@ import com.rajatxo.coral.ui.screens.SongsScreen
  * down. Phase 4 will replace the FullPlayerOverlay with the real BitChord-style
  * now-playing screen.
  */
+@androidx.compose.foundation.ExperimentalFoundationApi
 @Composable
 fun HomeScreen(
     songs: List<Song>,
