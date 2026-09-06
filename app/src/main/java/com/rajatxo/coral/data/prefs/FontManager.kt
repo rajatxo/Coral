@@ -63,15 +63,15 @@ enum class CoralFont(
         // Variable font — single .ttf file. Use FontVariation to pick the
         // weight value (100-900) for each FontWeight we want to support.
         family = FontFamily(
-            Font(R.font.inter_variable, FontWeight.Thin, FontVariation.Settings(FontVariation.weight(100f))),
-            Font(R.font.inter_variable, FontWeight.ExtraLight, FontVariation.Settings(FontVariation.weight(200f))),
-            Font(R.font.inter_variable, FontWeight.Light, FontVariation.Settings(FontVariation.weight(300f))),
-            Font(R.font.inter_variable, FontWeight.Normal, FontVariation.Settings(FontVariation.weight(400f))),
-            Font(R.font.inter_variable, FontWeight.Medium, FontVariation.Settings(FontVariation.weight(500f))),
-            Font(R.font.inter_variable, FontWeight.SemiBold, FontVariation.Settings(FontVariation.weight(600f))),
-            Font(R.font.inter_variable, FontWeight.Bold, FontVariation.Settings(FontVariation.weight(700f))),
-            Font(R.font.inter_variable, FontWeight.ExtraBold, FontVariation.Settings(FontVariation.weight(800f))),
-            Font(R.font.inter_variable, FontWeight.Black, FontVariation.Settings(FontVariation.weight(900f)))
+            Font(R.font.inter_variable, weight = FontWeight.Thin, variationSettings = FontVariation.Settings(FontVariation.weight(100))),
+            Font(R.font.inter_variable, weight = FontWeight.ExtraLight, variationSettings = FontVariation.Settings(FontVariation.weight(200))),
+            Font(R.font.inter_variable, weight = FontWeight.Light, variationSettings = FontVariation.Settings(FontVariation.weight(300))),
+            Font(R.font.inter_variable, weight = FontWeight.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
+            Font(R.font.inter_variable, weight = FontWeight.Medium, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
+            Font(R.font.inter_variable, weight = FontWeight.SemiBold, variationSettings = FontVariation.Settings(FontVariation.weight(600))),
+            Font(R.font.inter_variable, weight = FontWeight.Bold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
+            Font(R.font.inter_variable, weight = FontWeight.ExtraBold, variationSettings = FontVariation.Settings(FontVariation.weight(800))),
+            Font(R.font.inter_variable, weight = FontWeight.Black, variationSettings = FontVariation.Settings(FontVariation.weight(900)))
         )
     ),
     Manrope(
@@ -79,30 +79,30 @@ enum class CoralFont(
         displayName = "Manrope",
         // Manrope variable font supports weights 200-800.
         family = FontFamily(
-            Font(R.font.manrope_variable, FontWeight.Thin, FontVariation.Settings(FontVariation.weight(200f))),
-            Font(R.font.manrope_variable, FontWeight.ExtraLight, FontVariation.Settings(FontVariation.weight(300f))),
-            Font(R.font.manrope_variable, FontWeight.Light, FontVariation.Settings(FontVariation.weight(400f))),
-            Font(R.font.manrope_variable, FontWeight.Normal, FontVariation.Settings(FontVariation.weight(500f))),
-            Font(R.font.manrope_variable, FontWeight.Medium, FontVariation.Settings(FontVariation.weight(600f))),
-            Font(R.font.manrope_variable, FontWeight.SemiBold, FontVariation.Settings(FontVariation.weight(700f))),
-            Font(R.font.manrope_variable, FontWeight.Bold, FontVariation.Settings(FontVariation.weight(800f))),
-            Font(R.font.manrope_variable, FontWeight.ExtraBold, FontVariation.Settings(FontVariation.weight(700f))),
-            Font(R.font.manrope_variable, FontWeight.Black, FontVariation.Settings(FontVariation.weight(800f)))
+            Font(R.font.manrope_variable, weight = FontWeight.Thin, variationSettings = FontVariation.Settings(FontVariation.weight(200))),
+            Font(R.font.manrope_variable, weight = FontWeight.ExtraLight, variationSettings = FontVariation.Settings(FontVariation.weight(300))),
+            Font(R.font.manrope_variable, weight = FontWeight.Light, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
+            Font(R.font.manrope_variable, weight = FontWeight.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
+            Font(R.font.manrope_variable, weight = FontWeight.Medium, variationSettings = FontVariation.Settings(FontVariation.weight(600))),
+            Font(R.font.manrope_variable, weight = FontWeight.SemiBold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
+            Font(R.font.manrope_variable, weight = FontWeight.Bold, variationSettings = FontVariation.Settings(FontVariation.weight(800))),
+            Font(R.font.manrope_variable, weight = FontWeight.ExtraBold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
+            Font(R.font.manrope_variable, weight = FontWeight.Black, variationSettings = FontVariation.Settings(FontVariation.weight(800))),
         )
     ),
     Nunito(
         id = "nunito",
         displayName = "Nunito Sans",
         family = FontFamily(
-            Font(R.font.nunito_variable, FontWeight.Thin, FontVariation.Settings(FontVariation.weight(200f))),
-            Font(R.font.nunito_variable, FontWeight.ExtraLight, FontVariation.Settings(FontVariation.weight(300f))),
-            Font(R.font.nunito_variable, FontWeight.Light, FontVariation.Settings(FontVariation.weight(400f))),
-            Font(R.font.nunito_variable, FontWeight.Normal, FontVariation.Settings(FontVariation.weight(500f))),
-            Font(R.font.nunito_variable, FontWeight.Medium, FontVariation.Settings(FontVariation.weight(600f))),
-            Font(R.font.nunito_variable, FontWeight.SemiBold, FontVariation.Settings(FontVariation.weight(700f))),
-            Font(R.font.nunito_variable, FontWeight.Bold, FontVariation.Settings(FontVariation.weight(800f))),
-            Font(R.font.nunito_variable, FontWeight.ExtraBold, FontVariation.Settings(FontVariation.weight(700f))),
-            Font(R.font.nunito_variable, FontWeight.Black, FontVariation.Settings(FontVariation.weight(800f)))
+            Font(R.font.nunito_variable, weight = FontWeight.Thin, variationSettings = FontVariation.Settings(FontVariation.weight(200))),
+            Font(R.font.nunito_variable, weight = FontWeight.ExtraLight, variationSettings = FontVariation.Settings(FontVariation.weight(300))),
+            Font(R.font.nunito_variable, weight = FontWeight.Light, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
+            Font(R.font.nunito_variable, weight = FontWeight.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
+            Font(R.font.nunito_variable, weight = FontWeight.Medium, variationSettings = FontVariation.Settings(FontVariation.weight(600))),
+            Font(R.font.nunito_variable, weight = FontWeight.SemiBold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
+            Font(R.font.nunito_variable, weight = FontWeight.Bold, variationSettings = FontVariation.Settings(FontVariation.weight(800))),
+            Font(R.font.nunito_variable, weight = FontWeight.ExtraBold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
+            Font(R.font.nunito_variable, weight = FontWeight.Black, variationSettings = FontVariation.Settings(FontVariation.weight(800))),
         )
     ),
     SpaceGrotesk(
@@ -110,15 +110,15 @@ enum class CoralFont(
         displayName = "Space Grotesk",
         // Space Grotesk variable font only supports weights 300-700.
         family = FontFamily(
-            Font(R.font.spacegrotesk_variable, FontWeight.Thin, FontVariation.Settings(FontVariation.weight(300f))),
-            Font(R.font.spacegrotesk_variable, FontWeight.ExtraLight, FontVariation.Settings(FontVariation.weight(300f))),
-            Font(R.font.spacegrotesk_variable, FontWeight.Light, FontVariation.Settings(FontVariation.weight(300f))),
-            Font(R.font.spacegrotesk_variable, FontWeight.Normal, FontVariation.Settings(FontVariation.weight(400f))),
-            Font(R.font.spacegrotesk_variable, FontWeight.Medium, FontVariation.Settings(FontVariation.weight(500f))),
-            Font(R.font.spacegrotesk_variable, FontWeight.SemiBold, FontVariation.Settings(FontVariation.weight(600f))),
-            Font(R.font.spacegrotesk_variable, FontWeight.Bold, FontVariation.Settings(FontVariation.weight(700f))),
-            Font(R.font.spacegrotesk_variable, FontWeight.ExtraBold, FontVariation.Settings(FontVariation.weight(700f))),
-            Font(R.font.spacegrotesk_variable, FontWeight.Black, FontVariation.Settings(FontVariation.weight(700f)))
+            Font(R.font.spacegrotesk_variable, weight = FontWeight.Thin, variationSettings = FontVariation.Settings(FontVariation.weight(300))),
+            Font(R.font.spacegrotesk_variable, weight = FontWeight.ExtraLight, variationSettings = FontVariation.Settings(FontVariation.weight(300))),
+            Font(R.font.spacegrotesk_variable, weight = FontWeight.Light, variationSettings = FontVariation.Settings(FontVariation.weight(300))),
+            Font(R.font.spacegrotesk_variable, weight = FontWeight.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
+            Font(R.font.spacegrotesk_variable, weight = FontWeight.Medium, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
+            Font(R.font.spacegrotesk_variable, weight = FontWeight.SemiBold, variationSettings = FontVariation.Settings(FontVariation.weight(600))),
+            Font(R.font.spacegrotesk_variable, weight = FontWeight.Bold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
+            Font(R.font.spacegrotesk_variable, weight = FontWeight.ExtraBold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
+            Font(R.font.spacegrotesk_variable, weight = FontWeight.Black, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
         )
     );
 
