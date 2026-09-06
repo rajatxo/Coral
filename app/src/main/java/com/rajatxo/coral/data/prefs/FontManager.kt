@@ -4,8 +4,6 @@ import android.content.Context
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.font.FontVariation
-import androidx.compose.ui.text.ExperimentalTextApi
 import com.rajatxo.coral.R
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,25 +12,29 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * The available fonts in Coral's font picker.
  *
- * Each font is identified by a stable [id] (stored in prefs) and has a
- * [displayName] (shown in the picker UI) and a [family] that gets applied
- * to the app's MaterialTheme typography.
+ * DELIBERATELY MINIMAL — only 2 entries:
+ *  - System default (falls back to Roboto on Android, SF on some devices)
+ *  - Poppins (Coral's brand font — same as ViTune)
  *
- * Two types of fonts:
- *  - **Static fonts** (Poppins): one .ttf file per weight. We list each
- *    weight separately so Compose picks the right file for each FontWeight.
- *  - **Variable fonts** (Inter, Manrope, Nunito, Space Grotesk): one .ttf
- *    file contains ALL weights along a 'wght' axis. We use FontVariation
- *    to tell Compose which weight value (100-900) to use for each
- *    FontWeight we request.
+ * Why only 2?
+ *  - Poppins ships as 9 static .ttf files (one per weight). Static fonts
+ *    work reliably in all Compose versions with the standard Font(int,
+ *    FontWeight) constructor — no experimental APIs, no FontVariation,
+ *    no crashes.
+ *  - Variable fonts (Inter, Manrope, Nunito, Space Grotesk) require the
+ *    FontVariation API which is marked @ExperimentalTextApi and was
+ *    crashing on the user's device. Dropping them eliminates the crash
+ *    surface entirely. The user said: 'only Poppins, plus system font,
+ *    whichever won't crash.'
  *
- * The OLD approach was to call Font(R.font.inter_variable, FontWeight.Thin)
- * 9 times — but Compose's basic Font(int, FontWeight) constructor doesn't
- * know how to use the variable font's axis, so it tries to find a static
- * weight that doesn't exist and crashes. The FontVariation approach is
- * the correct way.
+ * To add a new STATIC font in the future:
+ *   1. Drop the .ttf file(s) in res/font/ (lowercase, underscores).
+ *   2. Add a FontFamily entry here pointing to it.
+ *   3. Add a new CoralFont enum entry with id + displayName + family.
+ *
+ * Avoid variable fonts unless we deliberately opt into the experimental
+ * API and test thoroughly on the target device.
  */
-@OptIn(ExperimentalTextApi::class)
 enum class CoralFont(
     val id: String,
     val displayName: String,
@@ -46,7 +48,9 @@ enum class CoralFont(
     Poppins(
         id = "poppins",
         displayName = "Poppins",
-        // 9 static .ttf files — one per weight.
+        // 9 static .ttf files — one per weight. Standard, non-experimental
+        // Font(resId, FontWeight) constructor. No FontVariation, no
+        // ExperimentalTextApi opt-in needed, no crashes.
         family = FontFamily(
             Font(R.font.poppins_thin, FontWeight.Thin),
             Font(R.font.poppins_extralight, FontWeight.ExtraLight),
@@ -57,70 +61,6 @@ enum class CoralFont(
             Font(R.font.poppins_bold, FontWeight.Bold),
             Font(R.font.poppins_extrabold, FontWeight.ExtraBold),
             Font(R.font.poppins_black, FontWeight.Black)
-        )
-    ),
-    Inter(
-        id = "inter",
-        displayName = "Inter",
-        // Variable font — single .ttf file. Use FontVariation to pick the
-        // weight value (100-900) for each FontWeight we want to support.
-        family = FontFamily(
-            Font(R.font.inter_variable, weight = FontWeight.Thin, variationSettings = FontVariation.Settings(FontVariation.weight(100))),
-            Font(R.font.inter_variable, weight = FontWeight.ExtraLight, variationSettings = FontVariation.Settings(FontVariation.weight(200))),
-            Font(R.font.inter_variable, weight = FontWeight.Light, variationSettings = FontVariation.Settings(FontVariation.weight(300))),
-            Font(R.font.inter_variable, weight = FontWeight.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
-            Font(R.font.inter_variable, weight = FontWeight.Medium, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
-            Font(R.font.inter_variable, weight = FontWeight.SemiBold, variationSettings = FontVariation.Settings(FontVariation.weight(600))),
-            Font(R.font.inter_variable, weight = FontWeight.Bold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
-            Font(R.font.inter_variable, weight = FontWeight.ExtraBold, variationSettings = FontVariation.Settings(FontVariation.weight(800))),
-            Font(R.font.inter_variable, weight = FontWeight.Black, variationSettings = FontVariation.Settings(FontVariation.weight(900)))
-        )
-    ),
-    Manrope(
-        id = "manrope",
-        displayName = "Manrope",
-        // Manrope variable font supports weights 200-800.
-        family = FontFamily(
-            Font(R.font.manrope_variable, weight = FontWeight.Thin, variationSettings = FontVariation.Settings(FontVariation.weight(200))),
-            Font(R.font.manrope_variable, weight = FontWeight.ExtraLight, variationSettings = FontVariation.Settings(FontVariation.weight(300))),
-            Font(R.font.manrope_variable, weight = FontWeight.Light, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
-            Font(R.font.manrope_variable, weight = FontWeight.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
-            Font(R.font.manrope_variable, weight = FontWeight.Medium, variationSettings = FontVariation.Settings(FontVariation.weight(600))),
-            Font(R.font.manrope_variable, weight = FontWeight.SemiBold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
-            Font(R.font.manrope_variable, weight = FontWeight.Bold, variationSettings = FontVariation.Settings(FontVariation.weight(800))),
-            Font(R.font.manrope_variable, weight = FontWeight.ExtraBold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
-            Font(R.font.manrope_variable, weight = FontWeight.Black, variationSettings = FontVariation.Settings(FontVariation.weight(800))),
-        )
-    ),
-    Nunito(
-        id = "nunito",
-        displayName = "Nunito Sans",
-        family = FontFamily(
-            Font(R.font.nunito_variable, weight = FontWeight.Thin, variationSettings = FontVariation.Settings(FontVariation.weight(200))),
-            Font(R.font.nunito_variable, weight = FontWeight.ExtraLight, variationSettings = FontVariation.Settings(FontVariation.weight(300))),
-            Font(R.font.nunito_variable, weight = FontWeight.Light, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
-            Font(R.font.nunito_variable, weight = FontWeight.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
-            Font(R.font.nunito_variable, weight = FontWeight.Medium, variationSettings = FontVariation.Settings(FontVariation.weight(600))),
-            Font(R.font.nunito_variable, weight = FontWeight.SemiBold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
-            Font(R.font.nunito_variable, weight = FontWeight.Bold, variationSettings = FontVariation.Settings(FontVariation.weight(800))),
-            Font(R.font.nunito_variable, weight = FontWeight.ExtraBold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
-            Font(R.font.nunito_variable, weight = FontWeight.Black, variationSettings = FontVariation.Settings(FontVariation.weight(800))),
-        )
-    ),
-    SpaceGrotesk(
-        id = "spacegrotesk",
-        displayName = "Space Grotesk",
-        // Space Grotesk variable font only supports weights 300-700.
-        family = FontFamily(
-            Font(R.font.spacegrotesk_variable, weight = FontWeight.Thin, variationSettings = FontVariation.Settings(FontVariation.weight(300))),
-            Font(R.font.spacegrotesk_variable, weight = FontWeight.ExtraLight, variationSettings = FontVariation.Settings(FontVariation.weight(300))),
-            Font(R.font.spacegrotesk_variable, weight = FontWeight.Light, variationSettings = FontVariation.Settings(FontVariation.weight(300))),
-            Font(R.font.spacegrotesk_variable, weight = FontWeight.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
-            Font(R.font.spacegrotesk_variable, weight = FontWeight.Medium, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
-            Font(R.font.spacegrotesk_variable, weight = FontWeight.SemiBold, variationSettings = FontVariation.Settings(FontVariation.weight(600))),
-            Font(R.font.spacegrotesk_variable, weight = FontWeight.Bold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
-            Font(R.font.spacegrotesk_variable, weight = FontWeight.ExtraBold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
-            Font(R.font.spacegrotesk_variable, weight = FontWeight.Black, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
         )
     );
 
