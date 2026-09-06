@@ -1,14 +1,9 @@
 package com.rajatxo.coral.ui.player
 
 import android.net.Uri
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -232,6 +227,25 @@ fun FullPlayer(
 
             Spacer(modifier = Modifier.height(32.dp))
 
+            // ---- Heart pop animation state (declared before the Box so it's
+            // always called regardless of the showHeartPop flag) ----
+            val heartPopScale by animateFloatAsState(
+                targetValue = if (showHeartPop) 1f else 0f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMedium
+                ),
+                label = "heartPopScale"
+            )
+
+            // Reset heart pop after a short delay
+            LaunchedEffect(showHeartPop) {
+                if (showHeartPop) {
+                    delay(600)
+                    showHeartPop = false
+                }
+            }
+
             // ---- Album art (with double-tap to favorite) ----
             Box(
                 modifier = Modifier
@@ -265,12 +279,8 @@ fun FullPlayer(
                     )
                 }
 
-                // Heart pop animation overlay (centered, scaled up, fades out)
-                AnimatedVisibility(
-                    visible = showHeartPop,
-                    enter = scaleIn(spring(dampingRatio = 0.4f, stiffness = Spring.StiffnessMedium)) + fadeIn(),
-                    exit = scaleOut(spring(dampingRatio = 1f, stiffness = Spring.StiffnessHigh)) + fadeOut()
-                ) {
+                // Heart pop overlay — visible only while heartPopScale > 0
+                if (heartPopScale > 0.01f) {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
@@ -278,18 +288,12 @@ fun FullPlayer(
                         Icon(
                             imageVector = CoralIcons.HeartFilled,
                             contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.9f),
-                            modifier = Modifier.size(96.dp)
+                            tint = Color.White.copy(alpha = heartPopScale * 0.9f),
+                            modifier = Modifier
+                                .size(96.dp)
+                                .scale(heartPopScale)
                         )
                     }
-                }
-            }
-
-            // Reset heart pop after a short delay
-            LaunchedEffect(showHeartPop) {
-                if (showHeartPop) {
-                    delay(600)
-                    showHeartPop = false
                 }
             }
 
