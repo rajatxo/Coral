@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Canvas
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -15,15 +17,21 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rajatxo.coral.ui.icons.CoralIcons
@@ -31,46 +39,28 @@ import com.rajatxo.coral.ui.icons.CoralIcons
 /**
  * Coral's vertical navigation rail — ViTune-style positioning.
  *
- * Layout contract (matches ViTune exactly):
- *  - Width: 48dp (slightly wider than before so rotated text breathes)
- *  - Padding from left edge: built into the 48dp width — text is centered
- *    horizontally in the rail, giving ~16dp from the screen's left edge
- *    to the text
- *  - Gear/back icon at TOP-CENTER, ~32dp tall, ~24dp from the screen top
- *    (below status bar)
- *  - Labels: spaced 24dp apart (tight, list-like — not loose)
- *  - Labels are vertically CENTERED in the rail (between top icon and
- *    bottom edge) — fills the full rail height, not clustered at top
- *  - Rotation: -90° (text reads bottom-to-top)
- *  - Active: pure White + Bold. Inactive: muted gray + Regular.
- *  - Font: 12-13sp (compact, list-like — not large)
+ * Layout contract (matches ViTune):
+ *  - Width: 48dp
+ *  - Gear icon at top, vertically aligned with the "Songs" title
+ *    (both use statusBarsPadding + 16dp top padding)
+ *  - Labels drawn on Canvas using TextMeasurer — slot sized EXACTLY
+ *    to the text's natural width, so there's ZERO clipping
+ *  - Labels stacked with 8dp gap (tight, list-like — ViTune style)
+ *  - Vertically centered in the rail (Spacer weight(1f) above and below)
  *
- * Label sizing:
- *  Each label slot is 24dp tall x 48dp wide. The rotated text fits inside
- *  this slot because the longest label ("Quick picks" = ~78dp horizontally)
- *  becomes ~78dp tall after rotation — and since labels are spaced only
- *  24dp apart, they actually overlap visually but Compose handles the
- *  rotation correctly with proper z-ordering.
+ * WHY Canvas + TextMeasurer:
+ *   Compose's Modifier.rotate(-90f) only rotates the VISUAL — the layout
+ *   measurement still uses the text's UNROTATED width. So if the parent
+ *   slot is 48dp wide and "Quick picks" wants to be 88dp wide, the Text
+ *   is clipped to 48dp horizontally BEFORE rotation. That's why "Quick"
+ *   was visible but "picks" was cut off.
  *
- *  Wait — that overlap would look broken. Let me reconsider.
+ *   The Canvas + TextMeasurer approach lets us:
+ *     1. Measure the text at its natural width (no parent constraint)
+ *     2. Size the slot to EXACTLY the text's natural width (rotated height)
+ *     3. Draw the text rotated -90° around the slot's center
  *
- *  ACTUAL approach: each label Box is `wrapContentHeight`-ish. We measure
- *  the text horizontally, then the Box's height after rotation equals
- *  the text's width. We can't easily do that in stock Compose, so we
- *  use a fixed slot that's tall enough for the longest label.
- *
- *  Longest label is "Quick picks" (~78dp wide horizontally). After
- *  rotation, that's 78dp tall. We use 80dp slots.
- *
- *  But then 6 labels x 80dp = 480dp, which doesn't fit on a typical
- *  phone (720dp tall screen, minus status bar 24dp, minus gear icon 56dp,
- *  minus nav bar 48dp = ~592dp available — 480dp fits).
- *
- *  OK, 80dp slots work. Spacing between them: 0dp (the slot itself
- *  provides the visual gap via its internal padding).
- *
- *  Actually, looking at ViTune again — the labels are TIGHT. There's
- *  barely any gap. So no `spacedBy` — just stacked directly.
+ *   Result: "Quick picks" renders fully, no clipping, ever.
  */
 @Composable
 fun CoralNavRail(
@@ -92,13 +82,11 @@ fun CoralNavRail(
         Column(
             modifier = Modifier
                 .fillMaxHeight()
-                .statusBarsPadding()  // aligns gear with the "Songs" title vertically
-                .padding(top = 16.dp, bottom = 16.dp),  // matches Songs title's top=16dp
+                .statusBarsPadding()  // aligns gear icon with the "Songs" title vertically
+                .padding(top = 16.dp, bottom = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // ---- Top icon: gear (Main mode) or back arrow (Settings mode) ----
-            // Vertically aligned with the big "Songs" title on the right
-            // (both use statusBarsPadding + 16dp top padding).
             Box(
                 modifier = Modifier
                     .size(32.dp)
@@ -120,16 +108,14 @@ fun CoralNavRail(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // ---- Rail labels, centered vertically in remaining space ----
+            // ---- Rail labels, vertically centered in remaining space ----
             Spacer(modifier = Modifier.weight(1f))
 
-            // Tight stack: each label slot is 96dp tall (plenty of room for
-            // the longest label "Quick picks" ~88dp after rotation), and
-            // spacedBy=0 means slots touch — the slots themselves provide
-            // the visual gap because the text is centered vertically in
-            // each 96dp slot (so there's ~4dp padding above+below each text).
+            // 8dp gap between labels — tight, list-like (ViTune style).
+            // Each label slot is sized EXACTLY to its text's natural width,
+            // so the gap is purely visual spacing, not padding inside slots.
             Column(
-                verticalArrangement = Arrangement.spacedBy(0.dp, Alignment.CenterVertically),
+                verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (mode == RailMode.Main) {
@@ -156,6 +142,14 @@ fun CoralNavRail(
     }
 }
 
+/**
+ * A single rotated label, drawn on Canvas with TextMeasurer.
+ *
+ * The slot width is 48dp (rail width). The slot height is sized EXACTLY
+ * to the text's natural width (so after rotation, the text fits vertically
+ * with no clipping). The text is drawn centered in the slot, rotated -90°
+ * around the slot's center.
+ */
 @Composable
 private fun RailLabel(
     label: String,
@@ -165,34 +159,69 @@ private fun RailLabel(
     val color = if (isSelected) Color.White else CoralColors.TextMuted
     val weight = if (isSelected) FontWeight.Bold else FontWeight.Normal
 
-    // Each label slot is 96dp tall x 48dp wide.
-    // The longest label ("Quick picks") at 13sp Poppins is ~88dp wide
-    // horizontally, so after -90° rotation it's ~88dp tall. The 96dp slot
-    // gives ~4dp of padding above and below — no clipping.
-    //
-    // The text is centered in the slot, so consecutive labels have ~8dp
-    // of visible gap between them (4dp bottom of one + 4dp top of next).
-    // That matches ViTune's tight, list-like spacing.
+    // Step 1: measure the text at its natural size (no parent constraints).
+    val textMeasurer = rememberTextMeasurer()
+    val layoutResult = remember(label, color, weight) {
+        textMeasurer.measure(
+            text = AnnotatedString(label),
+            style = TextStyle(
+                color = color,
+                fontSize = 13.sp,
+                fontWeight = weight
+            ),
+            overflow = TextOverflow.Clip,
+            softWrap = false,
+            maxLines = 1,
+            constraints = Constraints(
+                minWidth = 0,
+                minHeight = 0,
+                maxWidth = Int.MAX_VALUE,
+                maxHeight = Int.MAX_VALUE
+            )
+        )
+    }
+
+    // Step 2: convert text size from px to dp.
+    val density = LocalDensity.current
+    val textWidthDp = with(density) { layoutResult.size.width.toDp() }
+    val textHeightPx = layoutResult.size.height.toFloat()
+
+    // Step 3: build the slot.
+    // Width = 48dp (rail width). Height = text natural width (so after rotation,
+    // the text fits vertically with zero clipping).
     Box(
         modifier = Modifier
-            .height(96.dp)
             .width(48.dp)
+            .height(textWidthDp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
-            ),
-        contentAlignment = Alignment.Center
+            )
     ) {
-        Text(
-            text = label,
-            color = color,
-            fontSize = 13.sp,
-            fontWeight = weight,
-            maxLines = 1,
-            softWrap = false,
-            modifier = Modifier.rotate(-90f)
-        )
+        // Step 4: draw the rotated text on a Canvas centered in the slot.
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val canvasWidth = size.width
+            val canvasHeight = size.height
+            val textWidthPx = layoutResult.size.width.toFloat()
+            val textHeight = textHeightPx
+
+            // Rotate the canvas -90° around its center, then draw the text
+            // centered. After rotation, the text fits perfectly within the
+            // (canvasWidth, canvasHeight) bounds because:
+            //   - canvasHeight was set to textWidthDp (= textWidthPx in px)
+            //   - textWidthPx <= canvasHeight, so vertical fit
+            //   - textHeight (~14dp) < canvasWidth (48dp), so horizontal fit
+            rotate(degrees = -90f, pivot = Offset(canvasWidth / 2f, canvasHeight / 2f)) {
+                drawText(
+                    textLayoutResult = layoutResult,
+                    topLeft = Offset(
+                        x = (canvasWidth - textWidthPx) / 2f,
+                        y = (canvasHeight - textHeight) / 2f
+                    )
+                )
+            }
+        }
     }
 }
 
