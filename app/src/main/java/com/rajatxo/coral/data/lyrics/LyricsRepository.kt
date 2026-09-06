@@ -3,12 +3,11 @@ package com.rajatxo.coral.data.lyrics
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 import java.net.HttpURLConnection
@@ -103,9 +102,7 @@ class LyricsRepository(private val context: Context) {
         if (!file.exists()) return null
         return try {
             val text = file.readText()
-            val obj = json.parseToJsonElement(text).let {
-                it.jsonObject
-            }
+            val obj: JsonObject = json.parseToJsonElement(text).jsonObject
             val synced = obj["synced"]?.jsonPrimitive?.contentOrNull == "true"
             val lrc = obj["lrc"]?.jsonPrimitive?.contentOrNull
             val plain = obj["plain"]?.jsonPrimitive?.contentOrNull
@@ -228,7 +225,7 @@ class LyricsRepository(private val context: Context) {
 
     private fun parseLrcLibResponse(body: String): Lyric? {
         return try {
-            val obj = json.parseToJsonElement(body).let { it.jsonObject }
+            val obj: JsonObject = json.parseToJsonElement(body).jsonObject
             val trackName = obj["trackName"]?.jsonPrimitive?.contentOrNull
             val artistName = obj["artistName"]?.jsonPrimitive?.contentOrNull
             val syncedLyrics = obj["syncedLyrics"]?.jsonPrimitive?.contentOrNull
