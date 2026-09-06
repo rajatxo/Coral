@@ -50,6 +50,7 @@ import androidx.media3.session.MediaController
 import coil3.compose.AsyncImage
 import com.rajatxo.coral.ui.components.ThinSlider
 import com.rajatxo.coral.ui.icons.CoralIcons
+import com.rajatxo.coral.ui.lyrics.LyricsSheet
 import com.rajatxo.coral.data.store.PlaylistStore
 import com.rajatxo.coral.util.CoralPalette
 import com.rajatxo.coral.util.extractPalette
@@ -96,6 +97,7 @@ fun FullPlayer(
     songId: Long?,
     title: String,
     artist: String,
+    albumName: String?,
     albumArtUri: Uri?,
     isPlaying: Boolean,
     onPlayPauseClick: () -> Unit,
@@ -138,12 +140,16 @@ fun FullPlayer(
         showHeartPop = false
     }
 
+    // ---------- Lyrics sheet state ----------
+    var showLyrics by remember { mutableStateOf(false) }
+
     // ---------- Layout ----------
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+        ) {
         // Layer 1: Blurred album art (full-screen background)
         if (albumArtUri != null) {
             AsyncImage(
@@ -431,27 +437,58 @@ fun FullPlayer(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // ---- Bottom row: Queue ----
+            // ---- Bottom row: Lyrics | Queue ----
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
+                horizontalArrangement = Arrangement.spacedBy(48.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Lyrics
                 Box(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .clickable { /* TODO Phase 6: queue sheet */ },
+                        .clickable { showLyrics = true },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = CoralIcons.Queue,
+                        contentDescription = "Lyrics",
+                        tint = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                // Queue (Phase 7 — opens the queue sheet)
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .clickable { /* TODO Phase 7: queue sheet */ },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = CoralIcons.MoreVertical,
                         contentDescription = "Queue",
                         tint = Color.White.copy(alpha = 0.7f),
                         modifier = Modifier.size(22.dp)
                     )
                 }
             }
+        }
+        }  // end inner Box
+
+        // Lyrics sheet overlay (slides up on top of the player)
+        if (showLyrics) {
+            LyricsSheet(
+                trackName = title,
+                artistName = artist,
+                albumName = albumName,
+                durationMs = durationMs,
+                currentPositionMs = currentPositionMs,
+                isPlaying = isPlaying,
+                onDismiss = { showLyrics = false },
+                onSeek = onSeek
+            )
         }
     }
 }

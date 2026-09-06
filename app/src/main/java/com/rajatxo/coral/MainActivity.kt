@@ -76,6 +76,7 @@ fun CoralApp() {
     var currentSongId by remember { mutableStateOf<Long?>(null) }
     var currentSongTitle by remember { mutableStateOf<String?>(null) }
     var currentSongArtist by remember { mutableStateOf<String?>(null) }
+    var currentSongAlbum by remember { mutableStateOf<String?>(null) }
     var currentSongArt by remember { mutableStateOf<android.net.Uri?>(null) }
     var isPlaying by remember { mutableStateOf(false) }
     var showFullPlayer by remember { mutableStateOf(false) }
@@ -90,6 +91,7 @@ fun CoralApp() {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 currentSongTitle = mediaItem?.mediaMetadata?.title?.toString()
                 currentSongArtist = mediaItem?.mediaMetadata?.artist?.toString()
+                currentSongAlbum = mediaItem?.mediaMetadata?.albumTitle?.toString()
                 currentSongArt = mediaItem?.mediaMetadata?.artworkUri
                 // Resolve the song's MediaStore ID from the mediaId we set when building MediaItems.
                 // This lets us look it up for favorites / playlist membership.
@@ -170,6 +172,7 @@ fun CoralApp() {
                     currentSongId = currentSongId,
                     currentSongTitle = currentSongTitle,
                     currentSongArtist = currentSongArtist,
+                    currentSongAlbum = currentSongAlbum,
                     currentSongArt = currentSongArt,
                     isPlaying = isPlaying,
                     onPlayPauseClick = {
