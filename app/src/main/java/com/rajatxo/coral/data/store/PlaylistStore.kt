@@ -61,7 +61,7 @@ object PlaylistStore {
 
     private fun persistPlaylists() {
         try {
-            playlistsFile.writeText(json.encodeToString(_playlists.value))
+            playlistsFile.writeText(json.encodeToString<List<Playlist>>(_playlists.value))
         } catch (_: Exception) { /* best-effort */ }
     }
 
@@ -137,7 +137,7 @@ object PlaylistStore {
 
     private fun persistFavorites() {
         try {
-            favoritesFile.writeText(json.encodeToString(_favorites.value))
+            favoritesFile.writeText(json.encodeToString<Favorites>(_favorites.value))
         } catch (_: Exception) { /* best-effort */ }
     }
 
