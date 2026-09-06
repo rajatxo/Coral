@@ -109,15 +109,15 @@ fun CoralNavRail(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // ---- Rail labels, vertically centered in remaining space ----
-            Spacer(modifier = Modifier.weight(1f))
-
-            // 24dp gap between labels — medium-tight, ViTune-style.
-            // Each label slot is sized EXACTLY to its text's natural width,
-            // so the gap is purely visual spacing, not padding inside slots.
-            // (Previous: 8dp = too tight, labels looked crowded.)
+            // ---- Rail labels ----
+            // ViTune's labels start right below the gear icon and flow
+            // downward with a tight gap. Any leftover vertical space stays
+            // empty at the BOTTOM (not centered).
+            // Previous bug: I had Spacer(weight=1f) ABOVE the labels, which
+            // pushed them to the vertical center — that's why they looked
+            // "spread out" compared to ViTune.
             Column(
-                verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically),
+                verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.Top),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (mode == RailMode.Main) {
@@ -139,6 +139,7 @@ fun CoralNavRail(
                 }
             }
 
+            // Leftover space goes to the BOTTOM (matches ViTune)
             Spacer(modifier = Modifier.weight(1f))
         }
     }
