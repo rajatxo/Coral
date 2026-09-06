@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
@@ -91,10 +92,13 @@ fun CoralNavRail(
         Column(
             modifier = Modifier
                 .fillMaxHeight()
-                .padding(top = 24.dp, bottom = 24.dp),
+                .statusBarsPadding()  // aligns gear with the "Songs" title vertically
+                .padding(top = 16.dp, bottom = 16.dp),  // matches Songs title's top=16dp
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // ---- Top icon: gear (Main mode) or back arrow (Settings mode) ----
+            // Vertically aligned with the big "Songs" title on the right
+            // (both use statusBarsPadding + 16dp top padding).
             Box(
                 modifier = Modifier
                     .size(32.dp)
@@ -114,17 +118,18 @@ fun CoralNavRail(
                 )
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // ---- Rail labels, centered vertically in remaining space ----
-            // We use weight(1f) on a Spacer to push the labels into the
-            // vertical middle of the rail. ViTune spreads the labels evenly
-            // from below the gear icon to near the bottom of the screen.
             Spacer(modifier = Modifier.weight(1f))
 
-            // The label group
+            // Tight stack: each label slot is 96dp tall (plenty of room for
+            // the longest label "Quick picks" ~88dp after rotation), and
+            // spacedBy=0 means slots touch — the slots themselves provide
+            // the visual gap because the text is centered vertically in
+            // each 96dp slot (so there's ~4dp padding above+below each text).
             Column(
-                verticalArrangement = Arrangement.spacedBy(28.dp, Alignment.CenterVertically),
+                verticalArrangement = Arrangement.spacedBy(0.dp, Alignment.CenterVertically),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (mode == RailMode.Main) {
@@ -160,13 +165,17 @@ private fun RailLabel(
     val color = if (isSelected) Color.White else CoralColors.TextMuted
     val weight = if (isSelected) FontWeight.Bold else FontWeight.Normal
 
-    // Each label is a fixed 80dp tall x 48dp wide slot.
-    // The text inside is rotated -90°. The longest label ("Quick picks")
-    // is ~78dp wide horizontally, so after rotation it's ~78dp tall and
-    // fits comfortably in the 80dp slot.
+    // Each label slot is 96dp tall x 48dp wide.
+    // The longest label ("Quick picks") at 13sp Poppins is ~88dp wide
+    // horizontally, so after -90° rotation it's ~88dp tall. The 96dp slot
+    // gives ~4dp of padding above and below — no clipping.
+    //
+    // The text is centered in the slot, so consecutive labels have ~8dp
+    // of visible gap between them (4dp bottom of one + 4dp top of next).
+    // That matches ViTune's tight, list-like spacing.
     Box(
         modifier = Modifier
-            .height(80.dp)
+            .height(96.dp)
             .width(48.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
