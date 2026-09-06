@@ -198,6 +198,10 @@ fun HomeScreen(
                         tabName = "Albums",
                         description = "Browse your library by album. Coming soon."
                     )
+                    CoralTab.Folders -> PlaceholderScreen(
+                        tabName = "Folders",
+                        description = "Browse your music by folder. Coming soon."
+                    )
                 }
             }
         }

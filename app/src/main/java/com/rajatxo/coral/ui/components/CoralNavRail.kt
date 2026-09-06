@@ -252,7 +252,8 @@ enum class CoralTab(val label: String) {
     Songs("Songs"),
     Playlists("Playlists"),
     Artists("Artists"),
-    Albums("Albums")
+    Albums("Albums"),
+    Folders("Folders")
 }
 
 /**
