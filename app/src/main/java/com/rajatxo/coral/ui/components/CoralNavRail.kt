@@ -112,12 +112,11 @@ fun CoralNavRail(
             // ---- Rail labels, vertically CENTERED (matches ViTune) ----
             // ViTune clusters all labels together in the vertical MIDDLE
             // of the rail, with empty space above AND below the group.
-            // Gap between labels is MEDIUM (20dp) — not too tight, not too
-            // loose. Matches ViTune's 'gentle space between them' look.
+            // Gap between labels is 22dp — gentle space between them.
             Spacer(modifier = Modifier.weight(1f))
 
             Column(
-                verticalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterVertically),
+                verticalArrangement = Arrangement.spacedBy(22.dp, Alignment.CenterVertically),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (mode == RailMode.Main) {
@@ -159,7 +158,7 @@ private fun RailLabel(
     onClick: () -> Unit
 ) {
     val color = if (isSelected) Color.White else CoralColors.TextMuted
-    val weight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+    val weight = if (isSelected) FontWeight.Bold else FontWeight.Bold  // both bold now
 
     // Step 1: measure the text at its natural size (no parent constraints).
     val textMeasurer = rememberTextMeasurer()
@@ -168,7 +167,7 @@ private fun RailLabel(
             text = AnnotatedString(label),
             style = TextStyle(
                 color = color,
-                fontSize = 13.sp,
+                fontSize = 16.sp,
                 fontWeight = weight
             ),
             overflow = TextOverflow.Clip,
