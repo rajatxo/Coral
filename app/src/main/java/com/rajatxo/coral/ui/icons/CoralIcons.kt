@@ -1,11 +1,11 @@
 package com.rajatxo.coral.ui.icons
 
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.PathBuilder
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
 
@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.dp
  *  - 24 x 24 viewport
  *  - 2dp stroke width
  *  - round caps & joins
- *  - filled variants use PathFillType.EvenOdd
+ *  - filled variants use SolidColor fill
  *
  * Keeping these in-house (instead of pulling Material Icons or Lucide as a
  * dependency) keeps Coral's dependency tree 100 % permissively licensed and
@@ -26,7 +26,7 @@ object CoralIcons {
 
     private fun stroke(
         name: String,
-        pathBuilder: androidx.compose.ui.graphics.vector.PathBuilder.() -> Unit
+        pathBuilder: PathBuilder.() -> Unit
     ): ImageVector = ImageVector.Builder(
         name = name,
         defaultWidth = 24.dp,
@@ -36,7 +36,6 @@ object CoralIcons {
     ).apply {
         path(
             fill = null,
-            solidColor = SolidColor(Color.Black),
             stroke = SolidColor(Color.Black),
             strokeLineWidth = 2f,
             strokeLineCap = StrokeCap.Round,
@@ -48,7 +47,7 @@ object CoralIcons {
 
     private fun filled(
         name: String,
-        pathBuilder: androidx.compose.ui.graphics.vector.PathBuilder.() -> Unit
+        pathBuilder: PathBuilder.() -> Unit
     ): ImageVector = ImageVector.Builder(
         name = name,
         defaultWidth = 24.dp,
@@ -58,79 +57,31 @@ object CoralIcons {
     ).apply {
         path(
             fill = SolidColor(Color.Black),
-            fillType = PathFillType.EvenOdd,
             pathBuilder = pathBuilder
         )
     }.build()
 
-    /**
-     * Helper to append a full circle to a PathBuilder using 4 arcs.
-     * Compose's PathBuilder has no circle() method, so we approximate.
-     */
-    private fun androidx.compose.ui.graphics.vector.PathBuilder.circle(
-        cx: Float, cy: Float, r: Float
-    ) {
-        arcTo(r, r, 0f, false, true, cx, cy + r)
-        arcTo(r, r, 0f, false, true, cx - r, cy)
-        arcTo(r, r, 0f, false, true, cx, cy - r)
-        arcTo(r, r, 0f, false, true, cx + r, cy)
-        close()
-    }
-
     /** Single musical note. Used as the "Songs" tab icon. */
-    val Music: ImageVector = ImageVector.Builder(
-        name = "Music",
-        defaultWidth = 24.dp,
-        defaultHeight = 24.dp,
-        viewportWidth = 24f,
-        viewportHeight = 24f
-    ).apply {
-        // stem + bar
-        path(
-            fill = null,
-            solidColor = SolidColor(Color.Black),
-            stroke = SolidColor(Color.Black),
-            strokeLineWidth = 2f,
-            strokeLineCap = StrokeCap.Round,
-            strokeLineJoin = StrokeJoin.Round
-        ) {
-            moveTo(9f, 18f)
-            verticalLineToRelative(-13f)
-            lineToRelative(12f, -2f)
-            verticalLineToRelative(13f)
-        }
-        // left note head
-        path(
-            fill = null,
-            solidColor = SolidColor(Color.Black),
-            stroke = SolidColor(Color.Black),
-            strokeLineWidth = 2f,
-            strokeLineCap = StrokeCap.Round,
-            strokeLineJoin = StrokeJoin.Round
-        ) {
-            moveTo(9f, 18f)
-            circle(6f, 18f, 3f)
-        }
+    val Music: ImageVector = stroke("Music") {
+        // stem + cross-bar
+        moveTo(9f, 18f)
+        verticalLineToRelative(-13f)
+        lineToRelative(12f, -2f)
+        verticalLineToRelative(13f)
+        // left note head (open circle)
+        moveTo(9f, 18f)
+        arcToRelative(3f, 3f, 0f, true, false, -0.01f, 0f)
         // right note head
-        path(
-            fill = null,
-            solidColor = SolidColor(Color.Black),
-            stroke = SolidColor(Color.Black),
-            strokeLineWidth = 2f,
-            strokeLineCap = StrokeCap.Round,
-            strokeLineJoin = StrokeJoin.Round
-        ) {
-            moveTo(21f, 16f)
-            circle(18f, 16f, 3f)
-        }
-    }.build()
+        moveTo(21f, 16f)
+        arcToRelative(3f, 3f, 0f, true, false, -0.01f, 0f)
+    }
 
     /** Stacked playlist lines with a small note. Used as the "Playlists" tab icon. */
     val ListMusic: ImageVector = stroke("ListMusic") {
-        // note head (right side)
+        // note head
         moveTo(21f, 18f)
-        circle(15.5f, 18f, 1.5f)
-        // bar connecting note to its stem
+        arcToRelative(1.5f, 1.5f, 0f, true, false, -0.01f, 0f)
+        // stem
         moveTo(18f, 18f)
         verticalLineToRelative(-13f)
         lineToRelative(3f, -1f)
@@ -143,32 +94,28 @@ object CoralIcons {
         horizontalLineTo(10f)
     }
 
-    /** Sliders icon — used as the "Settings" tab icon. Clean & minimal. */
+    /** Sliders icon — used as the "Settings" tab icon. */
     val Settings: ImageVector = stroke("Settings") {
-        // 3 horizontal lines, each interrupted by a knob
-        // top line: 3 -> 14, gap, 16 -> 21
+        // top horizontal — split by knob
         moveTo(3f, 5f)
         horizontalLineTo(14f)
         moveTo(16f, 5f)
         horizontalLineTo(21f)
-        // middle line: 3 -> 8, gap, 10 -> 21
+        // middle horizontal
         moveTo(3f, 12f)
         horizontalLineTo(8f)
         moveTo(10f, 12f)
         horizontalLineTo(21f)
-        // bottom line: 3 -> 14, gap, 16 -> 21
+        // bottom horizontal
         moveTo(3f, 19f)
         horizontalLineTo(14f)
         moveTo(16f, 19f)
         horizontalLineTo(21f)
-        // 3 vertical "knobs" on each gap
-        // top knob at x=15
+        // 3 vertical "knobs"
         moveTo(15f, 3f)
         verticalLineToRelative(4f)
-        // middle knob at x=9
         moveTo(9f, 10f)
         verticalLineToRelative(4f)
-        // bottom knob at x=15
         moveTo(15f, 17f)
         verticalLineToRelative(4f)
     }
