@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Coral's adaptive icon background.
+    A vertical gradient from deep ocean blue-black at the top to almost-pure
+    black at the bottom. Gives the wave foreground a sense of "depth" — like
+    the coral is suspended in deep water.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="270"
+                android:startColor="#1A2A38"
+                android:endColor="#050508" />
+        </shape>
+    </item>
+</layer-list>

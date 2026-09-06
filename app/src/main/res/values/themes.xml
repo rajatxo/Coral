@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Base Coral theme. Window background is the splash, so the app
+         opens straight into the ocean gradient with the wave logo
+         visible. When MainActivity's Compose tree lays out, it draws
+         over the splash with the same dark color, so there's no flash. -->
     <style name="Theme.Coral" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowBackground">@drawable/splash_background</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">false</item>

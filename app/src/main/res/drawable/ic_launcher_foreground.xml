@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Coral's adaptive icon foreground.
+
+    The logo concept: a single open stroke that forms both a stylised "C"
+    (for Coral) and an ocean wave. Two thick bulges (top + bottom) connected
+    by a thinner S-curve through the middle, with sharp tapered terminals —
+    like a brushstroke or calligraphic mark.
+
+    Inspired by minimalist music app logos (Tidal, SoundCloud) — one shape,
+    one colour, one idea.
+
+    The shape is drawn as a stroked vector path inside the safe zone of the
+    108dp adaptive icon canvas (the central ~72dp area).
+
+    Color: coral #FF6B6B — the brand color that runs through every Coral
+    UI element, so the icon matches the in-app experience.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!--
+        The wave path. Coordinates chosen so the shape sits inside the
+        108x108 viewport's central safe zone (roughly 22-86 on each axis).
+
+        Geometry:
+          - Start at upper-left tip (28, 42)
+          - Curve up and to the right, peaking near the top (54, 30)
+          - Reach upper-right (78, 45) — this is the upper bulge
+          - Narrow and curve back through the center (60, 58)
+          - Sweep down and out to the lower-right bulge (75, 75)
+          - Curve back to the lower-left tip (32, 70) — this is the lower bulge
+          - Round line caps soften the tapered ends at small sizes.
+
+        strokeWidth = 9 gives a bold but not chunky stroke that reads well
+        at 48x48 (home screen) and stays crisp at 192x192 (Play Store).
+    -->
+    <path
+        android:strokeColor="#FF6B6B"
+        android:strokeWidth="9"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="
+            M 28,44
+            C 36,28 60,26 74,40
+            C 84,52 72,62 60,58
+            C 50,55 48,64 54,72
+            C 62,84 80,82 78,68" />
+
+</vector>
