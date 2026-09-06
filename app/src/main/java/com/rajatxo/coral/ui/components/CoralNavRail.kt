@@ -112,11 +112,12 @@ fun CoralNavRail(
             // ---- Rail labels, vertically centered in remaining space ----
             Spacer(modifier = Modifier.weight(1f))
 
-            // 8dp gap between labels — tight, list-like (ViTune style).
+            // 24dp gap between labels — medium-tight, ViTune-style.
             // Each label slot is sized EXACTLY to its text's natural width,
             // so the gap is purely visual spacing, not padding inside slots.
+            // (Previous: 8dp = too tight, labels looked crowded.)
             Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+                verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (mode == RailMode.Main) {
