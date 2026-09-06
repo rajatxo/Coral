@@ -10,67 +10,120 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Text
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.layout
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.Text
+import com.rajatxo.coral.ui.icons.CoralIcons
 
 /**
  * Coral's vertical navigation rail — ViTune-style.
  *
+ * Has TWO modes:
+ *
+ *  - [RailMode.Main] (default): shows the 6 main tabs (Quick picks, Discover,
+ *    Songs, Playlists, Artists, Albums). A gear icon sits at the TOP.
+ *    Tapping the gear switches to Settings mode.
+ *
+ *  - [RailMode.Settings]: shows settings categories (Premium, Appearance,
+ *    Playback, About). A back arrow sits at the TOP (replaces the gear).
+ *    Tapping the back arrow returns to Main mode.
+ *
  * Design contract (matches ViTune exactly):
- *  - Width: 40dp (narrow — just enough for the rotated text height)
- *  - Background: same as the app surface (#121212 dark gray) — no separate color
- *  - Content: rotated text labels only, NO icons
+ *  - Width: 40dp (narrow)
+ *  - Background: same as the app surface (#121212 dark gray)
+ *  - Content: rotated text labels only, NO icons (except the gear/back at top)
  *  - Rotation: -90° (text reads bottom-to-top)
  *  - Active state: pure White + Bold weight
  *  - Inactive state: muted gray (#888888) + Regular weight
- *  - No pill background, no underline, no indicator — color + weight only
  *
- * Implementation note:
- *  Compose's Modifier.rotate(-90f) only rotates the VISUAL — the layout
- *  measurement still uses the text's unrotated width (e.g. "Quick picks"
- *  measures at ~110dp wide). Without intervention, the rail would be 110dp
- *  wide even though we set .width(40.dp) on the Box.
- *
- *  Fix: a custom [layout] modifier that swaps width and height after
- *  measurement, so a 110x16 text becomes a 16x110 layout slot. Combined
- *  with rotate(-90f), the text renders correctly vertical AND the rail
- *  stays narrow.
+ * Label implementation note:
+ *  Each label is a fixed-height Box (90dp) that wraps a rotated Text.
+ *  The Box is 40dp wide (matches rail width) and tall enough to fit
+ *  the longest rotated label ("Quick picks" = ~80dp when rotated).
+ *  This is simpler than the previous custom layout modifier and
+ *  prevents the cut-off text bug.
  */
 @Composable
 fun CoralNavRail(
-    selectedTab: CoralTab,
-    onTabSelected: (CoralTab) -> Unit,
+    mode: RailMode,
+    selectedMainTab: CoralTab?,
+    selectedSettingsTab: CoralSettingsTab?,
+    onMainTabSelected: (CoralTab) -> Unit,
+    onSettingsTabSelected: (CoralSettingsTab) -> Unit,
+    onGearClick: () -> Unit,
+    onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(
         modifier = modifier
-            .width(40.dp)  // narrow — ViTune-style
+            .width(40.dp)
             .fillMaxHeight()
             .background(CoralColors.Surface)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxHeight()
-                .padding(vertical = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(28.dp, Alignment.Top),
+                .padding(top = 16.dp, bottom = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            CoralTab.values().forEach { tab ->
-                RailLabel(
-                    label = tab.label,
-                    isSelected = tab == selectedTab,
-                    onClick = { onTabSelected(tab) }
+            // ---- Top icon: gear (Main mode) or back arrow (Settings mode) ----
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(Color.Transparent)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = if (mode == RailMode.Main) onGearClick else onBackClick
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (mode == RailMode.Main) CoralIcons.Settings else CoralIcons.ChevronDown,
+                    contentDescription = if (mode == RailMode.Main) "Open settings" else "Back to tabs",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
                 )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // ---- Rail labels ----
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.Top),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                if (mode == RailMode.Main) {
+                    CoralTab.values().forEach { tab ->
+                        RailLabel(
+                            label = tab.label,
+                            isSelected = tab == selectedMainTab,
+                            onClick = { onMainTabSelected(tab) }
+                        )
+                    }
+                } else {
+                    CoralSettingsTab.values().forEach { tab ->
+                        RailLabel(
+                            label = tab.label,
+                            isSelected = tab == selectedSettingsTab,
+                            onClick = { onSettingsTabSelected(tab) }
+                        )
+                    }
+                }
             }
         }
     }
@@ -85,63 +138,52 @@ private fun RailLabel(
     val color = if (isSelected) Color.White else CoralColors.TextMuted
     val weight = if (isSelected) FontWeight.Bold else FontWeight.Normal
 
-    Text(
-        text = label,
-        color = color,
-        fontSize = 13.sp,
-        fontWeight = weight,
-        maxLines = 1,
+    // Each label is a fixed 90dp tall x 40dp wide slot.
+    // The text inside is rotated -90°, so a horizontal text like "Quick picks"
+    // (~80dp wide x 16dp tall) becomes visually 16dp wide x 80dp tall after
+    // rotation — fits comfortably in the 40x90 slot.
+    Box(
         modifier = Modifier
-            // 1. Rotate the text -90° (reads bottom-to-top)
-            .rotate(-90f)
-            // 2. Swap the measured width and height so the layout
-            //    slot is narrow (text height, ~16dp) instead of wide
-            //    (text width, ~110dp). Without this, the rail Box
-            //    would expand to fit the unrotated text width.
-            .layout { measurable, constraints ->
-                val placeable = measurable.measure(constraints)
-                // Swap width <-> height in the reported size
-                layout(placeable.height, placeable.width) {
-                    placeable.place(
-                        x = -(placeable.width - placeable.height) / 2,
-                        y = -(placeable.height - placeable.width) / 2
-                    )
-                }
-            }
+            .height(90.dp)
+            .width(40.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
-            )
-            .padding(horizontal = 4.dp, vertical = 8.dp)
-    )
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = color,
+            fontSize = 13.sp,
+            fontWeight = weight,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier.rotate(-90f)
+        )
+    }
 }
 
 /**
  * Coral's color palette — ViTune-style.
  */
 object CoralColors {
-    /** Main app surface — dark gray, same as ViTune's background. */
     val Surface: Color = Color(0xFF121212)
-
-    /** Slightly lighter gray for cards / mini player / nav rail pills. */
     val SurfaceVariant: Color = Color(0xFF1F1F1F)
-
-    /** Primary text — pure white. */
     val TextPrimary: Color = Color.White
-
-    /** Secondary text — muted gray for inactive items, subtitles, etc. */
     val TextMuted: Color = Color(0xFF888888)
-
-    /** Coral accent — the brand color, used for active states + buttons. */
     val Coral: Color = Color(0xFFFF6B6B)
 }
 
 /**
- * The destinations reachable from the rail.
- *
- * Mirrors ViTune's rail order: Quick Picks, Discover, Songs, Playlists,
- * Artists, Albums. Settings stays at the bottom.
+ * Which rail is currently shown: main tabs or settings categories.
+ */
+enum class RailMode { Main, Settings }
+
+/**
+ * The 6 main destinations on the rail (no Settings — that's a separate
+ * gear icon at the top now).
  */
 enum class CoralTab(val label: String) {
     QuickPicks("Quick picks"),
@@ -149,6 +191,17 @@ enum class CoralTab(val label: String) {
     Songs("Songs"),
     Playlists("Playlists"),
     Artists("Artists"),
-    Albums("Albums"),
-    Settings("Settings")
+    Albums("Albums")
+}
+
+/**
+ * The settings categories shown when the gear icon is tapped.
+ *
+ * First entry is Premium (per the user's request).
+ */
+enum class CoralSettingsTab(val label: String) {
+    Premium("Premium"),
+    Appearance("Appearance"),
+    Playback("Playback"),
+    About("About")
 }

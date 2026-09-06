@@ -91,6 +91,8 @@ fun HomeScreen(
     onSongEnded: () -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(CoralTab.Songs) }
+    var railMode by remember { mutableStateOf(com.rajatxo.coral.ui.components.RailMode.Main) }
+    var selectedSettingsTab by remember { mutableStateOf<com.rajatxo.coral.ui.components.CoralSettingsTab?>(null) }
     var selectedPlaylist by remember { mutableStateOf<com.rajatxo.coral.data.model.Playlist?>(null) }
     var showSongPicker by remember { mutableStateOf(false) }
     var playlistForPicker by remember { mutableStateOf<com.rajatxo.coral.data.model.Playlist?>(null) }
@@ -123,11 +125,25 @@ fun HomeScreen(
         // Main content + nav rail — fills the whole screen
         Row(modifier = Modifier.fillMaxSize()) {
             CoralNavRail(
-                selectedTab = selectedTab,
-                onTabSelected = {
+                mode = railMode,
+                selectedMainTab = selectedTab,
+                selectedSettingsTab = selectedSettingsTab,
+                onMainTabSelected = {
                     selectedTab = it
-                    selectedPlaylist = null  // reset detail when switching tabs
-                }
+                    selectedPlaylist = null
+                },
+                onSettingsTabSelected = { tab ->
+                    selectedSettingsTab = tab
+                    when (tab) {
+                        com.rajatxo.coral.ui.components.CoralSettingsTab.Premium -> showPremium = true
+                        com.rajatxo.coral.ui.components.CoralSettingsTab.Appearance -> showFontPicker = true  // opens appearance (font for now)
+                        com.rajatxo.coral.ui.components.CoralSettingsTab.Playback -> showSleepTimer = true
+                        com.rajatxo.coral.ui.components.CoralSettingsTab.About -> showPremium = true
+                    }
+                    // Stay on settings rail until user explicitly goes back
+                },
+                onGearClick = { railMode = com.rajatxo.coral.ui.components.RailMode.Settings },
+                onBackClick = { railMode = com.rajatxo.coral.ui.components.RailMode.Main }
             )
 
             Box(
@@ -181,12 +197,6 @@ fun HomeScreen(
                     CoralTab.Albums -> PlaceholderScreen(
                         tabName = "Albums",
                         description = "Browse your library by album. Coming soon."
-                    )
-                    CoralTab.Settings -> SettingsScreen(
-                        onOpenPremium = { showPremium = true },
-                        onOpenEqualizer = { showEqualizer = true },
-                        onOpenSleepTimer = { showSleepTimer = true },
-                        onOpenFontPicker = { showFontPicker = true }
                     )
                 }
             }
