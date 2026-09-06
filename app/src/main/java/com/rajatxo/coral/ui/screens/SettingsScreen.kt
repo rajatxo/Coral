@@ -46,6 +46,7 @@ import com.rajatxo.coral.ui.icons.CoralIcons
  *  - The version row in the About section has a hidden long-press trigger:
  *    7 long-presses within 5 seconds toggles premium in debug builds.
  */
+@androidx.compose.foundation.ExperimentalFoundationApi
 @Composable
 fun SettingsScreen(
     onOpenPremium: () -> Unit,
