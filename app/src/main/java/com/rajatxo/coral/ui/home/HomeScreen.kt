@@ -84,12 +84,36 @@ fun HomeScreen(
     onSongClickWithQueue: (Song, List<Song>) -> Unit,
     onMiniPlayerClick: () -> Unit,
     showFullPlayer: Boolean,
-    onFullPlayerDismiss: () -> Unit
+    onFullPlayerDismiss: () -> Unit,
+    onSongEnded: () -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(CoralTab.Songs) }
     var selectedPlaylist by remember { mutableStateOf<com.rajatxo.coral.data.model.Playlist?>(null) }
     var showSongPicker by remember { mutableStateOf(false) }
     var playlistForPicker by remember { mutableStateOf<com.rajatxo.coral.data.model.Playlist?>(null) }
+    var showPremium by remember { mutableStateOf(false) }
+    var showEqualizer by remember { mutableStateOf(false) }
+    var showSleepTimer by remember { mutableStateOf(false) }
+
+    // Equalizer controller + sleep timer — singletons for the home screen's
+    // lifetime. Created here (not in the screen) so the equalizer state
+    // survives config changes and isn't reset when the screen recomposes.
+    val homeScope = androidx.compose.runtime.rememberCoroutineScope()
+    val equalizerController = remember { com.rajatxo.coral.audio.EqualizerController() }
+    val sleepTimer = remember {
+        com.rajatxo.coral.data.premium.SleepTimer(
+            scope = homeScope,
+            onComplete = onSongEnded
+        )
+    }
+
+    // When the current song changes, fire the sleep timer's end-of-song
+    // trigger (in case the user set the timer to "end of current song").
+    androidx.compose.runtime.LaunchedEffect(currentSongId) {
+        if (currentSongId != null) {
+            sleepTimer.onSongEnd()
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0A))) {
         Row(modifier = Modifier.fillMaxSize()) {
@@ -139,7 +163,11 @@ fun HomeScreen(
                                 )
                             }
                         }
-                        CoralTab.Settings -> SettingsScreen()
+                        CoralTab.Settings -> SettingsScreen(
+                            onOpenPremium = { showPremium = true },
+                            onOpenEqualizer = { showEqualizer = true },
+                            onOpenSleepTimer = { showSleepTimer = true }
+                        )
                     }
                 }
 
@@ -178,6 +206,44 @@ fun HomeScreen(
                         playlistForPicker = null
                     }
                 )
+            }
+        }
+
+        // Premium info screen
+        if (showPremium) {
+            com.rajatxo.coral.ui.premium.PremiumScreen(
+                onBackClick = { showPremium = false }
+            )
+        }
+
+        // Equalizer screen
+        if (showEqualizer) {
+            // Load mock bands so the UI is fully visible. Phase 7B will
+            // replace this with real attachment via CoralPlaybackService.
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                if (equalizerController.bands.value.isEmpty()) {
+                    equalizerController.loadDefaultBands()
+                }
+            }
+            com.rajatxo.coral.ui.equalizer.EqualizerScreen(
+                controller = equalizerController,
+                onBackClick = { showEqualizer = false }
+            )
+        }
+
+        // Sleep timer sheet (bottom sheet — for now just a full-screen overlay)
+        if (showSleepTimer) {
+            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)).clickable(
+                interactionSource = androidx.compose.foundation.interaction.MutableInteractionSource(),
+                indication = null,
+                onClick = { showSleepTimer = false }
+            )) {
+                Box(modifier = Modifier.align(Alignment.BottomCenter)) {
+                    com.rajatxo.coral.ui.sleeptimer.SleepTimerSheet(
+                        sleepTimer = sleepTimer,
+                        onDismiss = { showSleepTimer = false }
+                    )
+                }
             }
         }
 

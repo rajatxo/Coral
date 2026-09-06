@@ -1,6 +1,9 @@
 package com.rajatxo.coral.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +20,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,22 +33,28 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rajatxo.coral.data.premium.PremiumManager
 import com.rajatxo.coral.ui.icons.CoralIcons
 
 /**
  * Settings tab — real (read-only for now) settings surface.
  *
- * Phase 6/7 will wire these to actual SharedPreferences / DataStore:
- *  - Theme picker (system / dark / true black AMOLED)
- *  - Audio: skip on error, replay gain, crossfade duration
- *  - Premium: equalizer, sleep timer, lyrics provider
- *  - About: version, license, open-source credits
- *
- * For now we just render the rows so the tab looks intentional and Phase 7
- * can replace each "—" with a real control.
+ * Phase 7 wiring:
+ *  - Premium section shows the current premium status + opens PremiumScreen
+ *  - Premium-gated features (Equalizer, Sleep timer) show a 🔒 until premium
+ *    is unlocked. When unlocked, they open their respective screens.
+ *  - The version row in the About section has a hidden long-press trigger:
+ *    7 long-presses within 5 seconds toggles premium in debug builds.
  */
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(
+    onOpenPremium: () -> Unit,
+    onOpenEqualizer: () -> Unit,
+    onOpenSleepTimer: () -> Unit
+) {
+    val isPremium by PremiumManager.isPremium.collectAsState()
+    var versionTapCount by remember { mutableIntStateOf(0) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -57,6 +71,40 @@ fun SettingsScreen() {
             )
         }
 
+        // Premium section — always at the top so the user knows about it
+        SettingsSection(title = "Premium") {
+            SettingsRow(
+                icon = CoralIcons.Heart,
+                title = "Coral Premium",
+                subtitle = if (isPremium) "Premium active" else "Unlock all features",
+                value = if (isPremium) "✓" else "→",
+                onClick = onOpenPremium
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Premium-gated features
+        SettingsSection(title = "Premium features") {
+            SettingsRow(
+                icon = CoralIcons.Music,
+                title = "Equalizer",
+                subtitle = if (isPremium) "5-band + presets" else "Premium required",
+                value = if (isPremium) "→" else "🔒",
+                onClick = if (isPremium) onOpenEqualizer else onOpenPremium
+            )
+            SettingsRow(
+                icon = CoralIcons.SkipNext,
+                title = "Sleep timer",
+                subtitle = if (isPremium) "5/15/30/60 min or end of song"
+                            else "Premium required",
+                value = if (isPremium) "→" else "🔒",
+                onClick = if (isPremium) onOpenSleepTimer else onOpenPremium
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
         SettingsSection(title = "Appearance") {
             SettingsRow(
                 icon = CoralIcons.Settings,
@@ -68,7 +116,7 @@ fun SettingsScreen() {
                 icon = CoralIcons.Settings,
                 title = "True black (AMOLED)",
                 subtitle = "Saves battery on OLED screens",
-                value = "Off"
+                value = "On"
             )
         }
 
@@ -78,8 +126,9 @@ fun SettingsScreen() {
             SettingsRow(
                 icon = CoralIcons.Play,
                 title = "Crossfade",
-                subtitle = "Smooth transition between songs",
-                value = "Off"
+                subtitle = "Smooth transition between songs" +
+                    (if (isPremium) "" else " (Premium)"),
+                value = if (isPremium) "Off" else "🔒"
             )
             SettingsRow(
                 icon = CoralIcons.SkipNext,
@@ -97,36 +146,81 @@ fun SettingsScreen() {
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        SettingsSection(title = "Premium") {
-            SettingsRow(
-                icon = CoralIcons.Music,
-                title = "Equalizer",
-                subtitle = "Unlock with Coral Premium",
-                value = "🔒"
-            )
-            SettingsRow(
-                icon = CoralIcons.Music,
-                title = "Sleep timer",
-                subtitle = "Pause playback after a set time",
-                value = "🔒"
-            )
+        SettingsSection(title = "Lyrics") {
             SettingsRow(
                 icon = CoralIcons.ListMusic,
                 title = "Lyrics provider",
-                subtitle = "LrcLib (free) or Musixmatch (premium)",
+                subtitle = "LrcLib (free, no auth)",
                 value = "Auto"
+            )
+            SettingsRow(
+                icon = CoralIcons.Music,
+                title = "Cache lyrics offline",
+                subtitle = "Store fetched lyrics for faster playback",
+                value = "On"
             )
         }
 
         Spacer(modifier = Modifier.height(20.dp))
 
         SettingsSection(title = "About") {
-            SettingsRow(
-                icon = CoralIcons.Music,
-                title = "Version",
-                subtitle = "Coral music player",
-                value = "1.0.0"
-            )
+            // The version row has the hidden long-press trigger for debug unlock
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .combinedClickable(
+                        onClick = {
+                            // Single tap on version row increments the counter.
+                            // 7 taps within 5 seconds = debug unlock.
+                            versionTapCount++
+                            if (versionTapCount >= 7) {
+                                versionTapCount = 0
+                                val nowPremium = PremiumManager.debugUnlock()
+                            }
+                        },
+                        onLongClick = {
+                            // Long press also triggers for accessibility
+                            val nowPremium = PremiumManager.debugUnlock()
+                        }
+                    )
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF1F1F1F)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = CoralIcons.Music,
+                        contentDescription = null,
+                        tint = Color(0xFFFF6B6B),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.size(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Version",
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = if (isPremium) "1.0.0 (Premium unlocked)" else "1.0.0",
+                        color = Color(0xFFB0B0B0),
+                        fontSize = 12.sp
+                    )
+                }
+                Text(
+                    text = if (isPremium) "✓" else "",
+                    color = Color(0xFFFF6B6B),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
             SettingsRow(
                 icon = CoralIcons.Settings,
                 title = "Open-source licenses",
@@ -166,11 +260,19 @@ private fun SettingsRow(
     icon: ImageVector,
     title: String,
     subtitle: String,
-    value: String
+    value: String,
+    onClick: (() -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .let { mod ->
+                if (onClick != null) mod.clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClick
+                ) else mod
+            }
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

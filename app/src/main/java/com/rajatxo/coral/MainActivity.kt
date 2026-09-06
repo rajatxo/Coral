@@ -211,7 +211,8 @@ fun CoralApp() {
                     },
                     onMiniPlayerClick = { showFullPlayer = true },
                     showFullPlayer = showFullPlayer,
-                    onFullPlayerDismiss = { showFullPlayer = false }
+                    onFullPlayerDismiss = { showFullPlayer = false },
+                    onSongEnded = { mediaController?.pause() }
                 )
             }
         }
