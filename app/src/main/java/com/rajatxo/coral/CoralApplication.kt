@@ -1,6 +1,7 @@
 package com.rajatxo.coral
 
 import android.app.Application
+import com.rajatxo.coral.data.prefs.FontManager
 import com.rajatxo.coral.data.store.PlaylistStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -10,11 +11,15 @@ import kotlinx.coroutines.launch
 class CoralApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        // Initialise the JSON-backed playlist + favorites store on a
-        // background thread. Reading two small JSON files shouldn't take
-        // more than ~50ms, but doing it on the main thread can trigger
-        // ANRs on slower devices (especially on first launch when the
-        // files don't exist yet and the filesystem has to stat them).
+        // Font preference is read synchronously — it's a single
+        // SharedPreferences key lookup, very fast (<1ms). We need it
+        // before MainActivity's setContent so the typography is right
+        // from the very first frame (no flash of system font).
+        FontManager.init(this)
+
+        // Playlist + favorites JSON files are slightly slower (~50ms),
+        // so we read them on a background thread to avoid blocking
+        // app launch.
         val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         appScope.launch {
             PlaylistStore.init(this@CoralApplication)

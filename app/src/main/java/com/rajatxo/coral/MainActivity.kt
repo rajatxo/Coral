@@ -25,6 +25,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.mutableStateListOf
@@ -63,20 +64,24 @@ class MainActivity : ComponentActivity() {
         // blend into the app background — the ViTune-style seamless look.
         // Default enableEdgeToEdge() applies a translucent scrim that
         // creates the visible "gray bar" the user reported.
-        // SystemBarStyle.auto(transparentScrim, transparentScrim) means:
-        //   - Light icons on transparent bg (the '0' param)
-        //   - Dark icons on transparent bg (the '0' param)
-        //   - Both transparent — no scrim at all.
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.auto(0, 0),
             navigationBarStyle = SystemBarStyle.auto(0, 0)
         )
         super.onCreate(savedInstanceState)
         setContent {
-            // Wrap the whole app in MaterialTheme with Poppins typography
-            // so every Text() defaults to Poppins unless overridden.
+            // Observe the user's font choice. When it changes (e.g. they
+            // pick "Inter" in Settings → Appearance → Font), this
+            // recomposes and the MaterialTheme rebuilds with the new
+            // typography, instantly applying the new font to every
+            // Text() in the app.
+            val currentFont by com.rajatxo.coral.data.prefs.FontManager.currentFont.collectAsState()
+            val typography = remember(currentFont) {
+                com.rajatxo.coral.ui.theme.coralTypographyFor(currentFont)
+            }
+
             androidx.compose.material3.MaterialTheme(
-                typography = com.rajatxo.coral.ui.theme.CoralTypography
+                typography = typography
             ) {
                 CoralApp()
             }

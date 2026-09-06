@@ -53,9 +53,11 @@ import com.rajatxo.coral.ui.icons.CoralIcons
 fun SettingsScreen(
     onOpenPremium: () -> Unit,
     onOpenEqualizer: () -> Unit,
-    onOpenSleepTimer: () -> Unit
+    onOpenSleepTimer: () -> Unit,
+    onOpenFontPicker: () -> Unit
 ) {
     val isPremium by PremiumManager.isPremium.collectAsState()
+    val currentFont by com.rajatxo.coral.data.prefs.FontManager.currentFont.collectAsState()
     var versionTapCount by remember { mutableIntStateOf(0) }
 
     Column(
@@ -126,6 +128,15 @@ fun SettingsScreen(
                 title = "True black (AMOLED)",
                 subtitle = "Saves battery on OLED screens",
                 value = "On"
+            )
+            // Font picker — opens a separate screen showing all fonts
+            // with each name rendered in its own font for preview.
+            SettingsRow(
+                icon = CoralIcons.Music,
+                title = "Font",
+                subtitle = "Used everywhere in Coral",
+                value = currentFont.displayName,
+                onClick = onOpenFontPicker
             )
         }
 

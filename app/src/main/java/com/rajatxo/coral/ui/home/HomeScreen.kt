@@ -97,6 +97,7 @@ fun HomeScreen(
     var showPremium by remember { mutableStateOf(false) }
     var showEqualizer by remember { mutableStateOf(false) }
     var showSleepTimer by remember { mutableStateOf(false) }
+    var showFontPicker by remember { mutableStateOf(false) }
 
     // Equalizer controller + sleep timer — singletons for the home screen's
     // lifetime. Created here (not in the screen) so the equalizer state
@@ -184,7 +185,8 @@ fun HomeScreen(
                     CoralTab.Settings -> SettingsScreen(
                         onOpenPremium = { showPremium = true },
                         onOpenEqualizer = { showEqualizer = true },
-                        onOpenSleepTimer = { showSleepTimer = true }
+                        onOpenSleepTimer = { showSleepTimer = true },
+                        onOpenFontPicker = { showFontPicker = true }
                     )
                 }
             }
@@ -273,6 +275,13 @@ fun HomeScreen(
                     )
                 }
             }
+        }
+
+        // Font picker screen
+        if (showFontPicker) {
+            com.rajatxo.coral.ui.screens.FontPickerScreen(
+                onBackClick = { showFontPicker = false }
+            )
         }
 
         // Full-screen now-playing screen
