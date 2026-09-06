@@ -27,71 +27,41 @@ val CoralFontFamily = FontFamily(
 )
 
 /**
- * Coral's type scale.
+ * Coral's type scale — ALL styles use Poppins.
+ *
+ * IMPORTANT: We override EVERY style in Material 3's Typography (display,
+ * headline, title, body, label — large/medium/small for each). If any
+ * style is left at its default, Text() calls that pick up that style
+ * will fall back to Roboto instead of Poppins.
  *
  * ViTune uses big, bold titles (typically 28-32sp Bold) at the top of each
- * screen. We mirror that here — the `headlineMedium` style is what each
- * screen's title uses (e.g. "Songs", "Playlists", "Quick Picks").
- *
- * Body text stays at 14-16sp Medium for readability. Labels go down to 11sp
- * for tiny all-caps section headers (like "PRESETS", "PREMIUM").
+ * screen. We mirror that here.
  */
+private val poppins = CoralFontFamily  // alias for brevity
+
 val CoralTypography = Typography(
-    // Big screen titles — "Songs", "Playlists", etc.
-    headlineMedium = TextStyle(
-        fontFamily = CoralFontFamily,
-        fontWeight = FontWeight.Bold,
-        fontSize = 30.sp,
-        lineHeight = 36.sp,
-        letterSpacing = (-0.5).sp
-    ),
-    // Smaller headers
-    headlineSmall = TextStyle(
-        fontFamily = CoralFontFamily,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 22.sp,
-        lineHeight = 28.sp
-    ),
-    // Song titles in lists
-    titleMedium = TextStyle(
-        fontFamily = CoralFontFamily,
-        fontWeight = FontWeight.Medium,
-        fontSize = 15.sp,
-        lineHeight = 20.sp
-    ),
-    // Subtitles, artist names
-    titleSmall = TextStyle(
-        fontFamily = CoralFontFamily,
-        fontWeight = FontWeight.Normal,
-        fontSize = 13.sp,
-        lineHeight = 18.sp
-    ),
-    // Body text in dialogs, descriptions
-    bodyMedium = TextStyle(
-        fontFamily = CoralFontFamily,
-        fontWeight = FontWeight.Normal,
-        fontSize = 14.sp,
-        lineHeight = 20.sp
-    ),
-    // Small labels (time, duration, hints)
-    bodySmall = TextStyle(
-        fontFamily = CoralFontFamily,
-        fontWeight = FontWeight.Normal,
-        fontSize = 12.sp,
-        lineHeight = 16.sp
-    ),
-    // All-caps section headers ("PREMIUM", "BANDS")
-    labelMedium = TextStyle(
-        fontFamily = CoralFontFamily,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 11.sp,
-        letterSpacing = 1.5.sp
-    ),
-    // Mini player title
-    labelLarge = TextStyle(
-        fontFamily = CoralFontFamily,
-        fontWeight = FontWeight.Medium,
-        fontSize = 14.sp,
-        lineHeight = 18.sp
-    )
+    // Display styles (rarely used in Coral — largest headlines)
+    displayLarge = TextStyle(fontFamily = poppins, fontWeight = FontWeight.Normal, fontSize = 57.sp, lineHeight = 64.sp),
+    displayMedium = TextStyle(fontFamily = poppins, fontWeight = FontWeight.Normal, fontSize = 45.sp, lineHeight = 52.sp),
+    displaySmall = TextStyle(fontFamily = poppins, fontWeight = FontWeight.Normal, fontSize = 36.sp, lineHeight = 44.sp),
+
+    // Headline styles — screen titles use headlineMedium
+    headlineLarge = TextStyle(fontFamily = poppins, fontWeight = FontWeight.Bold, fontSize = 32.sp, lineHeight = 40.sp, letterSpacing = (-0.5).sp),
+    headlineMedium = TextStyle(fontFamily = poppins, fontWeight = FontWeight.Bold, fontSize = 30.sp, lineHeight = 36.sp, letterSpacing = (-0.5).sp),
+    headlineSmall = TextStyle(fontFamily = poppins, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, lineHeight = 28.sp),
+
+    // Title styles — song titles, dialog titles
+    titleLarge = TextStyle(fontFamily = poppins, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, lineHeight = 24.sp),
+    titleMedium = TextStyle(fontFamily = poppins, fontWeight = FontWeight.Medium, fontSize = 15.sp, lineHeight = 20.sp),
+    titleSmall = TextStyle(fontFamily = poppins, fontWeight = FontWeight.Normal, fontSize = 13.sp, lineHeight = 18.sp),
+
+    // Body styles — descriptions, dialog text
+    bodyLarge = TextStyle(fontFamily = poppins, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 24.sp),
+    bodyMedium = TextStyle(fontFamily = poppins, fontWeight = FontWeight.Normal, fontSize = 14.sp, lineHeight = 20.sp),
+    bodySmall = TextStyle(fontFamily = poppins, fontWeight = FontWeight.Normal, fontSize = 12.sp, lineHeight = 16.sp),
+
+    // Label styles — buttons, captions, all-caps section headers
+    labelLarge = TextStyle(fontFamily = poppins, fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 20.sp),
+    labelMedium = TextStyle(fontFamily = poppins, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, lineHeight = 16.sp, letterSpacing = 1.5.sp),
+    labelSmall = TextStyle(fontFamily = poppins, fontWeight = FontWeight.Medium, fontSize = 10.sp, lineHeight = 14.sp)
 )

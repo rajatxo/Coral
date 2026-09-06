@@ -47,9 +47,33 @@ suspend fun extractPalette(context: Context, artUri: Uri?): CoralPalette? {
     if (artUri == null) return null
     return withContext(Dispatchers.IO) {
         try {
-            val inputStream = context.contentResolver.openInputStream(artUri) ?: return@withContext null
-            val bitmap = inputStream.use {
-                BitmapFactory.decodeStream(it)
+            // Step 1: decode bounds only to get the original dimensions
+            val boundsOptions = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            context.contentResolver.openInputStream(artUri)?.use {
+                BitmapFactory.decodeStream(it, null, boundsOptions)
+            }
+            val imageWidth = boundsOptions.outWidth
+            val imageHeight = boundsOptions.outHeight
+            if (imageWidth <= 0 || imageHeight <= 0) return@withContext null
+
+            // Step 2: compute inSampleSize so the decoded bitmap is at
+            // most 256x256. We only need the palette colors, not the
+            // full-res image, so a small bitmap is plenty and saves
+            // a ton of memory + time.
+            // Without this, decoding a 4MB album art (e.g. 3000x3000)
+            // blocks for ~1 second on slow devices — that was the ANR.
+            var sampleSize = 1
+            while (imageWidth / (sampleSize * 2) >= 256 && imageHeight / (sampleSize * 2) >= 256) {
+                sampleSize *= 2
+            }
+
+            // Step 3: re-open the stream and decode at the reduced size
+            val decodeOptions = BitmapFactory.Options().apply {
+                inSampleSize = sampleSize
+                inPreferredConfig = android.graphics.Bitmap.Config.RGB_565  // half memory, fine for palette
+            }
+            val bitmap = context.contentResolver.openInputStream(artUri)?.use {
+                BitmapFactory.decodeStream(it, null, decodeOptions)
             } ?: return@withContext null
 
             val palette = Palette.from(bitmap).generate()

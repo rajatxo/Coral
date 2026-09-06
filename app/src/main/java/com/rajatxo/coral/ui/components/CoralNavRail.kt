@@ -13,12 +13,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -27,15 +27,24 @@ import androidx.compose.ui.unit.sp
  * Coral's vertical navigation rail — ViTune-style.
  *
  * Design contract (matches ViTune exactly):
- *  - Width: 56dp (narrower than Material's 72dp default)
+ *  - Width: 40dp (narrow — just enough for the rotated text height)
  *  - Background: same as the app surface (#121212 dark gray) — no separate color
  *  - Content: rotated text labels only, NO icons
  *  - Rotation: -90° (text reads bottom-to-top)
  *  - Active state: pure White + Bold weight
  *  - Inactive state: muted gray (#888888) + Regular weight
  *  - No pill background, no underline, no indicator — color + weight only
- *  - Labels are stacked vertically with even spacing
- *  - Status bar padding handled by parent (statusBarsPadding)
+ *
+ * Implementation note:
+ *  Compose's Modifier.rotate(-90f) only rotates the VISUAL — the layout
+ *  measurement still uses the text's unrotated width (e.g. "Quick picks"
+ *  measures at ~110dp wide). Without intervention, the rail would be 110dp
+ *  wide even though we set .width(40.dp) on the Box.
+ *
+ *  Fix: a custom [layout] modifier that swaps width and height after
+ *  measurement, so a 110x16 text becomes a 16x110 layout slot. Combined
+ *  with rotate(-90f), the text renders correctly vertical AND the rail
+ *  stays narrow.
  */
 @Composable
 fun CoralNavRail(
@@ -45,14 +54,14 @@ fun CoralNavRail(
 ) {
     Box(
         modifier = modifier
-            .width(56.dp)
+            .width(40.dp)  // narrow — ViTune-style
             .fillMaxHeight()
             .background(CoralColors.Surface)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxHeight()
-                .padding(vertical = 24.dp),
+                .padding(vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(28.dp, Alignment.Top),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -73,13 +82,32 @@ private fun RailLabel(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
+    val color = if (isSelected) Color.White else CoralColors.TextMuted
+    val weight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+
     Text(
         text = label,
-        color = if (isSelected) Color.White else CoralColors.TextMuted,
+        color = color,
         fontSize = 13.sp,
-        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+        fontWeight = weight,
+        maxLines = 1,
         modifier = Modifier
-            .rotate(-90f)  // text reads bottom-to-top, like ViTune
+            // 1. Rotate the text -90° (reads bottom-to-top)
+            .rotate(-90f)
+            // 2. Swap the measured width and height so the layout
+            //    slot is narrow (text height, ~16dp) instead of wide
+            //    (text width, ~110dp). Without this, the rail Box
+            //    would expand to fit the unrotated text width.
+            .layout { measurable, constraints ->
+                val placeable = measurable.measure(constraints)
+                // Swap width <-> height in the reported size
+                layout(placeable.height, placeable.width) {
+                    placeable.place(
+                        x = -(placeable.width - placeable.height) / 2,
+                        y = -(placeable.height - placeable.width) / 2
+                    )
+                }
+            }
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -91,10 +119,6 @@ private fun RailLabel(
 
 /**
  * Coral's color palette — ViTune-style.
- *
- * ViTune uses dark gray (#121212) surfaces, NOT pure black. This makes the
- * UI feel warmer and less harsh on OLED screens (counterintuitive but true —
- * pure black removes depth, dark gray keeps it).
  */
 object CoralColors {
     /** Main app surface — dark gray, same as ViTune's background. */
@@ -118,10 +142,6 @@ object CoralColors {
  *
  * Mirrors ViTune's rail order: Quick Picks, Discover, Songs, Playlists,
  * Artists, Albums. Settings stays at the bottom.
- *
- * Note: Quick Picks, Discover, Artists, Albums are placeholder tabs for
- * now — the user said they'll build out the offline logic later. For now
- * they show a friendly "coming soon" screen so the rail feels complete.
  */
 enum class CoralTab(val label: String) {
     QuickPicks("Quick picks"),
