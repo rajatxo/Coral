@@ -118,13 +118,26 @@ fun FullPlayer(
     // Media3 Player doesn't emit position updates continuously — we poll every
     // 500ms while the song is playing. While paused, we still want the slider
     // to reflect the current position, so we poll at a slower rate.
+    //
+    // CRASH FIX: wrapped in try-catch. If the playback service disconnects or
+    // hiccups (which can happen 8-10 seconds after launch on some devices
+    // when the audio session reinitializes), controller.currentPosition can
+    // throw IllegalStateException. Without the catch, that exception propagates
+    // up through the coroutine and crashes the entire app. With the catch,
+    // we just skip that tick and try again next time.
     var currentPositionMs by remember { mutableStateOf(0L) }
     var durationMs by remember { mutableStateOf(0L) }
     LaunchedEffect(mediaController, isPlaying) {
         while (true) {
-            mediaController?.let { controller ->
-                currentPositionMs = controller.currentPosition.coerceAtLeast(0L)
-                durationMs = controller.duration.coerceAtLeast(0L)
+            try {
+                mediaController?.let { controller ->
+                    currentPositionMs = controller.currentPosition.coerceAtLeast(0L)
+                    durationMs = controller.duration.coerceAtLeast(0L)
+                }
+            } catch (_: Exception) {
+                // Service hiccup — skip this tick, try again next time.
+                // Common causes: service disconnect, audio session reinit,
+                // player not yet ready. None of these should crash the app.
             }
             delay(if (isPlaying) 500L else 1000L)
         }

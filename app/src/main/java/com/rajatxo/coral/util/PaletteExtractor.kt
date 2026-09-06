@@ -77,6 +77,10 @@ suspend fun extractPalette(context: Context, artUri: Uri?): CoralPalette? {
             } ?: return@withContext null
 
             val palette = Palette.from(bitmap).generate()
+            // Recycle the bitmap immediately — we only need the palette colors,
+            // not the bitmap pixels. Without this, bitmaps can accumulate
+            // and cause OOM crashes after several song changes.
+            bitmap.recycle()
             val dominant = palette.dominantSwatch?.rgb
             val darkVibrant = palette.darkVibrantSwatch?.rgb ?: dominant
             val darkMuted = palette.darkMutedSwatch?.rgb ?: darkVibrant ?: dominant

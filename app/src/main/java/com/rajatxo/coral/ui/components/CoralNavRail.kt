@@ -79,6 +79,7 @@ fun CoralNavRail(
             .width(48.dp)
             .fillMaxHeight()
             .background(CoralColors.Surface)
+            .padding(start = 4.dp)  // explicit horizontal padding — pushes text slightly right
     ) {
         Column(
             modifier = Modifier
