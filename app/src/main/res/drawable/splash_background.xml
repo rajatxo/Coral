@@ -1,11 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
     Coral's splash screen background.
-    Same deep-ocean gradient as the app icon, so the app launch feels
-    continuous with the home screen — the icon "expands" into the app.
-
-    Used as windowBackground on launch (via the theme), so the user sees
-    this immediately when they tap the icon, before any Compose code runs.
+    Just the deep-ocean gradient — the centered wave logo would crash on
+    older launchers because <bitmap> can't reference <vector> drawables.
+    Compose draws the actual UI on top within ~100ms anyway, so the user
+    only sees this gradient for a split second.
 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
@@ -16,12 +15,5 @@
                 android:startColor="#1A2A38"
                 android:endColor="#050508" />
         </shape>
-    </item>
-    <!-- Centered wave logo, same as the adaptive icon foreground -->
-    <item android:gravity="center">
-        <bitmap
-            android:src="@drawable/ic_launcher_foreground"
-            android:tileMode="disabled"
-            android:gravity="center" />
     </item>
 </layer-list>
