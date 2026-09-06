@@ -46,6 +46,7 @@ import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.player.FullPlayer
 import com.rajatxo.coral.ui.screens.PlaylistDetailScreen
 import com.rajatxo.coral.ui.screens.PlaylistsScreen
+import com.rajatxo.coral.ui.screens.PlaceholderScreen
 import com.rajatxo.coral.ui.screens.SettingsScreen
 import com.rajatxo.coral.ui.screens.SongPickerScreen
 import com.rajatxo.coral.ui.screens.SongsScreen
@@ -134,6 +135,14 @@ fun HomeScreen(
                     .fillMaxHeight()
             ) {
                 when (selectedTab) {
+                    CoralTab.QuickPicks -> PlaceholderScreen(
+                        tabName = "Quick picks",
+                        description = "Your most-played tracks and recently added songs will appear here. Coming soon."
+                    )
+                    CoralTab.Discover -> PlaceholderScreen(
+                        tabName = "Discover",
+                        description = "Random shuffle, hidden gems, and smart recommendations based on your listening. Coming soon."
+                    )
                     CoralTab.Songs -> SongsScreen(
                         songs = songs,
                         currentSongTitle = currentSongTitle,
@@ -149,7 +158,6 @@ fun HomeScreen(
                                 onBackClick = { selectedPlaylist = null },
                                 onPlayAll = { songList -> onSongClickWithQueue(songList.first(), songList) },
                                 onShuffle = { songList ->
-                                    // Simple shuffle: pick a random start, queue rest in order
                                     val shuffled = songList.shuffled()
                                     if (shuffled.isNotEmpty()) onSongClickWithQueue(shuffled.first(), shuffled)
                                 },
@@ -165,6 +173,14 @@ fun HomeScreen(
                             )
                         }
                     }
+                    CoralTab.Artists -> PlaceholderScreen(
+                        tabName = "Artists",
+                        description = "Browse your library by artist. Coming soon."
+                    )
+                    CoralTab.Albums -> PlaceholderScreen(
+                        tabName = "Albums",
+                        description = "Browse your library by album. Coming soon."
+                    )
                     CoralTab.Settings -> SettingsScreen(
                         onOpenPremium = { showPremium = true },
                         onOpenEqualizer = { showEqualizer = true },

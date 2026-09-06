@@ -52,8 +52,8 @@ fun CoralNavRail(
         Column(
             modifier = Modifier
                 .fillMaxHeight()
-                .padding(vertical = 48.dp),
-            verticalArrangement = Arrangement.spacedBy(36.dp, Alignment.Top),
+                .padding(vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(28.dp, Alignment.Top),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             CoralTab.values().forEach { tab ->
@@ -114,10 +114,21 @@ object CoralColors {
 }
 
 /**
- * The 3 destinations reachable from the rail.
+ * The destinations reachable from the rail.
+ *
+ * Mirrors ViTune's rail order: Quick Picks, Discover, Songs, Playlists,
+ * Artists, Albums. Settings stays at the bottom.
+ *
+ * Note: Quick Picks, Discover, Artists, Albums are placeholder tabs for
+ * now — the user said they'll build out the offline logic later. For now
+ * they show a friendly "coming soon" screen so the rail feels complete.
  */
 enum class CoralTab(val label: String) {
+    QuickPicks("Quick picks"),
+    Discover("Discover"),
     Songs("Songs"),
     Playlists("Playlists"),
+    Artists("Artists"),
+    Albums("Albums"),
     Settings("Settings")
 }

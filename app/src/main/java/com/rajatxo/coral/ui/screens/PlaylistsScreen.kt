@@ -118,19 +118,13 @@ private fun PlaylistHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .statusBarsPadding()
             .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Column {
-            Text(
-                text = "Playlists",
-                color = Color.White,
-                fontSize = 30.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-        // Create button — glass capsule
+        // "New" button on the LEFT (ViTune puts actions on the left,
+        // big title on the right)
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(24.dp))
@@ -162,6 +156,13 @@ private fun PlaylistHeader(
                 )
             }
         }
+        // Big title on the RIGHT (ViTune style)
+        Text(
+            text = "Playlists",
+            color = Color.White,
+            fontSize = 30.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 

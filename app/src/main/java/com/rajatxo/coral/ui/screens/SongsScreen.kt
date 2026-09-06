@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,9 +47,14 @@ fun SongsScreen(
     currentSongTitle: String?,
     onSongClick: (Song) -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        // Header block
-        Column(modifier = Modifier.padding(start = 20.dp, top = 24.dp, end = 20.dp, bottom = 12.dp)) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Big title at top-RIGHT (ViTune style) + song count below it
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(end = 20.dp, top = 16.dp)
+        ) {
             Text(
                 text = "Songs",
                 color = Color.White,
@@ -58,12 +64,16 @@ fun SongsScreen(
             Spacer(modifier = Modifier.size(4.dp))
             Text(
                 text = "${songs.size} ${if (songs.size == 1) "song" else "songs"}",
-                color = Color(0xFFB0B0B0),
-                fontSize = 13.sp
+                color = CoralColors.TextMuted,
+                fontSize = 13.sp,
+                modifier = Modifier.align(Alignment.End)
             )
         }
 
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 100.dp)
+        ) {
             items(songs) { song ->
                 SongRow(
                     song = song,

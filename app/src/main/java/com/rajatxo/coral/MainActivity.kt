@@ -9,6 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.SystemBarStyle
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -57,10 +58,24 @@ import kotlinx.coroutines.withContext
 class MainActivity : ComponentActivity() {
     @androidx.compose.foundation.ExperimentalFoundationApi
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
+        // Force BOTH system bars (status + navigation) to be fully transparent
+        // with no scrim. This is what makes the system gesture indicator
+        // blend into the app background — the ViTune-style seamless look.
+        // Default enableEdgeToEdge() applies a translucent scrim that
+        // creates the visible "gray bar" the user reported.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.transparent(),
+            navigationBarStyle = SystemBarStyle.transparent()
+        )
         super.onCreate(savedInstanceState)
         setContent {
-            CoralApp()
+            // Wrap the whole app in MaterialTheme with Poppins typography
+            // so every Text() defaults to Poppins unless overridden.
+            androidx.compose.material3.MaterialTheme(
+                typography = com.rajatxo.coral.ui.theme.CoralTypography
+            ) {
+                CoralApp()
+            }
         }
     }
 }
