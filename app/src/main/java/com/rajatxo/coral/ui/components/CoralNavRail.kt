@@ -107,16 +107,16 @@ fun CoralNavRail(
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(22.dp))
 
             // ---- Rail labels, vertically CENTERED (matches ViTune) ----
             // ViTune clusters all labels together in the vertical MIDDLE
             // of the rail, with empty space above AND below the group.
-            // Gap between labels is 22dp — gentle space between them.
+            // Gap between labels is 23dp — gentle space between them.
             Spacer(modifier = Modifier.weight(1f))
 
             Column(
-                verticalArrangement = Arrangement.spacedBy(22.dp, Alignment.CenterVertically),
+                verticalArrangement = Arrangement.spacedBy(23.dp, Alignment.CenterVertically),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (mode == RailMode.Main) {
