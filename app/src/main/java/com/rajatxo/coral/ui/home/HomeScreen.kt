@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -26,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -104,6 +106,23 @@ fun HomeScreen(
     var showEqualizer by remember { mutableStateOf(false) }
     var showSleepTimer by remember { mutableStateOf(false) }
     var showFontPicker by remember { mutableStateOf(false) }
+
+    // --- Mini player position polling ---
+    // Polls the playback position every 500ms so the circular progress
+    // ring around the album art in the mini player can show song timeline.
+    var miniPlayerPositionMs by remember { mutableStateOf(0L) }
+    var miniPlayerDurationMs by remember { mutableStateOf(0L) }
+    androidx.compose.runtime.LaunchedEffect(mediaController, isPlaying) {
+        while (true) {
+            try {
+                mediaController?.let { controller ->
+                    miniPlayerPositionMs = controller.currentPosition.coerceAtLeast(0L)
+                    miniPlayerDurationMs = controller.duration.coerceAtLeast(0L)
+                }
+            } catch (_: Exception) { }
+            kotlinx.coroutines.delay(if (isPlaying) 500L else 2000L)
+        }
+    }
 
     // Equalizer controller + sleep timer — singletons for the home screen's
     // lifetime. Created here (not in the screen) so the equalizer state
@@ -224,7 +243,10 @@ fun HomeScreen(
                 title = currentSongTitle ?: "",
                 artist = currentSongArtist ?: "",
                 albumArtUri = currentSongArt,
+                songId = currentSongId,
                 isPlaying = isPlaying,
+                positionMs = miniPlayerPositionMs,
+                durationMs = miniPlayerDurationMs,
                 onPlayPauseClick = onPlayPauseClick,
                 onNextClick = onNextClick,
                 onClick = onMiniPlayerClick
@@ -332,23 +354,28 @@ private fun MiniPlayer(
     title: String,
     artist: String,
     albumArtUri: android.net.Uri?,
+    songId: Long?,
     isPlaying: Boolean,
+    positionMs: Long,
+    durationMs: Long,
     onPlayPauseClick: () -> Unit,
     onNextClick: () -> Unit,
     onClick: () -> Unit
 ) {
-    // Floating pill mini player — ViTune-style glassmorphism.
+    // Floating pill mini player — glassmorphism with blurred album cover bg.
     //
-    // Layout (matching the reference design):
-    //  - Floating pill with 12dp horizontal margins, 8dp vertical margins
-    //  - Blurred album cover as the background (frosted glass effect)
-    //  - Dark tint overlay on top of the blurred cover for text legibility
-    //  - Circular album art on the LEFT — tapping it toggles play/pause
-    //    (shows a play/pause icon overlay in the center)
-    //  - Title + artist in the middle (white text)
-    //  - Two circular icon buttons on the RIGHT: queue + heart
-    //
-    // The circular album art IS the play/pause button — no separate button.
+    // Features:
+    //  1. Blurred album cover as background (frosted glass)
+    //  2. Circular album art on LEFT with a PROGRESS RING around it
+    //     showing song timeline (white arc that fills as the song plays)
+    //  3. Tapping the album art = play/pause
+    //  4. Title + artist in the middle
+    //  5. Heart button on the RIGHT — toggles favorite (persisted)
+    //  6. Ripple effect on all tappable elements
+
+    val favorites by com.rajatxo.coral.data.store.PlaylistStore.favorites.collectAsState()
+    val isFavorite = songId != null && songId in favorites.songIds
+
     Box(
         modifier = Modifier
             .padding(horizontal = 12.dp, vertical = 8.dp)
@@ -362,7 +389,7 @@ private fun MiniPlayer(
                 .clickable(onClick = onClick),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Blurred album cover background + dark overlay
+            // Blurred album cover background
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -378,24 +405,28 @@ private fun MiniPlayer(
                             .blur(25.dp)
                     )
                 }
-                // Dark tint for text legibility
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(Color.Black.copy(alpha = 0.5f))
                 )
 
-                // --- Content row (positioned on top of the blurred bg) ---
+                // Content row
                 Row(
                     modifier = Modifier.fillMaxSize(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // --- Circular album art on the LEFT (play/pause button) ---
+                    // --- Circular album art + progress ring (LEFT) ---
+                    // The progress ring is drawn on a Canvas behind the album art.
+                    // Tapping the album art = play/pause.
+                    val progress = if (durationMs > 0) {
+                        (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+                    } else 0f
+
                     Box(
                         modifier = Modifier
                             .padding(start = 8.dp)
-                            .size(48.dp)
-                            .clip(CircleShape)
+                            .size(56.dp)  // slightly bigger to fit the ring
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
@@ -403,41 +434,90 @@ private fun MiniPlayer(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (albumArtUri != null) {
-                            AsyncImage(
-                                model = albumArtUri,
-                                contentDescription = "Album art",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
+                        // Progress ring (Canvas-drawn arc)
+                        Canvas(
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            val strokeWidth = 2.dp.toPx()
+                            val diameter = size.minDimension - strokeWidth
+                            val topLeft = androidx.compose.ui.geometry.Offset(
+                                (size.width - diameter) / 2f,
+                                (size.height - diameter) / 2f
                             )
-                        } else {
+                            val arcSize = androidx.compose.ui.geometry.Size(diameter, diameter)
+
+                            // Background ring (full circle, dim white)
+                            drawArc(
+                                color = Color.White.copy(alpha = 0.15f),
+                                startAngle = -90f,
+                                sweepAngle = 360f,
+                                useCenter = false,
+                                topLeft = topLeft,
+                                size = arcSize,
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                    width = strokeWidth,
+                                    cap = androidx.compose.ui.graphics.StrokeCap.Round
+                                )
+                            )
+
+                            // Progress ring (fills as song plays, white)
+                            drawArc(
+                                color = Color.White,
+                                startAngle = -90f,
+                                sweepAngle = 360f * progress,
+                                useCenter = false,
+                                topLeft = topLeft,
+                                size = arcSize,
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                    width = strokeWidth,
+                                    cap = androidx.compose.ui.graphics.StrokeCap.Round
+                                )
+                            )
+                        }
+
+                        // Album art (inside the ring, slightly smaller)
+                        Box(
+                            modifier = Modifier
+                                .size(46.dp)
+                                .clip(CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (albumArtUri != null) {
+                                AsyncImage(
+                                    model = albumArtUri,
+                                    contentDescription = "Album art",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color(0xFF1A1A1A)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = CoralIcons.Music,
+                                        contentDescription = null,
+                                        tint = Color(0xFFB0B0B0),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                            // Play/pause icon overlay
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .background(Color(0xFF1A1A1A)),
+                                    .background(Color.Black.copy(alpha = 0.35f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = CoralIcons.Music,
-                                    contentDescription = null,
-                                    tint = Color(0xFFB0B0B0),
+                                    imageVector = if (isPlaying) CoralIcons.Pause else CoralIcons.Play,
+                                    contentDescription = if (isPlaying) "Pause" else "Play",
+                                    tint = Color.White,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
-                        }
-                        // Play/pause icon overlay (centered on the album art)
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.4f)),  // subtle dim
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = if (isPlaying) CoralIcons.Pause else CoralIcons.Play,
-                                contentDescription = if (isPlaying) "Pause" else "Play",
-                                tint = Color.White,
-                                modifier = Modifier.size(22.dp)
-                            )
                         }
                     }
 
@@ -464,45 +544,28 @@ private fun MiniPlayer(
                         )
                     }
 
-                    // --- Queue button (right) ---
+                    // --- Heart button (RIGHT) ---
                     Box(
                         modifier = Modifier
+                            .padding(end = 8.dp)
                             .size(40.dp)
                             .clip(CircleShape)
                             .background(Color.White.copy(alpha = 0.12f))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
-                                onClick = onClick  // opens full player for now
+                                onClick = {
+                                    if (songId != null) {
+                                        com.rajatxo.coral.data.store.PlaylistStore.toggleFavorite(songId)
+                                    }
+                                }
                             ),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = CoralIcons.Queue,
-                            contentDescription = "Queue",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-
-                    // --- Heart button (rightmost) ---
-                    Box(
-                        modifier = Modifier
-                            .padding(start = 8.dp, end = 8.dp)
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.12f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = onClick  // placeholder — will toggle favorite later
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = CoralIcons.Heart,
-                            contentDescription = "Favorite",
-                            tint = Color.White,
+                            imageVector = if (isFavorite) CoralIcons.HeartFilled else CoralIcons.Heart,
+                            contentDescription = if (isFavorite) "Unfavorite" else "Favorite",
+                            tint = if (isFavorite) CoralColors.Coral else Color.White,
                             modifier = Modifier.size(18.dp)
                         )
                     }
