@@ -7,6 +7,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,10 +16,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -29,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -333,96 +337,177 @@ private fun MiniPlayer(
     onNextClick: () -> Unit,
     onClick: () -> Unit
 ) {
-    Row(
+    // Floating pill mini player — ViTune-style glassmorphism.
+    //
+    // Layout (matching the reference design):
+    //  - Floating pill with 12dp horizontal margins, 8dp vertical margins
+    //  - Blurred album cover as the background (frosted glass effect)
+    //  - Dark tint overlay on top of the blurred cover for text legibility
+    //  - Circular album art on the LEFT — tapping it toggles play/pause
+    //    (shows a play/pause icon overlay in the center)
+    //  - Title + artist in the middle (white text)
+    //  - Two circular icon buttons on the RIGHT: queue + heart
+    //
+    // The circular album art IS the play/pause button — no separate button.
+    Box(
         modifier = Modifier
-            .fillMaxWidth()
-            .background(CoralColors.SurfaceVariant)
-            // Content extends into the system nav bar area — that's what
-            // makes the gesture indicator blend with the app background
-            // (the ViTune-style seamless look). We pad the content inside
-            // with navigationBarsPadding so the buttons stay tappable.
-            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
             .navigationBarsPadding()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
     ) {
-        // Album art 40x40 rounded
-        Box(
+        Row(
             modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(Color(0xFF2A2A2A)),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .height(64.dp)
+                .clip(RoundedCornerShape(32.dp))
+                .clickable(onClick = onClick),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            if (albumArtUri != null) {
-                AsyncImage(
-                    model = albumArtUri,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+            // Blurred album cover background + dark overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.55f))
+            ) {
+                if (albumArtUri != null) {
+                    AsyncImage(
+                        model = albumArtUri,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .blur(25.dp)
+                    )
+                }
+                // Dark tint for text legibility
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.5f))
                 )
-            } else {
-                Icon(
-                    imageVector = CoralIcons.Music,
-                    contentDescription = null,
-                    tint = Color(0xFFB0B0B0),
-                    modifier = Modifier.size(18.dp)
-                )
+
+                // --- Content row (positioned on top of the blurred bg) ---
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // --- Circular album art on the LEFT (play/pause button) ---
+                    Box(
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = onPlayPauseClick
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (albumArtUri != null) {
+                            AsyncImage(
+                                model = albumArtUri,
+                                contentDescription = "Album art",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color(0xFF1A1A1A)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = CoralIcons.Music,
+                                    contentDescription = null,
+                                    tint = Color(0xFFB0B0B0),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                        // Play/pause icon overlay (centered on the album art)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.4f)),  // subtle dim
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isPlaying) CoralIcons.Pause else CoralIcons.Play,
+                                contentDescription = if (isPlaying) "Pause" else "Play",
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+
+                    // --- Title + artist ---
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 12.dp)
+                    ) {
+                        Text(
+                            text = title,
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = artist,
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    // --- Queue button (right) ---
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.12f))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = onClick  // opens full player for now
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = CoralIcons.Queue,
+                            contentDescription = "Queue",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    // --- Heart button (rightmost) ---
+                    Box(
+                        modifier = Modifier
+                            .padding(start = 8.dp, end = 8.dp)
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.12f))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = onClick  // placeholder — will toggle favorite later
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = CoralIcons.Heart,
+                            contentDescription = "Favorite",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
             }
-        }
-        Spacer(modifier = Modifier.size(10.dp))
-
-        // Title + artist
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                color = Color.White,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = artist,
-                color = Color(0xFFB0B0B0),
-                fontSize = 12.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        Spacer(modifier = Modifier.size(8.dp))
-
-        // Play/pause
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(50))
-                .clickable(onClick = onPlayPauseClick),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = if (isPlaying) CoralIcons.Pause else CoralIcons.Play,
-                contentDescription = if (isPlaying) "Pause" else "Play",
-                tint = Color.White,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-        Spacer(modifier = Modifier.size(8.dp))
-
-        // Skip next
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(50))
-                .clickable(onClick = onNextClick),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = CoralIcons.SkipNext,
-                contentDescription = "Skip to next",
-                tint = Color.White,
-                modifier = Modifier.size(20.dp)
-            )
         }
     }
 }
