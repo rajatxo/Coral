@@ -72,29 +72,45 @@ fun PlaylistsScreen(
     var showCreateDialog by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize().background(CoralColors.Surface)) {
-        // Header Row: capsule (weight=1f) + title text
-        Row(
+        // Header Column: Row(capsule + title) + capsule placeholder below
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(start = 16.dp, end = 20.dp, top = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(start = 16.dp, end = 20.dp, top = 16.dp)
         ) {
-            com.rajatxo.coral.ui.components.SleepTimerCapsule(
-                visible = capsuleVisible,
-                remainingMs = capsuleRemaining,
-                onExtend = onExtend,
-                modifier = Modifier.weight(1f)
-            )
-            if (capsuleVisible && capsuleRemaining > 0) {
-                Spacer(modifier = Modifier.height(20.dp))
+            // Header Row: capsule (weight=1f) + title text
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                com.rajatxo.coral.ui.components.SleepTimerCapsule(
+                    visible = capsuleVisible,
+                    remainingMs = capsuleRemaining,
+                    onExtend = onExtend,
+                    modifier = Modifier.weight(1f)
+                )
+                if (capsuleVisible && capsuleRemaining > 0) {
+                    Spacer(modifier = Modifier.height(20.dp))
+                }
+                Text(
+                    text = "Playlists",
+                    color = Color.White,
+                    fontSize = 34.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = com.rajatxo.coral.ui.theme.QuirkFontFamily
+                )
             }
-            Text(
-                text = "Playlists",
-                color = Color.White,
-                fontSize = 34.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = com.rajatxo.coral.ui.theme.QuirkFontFamily
+
+            Spacer(modifier = Modifier.size(8.dp))
+
+            // Capsule shape placeholder (below title — same as Songs tab)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(CoralColors.SurfaceVariant)
             )
         }
 

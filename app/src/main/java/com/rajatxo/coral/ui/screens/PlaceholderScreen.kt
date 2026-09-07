@@ -10,11 +10,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -48,30 +51,46 @@ fun PlaceholderScreen(
             .fillMaxSize()
             .background(CoralColors.Surface)
     ) {
-        // Header Row: capsule (weight=1f) + title text
-        Row(
+        // Header Column: Row(capsule + title) + capsule placeholder below
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(start = 16.dp, end = 20.dp, top = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(start = 16.dp, end = 20.dp, top = 16.dp)
         ) {
-            com.rajatxo.coral.ui.components.SleepTimerCapsule(
-                visible = capsuleVisible,
-                remainingMs = capsuleRemaining,
-                onExtend = onExtend,
-                modifier = Modifier.weight(1f)
-            )
-            if (capsuleVisible && capsuleRemaining > 0) {
-                Spacer(modifier = Modifier.height(20.dp))
+            // Header Row: capsule (weight=1f) + title text
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                com.rajatxo.coral.ui.components.SleepTimerCapsule(
+                    visible = capsuleVisible,
+                    remainingMs = capsuleRemaining,
+                    onExtend = onExtend,
+                    modifier = Modifier.weight(1f)
+                )
+                if (capsuleVisible && capsuleRemaining > 0) {
+                    Spacer(modifier = Modifier.height(20.dp))
+                }
+                // Big title (Quirk italic)
+                Text(
+                    text = tabName,
+                    color = Color.White,
+                    fontSize = 34.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = com.rajatxo.coral.ui.theme.QuirkFontFamily
+                )
             }
-            // Big title (Quirk italic)
-            Text(
-                text = tabName,
-                color = Color.White,
-                fontSize = 34.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = com.rajatxo.coral.ui.theme.QuirkFontFamily
+
+            Spacer(modifier = Modifier.size(8.dp))
+
+            // Capsule shape placeholder (below title — same as Songs tab)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(CoralColors.SurfaceVariant)
             )
         }
 
