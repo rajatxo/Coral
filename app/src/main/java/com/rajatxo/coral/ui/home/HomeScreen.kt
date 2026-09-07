@@ -139,12 +139,9 @@ fun HomeScreen(
     // survives config changes and isn't reset when the screen recomposes.
     val homeScope = androidx.compose.runtime.rememberCoroutineScope()
     val equalizerController = remember { com.rajatxo.coral.audio.EqualizerController() }
-    val sleepTimer = remember {
-        com.rajatxo.coral.data.premium.SleepTimer(
-            scope = homeScope,
-            onComplete = onSongEnded
-        )
-    }
+    // SleepTimer is now a SINGLETON — no need to create it here.
+    // It survives Activity destruction (rotation, task manager kill).
+    val sleepTimer = com.rajatxo.coral.data.premium.SleepTimer
 
     // When the current song changes, fire the sleep timer's end-of-song
     // trigger (in case the user set the timer to "end of current song").
@@ -157,6 +154,15 @@ fun HomeScreen(
     // --- Sleep Timer Capsule state ---
     val sleepTimerState by sleepTimer.state.collectAsState()
     var sleepRemainingMs by remember { mutableStateOf(0L) }
+
+    // When the timer fires (active goes true→false), pause playback
+    androidx.compose.runtime.LaunchedEffect(sleepTimerState.active) {
+        if (!sleepTimerState.active && sleepRemainingMs > 0) {
+            // Timer just expired — pause the player
+            onSongEnded()
+            sleepRemainingMs = 0
+        }
+    }
 
     // Poll remaining time every 1 second when timer is active
     androidx.compose.runtime.LaunchedEffect(sleepTimerState.active) {
@@ -381,7 +387,6 @@ fun HomeScreen(
             )) {
                 Box(modifier = Modifier.align(Alignment.BottomCenter)) {
                     com.rajatxo.coral.ui.sleeptimer.SleepTimerSheet(
-                        sleepTimer = sleepTimer,
                         onDismiss = { showSleepTimer = false }
                     )
                 }

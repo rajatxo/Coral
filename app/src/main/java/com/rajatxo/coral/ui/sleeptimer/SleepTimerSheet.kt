@@ -42,10 +42,9 @@ import com.rajatxo.coral.ui.icons.CoralIcons
  */
 @Composable
 fun SleepTimerSheet(
-    sleepTimer: SleepTimer,
     onDismiss: () -> Unit
 ) {
-    val state by sleepTimer.state.collectAsState()
+    val state by com.rajatxo.coral.data.premium.SleepTimer.state.collectAsState()
 
     Column(
         modifier = Modifier
@@ -109,13 +108,13 @@ fun SleepTimerSheet(
                 if (!state.endOfSong) {
                     ActionButton(
                         text = "+5 min",
-                        onClick = { sleepTimer.extend(5) }
+                        onClick = { com.rajatxo.coral.data.premium.SleepTimer.extend(5) }
                     )
                 }
                 ActionButton(
                     text = "Cancel",
                     isPrimary = true,
-                    onClick = { sleepTimer.cancel(); onDismiss() }
+                    onClick = { com.rajatxo.coral.data.premium.SleepTimer.cancel(); onDismiss() }
                 )
             }
         } else {
@@ -141,7 +140,7 @@ fun SleepTimerSheet(
                 durations.forEach { (label, ms) ->
                     ActionButton(
                         text = label,
-                        onClick = { sleepTimer.startTimed(ms); onDismiss() },
+                        onClick = { com.rajatxo.coral.data.premium.SleepTimer.startTimed(ms); onDismiss() },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -157,7 +156,7 @@ fun SleepTimerSheet(
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                        onClick = { sleepTimer.startEndOfSong(); onDismiss() }
+                        onClick = { com.rajatxo.coral.data.premium.SleepTimer.startEndOfSong(); onDismiss() }
                     )
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 contentAlignment = Alignment.Center
