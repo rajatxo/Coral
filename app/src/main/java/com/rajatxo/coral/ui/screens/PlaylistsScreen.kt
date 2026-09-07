@@ -69,64 +69,25 @@ fun PlaylistsScreen(
     var showCreateDialog by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize().background(CoralColors.Surface)) {
-        if (playlists.isEmpty()) {
-            EmptyPlaylistsState(onCreateClick = { showCreateDialog = true })
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                    start = 16.dp, end = 16.dp, top = 80.dp, bottom = 16.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                items(playlists, key = { it.id }) { playlist ->
-                    PlaylistCard(
-                        playlist = playlist,
-                        onClick = { onPlaylistClick(playlist) }
-                    )
-                }
-            }
-
-            // Header (positioned on top of the grid)
-            PlaylistHeader(
-                onCreateClick = { showCreateDialog = true },
-                modifier = Modifier.align(Alignment.TopCenter)
-            )
-        }
-    }
-
-    if (showCreateDialog) {
-        CreatePlaylistDialog(
-            onDismiss = { showCreateDialog = false },
-            onCreate = { name ->
-                PlaylistStore.createPlaylist(name)
-                showCreateDialog = false
-            }
+        // --- Big "Playlists" title at top-RIGHT (always visible, Quirk font) ---
+        Text(
+            text = "Playlists",
+            color = Color.White,
+            fontSize = 30.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = com.rajatxo.coral.ui.theme.QuirkFontFamily,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(end = 20.dp, top = 16.dp)
         )
-    }
-}
 
-@Composable
-private fun PlaylistHeader(
-    onCreateClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .statusBarsPadding()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        // "New" button on the LEFT (ViTune puts actions on the left,
-        // big title on the right)
+        // --- "New" button at top-LEFT ---
         Box(
             modifier = Modifier
+                .align(Alignment.TopStart)
+                .statusBarsPadding()
+                .padding(start = 16.dp, top = 20.dp)
                 .clip(RoundedCornerShape(24.dp))
                 .background(
                     Brush.verticalGradient(
@@ -136,7 +97,7 @@ private fun PlaylistHeader(
                         )
                     )
                 )
-                .clickable(onClick = onCreateClick)
+                .clickable(onClick = { showCreateDialog = true })
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -156,12 +117,61 @@ private fun PlaylistHeader(
                 )
             }
         }
-        // Big title on the RIGHT (ViTune style)
-        Text(
-            text = "Playlists",
-            color = Color.White,
-            fontSize = 30.sp,
-            fontWeight = FontWeight.Bold
+
+        // --- Content: grid or empty state ---
+        if (playlists.isEmpty()) {
+            // Empty state (centered, below the title)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = 120.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(text = "🪸", fontSize = 56.sp)
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "No playlists yet",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Tap \"New\" to create your first playlist.",
+                    color = CoralColors.TextMuted,
+                    fontSize = 13.sp
+                )
+            }
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    start = 16.dp, end = 16.dp, top = 80.dp, bottom = 16.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                items(playlists, key = { it.id }) { playlist ->
+                    PlaylistCard(
+                        playlist = playlist,
+                        onClick = { onPlaylistClick(playlist) }
+                    )
+                }
+            }
+        }
+    }
+
+    if (showCreateDialog) {
+        CreatePlaylistDialog(
+            onDismiss = { showCreateDialog = false },
+            onCreate = { name ->
+                PlaylistStore.createPlaylist(name)
+                showCreateDialog = false
+            }
         )
     }
 }
@@ -222,68 +232,6 @@ private fun PlaylistCard(
             color = Color(0xFFB0B0B0),
             fontSize = 12.sp
         )
-    }
-}
-
-@Composable
-private fun EmptyPlaylistsState(onCreateClick: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .statusBarsPadding()
-            .padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .size(96.dp)
-                .clip(RoundedCornerShape(28.dp))
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.White.copy(alpha = 0.10f),
-                            Color.White.copy(alpha = 0.03f)
-                        )
-                    )
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = CoralIcons.ListMusic,
-                contentDescription = null,
-                tint = Color(0xFFFF6B6B),
-                modifier = Modifier.size(40.dp)
-            )
-        }
-        Spacer(modifier = Modifier.height(20.dp))
-        Text(
-            text = "Create your first playlist",
-            color = Color.White,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.SemiBold
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Group your favorite tracks into playlists.\nGlass cards, custom covers, the works.",
-            color = Color(0xFFB0B0B0),
-            fontSize = 13.sp,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(24.dp))
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(24.dp))
-                .background(Color(0xFFFF6B6B))
-                .clickable(onClick = onCreateClick)
-                .padding(horizontal = 32.dp, vertical = 12.dp)
-        ) {
-            Text(
-                text = "Create Playlist",
-                color = Color.White,
-                fontWeight = FontWeight.Bold
-            )
-        }
     }
 }
 

@@ -2,11 +2,31 @@ package com.rajatxo.coral.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.rajatxo.coral.R
 import com.rajatxo.coral.data.prefs.CoralFont
 import com.rajatxo.coral.data.prefs.FontManager
+
+/**
+ * Quirk Italic — used ONLY for the big tab titles on the top-right corner
+ * of each screen (Quick picks, Discover, Songs, Playlists, Artists, Albums,
+ * Folders, Settings).
+ *
+ * This is a distinctive display font that gives Coral its brand identity on
+ * the screen titles. Everything else in the app uses the user-selected font
+ * (Poppins by default) via MaterialTheme typography.
+ *
+ * The font is bundled in res/font/quirk_italic.ttf (OFL/commercial-free).
+ */
+val QuirkFontFamily = FontFamily(
+    Font(R.font.quirk_italic, FontWeight.Normal),
+    Font(R.font.quirk_italic, FontWeight.Bold),
+    Font(R.font.quirk_italic, FontWeight.SemiBold),
+    Font(R.font.quirk_italic, FontWeight.Medium)
+)
 
 /**
  * Coral's type scale — dynamic, generated from the user's font choice.

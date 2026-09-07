@@ -76,7 +76,8 @@ fun SongsScreen(
                 text = "Songs",
                 color = Color.White,
                 fontSize = 30.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                fontFamily = com.rajatxo.coral.ui.theme.QuirkFontFamily
             )
             Spacer(modifier = Modifier.size(4.dp))
             Text(

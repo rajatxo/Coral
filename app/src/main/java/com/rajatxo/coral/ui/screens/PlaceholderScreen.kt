@@ -43,12 +43,13 @@ fun PlaceholderScreen(
             .fillMaxSize()
             .background(CoralColors.Surface)
     ) {
-        // Big title at top-right (ViTune-style)
+        // Big title at top-right (ViTune-style) — uses Quirk italic font
         Text(
             text = tabName,
             color = Color.White,
             fontSize = 30.sp,
             fontWeight = FontWeight.Bold,
+            fontFamily = com.rajatxo.coral.ui.theme.QuirkFontFamily,
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .statusBarsPadding()

@@ -75,6 +75,7 @@ fun SettingsScreen(
                 color = Color.White,
                 fontSize = 30.sp,
                 fontWeight = FontWeight.Bold,
+                fontFamily = com.rajatxo.coral.ui.theme.QuirkFontFamily,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .statusBarsPadding()
