@@ -234,51 +234,12 @@ fun HomeScreen(
             }
         }
 
-        // --- Search capsule (BOTTOM-most element, always visible) ---
-        // White pill with black search icon + "Search" text.
-        // Sits at the very bottom (above system nav bar), like ViTune's
-        // "Library" button. The mini player appears ABOVE this capsule.
-        Row(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(bottom = 8.dp)
-                .clip(RoundedCornerShape(28.dp))
-                .background(Color.White)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = { /* TODO */ }
-                )
-                .padding(horizontal = 28.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Icon(
-                imageVector = CoralIcons.Search,
-                contentDescription = "Search",
-                tint = Color.Black,
-                modifier = Modifier.size(20.dp)
-            )
-            Text(
-                text = "Search",
-                color = Color.Black,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-
-        // --- Mini player (sits ABOVE the search capsule) ---
-        // When a song is playing, the mini player appears above the
-        // search capsule — NOT at the very bottom.
+        // --- Mini player (bottom, full-width) ---
         AnimatedVisibility(
             visible = currentSongTitle != null,
             enter = slideInVertically { it } + fadeIn(),
             exit = slideOutVertically { it } + fadeOut(),
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(bottom = 68.dp)  // above the search capsule
+            modifier = Modifier.align(Alignment.BottomCenter)
         ) {
             MiniPlayer(
                 title = currentSongTitle ?: "",
@@ -420,6 +381,7 @@ private fun MiniPlayer(
     Box(
         modifier = Modifier
             .padding(horizontal = 12.dp, vertical = 4.dp)
+            .navigationBarsPadding()
     ) {
         // --- Main player body (standard pill) ---
         Box(
