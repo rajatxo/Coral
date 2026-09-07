@@ -87,7 +87,7 @@ fun PlaylistsScreen(
                 modifier = Modifier.weight(1f)
             )
             if (capsuleVisible && capsuleRemaining > 0) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(20.dp))
             }
             Text(
                 text = "Playlists",

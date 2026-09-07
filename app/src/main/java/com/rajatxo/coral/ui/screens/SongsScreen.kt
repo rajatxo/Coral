@@ -174,33 +174,47 @@ fun SongsScreen(
                 )
             }
 
-            // Content on top of the canvas: capsule + title in a Row
-            // The capsule uses weight(1f) so it auto-fills the space
-            // before the title. Title takes its natural width.
-            Row(
+            // Content on top of the canvas: title row + capsule placeholder
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .padding(start = 16.dp, end = 20.dp, top = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(start = 16.dp, end = 20.dp, top = 16.dp)
             ) {
-                // Sleep timer capsule (auto-fills space before title)
-                SleepTimerCapsule(
-                    visible = capsuleVisible,
-                    remainingMs = capsuleRemaining,
-                    onExtend = onExtend,
-                    modifier = Modifier.weight(1f)
-                )
-                if (capsuleVisible && capsuleRemaining > 0) {
-                    Spacer(modifier = Modifier.size(12.dp))
+                // Header Row: capsule (weight=1f) + title text
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Sleep timer capsule (auto-fills space before title)
+                    SleepTimerCapsule(
+                        visible = capsuleVisible,
+                        remainingMs = capsuleRemaining,
+                        onExtend = onExtend,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (capsuleVisible && capsuleRemaining > 0) {
+                        Spacer(modifier = Modifier.size(20.dp))
+                    }
+                    // Big "Songs" title (always right-aligned)
+                    Text(
+                        text = "Songs",
+                        color = Color.White,
+                        fontSize = 34.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = com.rajatxo.coral.ui.theme.QuirkFontFamily
+                    )
                 }
-                // Big "Songs" title
-                Text(
-                    text = "Songs",
-                    color = Color.White,
-                    fontSize = 34.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = com.rajatxo.coral.ui.theme.QuirkFontFamily
+
+                Spacer(modifier = Modifier.size(8.dp))
+
+                // Capsule shape placeholder (below "Songs" text)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(CoralColors.SurfaceVariant)
                 )
             }
         }
