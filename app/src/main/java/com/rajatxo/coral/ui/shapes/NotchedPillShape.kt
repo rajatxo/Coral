@@ -32,9 +32,9 @@ class NotchedPillShape(
     ): Outline {
         val w = size.width
         val h = size.height
-        val r = with(density) { cornerRadius.toPx() }
-        val notchW = with(density) { notchWidth.toPx() }
-        val notchD = with(density) { notchDepth.toPx() }
+        val r = cornerRadius * density.density
+        val notchW = notchWidth * density.density
+        val notchD = notchDepth * density.density
 
         // The notch is centered horizontally
         val notchStart = (w - notchW) / 2f
