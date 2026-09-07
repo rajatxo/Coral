@@ -306,4 +306,15 @@ object CoralIcons {
         curveToRelative(-1.5f, -1.5f, -3f, -3.2f, -3f, -5.5f)
         close()
     }
+
+    /** Lucide search icon (magnifying glass, MIT licensed). */
+    val Search: ImageVector = stroke("Search") {
+        // Circle (center 11,11, radius 8)
+        moveTo(19f, 11f)
+        arcTo(8f, 8f, 0f, true, true, 3f, 11f)
+        arcTo(8f, 8f, 0f, true, true, 19f, 11f)
+        // Line from circle to handle (bottom-right)
+        moveTo(21f, 21f)
+        lineTo(16.7f, 16.7f)
+    }
 }
