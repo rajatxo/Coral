@@ -75,10 +75,11 @@ fun SongsScreen(
         songs.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
     }
 
-    // Total height of the pinned header (title + capsule + fade area).
-    // The LazyColumn's top content padding = this value so the first song
-    // starts below the fade area.
-    val headerHeight = 220.dp
+    // Total height of the pinned header.
+    // Structure (top to bottom):
+    //   ~0-100dp: solid pure black (status bar + "Songs" title + capsule)
+    //   ~100-260dp: wavy fade from black to transparent (160dp of fade)
+    val headerHeight = 260.dp
 
     Box(modifier = Modifier.fillMaxSize()) {
         // --- Layer 1: Song list (scrolls behind the header) ---
@@ -114,20 +115,20 @@ fun SongsScreen(
                 val canvasWidth = size.width
                 val canvasHeight = size.height
 
-                // The wave starts at ~60% down (below the title + capsule)
-                val waveStartY = canvasHeight * 0.6f
+                // The solid black area covers the top ~38% (status bar +
+                // title + capsule). Below that is the wavy fade.
+                // 38% of 260dp = ~100dp solid black, then ~160dp fade.
+                val waveStartY = canvasHeight * 0.38f
                 val waveAmplitude = 12f  // gentle wave height in px
                 val waveSegments = 3  // number of wave bumps
 
-                // Build the path: solid rectangle on top, wavy bottom edge,
-                // then extends down to the bottom of the canvas (for the
-                // gradient fade below the wave).
+                // Build the path: solid rectangle on top, wavy edge at
+                // waveStartY, then extends down to bottom for the fade.
                 val path = Path().apply {
                     moveTo(0f, 0f)  // top-left
-                    lineTo(0f, waveStartY)  // down the left side to wave start
+                    lineTo(0f, waveStartY)  // down to wave start
 
-                    // Draw the wavy bottom edge (left to right) using cubic
-                    // bezier curves for smooth waves
+                    // Wavy bottom edge (left to right) using cubic bezier
                     val segmentWidth = canvasWidth / waveSegments
                     for (i in 0 until waveSegments) {
                         val x1 = segmentWidth * i + segmentWidth * 0.25f
@@ -139,21 +140,21 @@ fun SongsScreen(
                         cubicTo(x1, y1, x2, y2, x3, y3)
                     }
 
-                    // Continue down to the bottom (for the fade area)
+                    // Continue down to bottom (for the fade area)
                     lineTo(canvasWidth, canvasHeight)
                     lineTo(0f, canvasHeight)
                     close()
                 }
 
                 // Fill with vertical gradient:
-                // - 0% to 60%: solid pure black (behind title + capsule)
-                // - 60% to 100%: gradient from black to transparent (the fade)
+                // - 0% to 38%: solid pure black (behind title + capsule)
+                // - 38% to 100%: gradient from black to transparent (160dp fade)
                 drawPath(
                     path = path,
                     brush = Brush.verticalGradient(
                         colorStops = arrayOf(
                             0.0f to Color.Black,
-                            0.6f to Color.Black,
+                            0.38f to Color.Black,
                             1.0f to Color.Transparent
                         ),
                         startY = 0f,
@@ -162,7 +163,7 @@ fun SongsScreen(
                 )
             }
 
-            // Content on top of the canvas: title + subtitle + capsule
+            // Content on top of the canvas: title + capsule (NO subtitle)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -178,17 +179,10 @@ fun SongsScreen(
                     fontFamily = com.rajatxo.coral.ui.theme.QuirkFontFamily,
                     modifier = Modifier.align(Alignment.End)
                 )
-                Spacer(modifier = Modifier.size(4.dp))
-                Text(
-                    text = "${songs.size} ${if (songs.size == 1) "song" else "songs"}",
-                    color = CoralColors.TextMuted,
-                    fontSize = 13.sp,
-                    modifier = Modifier.align(Alignment.End)
-                )
 
-                Spacer(modifier = Modifier.size(12.dp))
+                Spacer(modifier = Modifier.size(8.dp))
 
-                // Capsule shape (placeholder — user will tell me what to do with it)
+                // Capsule shape — directly below "Songs" text
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -196,8 +190,7 @@ fun SongsScreen(
                         .clip(RoundedCornerShape(20.dp))
                         .background(CoralColors.SurfaceVariant)
                 )
-                // Intentionally empty — user said they'll tell me what to do
-                // with this capsule later (search bar, filter chips, etc.)
+                // Placeholder — user will tell me what to do with this later
             }
         }
     }
