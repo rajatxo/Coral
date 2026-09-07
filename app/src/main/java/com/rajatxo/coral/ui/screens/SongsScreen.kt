@@ -1,5 +1,6 @@
 package com.rajatxo.coral.ui.screens
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -26,7 +28,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -38,19 +44,25 @@ import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.icons.CoralIcons
 
 /**
- * Songs tab — vertical list of every track Coral scanned from MediaStore.
+ * Songs tab — with pinned header + wavy fade overlay.
  *
  * Layout:
- *  - Big "Songs" title at top-RIGHT (ViTune-style)
- *  - "{n} songs" subtitle below it, right-aligned
- *  - LazyColumn of song rows (alphabetically sorted)
- *  - NO alphabet scrollbar (removed per user request — search bar + custom
- *    sorting will replace it later)
+ *  - Layer 1 (bottom): LazyColumn of songs — fills the ENTIRE screen and
+ *    scrolls behind the header. Songs that scroll into the wavy fade area
+ *    appear to dissolve into darkness.
  *
- * PERFORMANCE OPTIMIZATIONS kept from the previous version:
- *  - LazyColumn items have stable keys ("song_<id>") so Compose reuses rows
- *  - isCurrent compared by song ID (Long), not title (String)
- *  - Album art uses plain AsyncImage (no crossfade — Coil3 defaults are correct)
+ *  - Layer 2 (top): Pinned header that NEVER scrolls:
+ *      * "Songs" title (34sp, Quirk italic, top-right)
+ *      * "{n} songs" subtitle
+ *      * Capsule shape (placeholder — user will tell me what to do with it)
+ *      * Wavy black fade — solid black from the top down to the wave line,
+ *        then gradient fade from black to transparent below the wave
+ *
+ * The wavy fade creates the effect where songs scrolling up "disappear"
+ * into the darkness instead of sliding past a hard edge.
+ *
+ * PERFORMANCE: LazyColumn items have stable keys (key = { it.id }) so
+ * Compose reuses rows. isCurrent compared by song ID (Long, not String).
  */
 @Composable
 fun SongsScreen(
@@ -59,39 +71,23 @@ fun SongsScreen(
     currentSongTitle: String?,
     onSongClick: (Song) -> Unit
 ) {
-    // Sort songs alphabetically by title (case-insensitive)
     val sortedSongs = remember(songs) {
         songs.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        // Big title at top-RIGHT (ViTune style) + song count below it
-        Column(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .statusBarsPadding()
-                .padding(end = 20.dp, top = 16.dp)
-        ) {
-            Text(
-                text = "Songs",
-                color = Color.White,
-                fontSize = 34.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = com.rajatxo.coral.ui.theme.QuirkFontFamily
-            )
-            Spacer(modifier = Modifier.size(4.dp))
-            Text(
-                text = "${songs.size} ${if (songs.size == 1) "song" else "songs"}",
-                color = CoralColors.TextMuted,
-                fontSize = 13.sp,
-                modifier = Modifier.align(Alignment.End)
-            )
-        }
+    // Total height of the pinned header (title + capsule + fade area).
+    // The LazyColumn's top content padding = this value so the first song
+    // starts below the fade area.
+    val headerHeight = 220.dp
 
-        // Song list with stable keys for row reuse
+    Box(modifier = Modifier.fillMaxSize()) {
+        // --- Layer 1: Song list (scrolls behind the header) ---
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 100.dp)
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                top = headerHeight,
+                bottom = 100.dp  // space for mini player
+            )
         ) {
             items(sortedSongs, key = { it.id }) { song ->
                 SongRow(
@@ -99,6 +95,109 @@ fun SongsScreen(
                     isCurrent = currentSongId == song.id,
                     onClick = { onSongClick(song) }
                 )
+            }
+        }
+
+        // --- Layer 2: Pinned header with wavy fade ---
+        // This sits ON TOP of the song list. Songs scroll behind it.
+        // The wavy black fade makes songs appear to dissolve into darkness.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(headerHeight)
+                .align(Alignment.TopCenter)
+        ) {
+            // Canvas: draws the wavy black shape with gradient fade
+            Canvas(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                val canvasWidth = size.width
+                val canvasHeight = size.height
+
+                // The wave starts at ~60% down (below the title + capsule)
+                val waveStartY = canvasHeight * 0.6f
+                val waveAmplitude = 12f  // gentle wave height in px
+                val waveSegments = 3  // number of wave bumps
+
+                // Build the path: solid rectangle on top, wavy bottom edge,
+                // then extends down to the bottom of the canvas (for the
+                // gradient fade below the wave).
+                val path = Path().apply {
+                    moveTo(0f, 0f)  // top-left
+                    lineTo(0f, waveStartY)  // down the left side to wave start
+
+                    // Draw the wavy bottom edge (left to right) using cubic
+                    // bezier curves for smooth waves
+                    val segmentWidth = canvasWidth / waveSegments
+                    for (i in 0 until waveSegments) {
+                        val x1 = segmentWidth * i + segmentWidth * 0.25f
+                        val y1 = waveStartY - waveAmplitude  // peak up
+                        val x2 = segmentWidth * i + segmentWidth * 0.75f
+                        val y2 = waveStartY + waveAmplitude  // valley down
+                        val x3 = segmentWidth * (i + 1)
+                        val y3 = waveStartY  // back to center
+                        cubicTo(x1, y1, x2, y2, x3, y3)
+                    }
+
+                    // Continue down to the bottom (for the fade area)
+                    lineTo(canvasWidth, canvasHeight)
+                    lineTo(0f, canvasHeight)
+                    close()
+                }
+
+                // Fill with vertical gradient:
+                // - 0% to 60%: solid pure black (behind title + capsule)
+                // - 60% to 100%: gradient from black to transparent (the fade)
+                drawPath(
+                    path = path,
+                    brush = Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f to Color.Black,
+                            0.6f to Color.Black,
+                            1.0f to Color.Transparent
+                        ),
+                        startY = 0f,
+                        endY = canvasHeight
+                    )
+                )
+            }
+
+            // Content on top of the canvas: title + subtitle + capsule
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(start = 20.dp, end = 20.dp, top = 16.dp)
+            ) {
+                // Big "Songs" title (Quirk italic, right-aligned)
+                Text(
+                    text = "Songs",
+                    color = Color.White,
+                    fontSize = 34.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = com.rajatxo.coral.ui.theme.QuirkFontFamily,
+                    modifier = Modifier.align(Alignment.End)
+                )
+                Spacer(modifier = Modifier.size(4.dp))
+                Text(
+                    text = "${songs.size} ${if (songs.size == 1) "song" else "songs"}",
+                    color = CoralColors.TextMuted,
+                    fontSize = 13.sp,
+                    modifier = Modifier.align(Alignment.End)
+                )
+
+                Spacer(modifier = Modifier.size(12.dp))
+
+                // Capsule shape (placeholder — user will tell me what to do with it)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(CoralColors.SurfaceVariant)
+                )
+                // Intentionally empty — user said they'll tell me what to do
+                // with this capsule later (search bar, filter chips, etc.)
             }
         }
     }
@@ -114,7 +213,6 @@ private fun SongRow(song: Song, isCurrent: Boolean, onClick: () -> Unit) {
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 48x48 album art with rounded corners
         Box(
             modifier = Modifier
                 .size(48.dp)
@@ -123,7 +221,6 @@ private fun SongRow(song: Song, isCurrent: Boolean, onClick: () -> Unit) {
             contentAlignment = Alignment.Center
         ) {
             if (song.albumArtUri != null) {
-                // Plain AsyncImage — Coil3 defaults to no crossfade, memory cache on
                 AsyncImage(
                     model = song.albumArtUri,
                     contentDescription = "Album art",
@@ -141,7 +238,6 @@ private fun SongRow(song: Song, isCurrent: Boolean, onClick: () -> Unit) {
         }
         Spacer(modifier = Modifier.size(12.dp))
 
-        // Title + artist
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = song.title,
@@ -160,7 +256,6 @@ private fun SongRow(song: Song, isCurrent: Boolean, onClick: () -> Unit) {
             )
         }
 
-        // Duration mm:ss
         val totalSec = song.duration / 1000
         val mm = totalSec / 60
         val ss = totalSec % 60
