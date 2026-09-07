@@ -262,6 +262,28 @@ fun HomeScreen(
                         description = "Browse your music by folder. Coming soon."
                     )
                 }
+
+                // --- Sleep Timer Capsule (inside content area, auto-width) ---
+                // Positioned at TopStart of the content Box (after nav rail).
+                // Auto-fills the space before the big title text.
+                // Handles both timed mode and end-of-song mode.
+                val capsuleVisible = sleepTimerState.active && sleepRemainingMs > 0
+                val capsuleRemaining = if (sleepTimerState.endOfSong) {
+                    // End-of-song: show remaining song time
+                    (miniPlayerDurationMs - miniPlayerPositionMs).coerceAtLeast(0L)
+                } else {
+                    sleepRemainingMs
+                }
+                com.rajatxo.coral.ui.components.SleepTimerCapsule(
+                    visible = sleepTimerState.active && capsuleRemaining > 0,
+                    remainingMs = capsuleRemaining,
+                    onExtend = { sleepTimer.extend(10) },
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .statusBarsPadding()
+                        .padding(start = 16.dp, top = 20.dp, end = 120.dp)
+                        .fillMaxWidth(0.5f)
+                )
             }
         }
 
@@ -283,24 +305,6 @@ fun HomeScreen(
                 onPlayPauseClick = onPlayPauseClick,
                 onNextClick = onNextClick,
                 onClick = onMiniPlayerClick
-            )
-        }
-
-        // --- Sleep Timer Capsule (top-left overlay, auto-width) ---
-        // Only appears when a sleep timer is active.
-        // Positioned at the top-left of the content area (after the nav rail),
-        // with a gentle gap before the big title text on the right.
-        if (sleepTimerState.active && !sleepTimerState.endOfSong && sleepRemainingMs > 0) {
-            com.rajatxo.coral.ui.components.SleepTimerCapsule(
-                remainingMs = sleepRemainingMs,
-                totalMs = sleepTimerState.totalDurationMs,
-                progressColor = capsuleAccentColor,
-                onExtend = { sleepTimer.extend(10) },
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .statusBarsPadding()
-                    .padding(start = 16.dp, top = 20.dp)
-                    .width(170.dp)
             )
         }
 
