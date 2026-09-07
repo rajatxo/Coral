@@ -123,12 +123,13 @@ fun SongsScreen(
                 val waveSegments = 3  // number of wave bumps
 
                 // --- STEP 1: Draw SOLID black rectangle (fully opaque) ---
-                // This covers from top to the wave start. NO gradient, NO
-                // transparency. Songs CANNOT bleed through this.
+                // Covers from top to PAST the wave start (overlaps with the
+                // wave path by waveAmplitude to eliminate any sub-pixel gap
+                // between the two draws).
                 drawRect(
                     color = Color.Black,
                     topLeft = androidx.compose.ui.geometry.Offset(0f, 0f),
-                    size = androidx.compose.ui.geometry.Size(canvasWidth, waveStartY)
+                    size = androidx.compose.ui.geometry.Size(canvasWidth, waveStartY + waveAmplitude)
                 )
 
                 // --- STEP 2: Draw the wavy fade area below the wave ---
