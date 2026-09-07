@@ -62,6 +62,7 @@ import com.rajatxo.coral.ui.screens.PlaceholderScreen
 import com.rajatxo.coral.ui.screens.SettingsScreen
 import com.rajatxo.coral.ui.screens.SongPickerScreen
 import com.rajatxo.coral.ui.screens.SongsScreen
+import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
