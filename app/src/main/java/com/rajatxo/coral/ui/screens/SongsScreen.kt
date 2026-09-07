@@ -75,7 +75,7 @@ fun SongsScreen(
             Text(
                 text = "Songs",
                 color = Color.White,
-                fontSize = 30.sp,
+                fontSize = 34.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = com.rajatxo.coral.ui.theme.QuirkFontFamily
             )
