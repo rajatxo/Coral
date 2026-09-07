@@ -62,6 +62,8 @@ import com.rajatxo.coral.ui.screens.PlaceholderScreen
 import com.rajatxo.coral.ui.screens.SettingsScreen
 import com.rajatxo.coral.ui.screens.SongPickerScreen
 import com.rajatxo.coral.ui.screens.SongsScreen
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Root composable for the post-launch experience.
@@ -597,6 +599,7 @@ private fun DraggableSearchFab() {
     var showBubble by remember { mutableStateOf(false) }
     var countdownNumber by remember { mutableStateOf(3) }
     var countdownJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    val countdownScope = rememberCoroutineScope()
 
     // Pop-up animation for the bubble (scale from 0 → 1, bouncy spring)
     val bubbleScale by androidx.compose.animation.core.animateFloatAsState(
@@ -741,10 +744,10 @@ private fun DraggableSearchFab() {
                                 countdownNumber = 3
 
                                 countdownJob?.cancel()
-                                countdownJob = kotlinx.coroutines.GlobalScope.launch {
+                                countdownJob = countdownScope.launch {
                                     for (i in 3 downTo 1) {
                                         countdownNumber = i
-                                        kotlinx.coroutines.delay(1000)
+                                        delay(1000L)
                                     }
                                     // Countdown done — hide bubble, enter drag mode
                                     showBubble = false
