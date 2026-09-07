@@ -78,8 +78,9 @@ fun SongsScreen(
     // Total height of the pinned header.
     // Structure (top to bottom):
     //   ~0-100dp: solid pure black (status bar + "Songs" title + capsule)
-    //   ~100-260dp: wavy fade from black to transparent (160dp of fade)
-    val headerHeight = 260.dp
+    //   ~100-180dp: wavy fade — stays nearly opaque (songs fully hidden)
+    //     then transitions to transparent in the last 20dp
+    val headerHeight = 180.dp
 
     Box(modifier = Modifier.fillMaxSize()) {
         // --- Layer 1: Song list (scrolls behind the header) ---
@@ -115,10 +116,10 @@ fun SongsScreen(
                 val canvasWidth = size.width
                 val canvasHeight = size.height
 
-                // The solid black area covers the top ~38% (status bar +
+                // The solid black area covers the top ~55% (status bar +
                 // title + capsule). Below that is the wavy fade.
-                // 38% of 260dp = ~100dp solid black, then ~160dp fade.
-                val waveStartY = canvasHeight * 0.38f
+                // 55% of 180dp = ~100dp solid black, then ~80dp fade.
+                val waveStartY = canvasHeight * 0.55f
                 val waveAmplitude = 12f  // gentle wave height in px
                 val waveSegments = 3  // number of wave bumps
 
@@ -147,14 +148,18 @@ fun SongsScreen(
                 }
 
                 // Fill with vertical gradient:
-                // - 0% to 38%: solid pure black (behind title + capsule)
-                // - 38% to 100%: gradient from black to transparent (160dp fade)
+                // - 0% to 55%: solid pure black (behind title + capsule)
+                // - 55% to 85%: 95% opaque black (songs fully hidden behind it)
+                // - 85% to 100%: fade from 95% black to transparent (only last 15% fades)
+                // This ensures songs scrolling up are COMPLETELY HIDDEN — they only
+                // become visible in the very last portion of the fade.
                 drawPath(
                     path = path,
                     brush = Brush.verticalGradient(
                         colorStops = arrayOf(
                             0.0f to Color.Black,
-                            0.38f to Color.Black,
+                            0.55f to Color.Black,
+                            0.85f to Color.Black.copy(alpha = 0.95f),
                             1.0f to Color.Transparent
                         ),
                         startY = 0f,
