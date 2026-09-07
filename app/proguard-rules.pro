@@ -18,39 +18,28 @@
 # --- kotlinx.serialization ---
 # Without these, R8 strips the generated serializers and the app crashes
 # when trying to decode playlists.json / favorites.json.
--keepattributes *Annotation*, InnerClasses
--keep,includedescriptorclasses class com.rajatxo.coral.**$$serializer { *; }
--keepclassmembers class com.rajatxo.coral.** {
+-keepattributes *Annotation*, InnerClasses, Signature, Exceptions, EnclosingMethod
+
+# Keep the generated serializers for our @Serializable classes
+-keepclassmembers class com.rajatxo.coral.data.model.** {
     *** Companion;
 }
--keepclasseswithmembers class com.rajatxo.coral.** {
+-keepclasseswithmembers class com.rajatxo.coral.data.model.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
--keep, includedescriptorclass class com.rajatxo.coral.data.model.** { *; }
+-keep class com.rajatxo.coral.data.model.** { *; }
 
 # --- Media3 / ExoPlayer ---
-# ExoPlayer uses reflection to instantiate decoders/renderers. R8 stripping
-# these causes "Could not find a decoder" crashes on release builds.
+# ExoPlayer uses reflection to instantiate decoders/renderers.
 -keep class androidx.media3.** { *; }
 -dontwarn androidx.media3.**
 
 # --- Coil (image loading) ---
-# Coil uses reflection to load ImageLoader providers. Keep its public API.
 -keep class coil3.** { *; }
 -dontwarn coil3.**
 
-# --- Compose ---
-# Compose is mostly fine with R8, but the runtime needs these kept for
-# @Composable function lookup.
--keep class androidx.compose.runtime.** { *; }
--keep class androidx.compose.ui.** { *; }
--keepclassmembers class androidx.compose.** {
-    public *;
-}
-
-# --- Coral model classes (used in JSON serialization) ---
+# --- Coral model classes (used in JSON serialization + reflection) ---
 -keep class com.rajatxo.coral.domain.model.** { *; }
--keep class com.rajatxo.coral.data.model.** { *; }
 -keep class com.rajatxo.coral.data.lyrics.** { *; }
 -keep class com.rajatxo.coral.data.prefs.** { *; }
 -keep class com.rajatxo.coral.data.premium.** { *; }
@@ -61,4 +50,3 @@
 # --- Generic safe fallbacks ---
 -dontwarn java.lang.invoke.StringConcatFactory
 -dontwarn javax.lang.model.**
--keepattributes Signature, Exceptions, InnerClasses, EnclosingMethod
