@@ -233,14 +233,52 @@ fun HomeScreen(
             }
         }
 
-        // Mini player — FULL-WIDTH overlay at the bottom (covers nav rail too,
-        // like ViTune). Slides up only when a song is loaded. Extends into the
-        // system nav bar area so the gesture indicator blends with the app.
+        // --- Search capsule (BOTTOM-most element, fixed position) ---
+        // Small glass pill with search icon + "Search" text.
+        // Sits at the very bottom (above system nav bar), like ViTune's
+        // "Library" button. The mini player appears ABOVE this capsule.
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 8.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .border(1.5.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(24.dp))
+                .background(Color.White.copy(alpha = 0.08f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { /* TODO: user will guide what to do */ }
+                )
+                .padding(horizontal = 20.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = CoralIcons.Search,
+                contentDescription = "Search",
+                tint = Color.White,
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                text = "Search",
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+
+        // --- Mini player (sits ABOVE the search capsule) ---
+        // When a song is playing, the mini player appears above the
+        // search capsule — NOT at the very bottom.
         AnimatedVisibility(
             visible = currentSongTitle != null,
             enter = slideInVertically { it } + fadeIn(),
             exit = slideOutVertically { it } + fadeOut(),
-            modifier = Modifier.align(Alignment.BottomCenter)
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 64.dp)  // sits above the search capsule (capsule ~48dp + 16dp gap)
         ) {
             MiniPlayer(
                 title = currentSongTitle ?: "",
@@ -253,45 +291,6 @@ fun HomeScreen(
                 onPlayPauseClick = onPlayPauseClick,
                 onNextClick = onNextClick,
                 onClick = onMiniPlayerClick
-            )
-        }
-
-        // --- Search capsule (small pill, centered, below mini player) ---
-        // Small glass capsule with search icon + "Search" text.
-        // Positioned at bottom-center, sits above the mini player when playing.
-        val searchCapsuleBottomPadding by androidx.compose.animation.core.animateDpAsState(
-            targetValue = if (currentSongTitle != null) 84.dp else 24.dp,
-            animationSpec = androidx.compose.animation.core.tween(300),
-            label = "searchCapsulePadding"
-        )
-
-        Row(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = searchCapsuleBottomPadding)
-                .clip(RoundedCornerShape(20.dp))
-                .border(1.5.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
-                .background(Color.White.copy(alpha = 0.08f))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = { /* TODO: user will guide what to do */ }
-                )
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Icon(
-                imageVector = CoralIcons.Search,
-                contentDescription = "Search",
-                tint = Color.White,
-                modifier = Modifier.size(16.dp)
-            )
-            Text(
-                text = "Search",
-                color = Color.White,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium
             )
         }
 
@@ -420,8 +419,7 @@ private fun MiniPlayer(
 
     Box(
         modifier = Modifier
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-            .navigationBarsPadding()
+            .padding(horizontal = 12.dp, vertical = 4.dp)
     ) {
         Row(
             modifier = Modifier
