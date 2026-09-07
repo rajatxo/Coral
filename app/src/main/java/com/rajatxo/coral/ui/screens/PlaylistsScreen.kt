@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
@@ -346,7 +347,8 @@ private fun PlaylistWheel(
                                 val itemX = sphereCenterX + orbitRadius * cos(itemAngleRad)
                                 val itemY = sphereCenterY + orbitRadius * sin(itemAngleRad)
                                 val dist = sqrt((tapX - itemX).pow(2) + (tapY - itemY).pow(2))
-                                if (dist < 80f.toPx()) {
+                                val tapRadius = with(density) { 80.dp.toPx() }
+                                if (dist < tapRadius) {
                                     haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                                     onPlaylistClick(playlists[idx])
                                     break
