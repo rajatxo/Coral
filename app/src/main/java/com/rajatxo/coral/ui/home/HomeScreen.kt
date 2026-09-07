@@ -255,6 +255,37 @@ fun HomeScreen(
             )
         }
 
+        // --- Floating search button (bottom-right, solid white) ---
+        // Rounded-square FAB with black search icon.
+        // Position adapts: lifts up when mini player is visible.
+        val searchFabBottomPadding by androidx.compose.animation.core.animateDpAsState(
+            targetValue = if (currentSongTitle != null) 88.dp else 24.dp,
+            animationSpec = androidx.compose.animation.core.tween(300),
+            label = "searchFabPadding"
+        )
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = searchFabBottomPadding)
+                .size(52.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color.White)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { /* TODO: open search */ }
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = CoralIcons.Search,
+                contentDescription = "Search",
+                tint = Color.Black,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+
         // Add bottom padding to the content area when mini player is visible,
         // so the song list doesn't hide behind the mini player. We do this by
         // adding a spacer that grows/shrinks with the mini player visibility.
