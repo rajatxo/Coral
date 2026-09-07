@@ -209,20 +209,38 @@ fun HomeScreen(
                     .weight(1f)
                     .fillMaxHeight()
             ) {
+                // --- Sleep timer capsule state passed to each screen ---
+                val capsuleVisible = sleepTimerState.active && sleepRemainingMs > 0
+                val capsuleRemaining = if (sleepTimerState.endOfSong) {
+                    (miniPlayerDurationMs - miniPlayerPositionMs).coerceAtLeast(0L)
+                } else {
+                    sleepRemainingMs
+                }
+                val onExtend: () -> Unit = { sleepTimer.extend(10) }
+
                 when (selectedTab) {
                     CoralTab.QuickPicks -> PlaceholderScreen(
                         tabName = "Quick picks",
-                        description = "Your most-played tracks and recently added songs will appear here. Coming soon."
+                        description = "Your most-played tracks and recently added songs will appear here. Coming soon.",
+                        capsuleVisible = capsuleVisible,
+                        capsuleRemaining = capsuleRemaining,
+                        onExtend = onExtend
                     )
                     CoralTab.Discover -> PlaceholderScreen(
                         tabName = "Discover",
-                        description = "Random shuffle, hidden gems, and smart recommendations based on your listening. Coming soon."
+                        description = "Random shuffle, hidden gems, and smart recommendations based on your listening. Coming soon.",
+                        capsuleVisible = capsuleVisible,
+                        capsuleRemaining = capsuleRemaining,
+                        onExtend = onExtend
                     )
                     CoralTab.Songs -> SongsScreen(
                         songs = songs,
                         currentSongId = currentSongId,
                         currentSongTitle = currentSongTitle,
-                        onSongClick = onSongClick
+                        onSongClick = onSongClick,
+                        capsuleVisible = capsuleVisible,
+                        capsuleRemaining = capsuleRemaining,
+                        onExtend = onExtend
                     )
                     CoralTab.Playlists -> {
                         val playlist = selectedPlaylist
@@ -245,43 +263,33 @@ fun HomeScreen(
                             )
                         } else {
                             PlaylistsScreen(
-                                onPlaylistClick = { selectedPlaylist = it }
+                                onPlaylistClick = { selectedPlaylist = it },
+                                capsuleVisible = capsuleVisible,
+                                capsuleRemaining = capsuleRemaining,
+                                onExtend = onExtend
                             )
                         }
                     }
                     CoralTab.Artists -> PlaceholderScreen(
                         tabName = "Artists",
-                        description = "Browse your library by artist. Coming soon."
+                        description = "Browse your library by artist. Coming soon.",
+                        capsuleVisible = capsuleVisible,
+                        capsuleRemaining = capsuleRemaining,
+                        onExtend = onExtend
                     )
                     CoralTab.Albums -> PlaceholderScreen(
                         tabName = "Albums",
-                        description = "Browse your library by album. Coming soon."
+                        description = "Browse your library by album. Coming soon.",
+                        capsuleVisible = capsuleVisible,
+                        capsuleRemaining = capsuleRemaining,
+                        onExtend = onExtend
                     )
                     CoralTab.Folders -> PlaceholderScreen(
                         tabName = "Folders",
-                        description = "Browse your music by folder. Coming soon."
-                    )
-                }
-
-                // --- Sleep Timer Capsule (auto-fills space BEFORE title) ---
-                // The capsule sits in the space between the nav rail and the
-                // big title text. It must NOT cover the title.
-                // Using weight(1f) with a fixed end padding that leaves room
-                // for the longest title ('Quick picks' at ~150dp) + gap.
-                if (sleepTimerState.active) {
-                    val capsuleRemaining = if (sleepTimerState.endOfSong) {
-                        (miniPlayerDurationMs - miniPlayerPositionMs).coerceAtLeast(0L)
-                    } else {
-                        sleepRemainingMs
-                    }
-                    com.rajatxo.coral.ui.components.SleepTimerCapsule(
-                        visible = sleepTimerState.active && capsuleRemaining > 0,
-                        remainingMs = capsuleRemaining,
-                        onExtend = { sleepTimer.extend(10) },
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .statusBarsPadding()
-                            .padding(start = 16.dp, top = 20.dp, end = 180.dp)
+                        description = "Browse your music by folder. Coming soon.",
+                        capsuleVisible = capsuleVisible,
+                        capsuleRemaining = capsuleRemaining,
+                        onExtend = onExtend
                     )
                 }
             }

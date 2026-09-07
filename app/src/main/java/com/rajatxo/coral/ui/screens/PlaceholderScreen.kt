@@ -4,8 +4,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -36,25 +38,42 @@ import com.rajatxo.coral.ui.components.CoralColors
 @Composable
 fun PlaceholderScreen(
     tabName: String,
-    description: String
+    description: String,
+    capsuleVisible: Boolean = false,
+    capsuleRemaining: Long = 0L,
+    onExtend: () -> Unit = {}
 ) {
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(CoralColors.Surface)
     ) {
-        // Big title at top-right (ViTune-style) — uses Quirk italic font
-        Text(
-            text = tabName,
-            color = Color.White,
-            fontSize = 34.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = com.rajatxo.coral.ui.theme.QuirkFontFamily,
+        // Header Row: capsule (weight=1f) + title text
+        Row(
             modifier = Modifier
-                .align(Alignment.TopEnd)
+                .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(end = 20.dp, top = 16.dp)
-        )
+                .padding(start = 16.dp, end = 20.dp, top = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            com.rajatxo.coral.ui.components.SleepTimerCapsule(
+                visible = capsuleVisible,
+                remainingMs = capsuleRemaining,
+                onExtend = onExtend,
+                modifier = Modifier.weight(1f)
+            )
+            if (capsuleVisible && capsuleRemaining > 0) {
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+            // Big title (Quirk italic)
+            Text(
+                text = tabName,
+                color = Color.White,
+                fontSize = 34.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = com.rajatxo.coral.ui.theme.QuirkFontFamily
+            )
+        }
 
         // Centered placeholder message
         Column(

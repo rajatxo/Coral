@@ -63,27 +63,40 @@ import com.rajatxo.coral.ui.icons.CoralIcons
  */
 @Composable
 fun PlaylistsScreen(
-    onPlaylistClick: (Playlist) -> Unit
+    onPlaylistClick: (Playlist) -> Unit,
+    capsuleVisible: Boolean = false,
+    capsuleRemaining: Long = 0L,
+    onExtend: () -> Unit = {}
 ) {
     val playlists by PlaylistStore.playlists.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize().background(CoralColors.Surface)) {
-        // --- Big "Playlists" title at top-RIGHT (always visible, Quirk font) ---
-        // No "New" button — clean space like other tabs (user request).
-        // The capsule/space before the title is where the SleepTimerCapsule
-        // will appear when a timer is active.
-        Text(
-            text = "Playlists",
-            color = Color.White,
-            fontSize = 34.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = com.rajatxo.coral.ui.theme.QuirkFontFamily,
+        // Header Row: capsule (weight=1f) + title text
+        Row(
             modifier = Modifier
-                .align(Alignment.TopEnd)
+                .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(end = 20.dp, top = 16.dp)
-        )
+                .padding(start = 16.dp, end = 20.dp, top = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            com.rajatxo.coral.ui.components.SleepTimerCapsule(
+                visible = capsuleVisible,
+                remainingMs = capsuleRemaining,
+                onExtend = onExtend,
+                modifier = Modifier.weight(1f)
+            )
+            if (capsuleVisible && capsuleRemaining > 0) {
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+            Text(
+                text = "Playlists",
+                color = Color.White,
+                fontSize = 34.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = com.rajatxo.coral.ui.theme.QuirkFontFamily
+            )
+        }
 
         // --- Content: grid or empty state ---
         if (playlists.isEmpty()) {

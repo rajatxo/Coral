@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.components.CoralColors
+import com.rajatxo.coral.ui.components.SleepTimerCapsule
 import com.rajatxo.coral.ui.icons.CoralIcons
 
 /**
@@ -69,7 +70,10 @@ fun SongsScreen(
     songs: List<Song>,
     currentSongId: Long?,
     currentSongTitle: String?,
-    onSongClick: (Song) -> Unit
+    onSongClick: (Song) -> Unit,
+    capsuleVisible: Boolean = false,
+    capsuleRemaining: Long = 0L,
+    onExtend: () -> Unit = {}
 ) {
     val sortedSongs = remember(songs) {
         songs.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
@@ -170,34 +174,34 @@ fun SongsScreen(
                 )
             }
 
-            // Content on top of the canvas: title + capsule (NO subtitle)
-            Column(
+            // Content on top of the canvas: capsule + title in a Row
+            // The capsule uses weight(1f) so it auto-fills the space
+            // before the title. Title takes its natural width.
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .padding(start = 20.dp, end = 20.dp, top = 16.dp)
+                    .padding(start = 16.dp, end = 20.dp, top = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Big "Songs" title (Quirk italic, right-aligned)
+                // Sleep timer capsule (auto-fills space before title)
+                SleepTimerCapsule(
+                    visible = capsuleVisible,
+                    remainingMs = capsuleRemaining,
+                    onExtend = onExtend,
+                    modifier = Modifier.weight(1f)
+                )
+                if (capsuleVisible && capsuleRemaining > 0) {
+                    Spacer(modifier = Modifier.size(12.dp))
+                }
+                // Big "Songs" title
                 Text(
                     text = "Songs",
                     color = Color.White,
                     fontSize = 34.sp,
                     fontWeight = FontWeight.Bold,
-                    fontFamily = com.rajatxo.coral.ui.theme.QuirkFontFamily,
-                    modifier = Modifier.align(Alignment.End)
+                    fontFamily = com.rajatxo.coral.ui.theme.QuirkFontFamily
                 )
-
-                Spacer(modifier = Modifier.size(8.dp))
-
-                // Capsule shape — directly below "Songs" text
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(40.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(CoralColors.SurfaceVariant)
-                )
-                // Placeholder — user will tell me what to do with this later
             }
         }
     }
