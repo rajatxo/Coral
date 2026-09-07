@@ -741,16 +741,26 @@ private fun DraggableSearchFab() {
                                 isLongPressActivated = false
 
                                 // Show the bubble + start countdown
-                                showBubble = true
-                                countdownNumber = 3
-
+                                // First: hold for 2 seconds (no bubble visible)
+                                // Then: bubble pops up showing 3→2→1 (3 seconds)
+                                // Then: drag mode activated
                                 countdownJob?.cancel()
                                 countdownJob = countdownScope.launch {
-                                    for (i in 3 downTo 1) {
-                                        countdownNumber = i
-                                        delay(1000L)
-                                    }
-                                    // Countdown done — hide bubble, enter drag mode
+                                    // Phase 1: hold for 2 seconds (no UI feedback)
+                                    delay(2000L)
+
+                                    // Phase 2: pop up the bubble with countdown
+                                    showBubble = true
+                                    countdownNumber = 3
+                                    delay(1000L)
+
+                                    countdownNumber = 2
+                                    delay(1000L)
+
+                                    countdownNumber = 1
+                                    delay(1000L)
+
+                                    // Phase 3: countdown done — hide bubble, enter drag mode
                                     showBubble = false
                                     isLongPressActivated = true
                                     isDragging = true
