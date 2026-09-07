@@ -72,7 +72,7 @@ fun SleepTimerCapsule(
         Box(
             modifier = Modifier
                 .height(34.dp)
-                .fillMaxWidth()  // fill the weight(1f) space given by parent
+                .fillMaxWidth()  // fills the space left by the end padding in HomeScreen
                 .clip(RoundedCornerShape(17.dp))
                 .background(Color.White)
                 .drawWithContent {
