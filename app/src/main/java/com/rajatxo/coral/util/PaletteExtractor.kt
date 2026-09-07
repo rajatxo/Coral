@@ -26,7 +26,7 @@ data class CoralPalette(
         val Default = CoralPalette(
             primary = Color(0xFF1A1A1A),
             secondary = Color(0xFF0F0F0F),
-            tertiary = Color(0xFF050505),
+            tertiary = Color(0xFF000000),
             accent = Color(0xFFFF6B6B)
         )
     }

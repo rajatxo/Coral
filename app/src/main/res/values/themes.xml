@@ -5,7 +5,7 @@
         ViTune-style seamless edge-to-edge look).
 
         Key settings:
-          - windowBackground: solid #121212 (matches CoralColors.Surface
+          - windowBackground: solid #000000 (matches CoralColors.Surface
             so there's no flash when Compose takes over from the splash)
           - statusBarColor + navigationBarColor: transparent
           - windowDrawsSystemBarBackgrounds: true (content draws behind bars)

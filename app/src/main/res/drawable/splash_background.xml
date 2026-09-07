@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
     Coral's splash screen background.
-    Just the dark gray surface (#121212) — same as the app surface.
+    Pure black (#000000) — same as the app surface (CoralColors.Surface).
     This makes the launch feel seamless: icon → splash → app, all the
-    same color, no flash. Compose draws over it within ~100ms.
+    same pure black color, no flash. Compose draws over it within ~100ms.
 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
         <shape android:shape="rectangle">
-            <solid android:color="#121212" />
+            <solid android:color="#000000" />
         </shape>
     </item>
 </layer-list>

@@ -108,7 +108,7 @@ fun CoralNavRail(
                 )
             }
 
-            Spacer(modifier = Modifier.height(17.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             // ---- Rail labels, vertically CENTERED (matches ViTune) ----
             // ViTune clusters all labels together in the vertical MIDDLE
@@ -228,13 +228,26 @@ private fun RailLabel(
 }
 
 /**
- * Coral's color palette — ViTune-style.
+ * Coral's color palette — ViTune-style pure black.
+ *
+ * ViTune uses pure black (#000000) for the main surface, NOT dark gray.
+ * This is the AMOLED-friendly approach — saves battery on OLED screens
+ * and gives the "infinite depth" look ViTune is known for.
  */
 object CoralColors {
-    val Surface: Color = Color(0xFF121212)
-    val SurfaceVariant: Color = Color(0xFF1F1F1F)
+    /** Main app surface — pure black, matches ViTune's background. */
+    val Surface: Color = Color(0xFF000000)
+
+    /** Slightly lighter for cards / mini player / nav rail pills. */
+    val SurfaceVariant: Color = Color(0xFF1A1A1A)
+
+    /** Primary text — pure white. */
     val TextPrimary: Color = Color.White
+
+    /** Secondary text — muted gray for inactive items, subtitles, etc. */
     val TextMuted: Color = Color(0xFF888888)
+
+    /** Coral accent — the brand color, used for active states + buttons. */
     val Coral: Color = Color(0xFFFF6B6B)
 }
 
