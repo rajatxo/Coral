@@ -53,8 +53,8 @@ class NotchedPillShape(
                     left = w - 2 * r, top = 0f,
                     right = w, bottom = 2 * r
                 ),
-                startAngle = 270f,
-                sweepAngle = 90f,
+                startAngleDegrees = 270f,
+                sweepAngleDegrees = 90f,
                 forceMoveTo = false
             )
 
@@ -67,8 +67,8 @@ class NotchedPillShape(
                     left = w - 2 * r, top = h - 2 * r,
                     right = w, bottom = h
                 ),
-                startAngle = 0f,
-                sweepAngle = 90f,
+                startAngleDegrees = 0f,
+                sweepAngleDegrees = 90f,
                 forceMoveTo = false
             )
 
@@ -97,8 +97,8 @@ class NotchedPillShape(
                     left = 0f, top = h - 2 * r,
                     right = 2 * r, bottom = h
                 ),
-                startAngle = 90f,
-                sweepAngle = 90f,
+                startAngleDegrees = 90f,
+                sweepAngleDegrees = 90f,
                 forceMoveTo = false
             )
 
@@ -111,8 +111,8 @@ class NotchedPillShape(
                     left = 0f, top = 0f,
                     right = 2 * r, bottom = 2 * r
                 ),
-                startAngle = 180f,
-                sweepAngle = 90f,
+                startAngleDegrees = 180f,
+                sweepAngleDegrees = 90f,
                 forceMoveTo = false
             )
 
