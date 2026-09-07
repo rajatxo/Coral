@@ -271,4 +271,39 @@ object CoralIcons {
         arcTo(1f, 1f, 0f, false, true, 12f, 19f)
         close()
     }
+
+    /**
+     * Lucide heart outline (MIT licensed).
+     * Source: lucide.dev — cleaner, more elegant than the previous heart.
+     * Used in the mini player for the unfavorite state.
+     */
+    val HeartLucide: ImageVector = stroke("HeartLucide") {
+        moveTo(2f, 9.5f)
+        arcToRelative(5.5f, 5.5f, 0f, false, true, 9.591f, -3.676f)
+        arcToRelative(0.56f, 0.56f, 0f, false, false, 0.818f, 0f)
+        arcTo(5.49f, 5.49f, 0f, false, true, 22f, 9.5f)
+        curveToRelative(0f, 2.29f, -1.5f, 4f, -3f, 5.5f)
+        lineToRelative(-5.492f, 5.313f)
+        arcToRelative(2f, 2f, 0f, false, true, -3f, 0.019f)
+        lineTo(5f, 15f)
+        curveToRelative(-1.5f, -1.5f, -3f, -3.2f, -3f, -5.5f)
+    }
+
+    /**
+     * Lucide heart filled (MIT licensed).
+     * Same path as HeartLucide but filled solid + closed.
+     * Used in the mini player for the favorited state (coral color).
+     */
+    val HeartLucideFilled: ImageVector = filled("HeartLucideFilled") {
+        moveTo(2f, 9.5f)
+        arcToRelative(5.5f, 5.5f, 0f, false, true, 9.591f, -3.676f)
+        arcToRelative(0.56f, 0.56f, 0f, false, false, 0.818f, 0f)
+        arcTo(5.49f, 5.49f, 0f, false, true, 22f, 9.5f)
+        curveToRelative(0f, 2.29f, -1.5f, 4f, -3f, 5.5f)
+        lineToRelative(-5.492f, 5.313f)
+        arcToRelative(2f, 2f, 0f, false, true, -3f, 0.019f)
+        lineTo(5f, 15f)
+        curveToRelative(-1.5f, -1.5f, -3f, -3.2f, -3f, -5.5f)
+        close()
+    }
 }
