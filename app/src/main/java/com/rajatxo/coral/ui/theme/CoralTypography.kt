@@ -11,21 +11,24 @@ import com.rajatxo.coral.data.prefs.CoralFont
 import com.rajatxo.coral.data.prefs.FontManager
 
 /**
- * Quirk Italic — used ONLY for the big tab titles on the top-right corner
- * of each screen (Quick picks, Discover, Songs, Playlists, Artists, Albums,
- * Folders, Settings).
+ * Playfair Display Italic — used ONLY for the big tab titles on the top-right
+ * corner of each screen (Quick picks, Discover, Songs, Playlists, Artists,
+ * Albums, Folders, Settings).
  *
  * This is a distinctive display font that gives Coral its brand identity on
  * the screen titles. Everything else in the app uses the user-selected font
  * (Poppins by default) via MaterialTheme typography.
  *
- * The font is bundled in res/font/quirk_italic.ttf (OFL/commercial-free).
+ * Playfair Display is licensed under the SIL Open Font License (OFL) —
+ * fully free for commercial use, including bundling in closed-source apps.
+ *
+ * The font is bundled in res/font/playfair_display_italic.ttf.
  */
 val QuirkFontFamily = FontFamily(
-    Font(R.font.quirk_italic, FontWeight.Normal),
-    Font(R.font.quirk_italic, FontWeight.Bold),
-    Font(R.font.quirk_italic, FontWeight.SemiBold),
-    Font(R.font.quirk_italic, FontWeight.Medium)
+    Font(R.font.playfair_display_italic, FontWeight.Normal),
+    Font(R.font.playfair_display_italic, FontWeight.Bold),
+    Font(R.font.playfair_display_italic, FontWeight.SemiBold),
+    Font(R.font.playfair_display_italic, FontWeight.Medium)
 )
 
 /**
