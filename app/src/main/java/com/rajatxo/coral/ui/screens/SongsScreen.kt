@@ -1,9 +1,5 @@
 package com.rajatxo.coral.ui.screens
 
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -13,11 +9,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -40,7 +34,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -223,14 +216,13 @@ fun SongsScreen(
             }
         }
 
-        // Alphabet scrollbar on the right edge — ViTune-style with horizontal
-        // slide animation + floating bubble
+        // Alphabet scrollbar on the right edge — simple, no fancy animations
         AlphabetScrollbar(
             letters = letterToIndex.keys.toList(),
             currentLetter = currentLetter,
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .padding(end = 0.dp, top = 100.dp, bottom = 80.dp),
+                .padding(end = 4.dp, top = 100.dp, bottom = 80.dp),
             onLetterSelected = { letter ->
                 val targetIndex = letterToIndex[letter] ?: return@AlphabetScrollbar
                 scope.launch {
@@ -239,31 +231,44 @@ fun SongsScreen(
                 }
             },
             onDragStart = { overlayLetter = it },
-            onDragEnd = { overlayLetter = null },
-            overlayLetter = overlayLetter
+            onDragEnd = { overlayLetter = null }
         )
+
+        // Simple overlay letter (shown while dragging)
+        if (overlayLetter != null) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(CoralColors.Coral),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = overlayLetter.toString(),
+                        color = Color.White,
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
     }
 }
 
 /**
- * ViTune-style alphabet scrollbar.
+ * Simple vertical alphabet scrollbar — drag to jump to a letter.
  *
- * Features:
- *  - Letters slide LEFT when touched (horizontal animation)
- *  - Active/dragged letter has a coral circle behind it
- *  - Floating bubble appears to the LEFT of the scrollbar showing the
- *    current letter (separate from the chain, not embedded in it)
- *  - Smooth 60fps animation using animateDpAsState
- *  - Uses raw awaitPointerEventScope for INSTANT drag response (no touch slop)
+ * NO horizontal slide, NO floating bubble, NO fancy animations.
+ * Just: tap a letter → jump. Drag → letter follows finger.
  *
- * The stuck-letter bug fix:
- *  detectDragGestures has a built-in touch slop (~8dp) that must be exceeded
- *  before onDrag fires. For a scrollbar, this means the first few pixels of
- *  drag are ignored — the letter appears "stuck" until you move far enough.
- *
- *  Fix: use awaitPointerEventScope + awaitFirstDown + awaitPointerEvent loop.
- *  This gives us EVERY pointer event with ZERO slop — the letter updates the
- *  instant your finger moves, even 1 pixel.
+ * The key fix: uses raw awaitPointerEventScope (NOT detectDragGestures)
+ * because detectDragGestures has a ~8dp touch slop that makes the letter
+ * appear 'stuck' until you move past it. Raw pointer events have ZERO
+ * slop — the letter updates the instant your finger moves.
  */
 @Composable
 private fun AlphabetScrollbar(
@@ -272,142 +277,77 @@ private fun AlphabetScrollbar(
     modifier: Modifier = Modifier,
     onLetterSelected: (Char) -> Unit,
     onDragStart: (Char) -> Unit,
-    onDragEnd: () -> Unit,
-    overlayLetter: Char?
+    onDragEnd: () -> Unit
 ) {
     if (letters.isEmpty()) return
 
     var draggedLetter by remember { mutableStateOf<Char?>(null) }
-    val isDragging = draggedLetter != null
 
-    // Horizontal slide animation — letters slide LEFT when touched
-    val slideOffset by animateDpAsState(
-        targetValue = if (isDragging) (-12).dp else 0.dp,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessHigh
-        ),
-        label = "slideOffset"
-    )
-
-    // Bubble scale animation — smooth grow/shrink
-    val bubbleScale by animateFloatAsState(
-        targetValue = if (overlayLetter != null) 1f else 0f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
-        label = "bubbleScale"
-    )
-
-    Box(
+    Column(
         modifier = modifier
-            .width(48.dp)  // wider touch target
+            .width(24.dp)
+            .pointerInput(letters) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val down = awaitFirstDown()
+                        val itemHeight = size.height.toFloat() / letters.size
+
+                        fun yToLetter(y: Float): Char {
+                            val idx = (y / itemHeight).toInt().coerceIn(0, letters.lastIndex)
+                            return letters[idx]
+                        }
+
+                        val startLetter = yToLetter(down.position.y)
+                        draggedLetter = startLetter
+                        onDragStart(startLetter)
+                        onLetterSelected(startLetter)
+                        down.consume()
+
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull()
+                            if (change == null || !change.pressed) {
+                                draggedLetter = null
+                                onDragEnd()
+                                break
+                            }
+                            val newLetter = yToLetter(change.position.y)
+                            if (newLetter != draggedLetter) {
+                                draggedLetter = newLetter
+                                onDragStart(newLetter)
+                                onLetterSelected(newLetter)
+                            }
+                            change.consume()
+                        }
+                    }
+                }
+            },
+        verticalArrangement = Arrangement.spacedBy(0.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // --- Floating bubble (positioned to the LEFT of the scrollbar) ---
-        if (bubbleScale > 0.01f) {
+        letters.forEach { letter ->
+            val isActive = letter == currentLetter
+            val isDragged = letter == draggedLetter
             Box(
                 modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(start = (-20).dp)  // push left, away from the scrollbar
-                    .size(56.dp)
-                    .scale(bubbleScale)
-                    .clip(CircleShape)
-                    .background(CoralColors.Coral),
+                    .size(20.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {
+                            onLetterSelected(letter)
+                            onDragStart(letter)
+                            onDragEnd()
+                        }
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = overlayLetter?.toString() ?: "",
-                    color = Color.White,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold
+                    text = letter.toString(),
+                    color = if (isActive || isDragged) CoralColors.Coral else CoralColors.TextMuted,
+                    fontSize = 11.sp,
+                    fontWeight = if (isActive || isDragged) FontWeight.Bold else FontWeight.Normal
                 )
-            }
-        }
-
-        // --- Scrollbar letter chain ---
-        Box(
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .fillMaxHeight()
-                .width(32.dp)
-                .pointerInput(letters) {
-                    awaitPointerEventScope {
-                        while (true) {
-                            val down = awaitFirstDown()
-                            val itemHeight = size.height.toFloat() / letters.size
-
-                            fun yToLetter(y: Float): Char {
-                                val idx = (y / itemHeight).toInt().coerceIn(0, letters.lastIndex)
-                                return letters[idx]
-                            }
-
-                            val startLetter = yToLetter(down.position.y)
-                            draggedLetter = startLetter
-                            onDragStart(startLetter)
-                            onLetterSelected(startLetter)
-                            down.consume()
-
-                            // Track drag with raw pointer events — NO touch slop
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                val change = event.changes.firstOrNull()
-                                if (change == null || !change.pressed) {
-                                    draggedLetter = null
-                                    onDragEnd()
-                                    break
-                                }
-                                val newLetter = yToLetter(change.position.y)
-                                if (newLetter != draggedLetter) {
-                                    draggedLetter = newLetter
-                                    onDragStart(newLetter)
-                                    onLetterSelected(newLetter)
-                                }
-                                change.consume()
-                            }
-                        }
-                    }
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                modifier = Modifier.offset(x = slideOffset),  // horizontal slide
-                verticalArrangement = Arrangement.spacedBy(0.dp, Alignment.CenterVertically),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                letters.forEach { letter ->
-                    val isActive = letter == currentLetter
-                    val isDragged = letter == draggedLetter
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = {
-                                    onLetterSelected(letter)
-                                    onDragStart(letter)
-                                    onDragEnd()
-                                }
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (isActive || isDragged) {
-                            Box(
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .clip(CircleShape)
-                                    .background(CoralColors.Coral)
-                            )
-                        }
-                        Text(
-                            text = letter.toString(),
-                            color = if (isActive || isDragged) Color.White else CoralColors.TextMuted,
-                            fontSize = 11.sp,
-                            fontWeight = if (isActive || isDragged) FontWeight.Bold else FontWeight.Normal
-                        )
-                    }
-                }
             }
         }
     }
