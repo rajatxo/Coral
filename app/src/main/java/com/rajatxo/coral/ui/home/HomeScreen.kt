@@ -256,6 +256,45 @@ fun HomeScreen(
             )
         }
 
+        // --- Search capsule (small pill, centered, below mini player) ---
+        // Small glass capsule with search icon + "Search" text.
+        // Positioned at bottom-center, sits above the mini player when playing.
+        val searchCapsuleBottomPadding by androidx.compose.animation.core.animateDpAsState(
+            targetValue = if (currentSongTitle != null) 84.dp else 24.dp,
+            animationSpec = androidx.compose.animation.core.tween(300),
+            label = "searchCapsulePadding"
+        )
+
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = searchCapsuleBottomPadding)
+                .clip(RoundedCornerShape(20.dp))
+                .border(1.5.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
+                .background(Color.White.copy(alpha = 0.08f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { /* TODO: user will guide what to do */ }
+                )
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = CoralIcons.Search,
+                contentDescription = "Search",
+                tint = Color.White,
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = "Search",
+                color = Color.White,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+
         // Add bottom padding to the content area when mini player is visible,
         // so the song list doesn't hide behind the mini player. We do this by
         // adding a spacer that grows/shrinks with the mini player visibility.
