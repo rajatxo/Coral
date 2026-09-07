@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -169,10 +170,11 @@ fun HomeScreen(
     }
 
     // Extract palette for the capsule's progress color
+    val homeContext = androidx.compose.ui.platform.LocalContext.current
     var capsuleAccentColor by remember { mutableStateOf<Color>(CoralColors.Coral) }
     androidx.compose.runtime.LaunchedEffect(currentSongArt) {
         com.rajatxo.coral.util.extractPalette(
-            context = androidx.compose.ui.platform.LocalContext.current,
+            context = homeContext,
             artUri = currentSongArt
         )?.let { capsuleAccentColor = it.accent }
     }
