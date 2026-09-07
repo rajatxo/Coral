@@ -276,6 +276,10 @@ private fun AlphabetScrollbar(
     if (letters.isEmpty()) return
 
     var currentDragIndex by remember { mutableStateOf<Int?>(null) }
+    // Track the absolute Y position of the drag — detectVerticalDragGestures
+    // gives us RELATIVE positions (change since last drag event), so we
+    // accumulate them to get the absolute position within the scrollbar.
+    var absoluteDragY by remember { mutableStateOf(0f) }
 
     Column(
         modifier = modifier
@@ -283,23 +287,39 @@ private fun AlphabetScrollbar(
             .pointerInput(letters) {
                 detectVerticalDragGestures(
                     onDragStart = { offset ->
+                        // offset is the absolute position where the drag started
                         val itemHeight = size.height.toFloat() / letters.size
                         val index = (offset.y / itemHeight).toInt().coerceIn(0, letters.lastIndex)
                         currentDragIndex = index
+                        absoluteDragY = offset.y
                         onDragStart(letters[index])
                         onLetterSelected(letters[index])
                     },
                     onDragEnd = {
                         currentDragIndex = null
+                        absoluteDragY = 0f
                         onDragEnd()
                     },
                     onDragCancel = {
                         currentDragIndex = null
+                        absoluteDragY = 0f
                         onDragEnd()
                     },
                     onVerticalDrag = { change, _ ->
+                        // change.position is RELATIVE to where this drag event
+                        // started. We accumulate it into absoluteDragY to get
+                        // the absolute Y position within the scrollbar.
+                        // Then we convert that to a letter index.
+                        //
+                        // BUG FIX (previous): I was using change.position.y
+                        // directly as the index calc, but that's the position
+                        // since the LAST drag event, not the absolute position.
+                        // That's why the letter got "stuck" — small drags
+                        // kept reporting nearly-zero Y, so the index never
+                        // changed even though the finger moved.
+                        absoluteDragY += change.position.y
                         val itemHeight = size.height.toFloat() / letters.size
-                        val newIndex = (change.position.y / itemHeight).toInt().coerceIn(0, letters.lastIndex)
+                        val newIndex = (absoluteDragY / itemHeight).toInt().coerceIn(0, letters.lastIndex)
                         if (newIndex != currentDragIndex) {
                             currentDragIndex = newIndex
                             onDragStart(letters[newIndex])

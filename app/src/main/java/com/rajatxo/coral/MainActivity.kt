@@ -136,6 +136,28 @@ fun CoralApp() {
             }
             override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
         })
+
+        // --- BUG FIX: Restore mini player state after app restart ---
+        // When the app is killed from the task manager and reopened, the
+        // playback service is still running (the song keeps playing), but
+        // our state variables (currentSongTitle, etc.) are all null because
+        // they were re-initialized in this composable.
+        //
+        // The Player.Listener above only fires on STATE CHANGES — it
+        // doesn't fire for the currently-playing song. So we have to
+        // explicitly read the current state from the controller here.
+        //
+        // Without this fix, the mini player wouldn't appear after restarting
+        // the app, even though the song was still playing.
+        val currentMediaItem = controller.currentMediaItem
+        if (currentMediaItem != null) {
+            currentSongTitle = currentMediaItem.mediaMetadata.title?.toString()
+            currentSongArtist = currentMediaItem.mediaMetadata.artist?.toString()
+            currentSongAlbum = currentMediaItem.mediaMetadata.albumTitle?.toString()
+            currentSongArt = currentMediaItem.mediaMetadata.artworkUri
+            currentSongId = currentMediaItem.mediaId.toLongOrNull()
+        }
+        isPlaying = controller.isPlaying
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
