@@ -264,66 +264,6 @@ fun HomeScreen(
         // just clip the last few items. Phase 8.1 will add proper bottom
         // inset handling.
 
-        // --- Floating search button (universal — visible on ALL tabs) ---
-        // Circular glass button at bottom-right.
-        // Position changes based on mini player:
-        //   - Song playing → button sits ABOVE the mini player (~90dp from bottom)
-        //   - No song → button sits lower (~28dp from bottom)
-        // Glass effect: semi-transparent white tint + white border + blur.
-        // The blur adapts to what's behind it (frosted glass look).
-        val searchBottomPadding by androidx.compose.animation.core.animateDpAsState(
-            targetValue = if (currentSongTitle != null) 88.dp else 28.dp,
-            animationSpec = androidx.compose.animation.core.tween(300),
-            label = "searchButtonPadding"
-        )
-
-        var searchPressed by remember { mutableStateOf(false) }
-        val searchScale by androidx.compose.animation.core.animateFloatAsState(
-            targetValue = if (searchPressed) 0.9f else 1f,
-            animationSpec = androidx.compose.animation.core.spring(
-                dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
-                stiffness = androidx.compose.animation.core.Spring.StiffnessHigh
-            ),
-            label = "searchScale"
-        )
-
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 16.dp, bottom = searchBottomPadding)
-                .size(52.dp)
-                .graphicsLayer {
-                    scaleX = searchScale
-                    scaleY = searchScale
-                }
-                .clip(CircleShape)
-                .border(1.5.dp, Color.White.copy(alpha = 0.35f), CircleShape)
-                .background(Color.White.copy(alpha = 0.1f))
-                .pointerInput(Unit) {
-                    awaitPointerEventScope {
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull() ?: continue
-                            when {
-                                change.pressed && !searchPressed -> searchPressed = true
-                                !change.pressed && searchPressed -> {
-                                    searchPressed = false
-                                    // TODO: open search screen (user will tell me what to do)
-                                }
-                            }
-                        }
-                    }
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = CoralIcons.Search,
-                contentDescription = "Search",
-                tint = Color.White,
-                modifier = Modifier.size(22.dp)
-            )
-        }
-
         // Song picker modal (slides up over the playlist detail)
         if (showSongPicker && playlistForPicker != null) {
             androidx.compose.animation.AnimatedVisibility(
