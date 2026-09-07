@@ -2,7 +2,7 @@ package com.rajatxo.coral.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,7 +34,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.awaitPointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -259,10 +261,30 @@ fun SongsScreen(
 }
 
 /**
- * Vertical alphabet scrollbar — drag to jump to a letter.
+ * Vertical alphabet scrollbar — completely rewritten to match ViTune.
  *
- * Each letter is a small clickable Text. The currently-active letter
- * (the one the song list is scrolled to) is highlighted in coral.
+ * Features:
+ *  - Always visible vertical column of letters on the right edge
+ *  - Currently-active letter (the one the song list is scrolled to) has
+ *    a solid coral circle background behind it
+ *  - Drag anywhere on the scrollbar → letter follows your finger
+ *    INSTANTLY (uses awaitPointerEventScope for absolute position tracking,
+ *    not detectVerticalDragGestures which gives relative positions)
+ *  - Tap a letter → jump to that letter
+ *  - While dragging, a big floating bubble appears in the center of the
+ *    screen showing the current letter (white text on coral circle)
+ *
+ * Why the previous version was broken:
+ *  detectVerticalDragGestures reports change.position as RELATIVE to the
+ *  last drag event. Accumulating these (absoluteDragY += change.position.y)
+ *  was wrong — Compose's PointerInputChange.position is already absolute
+ *  within the modifier's coordinate space, but the way detectVerticalDragGestures
+ *  invokes the callback, it passes a CHANGED pointer whose position has
+ *  already been consumed by the gesture detector.
+ *
+ *  The fix: use awaitPointerEventScope + awaitFirstDown + drag() loop.
+ *  This gives us RAW pointer events with absolute positions, which we
+ *  convert directly to a letter index.
  */
 @Composable
 private fun AlphabetScrollbar(
@@ -275,82 +297,98 @@ private fun AlphabetScrollbar(
 ) {
     if (letters.isEmpty()) return
 
-    var currentDragIndex by remember { mutableStateOf<Int?>(null) }
-    // Track the absolute Y position of the drag — detectVerticalDragGestures
-    // gives us RELATIVE positions (change since last drag event), so we
-    // accumulate them to get the absolute position within the scrollbar.
-    var absoluteDragY by remember { mutableStateOf(0f) }
+    // The letter currently being touched/dragged (null when not touching)
+    var draggedLetter by remember { mutableStateOf<Char?>(null) }
 
-    Column(
+    Box(
         modifier = modifier
-            .width(24.dp)
+            .width(32.dp)
             .pointerInput(letters) {
-                detectVerticalDragGestures(
-                    onDragStart = { offset ->
-                        // offset is the absolute position where the drag started
+                awaitPointerEventScope {
+                    while (true) {
+                        // Wait for a finger to touch the scrollbar
+                        val down = awaitFirstDown(requireUnconsumed = false)
                         val itemHeight = size.height.toFloat() / letters.size
-                        val index = (offset.y / itemHeight).toInt().coerceIn(0, letters.lastIndex)
-                        currentDragIndex = index
-                        absoluteDragY = offset.y
-                        onDragStart(letters[index])
-                        onLetterSelected(letters[index])
-                    },
-                    onDragEnd = {
-                        currentDragIndex = null
-                        absoluteDragY = 0f
-                        onDragEnd()
-                    },
-                    onDragCancel = {
-                        currentDragIndex = null
-                        absoluteDragY = 0f
-                        onDragEnd()
-                    },
-                    onVerticalDrag = { change, _ ->
-                        // change.position is RELATIVE to where this drag event
-                        // started. We accumulate it into absoluteDragY to get
-                        // the absolute Y position within the scrollbar.
-                        // Then we convert that to a letter index.
-                        //
-                        // BUG FIX (previous): I was using change.position.y
-                        // directly as the index calc, but that's the position
-                        // since the LAST drag event, not the absolute position.
-                        // That's why the letter got "stuck" — small drags
-                        // kept reporting nearly-zero Y, so the index never
-                        // changed even though the finger moved.
-                        absoluteDragY += change.position.y
-                        val itemHeight = size.height.toFloat() / letters.size
-                        val newIndex = (absoluteDragY / itemHeight).toInt().coerceIn(0, letters.lastIndex)
-                        if (newIndex != currentDragIndex) {
-                            currentDragIndex = newIndex
-                            onDragStart(letters[newIndex])
-                            onLetterSelected(letters[newIndex])
+
+                        // Compute the initial letter from the touch position
+                        val initialIndex = (down.position.y / itemHeight)
+                            .toInt()
+                            .coerceIn(0, letters.lastIndex)
+                        val initialLetter = letters[initialIndex]
+                        draggedLetter = initialLetter
+                        onDragStart(initialLetter)
+                        onLetterSelected(initialLetter)
+                        down.consume()
+
+                        // Now track the drag — drag() returns the total drag
+                        // distance from the down event, so we use position()
+                        // to get the absolute current position.
+                        var pointer = down
+                        while (true) {
+                            val event = awaitPointerEvent(requireUnconsumed = false)
+                            val change = event.changes.firstOrNull() ?: break
+                            if (!change.pressed) {
+                                // Finger lifted — end drag
+                                draggedLetter = null
+                                onDragEnd()
+                                break
+                            }
+                            // Compute the letter from the absolute Y position
+                            val absY = change.position.y
+                            val newIndex = (absY / itemHeight)
+                                .toInt()
+                                .coerceIn(0, letters.lastIndex)
+                            val newLetter = letters[newIndex]
+                            if (newLetter != draggedLetter) {
+                                draggedLetter = newLetter
+                                onDragStart(newLetter)
+                                onLetterSelected(newLetter)
+                            }
+                            change.consume()
                         }
-                        change.consume()
                     }
-                )
+                }
             },
-        verticalArrangement = Arrangement.spacedBy(0.dp, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally
+        contentAlignment = Alignment.Center
     ) {
-        letters.forEach { letter ->
-            val isActive = letter == currentLetter
-            Text(
-                text = letter.toString(),
-                color = if (isActive) CoralColors.Coral else CoralColors.TextMuted,
-                fontSize = 11.sp,
-                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                modifier = Modifier
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = {
-                            onLetterSelected(letter)
-                            onDragStart(letter)
-                            onDragEnd()
-                        }
+        Column(
+            verticalArrangement = Arrangement.spacedBy(0.dp, Alignment.CenterVertically),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            letters.forEach { letter ->
+                val isActive = letter == currentLetter
+                val isDragged = letter == draggedLetter
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = {
+                                onLetterSelected(letter)
+                                onDragStart(letter)
+                                onDragEnd()
+                            }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Coral circle behind the active or dragged letter
+                    if (isActive || isDragged) {
+                        Box(
+                            modifier = Modifier
+                                .size(20.dp)
+                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .background(CoralColors.Coral)
+                        )
+                    }
+                    Text(
+                        text = letter.toString(),
+                        color = if (isActive || isDragged) Color.White else CoralColors.TextMuted,
+                        fontSize = 11.sp,
+                        fontWeight = if (isActive || isDragged) FontWeight.Bold else FontWeight.Normal
                     )
-                    .padding(vertical = 1.dp)
-            )
+                }
+            }
         }
     }
 }
