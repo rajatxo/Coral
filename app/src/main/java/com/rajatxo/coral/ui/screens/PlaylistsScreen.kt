@@ -4,8 +4,8 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
-import androidx.compose.background
-import androidx.compose.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -22,12 +22,13 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
@@ -50,13 +52,17 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.drawText
 import coil3.compose.AsyncImage
 import com.rajatxo.coral.data.model.Playlist
 import com.rajatxo.coral.data.store.PlaylistStore
 import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.icons.CoralIcons
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import kotlin.math.PI
 import kotlin.math.cos
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 @Composable
@@ -267,7 +273,7 @@ private fun PlaylistWheel(
     // Current rotation of the wheel (animated for smoothness)
     val rotation = remember { Animatable(0f) }
     var velocityTracker = remember { VelocityTracker() }
-    var draggedIndex by remember { mutableStateOf(0) }
+    val coroutineScope = rememberCoroutineScope()
 
     // Selected playlist = the one at the top (12 o'clock = -90° in Compose)
     val selectedIndex = remember(rotation.value) {
@@ -283,32 +289,30 @@ private fun PlaylistWheel(
                         velocityTracker = VelocityTracker()
                     },
                     onDragEnd = {
-                        // Fling: calculate velocity and animate to final position
-                        val velocity = velocityTracker.calculateVelocity().y
-                        // Simple snap: find nearest playlist and spring to it
-                        val currentNormalized = ((-rotation.value) % 360f + 360f) % 360f
-                        val nearestIndex = ((currentNormalized / anglePerItem).roundToInt() % playlists.size)
-                        val targetRotation = -nearestIndex * anglePerItem
-                        // Find the shortest path to target
-                        val currentMod = ((rotation.value % 360f) + 360f) % 360f
-                        val targetMod = ((targetRotation % 360f) + 360f) % 360f
-                        var diff = targetMod - currentMod
-                        if (diff > 180f) diff -= 360f
-                        if (diff < -180f) diff += 360f
-                        val finalTarget = rotation.value + diff
-                        rotation.animateTo(
-                            targetValue = finalTarget,
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioMediumBouncy,
-                                stiffness = Spring.StiffnessLow
+                        coroutineScope.launch {
+                            val currentNormalized = ((-rotation.value) % 360f + 360f) % 360f
+                            val nearestIndex = ((currentNormalized / anglePerItem).roundToInt() % playlists.size)
+                            val targetRotation = -nearestIndex * anglePerItem
+                            val currentMod = ((rotation.value % 360f) + 360f) % 360f
+                            val targetMod = ((targetRotation % 360f) + 360f) % 360f
+                            var diff = targetMod - currentMod
+                            if (diff > 180f) diff -= 360f
+                            if (diff < -180f) diff += 360f
+                            val finalTarget = rotation.value + diff
+                            rotation.animateTo(
+                                targetValue = finalTarget,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessLow
+                                )
                             )
-                        )
+                        }
                     },
                     onVerticalDrag = { change, dragAmount ->
-                        // Convert vertical drag to rotation degrees
-                        // 1px drag = ~0.5 degrees rotation (adjustable for feel)
                         val rotationDelta = -dragAmount * 0.5f
-                        rotation.snapTo(rotation.value + rotationDelta)
+                        coroutineScope.launch {
+                            rotation.snapTo(rotation.value + rotationDelta)
+                        }
                         velocityTracker.addPosition(
                             change.uptimeMillis,
                             change.position
@@ -426,8 +430,6 @@ private fun PlaylistWheel(
     }
 }
 
-private fun Float.roundToInt(): Int = kotlin.math.round(this).toInt()
-
 @Composable
 private fun PlaylistCard(
     playlist: Playlist,
@@ -477,4 +479,37 @@ private fun PlaylistCard(
             fontSize = 12.sp
         )
     }
+}
+
+@Composable
+private fun CreatePlaylistDialog(
+    onDismiss: () -> Unit,
+    onCreate: (String) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = CoralColors.SurfaceVariant,
+        titleContentColor = Color.White,
+        title = { Text("New playlist") },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                placeholder = { Text("Playlist name", color = Color(0xFF888888)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { if (name.isNotBlank()) onCreate(name) }) {
+                Text("Create", color = CoralColors.Coral, fontWeight = FontWeight.SemiBold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = Color(0xFF888888))
+            }
+        }
+    )
 }
