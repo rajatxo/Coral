@@ -108,7 +108,7 @@ fun CoralNavRail(
                 )
             }
 
-            Spacer(modifier = Modifier.height(22.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             // ---- Rail labels, vertically CENTERED (matches ViTune) ----
             // ViTune clusters all labels together in the vertical MIDDLE
