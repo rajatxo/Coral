@@ -77,10 +77,9 @@ fun SongsScreen(
 
     // Total height of the pinned header.
     // Structure (top to bottom):
-    //   ~0-100dp: solid pure black (status bar + "Songs" title + capsule)
-    //   ~100-180dp: wavy fade — stays nearly opaque (songs fully hidden)
-    //     then transitions to transparent in the last 20dp
-    val headerHeight = 180.dp
+    //   ~0-136dp: solid pure black (status bar + "Songs" title + capsule)
+    //   ~136-170dp: wavy fade (34dp of fade — smaller gap, songs closer to capsule)
+    val headerHeight = 170.dp
 
     Box(modifier = Modifier.fillMaxSize()) {
         // --- Layer 1: Song list (scrolls behind the header) ---
@@ -116,9 +115,10 @@ fun SongsScreen(
                 val canvasWidth = size.width
                 val canvasHeight = size.height
 
-                // The solid black area covers the top ~55% (status bar +
+                // The solid black area covers the top ~80% (status bar +
                 // title + capsule). Below that is the wavy fade.
-                val waveStartY = canvasHeight * 0.55f
+                // 80% of 170dp = ~136dp solid black, then ~34dp fade.
+                val waveStartY = canvasHeight * 0.80f
                 val waveAmplitude = 12f  // gentle wave height in px
                 val waveSegments = 3  // number of wave bumps
 
