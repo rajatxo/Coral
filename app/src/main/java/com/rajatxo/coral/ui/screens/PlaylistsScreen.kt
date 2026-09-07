@@ -6,6 +6,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -61,9 +62,12 @@ import com.rajatxo.coral.ui.icons.CoralIcons
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 @Composable
 fun PlaylistsScreen(
@@ -266,28 +270,27 @@ private fun PlaylistWheel(
 
     val density = LocalDensity.current
     val textMeasurer = rememberTextMeasurer()
-
-    // Angle per playlist (360 / count)
     val anglePerItem = 360f / playlists.size
 
-    // Current rotation of the wheel (animated for smoothness)
     val rotation = remember { Animatable(0f) }
     var velocityTracker = remember { VelocityTracker() }
     val coroutineScope = rememberCoroutineScope()
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
 
-    // Selected playlist = the one at the top (12 o'clock = -90° in Compose)
+    // Selected = the one at 0° (3 o'clock = right of sphere = "main area")
     val selectedIndex = remember(rotation.value) {
         val normalized = ((-rotation.value) % 360f + 360f) % 360f
-        ((normalized / anglePerItem).toInt() % playlists.size).coerceIn(0, playlists.size - 1)
+        ((normalized / anglePerItem).roundToInt() % playlists.size).coerceIn(0, playlists.size - 1)
     }
+
+    // Tap detection: track where the user taps
+    var tapPosition by remember { mutableStateOf(Offset.Zero) }
 
     Box(
         modifier = modifier
             .pointerInput(playlists.size) {
                 detectVerticalDragGestures(
-                    onDragStart = { offset ->
-                        velocityTracker = VelocityTracker()
-                    },
+                    onDragStart = { velocityTracker = VelocityTracker() },
                     onDragEnd = {
                         coroutineScope.launch {
                             val currentNormalized = ((-rotation.value) % 360f + 360f) % 360f
@@ -298,9 +301,8 @@ private fun PlaylistWheel(
                             var diff = targetMod - currentMod
                             if (diff > 180f) diff -= 360f
                             if (diff < -180f) diff += 360f
-                            val finalTarget = rotation.value + diff
                             rotation.animateTo(
-                                targetValue = finalTarget,
+                                targetValue = rotation.value + diff,
                                 animationSpec = spring(
                                     dampingRatio = Spring.DampingRatioMediumBouncy,
                                     stiffness = Spring.StiffnessLow
@@ -309,118 +311,169 @@ private fun PlaylistWheel(
                         }
                     },
                     onVerticalDrag = { change, dragAmount ->
-                        val rotationDelta = -dragAmount * 0.5f
+                        // Swipe UP → anti-clockwise → rotation decreases
+                        // Swipe DOWN → clockwise → rotation increases
+                        val rotationDelta = dragAmount * 0.5f
                         coroutineScope.launch {
                             rotation.snapTo(rotation.value + rotationDelta)
                         }
-                        velocityTracker.addPosition(
-                            change.uptimeMillis,
-                            change.position
-                        )
+                        velocityTracker.addPosition(change.uptimeMillis, change.position)
                         change.consume()
                     }
                 )
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        // Draw the wheel
-        Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    // GPU-accelerated rotation — this is the key to 120fps
-                    rotationZ = rotation.value
+            }
+            .pointerInput(playlists.size) {
+                // Tap detection for the 3 clickable playlists
+                awaitPointerEventScope {
+                    while (true) {
+                        val down = awaitFirstDown()
+                        val up = awaitPointerEvent()
+                        val change = up.changes.firstOrNull() ?: continue
+                        if (!change.pressed) {
+                            val tapX = change.position.x
+                            val tapY = change.position.y
+                            val canvasWidth = size.width.toFloat()
+                            val canvasHeight = size.height.toFloat()
+                            val sphereCenterX = 0f
+                            val sphereCenterY = canvasHeight / 2f
+                            val orbitRadius = canvasWidth * 0.45f
+
+                            // Check which of the 3 nearest playlists was tapped
+                            for (offset in -1..1) {
+                                val idx = (selectedIndex + offset + playlists.size) % playlists.size
+                                val itemAngleDeg = (idx * anglePerItem + rotation.value)
+                                val itemAngleRad = (itemAngleDeg * PI / 180f).toFloat()
+                                val itemX = sphereCenterX + orbitRadius * cos(itemAngleRad)
+                                val itemY = sphereCenterY + orbitRadius * sin(itemAngleRad)
+                                val dist = sqrt((tapX - itemX).pow(2) + (tapY - itemY).pow(2))
+                                if (dist < 80f.toPx()) {
+                                    haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                    onPlaylistClick(playlists[idx])
+                                    break
+                                }
+                            }
+                        }
+                    }
                 }
-        ) {
-            val centerX = size.width / 2f
-            val centerY = size.height / 2f
-            val radius = size.minDimension * 0.35f // wheel radius
+            }
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
+            val sphereCenterX = 0f
+            val sphereCenterY = h / 2f
+            val sphereRadius = h * 0.35f
+            val orbitRadius = w * 0.45f
 
-            // Draw each playlist name along the circle
+            // === 1. HALF SPHERE (dome on left, glossy like the sun) ===
+            // Radial gradient: bright center → dark right → transparent left
+            val sphereGradient = Brush.radialGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = 0.15f),  // center: subtle bright
+                    Color.White.copy(alpha = 0.05f),  // mid
+                    Color.Black.copy(alpha = 0.3f),   // right: darker
+                    Color.Transparent                   // left edge: fades to rail
+                ),
+                center = Offset(sphereCenterX + sphereRadius * 0.3f, sphereCenterY),
+                radius = sphereRadius
+            )
+            drawCircle(
+                brush = sphereGradient,
+                radius = sphereRadius,
+                center = Offset(sphereCenterX, sphereCenterY)
+            )
+
+            // Glossy highlight (small white ellipse on top-left of sphere)
+            drawOval(
+                color = Color.White.copy(alpha = 0.08f),
+                topLeft = Offset(sphereCenterX - sphereRadius * 0.2f, sphereCenterY - sphereRadius * 0.6f),
+                size = androidx.compose.ui.geometry.Size(sphereRadius * 0.5f, sphereRadius * 0.2f)
+            )
+
+            // === 2. ORBIT (arc on the right side of sphere) ===
+            drawArc(
+                color = Color.White.copy(alpha = 0.06f),
+                startAngle = -80f,
+                sweepAngle = 160f,
+                useCenter = false,
+                topLeft = Offset(sphereCenterX - orbitRadius, sphereCenterY - orbitRadius),
+                size = androidx.compose.ui.geometry.Size(orbitRadius * 2f, orbitRadius * 2f),
+                style = Stroke(width = 1.dp.toPx())
+            )
+
+            // === 3. PLAYLIST NAMES along the orbit ===
             playlists.forEachIndexed { i, playlist ->
-                // Angle for this item (starting at top = -90°)
-                val itemAngle = (i * anglePerItem - 90f) * (PI / 180f).toFloat()
-                val x = centerX + radius * cos(itemAngle)
-                val y = centerY + radius * sin(itemAngle)
+                val itemAngleDeg = (i * anglePerItem + rotation.value)
+                val itemAngleRad = (itemAngleDeg * PI / 180f).toFloat()
 
-                // Measure the text
-                val textLayoutResult = textMeasurer.measure(
+                val x = sphereCenterX + orbitRadius * cos(itemAngleRad)
+                val y = sphereCenterY + orbitRadius * sin(itemAngleRad)
+
+                // Distance from center (0° = right = "main area")
+                var angleDistance = abs(itemAngleDeg % 360f)
+                if (angleDistance > 180f) angleDistance = 360f - angleDistance
+
+                // Progressive text sizing (3 tiers)
+                val fontSize = when {
+                    angleDistance < anglePerItem * 0.6f -> 22f  // center: BIG
+                    angleDistance < anglePerItem * 1.8f -> 16f  // adjacent: medium
+                    angleDistance < anglePerItem * 3.0f -> 13f  // near: small
+                    else -> 10f                                    // far: tiny
+                }
+
+                // Alpha: fade out on the LEFT side (near nav rail)
+                val cosVal = cos(itemAngleRad)
+                val alpha = when {
+                    cosVal > 0.3f -> 1f               // right side: fully visible
+                    cosVal > -0.2f -> (cosVal + 0.2f) / 0.5f  // transitioning
+                    else -> 0f                          // left side: invisible
+                }
+
+                if (alpha < 0.05f) return@forEachIndexed
+
+                // Measure text at the calculated size
+                val fontWeight = if (angleDistance < anglePerItem * 0.6f) FontWeight.Bold
+                                 else FontWeight.Medium
+                val textColor = if (angleDistance < anglePerItem * 0.6f) CoralColors.Coral
+                                else Color.White
+
+                val textLayout = textMeasurer.measure(
                     text = AnnotatedString(playlist.name),
                     style = TextStyle(
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
+                        color = textColor,
+                        fontSize = fontSize.sp,
+                        fontWeight = fontWeight
                     ),
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    overflow = TextOverflow.Ellipsis,
                     maxLines = 1,
                     softWrap = false
                 )
 
-                // Draw the text, rotated to be tangential to the circle
                 drawText(
-                    textLayoutResult = textLayoutResult,
+                    textLayoutResult = textLayout,
                     topLeft = Offset(
-                        x - textLayoutResult.size.width / 2f,
-                        y - textLayoutResult.size.height / 2f
+                        x - textLayout.size.width / 2f,
+                        y - textLayout.size.height / 2f
                     ),
-                    alpha = 1f
+                    alpha = alpha
                 )
 
-                // Draw a small dot for each playlist
+                // Small dot on the orbit for each playlist
                 drawCircle(
-                    color = Color.White.copy(alpha = 0.3f),
-                    radius = 3.dp.toPx(),
+                    color = if (angleDistance < anglePerItem * 0.6f) CoralColors.Coral
+                            else Color.White.copy(alpha = 0.3f * alpha),
+                    radius = if (angleDistance < anglePerItem * 0.6f) 5.dp.toPx() else 2.dp.toPx(),
                     center = Offset(
-                        centerX + (radius - 20.dp.toPx()) * cos(itemAngle),
-                        centerY + (radius - 20.dp.toPx()) * sin(itemAngle)
+                        sphereCenterX + (orbitRadius - 15.dp.toPx()) * cos(itemAngleRad),
+                        sphereCenterY + (orbitRadius - 15.dp.toPx()) * sin(itemAngleRad)
                     )
                 )
             }
-
-            // Draw the circle guide
-            drawCircle(
-                color = Color.White.copy(alpha = 0.08f),
-                radius = radius,
-                center = Offset(centerX, centerY),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(
-                    width = 1.dp.toPx()
-                )
-            )
-        }
-
-        // Selected indicator (fixed at top, doesn't rotate)
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 0.dp)
-                .size(width = 100.dp, height = 3.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(CoralColors.Coral)
-        )
-
-        // Selected playlist name (big, at top, doesn't rotate)
-        if (playlists.isNotEmpty() && selectedIndex >= 0) {
-            Text(
-                text = playlists[selectedIndex].name,
-                color = Color.White,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 20.dp)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { onPlaylistClick(playlists[selectedIndex]) }
-                    )
-            )
         }
 
         // Hint text
         Text(
-            text = "Slide to browse • Tap to open",
+            text = "Slide to spin • Tap to open",
             color = CoralColors.TextMuted,
             fontSize = 11.sp,
             modifier = Modifier
