@@ -70,6 +70,9 @@ fun PlaylistsScreen(
 
     Box(modifier = Modifier.fillMaxSize().background(CoralColors.Surface)) {
         // --- Big "Playlists" title at top-RIGHT (always visible, Quirk font) ---
+        // No "New" button — clean space like other tabs (user request).
+        // The capsule/space before the title is where the SleepTimerCapsule
+        // will appear when a timer is active.
         Text(
             text = "Playlists",
             color = Color.White,
@@ -81,42 +84,6 @@ fun PlaylistsScreen(
                 .statusBarsPadding()
                 .padding(end = 20.dp, top = 16.dp)
         )
-
-        // --- "New" button at top-LEFT ---
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .statusBarsPadding()
-                .padding(start = 16.dp, top = 20.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.White.copy(alpha = 0.18f),
-                            Color.White.copy(alpha = 0.08f)
-                        )
-                    )
-                )
-                .clickable(onClick = { showCreateDialog = true })
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = CoralIcons.Play,
-                    contentDescription = null,
-                    tint = Color(0xFFFF6B6B),
-                    modifier = Modifier.size(14.dp)
-                )
-                Spacer(modifier = Modifier.size(6.dp))
-                Text(
-                    text = "New",
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        }
 
         // --- Content: grid or empty state ---
         if (playlists.isEmpty()) {

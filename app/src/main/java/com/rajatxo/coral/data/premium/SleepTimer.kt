@@ -41,7 +41,8 @@ class SleepTimer(
         _state.value = SleepTimerState(
             active = true,
             endAtMs = endTimeMs,
-            endOfSong = false
+            endOfSong = false,
+            totalDurationMs = durationMs
         )
         countdownJob = scope.launch {
             while (true) {
@@ -94,11 +95,14 @@ class SleepTimer(
         val current = _state.value
         if (!current.active || current.endOfSong || current.endAtMs == null) return
         val newEnd = current.endAtMs + minutes * 60_000L
-        _state.value = current.copy(endAtMs = newEnd)
+        val newTotal = current.totalDurationMs + minutes * 60_000L
+        _state.value = current.copy(endAtMs = newEnd, totalDurationMs = newTotal)
         // Restart the timed countdown to pick up the new end time
         val remaining = newEnd - System.currentTimeMillis()
         if (remaining > 0) {
             startTimed(remaining)
+            // Restore the total duration (startTimed resets it to `remaining`)
+            _state.value = _state.value.copy(totalDurationMs = newTotal)
         }
     }
 }
@@ -113,5 +117,6 @@ class SleepTimer(
 data class SleepTimerState(
     val active: Boolean = false,
     val endAtMs: Long? = null,
-    val endOfSong: Boolean = false
+    val endOfSong: Boolean = false,
+    val totalDurationMs: Long = 0L
 )

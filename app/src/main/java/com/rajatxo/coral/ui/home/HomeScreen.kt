@@ -153,6 +153,30 @@ fun HomeScreen(
         }
     }
 
+    // --- Sleep Timer Capsule state ---
+    val sleepTimerState by sleepTimer.state.collectAsState()
+    var sleepRemainingMs by remember { mutableStateOf(0L) }
+
+    // Poll remaining time every 1 second when timer is active
+    androidx.compose.runtime.LaunchedEffect(sleepTimerState.active) {
+        while (sleepTimerState.active) {
+            val endAt = sleepTimerState.endAtMs
+            if (endAt != null) {
+                sleepRemainingMs = (endAt - System.currentTimeMillis()).coerceAtLeast(0L)
+            }
+            delay(1000L)
+        }
+    }
+
+    // Extract palette for the capsule's progress color
+    var capsuleAccentColor by remember { mutableStateOf<Color>(CoralColors.Coral) }
+    androidx.compose.runtime.LaunchedEffect(currentSongArt) {
+        com.rajatxo.coral.util.extractPalette(
+            context = androidx.compose.ui.platform.LocalContext.current,
+            artUri = currentSongArt
+        )?.let { capsuleAccentColor = it.accent }
+    }
+
     Box(modifier = Modifier.fillMaxSize().background(CoralColors.Surface)) {
         // Main content + nav rail — fills the whole screen
         Row(modifier = Modifier.fillMaxSize()) {
@@ -257,6 +281,24 @@ fun HomeScreen(
                 onPlayPauseClick = onPlayPauseClick,
                 onNextClick = onNextClick,
                 onClick = onMiniPlayerClick
+            )
+        }
+
+        // --- Sleep Timer Capsule (top-left overlay, auto-width) ---
+        // Only appears when a sleep timer is active.
+        // Positioned at the top-left of the content area (after the nav rail),
+        // with a gentle gap before the big title text on the right.
+        if (sleepTimerState.active && !sleepTimerState.endOfSong && sleepRemainingMs > 0) {
+            com.rajatxo.coral.ui.components.SleepTimerCapsule(
+                remainingMs = sleepRemainingMs,
+                totalMs = sleepTimerState.totalDurationMs,
+                progressColor = capsuleAccentColor,
+                onExtend = { sleepTimer.extend(10) },
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .statusBarsPadding()
+                    .padding(start = 16.dp, top = 20.dp)
+                    .width(170.dp)
             )
         }
 
