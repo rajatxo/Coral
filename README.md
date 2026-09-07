@@ -1,6 +1,4 @@
-# Coral Music Player 🪸
-
-A beautiful offline music player for Android.
+# Coral 
 
 ## Building
 
