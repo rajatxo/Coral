@@ -263,27 +263,33 @@ fun HomeScreen(
                     )
                 }
 
-                // --- Sleep Timer Capsule (inside content area, auto-width) ---
-                // Positioned at TopStart of the content Box (after nav rail).
-                // Auto-fills the space before the big title text.
-                // Handles both timed mode and end-of-song mode.
-                val capsuleVisible = sleepTimerState.active && sleepRemainingMs > 0
-                val capsuleRemaining = if (sleepTimerState.endOfSong) {
-                    // End-of-song: show remaining song time
-                    (miniPlayerDurationMs - miniPlayerPositionMs).coerceAtLeast(0L)
-                } else {
-                    sleepRemainingMs
+                // --- Sleep Timer Capsule (auto-fills space before title) ---
+                // Uses a Row with weight(1f) to auto-fill the space before
+                // the big title text on the right. The capsule expands/shrinks
+                // depending on how wide the title text is on each tab.
+                if (sleepTimerState.active) {
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .statusBarsPadding()
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, end = 20.dp, top = 20.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val capsuleRemaining = if (sleepTimerState.endOfSong) {
+                            (miniPlayerDurationMs - miniPlayerPositionMs).coerceAtLeast(0L)
+                        } else {
+                            sleepRemainingMs
+                        }
+                        com.rajatxo.coral.ui.components.SleepTimerCapsule(
+                            visible = sleepTimerState.active && capsuleRemaining > 0,
+                            remainingMs = capsuleRemaining,
+                            onExtend = { sleepTimer.extend(10) },
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(modifier = Modifier.size(12.dp))
+                    }
                 }
-                com.rajatxo.coral.ui.components.SleepTimerCapsule(
-                    visible = sleepTimerState.active && capsuleRemaining > 0,
-                    remainingMs = capsuleRemaining,
-                    onExtend = { sleepTimer.extend(10) },
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .statusBarsPadding()
-                        .padding(start = 16.dp, top = 20.dp, end = 120.dp)
-                        .fillMaxWidth(0.5f)
-                )
             }
         }
 

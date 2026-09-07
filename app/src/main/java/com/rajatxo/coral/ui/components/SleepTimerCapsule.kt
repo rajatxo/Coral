@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,18 +35,20 @@ import androidx.compose.ui.unit.sp
 import java.util.Locale
 
 /**
- * Sleep Timer Capsule — a white glossy pill that appears at the top-left
- * of each tab's header area when a sleep timer is active.
+ * Sleep Timer Capsule — a white glossy pill.
  *
- * Design (simplified — no progress circle):
+ * Simplified design:
  *  - White pill background with glossy reflection (vertical gradient overlay)
- *  - Inside: countdown text (e.g., "14:59") in black + "+10" extend button
- *  - Auto-adjustable width: fills available space before the title text
+ *  - Inside: countdown text (e.g., "14:59") in black
+ *  - "+10" extend button: a CIRCLE with "+10" text inside
+ *  - Auto-adjustable: uses weight(1f) in the parent Row so it fills
+ *    the available space before the title text
  *  - Fade-in/fade-out animation when timer starts/stops
  *
- * @param remainingMs   Remaining time in milliseconds
- * @param onExtend      Called when user taps "+10"
- * @param modifier      Modifier for positioning + sizing
+ * @param visible     Whether the capsule should show
+ * @param remainingMs Remaining time in milliseconds
+ * @param onExtend    Called when user taps "+10"
+ * @param modifier    Modifier for sizing (should use weight(1f))
  */
 @Composable
 fun SleepTimerCapsule(
@@ -67,12 +71,13 @@ fun SleepTimerCapsule(
 
         Box(
             modifier = Modifier
-                .height(36.dp)
-                .clip(RoundedCornerShape(18.dp))
+                .height(34.dp)
+                .fillMaxWidth()  // fill the weight(1f) space given by parent
+                .clip(RoundedCornerShape(17.dp))
                 .background(Color.White)
                 .drawWithContent {
                     drawContent()
-                    // Glossy reflection: white-to-transparent vertical gradient
+                    // Glossy reflection
                     drawRect(
                         brush = Brush.verticalGradient(
                             colors = listOf(
@@ -88,10 +93,11 @@ fun SleepTimerCapsule(
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 12.dp),
+                    .padding(horizontal = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
+                // Countdown text
                 Text(
                     text = timeText,
                     color = Color.Black,
@@ -99,26 +105,26 @@ fun SleepTimerCapsule(
                     fontWeight = FontWeight.Bold
                 )
 
-                Spacer(modifier = Modifier.width(2.dp))
+                Spacer(modifier = Modifier.weight(1f))
 
-                // "+10" extend button
-                Row(
+                // "+10" extend button — CIRCLE with "+10" text inside
+                Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color.Black.copy(alpha = 0.08f))
+                        .size(26.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                             onClick = onExtend
-                        )
-                        .padding(horizontal = 6.dp, vertical = 3.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "+10",
-                        color = Color.Black,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold
+                        color = Color.White,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
