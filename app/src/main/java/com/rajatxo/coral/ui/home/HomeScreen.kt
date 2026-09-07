@@ -234,10 +234,43 @@ fun HomeScreen(
             }
         }
 
-        // --- Unified Mini Player + Search Capsule ---
-        // When a song is playing: shows the notched mini player with the
-        // search capsule nested inside the U-notch.
-        // When no song: shows just the search capsule at the bottom.
+        // --- Search capsule (BOTTOM-most element, always visible) ---
+        // White pill with black search icon + "Search" text.
+        // Sits at the very bottom (above system nav bar), like ViTune's
+        // "Library" button. The mini player appears ABOVE this capsule.
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 8.dp)
+                .clip(RoundedCornerShape(28.dp))
+                .background(Color.White)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { /* TODO */ }
+                )
+                .padding(horizontal = 28.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(
+                imageVector = CoralIcons.Search,
+                contentDescription = "Search",
+                tint = Color.Black,
+                modifier = Modifier.size(20.dp)
+            )
+            Text(
+                text = "Search",
+                color = Color.Black,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+
+        // --- Mini player (sits ABOVE the search capsule) ---
+        // When a song is playing, the mini player appears above the
+        // search capsule — NOT at the very bottom.
         AnimatedVisibility(
             visible = currentSongTitle != null,
             enter = slideInVertically { it } + fadeIn(),
@@ -245,7 +278,7 @@ fun HomeScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(bottom = 8.dp)
+                .padding(bottom = 68.dp)  // above the search capsule
         ) {
             MiniPlayer(
                 title = currentSongTitle ?: "",
@@ -259,40 +292,6 @@ fun HomeScreen(
                 onNextClick = onNextClick,
                 onClick = onMiniPlayerClick
             )
-        }
-
-        // Standalone search capsule — visible ONLY when no song is playing
-        if (currentSongTitle == null) {
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(bottom = 8.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .border(1.5.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(24.dp))
-                    .background(Color.White.copy(alpha = 0.08f))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { /* TODO */ }
-                    )
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    imageVector = CoralIcons.Search,
-                    contentDescription = "Search",
-                    tint = Color.White,
-                    modifier = Modifier.size(18.dp)
-                )
-                Text(
-                    text = "Search",
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium
-                )
-            }
         }
 
         // Add bottom padding to the content area when mini player is visible,
@@ -418,19 +417,17 @@ private fun MiniPlayer(
     val favorites by com.rajatxo.coral.data.store.PlaylistStore.favorites.collectAsState()
     val isFavorite = songId != null && songId in favorites.songIds
 
-    val notchedShape = remember { com.rajatxo.coral.ui.shapes.NotchedPillShape() }
-
     Box(
         modifier = Modifier
             .padding(horizontal = 12.dp, vertical = 4.dp)
     ) {
-        // --- Main player body (notched pill) ---
+        // --- Main player body (standard pill) ---
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(72.dp)  // slightly taller to accommodate the notch
-                .clip(notchedShape)
-                .border(1.dp, Color.White.copy(alpha = 0.2f), notchedShape)
+                .height(64.dp)
+                .clip(RoundedCornerShape(32.dp))
+                .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(32.dp))
                 .clickable(onClick = onClick)
         ) {
             // Blurred album cover background
@@ -587,39 +584,6 @@ private fun MiniPlayer(
                     )
                 }
             }
-        }
-
-        // --- Search capsule (nested inside the U-notch, overlapping the bottom) ---
-        // Positioned at the bottom-center, offset downward so it sits half-inside
-        // the notch and half-below the player body.
-        Row(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .offset(y = 16.dp)  // push down so it hangs below the notch
-                .clip(RoundedCornerShape(20.dp))
-                .border(1.5.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
-                .background(Color.Black.copy(alpha = 0.7f))  // darker so it's visible against the notch
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = { /* TODO */ }
-                )
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Icon(
-                imageVector = CoralIcons.Search,
-                contentDescription = "Search",
-                tint = Color.White,
-                modifier = Modifier.size(16.dp)
-            )
-            Text(
-                text = "Search",
-                color = Color.White,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium
-            )
         }
     }
 }
