@@ -2,7 +2,7 @@ package com.rajatxo.coral.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,9 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.awaitPointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -304,50 +302,51 @@ private fun AlphabetScrollbar(
         modifier = modifier
             .width(32.dp)
             .pointerInput(letters) {
-                awaitPointerEventScope {
-                    while (true) {
-                        // Wait for a finger to touch the scrollbar
-                        val down = awaitFirstDown(requireUnconsumed = false)
+                // detectDragGestures gives us change.position as the ABSOLUTE
+                // position within this pointer input's coordinate space —
+                // no accumulation needed, just convert position to letter index.
+                //
+                // We also use detectTapGestures' onTap for tap-to-jump.
+                // detectDragGestures handles both tap and drag if we use
+                // onDragStart (fires on initial touch) + onDrag (fires on move).
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        // offset is the absolute position where the drag started
                         val itemHeight = size.height.toFloat() / letters.size
-
-                        // Compute the initial letter from the touch position
-                        val initialIndex = (down.position.y / itemHeight)
+                        val index = (offset.y / itemHeight)
                             .toInt()
                             .coerceIn(0, letters.lastIndex)
-                        val initialLetter = letters[initialIndex]
-                        draggedLetter = initialLetter
-                        onDragStart(initialLetter)
-                        onLetterSelected(initialLetter)
-                        down.consume()
-
-                        // Now track the drag — drag() returns the total drag
-                        // distance from the down event, so we use position()
-                        // to get the absolute current position.
-                        var pointer = down
-                        while (true) {
-                            val event = awaitPointerEvent(requireUnconsumed = false)
-                            val change = event.changes.firstOrNull() ?: break
-                            if (!change.pressed) {
-                                // Finger lifted — end drag
-                                draggedLetter = null
-                                onDragEnd()
-                                break
-                            }
-                            // Compute the letter from the absolute Y position
-                            val absY = change.position.y
-                            val newIndex = (absY / itemHeight)
-                                .toInt()
-                                .coerceIn(0, letters.lastIndex)
-                            val newLetter = letters[newIndex]
-                            if (newLetter != draggedLetter) {
-                                draggedLetter = newLetter
-                                onDragStart(newLetter)
-                                onLetterSelected(newLetter)
-                            }
-                            change.consume()
+                        val letter = letters[index]
+                        draggedLetter = letter
+                        onDragStart(letter)
+                        onLetterSelected(letter)
+                    },
+                    onDragEnd = {
+                        draggedLetter = null
+                        onDragEnd()
+                    },
+                    onDragCancel = {
+                        draggedLetter = null
+                        onDragEnd()
+                    },
+                    onDrag = { change, _ ->
+                        // change.position is the ABSOLUTE current position of
+                        // the pointer within this modifier's bounds — not a
+                        // relative delta. So we can directly convert it to a
+                        // letter index.
+                        val itemHeight = size.height.toFloat() / letters.size
+                        val newIndex = (change.position.y / itemHeight)
+                            .toInt()
+                            .coerceIn(0, letters.lastIndex)
+                        val newLetter = letters[newIndex]
+                        if (newLetter != draggedLetter) {
+                            draggedLetter = newLetter
+                            onDragStart(newLetter)
+                            onLetterSelected(newLetter)
                         }
+                        change.consume()
                     }
-                }
+                )
             },
         contentAlignment = Alignment.Center
     ) {
