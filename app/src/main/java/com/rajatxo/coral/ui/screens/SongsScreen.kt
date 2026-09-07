@@ -118,18 +118,26 @@ fun SongsScreen(
 
                 // The solid black area covers the top ~55% (status bar +
                 // title + capsule). Below that is the wavy fade.
-                // 55% of 180dp = ~100dp solid black, then ~80dp fade.
                 val waveStartY = canvasHeight * 0.55f
                 val waveAmplitude = 12f  // gentle wave height in px
                 val waveSegments = 3  // number of wave bumps
 
-                // Build the path: solid rectangle on top, wavy edge at
-                // waveStartY, then extends down to bottom for the fade.
-                val path = Path().apply {
-                    moveTo(0f, 0f)  // top-left
-                    lineTo(0f, waveStartY)  // down to wave start
+                // --- STEP 1: Draw SOLID black rectangle (fully opaque) ---
+                // This covers from top to the wave start. NO gradient, NO
+                // transparency. Songs CANNOT bleed through this.
+                drawRect(
+                    color = Color.Black,
+                    topLeft = androidx.compose.ui.geometry.Offset(0f, 0f),
+                    size = androidx.compose.ui.geometry.Size(canvasWidth, waveStartY)
+                )
 
-                    // Wavy bottom edge (left to right) using cubic bezier
+                // --- STEP 2: Draw the wavy fade area below the wave ---
+                // This is where songs gradually appear (fade from solid
+                // black to transparent).
+                val fadePath = Path().apply {
+                    moveTo(0f, waveStartY)
+
+                    // Wavy top edge (left to right) using cubic bezier
                     val segmentWidth = canvasWidth / waveSegments
                     for (i in 0 until waveSegments) {
                         val x1 = segmentWidth * i + segmentWidth * 0.25f
@@ -141,28 +149,21 @@ fun SongsScreen(
                         cubicTo(x1, y1, x2, y2, x3, y3)
                     }
 
-                    // Continue down to bottom (for the fade area)
+                    // Continue down to bottom
                     lineTo(canvasWidth, canvasHeight)
                     lineTo(0f, canvasHeight)
                     close()
                 }
 
-                // Fill with vertical gradient:
-                // - 0% to 55%: solid pure black (behind title + capsule)
-                // - 55% to 85%: 95% opaque black (songs fully hidden behind it)
-                // - 85% to 100%: fade from 95% black to transparent (only last 15% fades)
-                // This ensures songs scrolling up are COMPLETELY HIDDEN — they only
-                // become visible in the very last portion of the fade.
+                // Fill with gradient: solid black at the wave → transparent at bottom
                 drawPath(
-                    path = path,
+                    path = fadePath,
                     brush = Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0.0f to Color.Black,
-                            0.55f to Color.Black,
-                            0.85f to Color.Black.copy(alpha = 0.95f),
-                            1.0f to Color.Transparent
+                        colors = listOf(
+                            Color.Black,
+                            Color.Transparent
                         ),
-                        startY = 0f,
+                        startY = waveStartY,
                         endY = canvasHeight
                     )
                 )
