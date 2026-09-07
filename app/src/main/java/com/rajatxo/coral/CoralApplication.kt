@@ -16,6 +16,7 @@ class CoralApplication : Application() {
         // before MainActivity's setContent so the typography is right
         // from the very first frame (no flash of system font).
         FontManager.init(this)
+        com.rajatxo.coral.data.prefs.SearchFabPosition.init(this)
 
         // Playlist + favorites JSON files are slightly slower (~50ms),
         // so we read them on a background thread to avoid blocking

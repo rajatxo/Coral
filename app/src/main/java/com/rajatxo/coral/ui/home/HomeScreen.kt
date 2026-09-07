@@ -9,6 +9,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,6 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -255,36 +257,12 @@ fun HomeScreen(
             )
         }
 
-        // --- Floating search button (bottom-right, solid white) ---
-        // Rounded-square FAB with black search icon.
-        // Position adapts: lifts up when mini player is visible.
-        val searchFabBottomPadding by androidx.compose.animation.core.animateDpAsState(
-            targetValue = if (currentSongTitle != null) 88.dp else 24.dp,
-            animationSpec = androidx.compose.animation.core.tween(300),
-            label = "searchFabPadding"
-        )
-
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 16.dp, bottom = searchFabBottomPadding)
-                .size(52.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color.White)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = { /* TODO: open search */ }
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = CoralIcons.Search,
-                contentDescription = "Search",
-                tint = Color.Black,
-                modifier = Modifier.size(22.dp)
-            )
-        }
+        // --- Draggable Floating Search Button ---
+        // Solid white rounded-square with black search icon.
+        // Long-press (3 seconds) → enters drag mode → drag anywhere on right
+        // half of screen → release → stays fixed at that position.
+        // Position persists across app restarts via SharedPreferences.
+        DraggableSearchFab()
 
         // Add bottom padding to the content area when mini player is visible,
         // so the song list doesn't hide behind the mini player. We do this by
@@ -577,6 +555,145 @@ private fun MiniPlayer(
                     )
                 }
             }
+        }
+    }
+}
+
+// =============================================================================
+// Draggable Floating Search Button
+// =============================================================================
+// Solid white rounded-square FAB with black search icon.
+//
+// GESTURES:
+//  - Tap → opens search (TODO)
+//  - Long-press (3 seconds) → enters drag mode (button scales up slightly
+//    as visual feedback that it's now draggable)
+//  - Drag → moves the button anywhere on the right half of the screen
+//  - Release → button stays at the dropped position
+//
+// PERSISTENCE:
+//  - Position saved as screen-size fractions (0.0-1.0) to SharedPreferences
+//  - Restored on app restart via SearchFabPosition
+//  - Works across all screen sizes (fractions scale correctly)
+//
+// CONSTRAINTS:
+//  - X (horizontal): constrained to right half (0.5 - 0.97) so it doesn't
+//    overlap the nav rail
+//  - Y (vertical): constrained to 0.05 - 0.95 so it stays on-screen
+// =============================================================================
+
+@Composable
+private fun DraggableSearchFab() {
+    val savedPosition by com.rajatxo.coral.data.prefs.SearchFabPosition.position.collectAsState()
+    val density = androidx.compose.ui.platform.LocalDensity.current
+
+    // Track screen size for position calculations
+    var screenSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+
+    // Current drag offset (in pixels) — null when not dragging
+    var isDragging by remember { mutableStateOf(false) }
+    var dragOffset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+
+    // Long-press detection state
+    var pressStartTime by remember { mutableStateOf(0L) }
+    var isLongPressActivated by remember { mutableStateOf(false) }
+
+    // Scale animation for drag-mode feedback
+    val fabScale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (isDragging) 1.15f else 1f,
+        animationSpec = androidx.compose.animation.core.spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+        ),
+        label = "fabScale"
+    )
+
+    // Compute current position from saved fractions + drag offset
+    val (savedX, savedY) = savedPosition
+    val fabSize = 56.dp
+    val fabSizePx = with(density) { fabSize.toPx() }
+
+    // The FAB's position in pixels:
+    // baseX = savedX * screenWidth - fabSizePx/2 (center the FAB on the saved point)
+    // During drag, we use the raw pointer position instead
+    val currentX = if (isDragging) {
+        dragOffset.x - fabSizePx / 2f
+    } else {
+        savedX * screenSize.width - fabSizePx / 2f
+    }
+    val currentY = if (isDragging) {
+        dragOffset.y - fabSizePx / 2f
+    } else {
+        savedY * screenSize.height - fabSizePx / 2f
+    }
+
+    // Clamp to screen bounds
+    val clampedX = currentX.coerceIn(0f, (screenSize.width - fabSizePx).coerceAtLeast(0f))
+    val clampedY = currentY.coerceIn(0f, (screenSize.height - fabSizePx).coerceAtLeast(0f))
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .onSizeChanged { screenSize = it }
+    ) {
+        Box(
+            modifier = Modifier
+                .offset { androidx.compose.ui.unit.IntOffset(clampedX.toInt(), clampedY.toInt()) }
+                .size(fabSize)
+                .graphicsLayer {
+                    scaleX = fabScale
+                    scaleY = fabScale
+                }
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color.White)
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val down = awaitFirstDown()
+                            pressStartTime = System.currentTimeMillis()
+                            isLongPressActivated = false
+
+                            // Track the drag
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull() ?: break
+                                if (!change.pressed) {
+                                    // Finger lifted
+                                    if (isLongPressActivated) {
+                                        // Was dragging — save the new position
+                                        val newXFraction = (dragOffset.x / screenSize.width).coerceIn(0.5f, 0.97f)
+                                        val newYFraction = (dragOffset.y / screenSize.height).coerceIn(0.05f, 0.95f)
+                                        com.rajatxo.coral.data.prefs.SearchFabPosition.setPosition(newXFraction, newYFraction)
+                                    } else if (System.currentTimeMillis() - pressStartTime < 3000) {
+                                        // Quick tap — open search (TODO)
+                                    }
+                                    isDragging = false
+                                    isLongPressActivated = false
+                                    break
+                                }
+
+                                // Check for 3-second long press
+                                if (!isLongPressActivated && System.currentTimeMillis() - pressStartTime >= 3000) {
+                                    isLongPressActivated = true
+                                    isDragging = true
+                                }
+
+                                if (isDragging) {
+                                    dragOffset = change.position
+                                    change.consume()
+                                }
+                            }
+                        }
+                    }
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = CoralIcons.Search,
+                contentDescription = "Search",
+                tint = Color.Black,
+                modifier = Modifier.size(24.dp)
+            )
         }
     }
 }
