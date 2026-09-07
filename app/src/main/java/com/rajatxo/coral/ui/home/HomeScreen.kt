@@ -587,16 +587,21 @@ private fun DraggableSearchFab() {
     val savedPosition by com.rajatxo.coral.data.prefs.SearchFabPosition.position.collectAsState()
     val density = androidx.compose.ui.platform.LocalDensity.current
 
-    // Track screen size for position calculations
+    // Track the parent Box size for position calculations
     var screenSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
 
-    // Current drag offset (in pixels) — null when not dragging
+    // Current Y position in pixels (X is FIXED to the saved X fraction)
+    var currentYpx by remember { mutableStateOf(0f) }
     var isDragging by remember { mutableStateOf(false) }
-    var dragOffset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
-
-    // Long-press detection state
-    var pressStartTime by remember { mutableStateOf(0L) }
     var isLongPressActivated by remember { mutableStateOf(false) }
+    var pressStartTime by remember { mutableStateOf(0L) }
+
+    // When saved position changes (e.g. from reset or first load), update currentYpx
+    androidx.compose.runtime.LaunchedEffect(savedPosition, screenSize) {
+        if (screenSize.height > 0) {
+            currentYpx = savedPosition.second * screenSize.height
+        }
+    }
 
     // Scale animation for drag-mode feedback
     val fabScale by androidx.compose.animation.core.animateFloatAsState(
@@ -608,92 +613,96 @@ private fun DraggableSearchFab() {
         label = "fabScale"
     )
 
-    // Compute current position from saved fractions + drag offset
-    val (savedX, savedY) = savedPosition
     val fabSize = 56.dp
     val fabSizePx = with(density) { fabSize.toPx() }
+    val (savedX, _) = savedPosition
 
-    // The FAB's position in pixels:
-    // baseX = savedX * screenWidth - fabSizePx/2 (center the FAB on the saved point)
-    // During drag, we use the raw pointer position instead
-    val currentX = if (isDragging) {
-        dragOffset.x - fabSizePx / 2f
-    } else {
-        savedX * screenSize.width - fabSizePx / 2f
-    }
-    val currentY = if (isDragging) {
-        dragOffset.y - fabSizePx / 2f
-    } else {
-        savedY * screenSize.height - fabSizePx / 2f
-    }
-
-    // Clamp to screen bounds
-    val clampedX = currentX.coerceIn(0f, (screenSize.width - fabSizePx).coerceAtLeast(0f))
-    val clampedY = currentY.coerceIn(0f, (screenSize.height - fabSizePx).coerceAtLeast(0f))
+    // X is FIXED — locked to the saved X fraction (right side, like an alphabet scrollbar)
+    val fixedXpx = if (screenSize.width > 0) savedX * screenSize.width else 0f
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .onSizeChanged { screenSize = it }
     ) {
-        Box(
-            modifier = Modifier
-                .offset { androidx.compose.ui.unit.IntOffset(clampedX.toInt(), clampedY.toInt()) }
-                .size(fabSize)
-                .graphicsLayer {
-                    scaleX = fabScale
-                    scaleY = fabScale
-                }
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color.White)
-                .pointerInput(Unit) {
-                    awaitPointerEventScope {
-                        while (true) {
-                            val down = awaitFirstDown()
-                            pressStartTime = System.currentTimeMillis()
-                            isLongPressActivated = false
-
-                            // Track the drag
+        if (screenSize.width > 0 && screenSize.height > 0) {
+            Box(
+                modifier = Modifier
+                    .offset {
+                        androidx.compose.ui.unit.IntOffset(
+                            (fixedXpx - fabSizePx / 2f).toInt(),
+                            (currentYpx - fabSizePx / 2f).toInt()
+                                .coerceIn(0, (screenSize.height - fabSizePx).toInt())
+                        )
+                    }
+                    .size(fabSize)
+                    .graphicsLayer {
+                        scaleX = fabScale
+                        scaleY = fabScale
+                    }
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.White)
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
                             while (true) {
-                                val event = awaitPointerEvent()
-                                val change = event.changes.firstOrNull() ?: break
-                                if (!change.pressed) {
-                                    // Finger lifted
-                                    if (isLongPressActivated) {
-                                        // Was dragging — save the new position
-                                        val newXFraction = (dragOffset.x / screenSize.width).coerceIn(0.5f, 0.97f)
-                                        val newYFraction = (dragOffset.y / screenSize.height).coerceIn(0.05f, 0.95f)
-                                        com.rajatxo.coral.data.prefs.SearchFabPosition.setPosition(newXFraction, newYFraction)
-                                    } else if (System.currentTimeMillis() - pressStartTime < 3000) {
-                                        // Quick tap — open search (TODO)
+                                val down = awaitFirstDown()
+                                pressStartTime = System.currentTimeMillis()
+                                isLongPressActivated = false
+
+                                // Store the Y position where the finger touched down
+                                // (relative to the screen, not the FAB)
+                                val downScreenY = currentYpx
+
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.firstOrNull() ?: break
+
+                                    if (!change.pressed) {
+                                        // Finger lifted
+                                        if (isLongPressActivated) {
+                                            // Was dragging — save the new Y position
+                                            val newYFraction = (currentYpx / screenSize.height)
+                                                .coerceIn(0.05f, 0.95f)
+                                            com.rajatxo.coral.data.prefs.SearchFabPosition.setPosition(savedX, newYFraction)
+                                        } else if (System.currentTimeMillis() - pressStartTime < 3000) {
+                                            // Quick tap — open search (TODO)
+                                        }
+                                        isDragging = false
+                                        isLongPressActivated = false
+                                        break
                                     }
-                                    isDragging = false
-                                    isLongPressActivated = false
-                                    break
-                                }
 
-                                // Check for 3-second long press
-                                if (!isLongPressActivated && System.currentTimeMillis() - pressStartTime >= 3000) {
-                                    isLongPressActivated = true
-                                    isDragging = true
-                                }
+                                    // Check for 3-second long press
+                                    if (!isLongPressActivated && System.currentTimeMillis() - pressStartTime >= 3000) {
+                                        isLongPressActivated = true
+                                        isDragging = true
+                                    }
 
-                                if (isDragging) {
-                                    dragOffset = change.position
-                                    change.consume()
+                                    if (isDragging) {
+                                        // Calculate the new Y based on the drag delta from the down position
+                                        // change.position is relative to the FAB's coordinate space,
+                                        // so we need to add the FAB's position to get the screen Y
+                                        val fabTopY = currentYpx - fabSizePx / 2f
+                                        val newScreenY = fabTopY + change.position.y
+                                        currentYpx = newScreenY.coerceIn(
+                                            fabSizePx / 2f,
+                                            screenSize.height - fabSizePx / 2f
+                                        )
+                                        change.consume()
+                                    }
                                 }
                             }
                         }
-                    }
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = CoralIcons.Search,
-                contentDescription = "Search",
-                tint = Color.Black,
-                modifier = Modifier.size(24.dp)
-            )
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = CoralIcons.Search,
+                    contentDescription = "Search",
+                    tint = Color.Black,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
         }
     }
 }
