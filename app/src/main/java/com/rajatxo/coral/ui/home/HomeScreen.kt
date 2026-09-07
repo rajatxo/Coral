@@ -297,9 +297,8 @@ fun HomeScreen(
                     scaleY = searchScale
                 }
                 .clip(CircleShape)
-                .border(1.dp, Color.White.copy(alpha = 0.25f), CircleShape)
-                .background(Color.White.copy(alpha = 0.06f))
-                .blur(12.dp)
+                .border(1.5.dp, Color.White.copy(alpha = 0.35f), CircleShape)
+                .background(Color.White.copy(alpha = 0.1f))
                 .pointerInput(Unit) {
                     awaitPointerEventScope {
                         while (true) {
