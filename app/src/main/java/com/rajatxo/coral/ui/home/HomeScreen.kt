@@ -587,23 +587,34 @@ private fun DraggableSearchFab() {
     val savedPosition by com.rajatxo.coral.data.prefs.SearchFabPosition.position.collectAsState()
     val density = androidx.compose.ui.platform.LocalDensity.current
 
-    // Track the parent Box size for position calculations
     var screenSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
-
-    // Current Y position in pixels (X is FIXED to the saved X fraction)
     var currentYpx by remember { mutableStateOf(0f) }
     var isDragging by remember { mutableStateOf(false) }
     var isLongPressActivated by remember { mutableStateOf(false) }
     var pressStartTime by remember { mutableStateOf(0L) }
 
-    // When saved position changes (e.g. from reset or first load), update currentYpx
-    androidx.compose.runtime.LaunchedEffect(savedPosition, screenSize) {
-        if (screenSize.height > 0) {
-            currentYpx = savedPosition.second * screenSize.height
-        }
-    }
+    // --- Countdown speech bubble state ---
+    var showBubble by remember { mutableStateOf(false) }
+    var countdownNumber by remember { mutableStateOf(3) }
+    var countdownJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
-    // Scale animation for drag-mode feedback
+    // Pop-up animation for the bubble (scale from 0 → 1, bouncy spring)
+    val bubbleScale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (showBubble) 1f else 0f,
+        animationSpec = androidx.compose.animation.core.spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+        ),
+        label = "bubbleScale"
+    )
+    // Fade animation (alpha 0 → 1 on show, 1 → 0 on hide)
+    val bubbleAlpha by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (showBubble) 1f else 0f,
+        animationSpec = androidx.compose.animation.core.tween(250),
+        label = "bubbleAlpha"
+    )
+
+    // FAB scale for drag-mode feedback
     val fabScale by androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (isDragging) 1.15f else 1f,
         animationSpec = androidx.compose.animation.core.spring(
@@ -616,9 +627,13 @@ private fun DraggableSearchFab() {
     val fabSize = 56.dp
     val fabSizePx = with(density) { fabSize.toPx() }
     val (savedX, _) = savedPosition
-
-    // X is FIXED — locked to the saved X fraction (right side, like an alphabet scrollbar)
     val fixedXpx = if (screenSize.width > 0) savedX * screenSize.width else 0f
+
+    androidx.compose.runtime.LaunchedEffect(savedPosition, screenSize) {
+        if (screenSize.height > 0) {
+            currentYpx = savedPosition.second * screenSize.height
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -626,6 +641,78 @@ private fun DraggableSearchFab() {
             .onSizeChanged { screenSize = it }
     ) {
         if (screenSize.width > 0 && screenSize.height > 0) {
+
+            // --- Comic-style speech bubble (LEFT of the FAB) ---
+            // Shows "Hold to move in [3]" with a pointed tail → toward the FAB
+            if (bubbleAlpha > 0.01f) {
+                Row(
+                    modifier = Modifier
+                        .offset {
+                            androidx.compose.ui.unit.IntOffset(
+                                (fixedXpx - fabSizePx / 2f - with(density) { 210.dp.toPx() }).toInt(),
+                                (currentYpx - with(density) { 24.dp.toPx() }).toInt()
+                            )
+                        }
+                        .graphicsLayer {
+                            scaleX = bubbleScale
+                            scaleY = bubbleScale
+                            alpha = bubbleAlpha
+                        },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Main pill bubble
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color(0xFF1A1A1A))
+                            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "Hold to move in",
+                                color = Color.White.copy(alpha = 0.8f),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            // Small inner capsule with the countdown number
+                            Box(
+                                modifier = Modifier
+                                    .size(26.dp)
+                                    .clip(RoundedCornerShape(13.dp))
+                                    .background(Color.White),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = countdownNumber.toString(),
+                                    color = Color.Black,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                    // Pointed tail (triangle pointing right → toward the FAB)
+                    Canvas(
+                        modifier = Modifier
+                            .size(width = 10.dp, height = 14.dp)
+                            .graphicsLayer { alpha = bubbleAlpha }
+                    ) {
+                        val path = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(0f, 0f)
+                            lineTo(size.width, size.height / 2f)
+                            lineTo(0f, size.height)
+                            close()
+                        }
+                        drawPath(path = path, color = Color(0xFF1A1A1A))
+                    }
+                }
+            }
+
+            // --- The FAB itself ---
             Box(
                 modifier = Modifier
                     .offset {
@@ -649,9 +736,21 @@ private fun DraggableSearchFab() {
                                 pressStartTime = System.currentTimeMillis()
                                 isLongPressActivated = false
 
-                                // Store the Y position where the finger touched down
-                                // (relative to the screen, not the FAB)
-                                val downScreenY = currentYpx
+                                // Show the bubble + start countdown
+                                showBubble = true
+                                countdownNumber = 3
+
+                                countdownJob?.cancel()
+                                countdownJob = kotlinx.coroutines.GlobalScope.launch {
+                                    for (i in 3 downTo 1) {
+                                        countdownNumber = i
+                                        kotlinx.coroutines.delay(1000)
+                                    }
+                                    // Countdown done — hide bubble, enter drag mode
+                                    showBubble = false
+                                    isLongPressActivated = true
+                                    isDragging = true
+                                }
 
                                 while (true) {
                                     val event = awaitPointerEvent()
@@ -660,28 +759,18 @@ private fun DraggableSearchFab() {
                                     if (!change.pressed) {
                                         // Finger lifted
                                         if (isLongPressActivated) {
-                                            // Was dragging — save the new Y position
                                             val newYFraction = (currentYpx / screenSize.height)
                                                 .coerceIn(0.05f, 0.95f)
                                             com.rajatxo.coral.data.prefs.SearchFabPosition.setPosition(savedX, newYFraction)
-                                        } else if (System.currentTimeMillis() - pressStartTime < 3000) {
-                                            // Quick tap — open search (TODO)
                                         }
                                         isDragging = false
                                         isLongPressActivated = false
+                                        showBubble = false
+                                        countdownJob?.cancel()
                                         break
                                     }
 
-                                    // Check for 3-second long press
-                                    if (!isLongPressActivated && System.currentTimeMillis() - pressStartTime >= 3000) {
-                                        isLongPressActivated = true
-                                        isDragging = true
-                                    }
-
                                     if (isDragging) {
-                                        // Calculate the new Y based on the drag delta from the down position
-                                        // change.position is relative to the FAB's coordinate space,
-                                        // so we need to add the FAB's position to get the screen Y
                                         val fabTopY = currentYpx - fabSizePx / 2f
                                         val newScreenY = fabTopY + change.position.y
                                         currentYpx = newScreenY.coerceIn(
