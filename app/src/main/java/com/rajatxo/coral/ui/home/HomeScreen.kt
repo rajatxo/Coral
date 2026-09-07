@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -233,44 +234,10 @@ fun HomeScreen(
             }
         }
 
-        // --- Search capsule (BOTTOM-most element, fixed position) ---
-        // Small glass pill with search icon + "Search" text.
-        // Sits at the very bottom (above system nav bar), like ViTune's
-        // "Library" button. The mini player appears ABOVE this capsule.
-        Row(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(bottom = 8.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .border(1.5.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(24.dp))
-                .background(Color.White.copy(alpha = 0.08f))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = { /* TODO: user will guide what to do */ }
-                )
-                .padding(horizontal = 20.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Icon(
-                imageVector = CoralIcons.Search,
-                contentDescription = "Search",
-                tint = Color.White,
-                modifier = Modifier.size(18.dp)
-            )
-            Text(
-                text = "Search",
-                color = Color.White,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium
-            )
-        }
-
-        // --- Mini player (sits ABOVE the search capsule) ---
-        // When a song is playing, the mini player appears above the
-        // search capsule — NOT at the very bottom.
+        // --- Unified Mini Player + Search Capsule ---
+        // When a song is playing: shows the notched mini player with the
+        // search capsule nested inside the U-notch.
+        // When no song: shows just the search capsule at the bottom.
         AnimatedVisibility(
             visible = currentSongTitle != null,
             enter = slideInVertically { it } + fadeIn(),
@@ -278,7 +245,7 @@ fun HomeScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(bottom = 64.dp)  // sits above the search capsule (capsule ~48dp + 16dp gap)
+                .padding(bottom = 8.dp)
         ) {
             MiniPlayer(
                 title = currentSongTitle ?: "",
@@ -292,6 +259,40 @@ fun HomeScreen(
                 onNextClick = onNextClick,
                 onClick = onMiniPlayerClick
             )
+        }
+
+        // Standalone search capsule — visible ONLY when no song is playing
+        if (currentSongTitle == null) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = 8.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .border(1.5.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(24.dp))
+                    .background(Color.White.copy(alpha = 0.08f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { /* TODO */ }
+                    )
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = CoralIcons.Search,
+                    contentDescription = "Search",
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    text = "Search",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
 
         // Add bottom padding to the content area when mini player is visible,
@@ -403,215 +404,222 @@ private fun MiniPlayer(
     onNextClick: () -> Unit,
     onClick: () -> Unit
 ) {
-    // Floating pill mini player — glassmorphism with blurred album cover bg.
+    // Notched mini player — pill with a U-shaped concave notch at the
+    // bottom-center, and the search capsule nested inside that notch.
     //
-    // Features:
-    //  1. Blurred album cover as background (frosted glass)
-    //  2. Circular album art on LEFT with a PROGRESS RING around it
-    //     showing song timeline (white arc that fills as the song plays)
-    //  3. Tapping the album art = play/pause
-    //  4. Title + artist in the middle
-    //  5. Heart button on the RIGHT — toggles favorite (persisted)
-    //  6. Ripple effect on all tappable elements
+    // Layout (top to bottom):
+    //   [Album art + progress ring] [Title + artist] [Heart]
+    //   [U-notch with search capsule nested inside]
+    //
+    // The NotchedPillShape clips the entire body so the bottom edge has
+    // the U-curve cutout. The search capsule is positioned at the bottom,
+    // overlapping the notch — top half recessed, bottom half hanging below.
 
     val favorites by com.rajatxo.coral.data.store.PlaylistStore.favorites.collectAsState()
     val isFavorite = songId != null && songId in favorites.songIds
+
+    val notchedShape = remember { com.rajatxo.coral.ui.shapes.NotchedPillShape() }
 
     Box(
         modifier = Modifier
             .padding(horizontal = 12.dp, vertical = 4.dp)
     ) {
-        Row(
+        // --- Main player body (notched pill) ---
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(64.dp)
-                .clip(RoundedCornerShape(32.dp))
-                .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(32.dp))
-                .clickable(onClick = onClick),
-            verticalAlignment = Alignment.CenterVertically
+                .height(72.dp)  // slightly taller to accommodate the notch
+                .clip(notchedShape)
+                .border(1.dp, Color.White.copy(alpha = 0.2f), notchedShape)
+                .clickable(onClick = onClick)
         ) {
             // Blurred album cover background
+            if (albumArtUri != null) {
+                AsyncImage(
+                    model = albumArtUri,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .blur(25.dp)
+                )
+            }
+            // Dark tint overlay
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.55f))
+            )
+
+            // Content row (album art + title + heart)
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                if (albumArtUri != null) {
-                    AsyncImage(
-                        model = albumArtUri,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .blur(25.dp)
-                    )
-                }
+                // --- Circular album art + progress ring (LEFT) ---
+                val progress = if (durationMs > 0) {
+                    (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+                } else 0f
+
                 Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.5f))
-                )
-
-                // Content row
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(start = 8.dp)
+                        .size(56.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onPlayPauseClick
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
-                    // --- Circular album art + progress ring (LEFT) ---
-                    // The progress ring is drawn on a Canvas behind the album art.
-                    // Tapping the album art = play/pause.
-                    val progress = if (durationMs > 0) {
-                        (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
-                    } else 0f
+                    // Progress ring
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val strokeWidth = 2.dp.toPx()
+                        val diameter = size.minDimension - strokeWidth
+                        val topLeft = androidx.compose.ui.geometry.Offset(
+                            (size.width - diameter) / 2f,
+                            (size.height - diameter) / 2f
+                        )
+                        val arcSize = androidx.compose.ui.geometry.Size(diameter, diameter)
 
+                        drawArc(
+                            color = Color.White.copy(alpha = 0.15f),
+                            startAngle = -90f, sweepAngle = 360f, useCenter = false,
+                            topLeft = topLeft, size = arcSize,
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                width = strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round
+                            )
+                        )
+                        drawArc(
+                            color = Color.White,
+                            startAngle = -90f, sweepAngle = 360f * progress, useCenter = false,
+                            topLeft = topLeft, size = arcSize,
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                width = strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round
+                            )
+                        )
+                    }
+
+                    // Album art
                     Box(
-                        modifier = Modifier
-                            .padding(start = 8.dp)
-                            .size(56.dp)  // slightly bigger to fit the ring
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = onPlayPauseClick
-                            ),
+                        modifier = Modifier.size(46.dp).clip(CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        // Progress ring (Canvas-drawn arc)
-                        Canvas(
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            val strokeWidth = 2.dp.toPx()
-                            val diameter = size.minDimension - strokeWidth
-                            val topLeft = androidx.compose.ui.geometry.Offset(
-                                (size.width - diameter) / 2f,
-                                (size.height - diameter) / 2f
+                        if (albumArtUri != null) {
+                            AsyncImage(
+                                model = albumArtUri,
+                                contentDescription = "Album art",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
                             )
-                            val arcSize = androidx.compose.ui.geometry.Size(diameter, diameter)
-
-                            // Background ring (full circle, dim white)
-                            drawArc(
-                                color = Color.White.copy(alpha = 0.15f),
-                                startAngle = -90f,
-                                sweepAngle = 360f,
-                                useCenter = false,
-                                topLeft = topLeft,
-                                size = arcSize,
-                                style = androidx.compose.ui.graphics.drawscope.Stroke(
-                                    width = strokeWidth,
-                                    cap = androidx.compose.ui.graphics.StrokeCap.Round
-                                )
-                            )
-
-                            // Progress ring (fills as song plays, white)
-                            drawArc(
-                                color = Color.White,
-                                startAngle = -90f,
-                                sweepAngle = 360f * progress,
-                                useCenter = false,
-                                topLeft = topLeft,
-                                size = arcSize,
-                                style = androidx.compose.ui.graphics.drawscope.Stroke(
-                                    width = strokeWidth,
-                                    cap = androidx.compose.ui.graphics.StrokeCap.Round
-                                )
-                            )
-                        }
-
-                        // Album art (inside the ring, slightly smaller)
-                        Box(
-                            modifier = Modifier
-                                .size(46.dp)
-                                .clip(CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (albumArtUri != null) {
-                                AsyncImage(
-                                    model = albumArtUri,
-                                    contentDescription = "Album art",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            } else {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(Color(0xFF1A1A1A)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = CoralIcons.Music,
-                                        contentDescription = null,
-                                        tint = Color(0xFFB0B0B0),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-                            // Play/pause icon overlay
+                        } else {
                             Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(Color.Black.copy(alpha = 0.35f)),
+                                modifier = Modifier.fillMaxSize().background(Color(0xFF1A1A1A)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = if (isPlaying) CoralIcons.Pause else CoralIcons.Play,
-                                    contentDescription = if (isPlaying) "Pause" else "Play",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
+                                    imageVector = CoralIcons.Music,
+                                    contentDescription = null,
+                                    tint = Color(0xFFB0B0B0),
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
                         }
-                    }
-
-                    // --- Title + artist ---
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 12.dp)
-                    ) {
-                        Text(
-                            text = title,
-                            color = Color.White,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = artist,
-                            color = Color.White.copy(alpha = 0.7f),
-                            fontSize = 12.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    // --- Heart button (RIGHT) ---
-                    Box(
-                        modifier = Modifier
-                            .padding(end = 8.dp)
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.12f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = {
-                                    if (songId != null) {
-                                        com.rajatxo.coral.data.store.PlaylistStore.toggleFavorite(songId)
-                                    }
-                                }
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = if (isFavorite) CoralIcons.HeartLucideFilled else CoralIcons.HeartLucide,
-                            contentDescription = if (isFavorite) "Unfavorite" else "Favorite",
-                            tint = if (isFavorite) CoralColors.Coral else Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        // Play/pause overlay
+                        Box(
+                            modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isPlaying) CoralIcons.Pause else CoralIcons.Play,
+                                contentDescription = if (isPlaying) "Pause" else "Play",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
+
+                // --- Title + artist ---
+                Column(
+                    modifier = Modifier.weight(1f).padding(horizontal = 12.dp)
+                ) {
+                    Text(
+                        text = title,
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = artist,
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // --- Heart button (RIGHT) ---
+                Box(
+                    modifier = Modifier
+                        .padding(end = 8.dp)
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.12f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = {
+                                if (songId != null) {
+                                    com.rajatxo.coral.data.store.PlaylistStore.toggleFavorite(songId)
+                                }
+                            }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isFavorite) CoralIcons.HeartLucideFilled else CoralIcons.HeartLucide,
+                        contentDescription = if (isFavorite) "Unfavorite" else "Favorite",
+                        tint = if (isFavorite) CoralColors.Coral else Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
+        }
+
+        // --- Search capsule (nested inside the U-notch, overlapping the bottom) ---
+        // Positioned at the bottom-center, offset downward so it sits half-inside
+        // the notch and half-below the player body.
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .offset(y = 16.dp)  // push down so it hangs below the notch
+                .clip(RoundedCornerShape(20.dp))
+                .border(1.5.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
+                .background(Color.Black.copy(alpha = 0.7f))  // darker so it's visible against the notch
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { /* TODO */ }
+                )
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = CoralIcons.Search,
+                contentDescription = "Search",
+                tint = Color.White,
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = "Search",
+                color = Color.White,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium
+            )
         }
     }
 }
