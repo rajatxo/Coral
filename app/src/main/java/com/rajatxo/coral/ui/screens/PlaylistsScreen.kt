@@ -502,16 +502,24 @@ private fun PlaylistWheel(
                 // Skip if off-screen horizontally
                 if (itemX < -200f || itemX > w + 200f) continue
 
-                // === 5. STYLING CURVES (per AI spec) ===
-                // Opacity: 100% at apex → 50% (step 1) → 25% (step 2) → 5% (step 3+) → 0
-                // Extended curve so the 7th item is visible but barely (fading out).
+                // === 5. STYLING CURVES — per user spec ===
+                // Opacity at each integer offset position (rest state):
+                //   Position 0 (apex):   100%
+                //   Position 1:           70%
+                //   Position 2:           45%
+                //   Position 3:           25%
+                //   Position 4:            7%
+                //   Position 5:            2%
+                //   Position 6+:           0% (invisible)
+                // Between positions, opacity interpolates smoothly.
                 val alpha = when {
                     absOffset < 0.5f -> 1f
-                    absOffset < 1.5f -> lerp(1f, 0.50f, (absOffset - 0.5f))
-                    absOffset < 2.5f -> lerp(0.50f, 0.25f, (absOffset - 1.5f))
-                    absOffset < 3.5f -> lerp(0.25f, 0.05f, (absOffset - 2.5f))
-                    absOffset < 4.5f -> lerp(0.05f, 0.02f, (absOffset - 3.5f))
-                    else -> lerp(0.02f, 0f, (absOffset - 4.5f).coerceIn(0f, 1f))
+                    absOffset < 1.5f -> lerp(1.00f, 0.70f, (absOffset - 0.5f))
+                    absOffset < 2.5f -> lerp(0.70f, 0.45f, (absOffset - 1.5f))
+                    absOffset < 3.5f -> lerp(0.45f, 0.25f, (absOffset - 2.5f))
+                    absOffset < 4.5f -> lerp(0.25f, 0.07f, (absOffset - 3.5f))
+                    absOffset < 5.5f -> lerp(0.07f, 0.02f, (absOffset - 4.5f))
+                    else -> lerp(0.02f, 0f, (absOffset - 5.5f).coerceIn(0f, 1f))
                 }.coerceIn(0f, 1f)
 
                 // Scale: 1.0 at apex → 0.70 → 0.55 → 0.45 (smooth shrink)
