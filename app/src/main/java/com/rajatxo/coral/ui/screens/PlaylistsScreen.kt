@@ -564,36 +564,46 @@ private fun PlaylistWheel(
                     )
                 )
 
-                // === 7. DRAW WITH LEFT-EDGE ANCHOR + TANGENT ROTATION ===
-                // Per spec:
-                //   - Anchor: LEFT-CENTER edge of text (not center).
-                //   - Pin the left edge to coordinates on Radius B (textRadius).
-                //   - Because anchor is on the left, text flows outward to the
-                //     right, leaving a uniform ~30px gap between the first
-                //     letter of every word and the visible arc line.
-                //   - Rotation: tangent to the curve at θ → rotation angle = θ + 90°.
-                //   - At apex (θ=0°): rotation = 90° → text is horizontal.
+                // === 7. TEXT PLACEMENT — IN FRONT OF BALL, PERPENDICULAR TO SLOPE ===
                 //
-                // Tangent math:
-                //   point on circle = (cos θ, sin θ)
-                //   tangent direction = (-sin θ, cos θ)
-                //   tangent angle (from +X axis, clockwise in screen coords) = θ + 90°
-                val tangentDeg = itemAngleDeg + 90f
-
-                // Anchor: text's LEFT-CENTER edge sits at (itemX, itemY).
-                // After translate+rotate, the local origin is at (itemX, itemY).
-                // topLeft = (0, -textH/2) pins the LEFT edge (x=0) and vertically
-                // centers (y=-textH/2 → text extends from -textH/2 to +textH/2).
+                // Geometry:
+                //   - Ball is at (itemX, itemY) on the second arc (textRadius orbit).
+                //   - "Perpendicular to slope" = radial direction (perpendicular to
+                //     the arc's tangent). Radial direction at angle θ is:
+                //         direction = (cos θ, sin θ)
+                //   - Text rotation = θ (radial). At apex (θ=0°), text is horizontal.
+                //   - Text is placed in FRONT of the ball (outward from pivot),
+                //     offset along the radial direction by:
+                //         offset = ballRadius + gap + textWidth/2
+                //     So the text's left edge starts `ballRadius + gap` past the
+                //     ball, and text extends further outward.
+                //   - Both ball and text share the same radial line, so text is
+                //     "in front of" the ball (perpendicular to slope).
+                //   - A new playlist adds a new ball, and its text is automatically
+                //     placed in front of that new ball at the same offset.
+                //
+                // Math:
+                //   textCenterX = itemX + (ballRadius + gap + textWidth/2) * cos(θ)
+                //   textCenterY = itemY + (ballRadius + gap + textWidth/2) * sin(θ)
+                val textW = textLayout.size.width.toFloat()
                 val textH = textLayout.size.height.toFloat()
+                val gapAfterBallPx = with(density) { 6.dp.toPx() }  // gap between ball edge and text start
+
+                // Total distance from ball center to text center, along radial
+                val textOffsetPx = ballRadiusPx + gapAfterBallPx + textW / 2f
+                val textCenterX = itemX + textOffsetPx * cos(itemAngleRad)
+                val textCenterY = itemY + textOffsetPx * sin(itemAngleRad)
+
+                // Radial rotation (perpendicular to slope)
+                val radialDeg = itemAngleDeg
 
                 drawContext.canvas.save()
-                // Translate to the anchor point on the text orbit, rotate to
-                // tangent, then draw text with left-edge anchor.
-                drawContext.canvas.translate(itemX, itemY)
-                drawContext.canvas.rotate(tangentDeg)
+                // Translate to text center, rotate radially, draw text centered.
+                drawContext.canvas.translate(textCenterX, textCenterY)
+                drawContext.canvas.rotate(radialDeg)
                 drawText(
                     textLayoutResult = textLayout,
-                    topLeft = Offset(0f, -textH / 2f),
+                    topLeft = Offset(-textW / 2f, -textH / 2f),
                     alpha = alpha
                 )
                 drawContext.canvas.restore()
