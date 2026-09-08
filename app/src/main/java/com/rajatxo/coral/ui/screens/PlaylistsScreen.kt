@@ -958,19 +958,19 @@ private fun SelectionCapsule(
         // Smooth animated transition when playlist name changes.
         // New name slides in from the right while old name slides out to the left,
         // with a quick fade. Total duration ~180ms — smooth but fast.
-        androidx.compose.animation.AnimatedContent(
+        AnimatedContent(
             targetState = playlistName,
             transitionSpec = {
                 // Slide horizontally + fade simultaneously
-                (androidx.compose.animation.slideIntoContainer(
-                    towards = androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Left,
+                (slideIntoContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Left,
                     animationSpec = androidx.compose.animation.core.tween(180)
-                ) + androidx.compose.animation.fadeIn(
+                ) + fadeIn(
                     animationSpec = androidx.compose.animation.core.tween(180)
-                )) togetherWith (androidx.compose.animation.slideOutOfContainer(
-                    towards = androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Left,
+                )) togetherWith (slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Left,
                     animationSpec = androidx.compose.animation.core.tween(180)
-                ) + androidx.compose.animation.fadeOut(
+                ) + fadeOut(
                     animationSpec = androidx.compose.animation.core.tween(180)
                 ))
             },
