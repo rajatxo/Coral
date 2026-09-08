@@ -254,11 +254,18 @@ fun PlaylistsScreen(
 }
 
 // =============================================================================
-// PLAYLIST WHEEL — smooth circular selector
+// PLAYLIST WHEEL v3 — glossy 3D sphere + orbit rings + vertical text
 // =============================================================================
-// Uses graphicsLayer { rotationZ } for GPU-accelerated rotation.
-// This achieves 120fps+ on phones with high-refresh-rate displays.
-// No recomposition during spin — only the layer transform updates.
+// Design (from user's PicsArt mockup + reference):
+//   - Visible glossy half-sphere on LEFT (3D, radial gradient + highlight)
+//   - Multiple concentric orbit rings around the sphere
+//   - Text arranged VERTICALLY to the RIGHT (not on a circle)
+//   - Progressive sizing: center = biggest, further = smaller
+//   - 3D perspective: items further from center are smaller + faded
+//   - Physics: fling with velocity, snap to nearest on release
+//   - Haptic feedback: vibration on each item pass during spin
+//   - Swipe UP = scroll up (anti-clockwise), Swipe DOWN = scroll down
+//   - Only 3 tappable: center + 2 adjacent
 // =============================================================================
 
 @Composable
@@ -271,85 +278,98 @@ private fun PlaylistWheel(
 
     val density = LocalDensity.current
     val textMeasurer = rememberTextMeasurer()
-    val anglePerItem = 360f / playlists.size
-
-    val rotation = remember { Animatable(0f) }
-    var velocityTracker = remember { VelocityTracker() }
-    val coroutineScope = rememberCoroutineScope()
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
 
-    // Selected = the one at 0° (3 o'clock = right of sphere = "main area")
-    val selectedIndex = remember(rotation.value) {
-        val normalized = ((-rotation.value) % 360f + 360f) % 360f
-        ((normalized / anglePerItem).roundToInt() % playlists.size).coerceIn(0, playlists.size - 1)
-    }
+    // Item height in dp (each playlist takes this much vertical space)
+    val itemHeightDp = 56.dp
+    val itemHeightPx = with(density) { itemHeightDp.toPx() }
 
-    // Tap detection: track where the user taps
-    var tapPosition by remember { mutableStateOf(Offset.Zero) }
+    // Scroll offset in pixels (animated for smoothness + physics)
+    val scrollOffset = remember { Animatable(0f) }
+    val coroutineScope = rememberCoroutineScope()
+
+    // Track last snapped index for haptic feedback
+    var lastSnappedIndex by remember { mutableStateOf(0) }
+
+    // Selected = the one closest to center
+    val centerIndex = remember(scrollOffset.value) {
+        ((scrollOffset.value / itemHeightPx).roundToInt() % playlists.size).let {
+            if (it < 0) it + playlists.size else it
+        }
+    }
 
     Box(
         modifier = modifier
+            .clip(androidx.compose.foundation.shape.RectangleShape)
             .pointerInput(playlists.size) {
+                val velocityTracker = VelocityTracker()
                 detectVerticalDragGestures(
                     onDragStart = { velocityTracker = VelocityTracker() },
                     onDragEnd = {
+                        // FLING: use velocity for physics-based deceleration
+                        val velocity = velocityTracker.calculateVelocity().y
                         coroutineScope.launch {
-                            val currentNormalized = ((-rotation.value) % 360f + 360f) % 360f
-                            val nearestIndex = ((currentNormalized / anglePerItem).roundToInt() % playlists.size)
-                            val targetRotation = -nearestIndex * anglePerItem
-                            val currentMod = ((rotation.value % 360f) + 360f) % 360f
-                            val targetMod = ((targetRotation % 360f) + 360f) % 360f
-                            var diff = targetMod - currentMod
-                            if (diff > 180f) diff -= 360f
-                            if (diff < -180f) diff += 360f
-                            rotation.animateTo(
-                                targetValue = rotation.value + diff,
+                            // Fling with deceleration
+                            scrollOffset.animateTo(
+                                targetValue = scrollOffset.value + velocity * 0.3f,
+                                animationSpec = androidx.compose.animation.core.exponentialDecay(
+                                    friction = 0.9f
+                                )
+                            )
+                            // SNAP to nearest item
+                            val nearest = (scrollOffset.value / itemHeightPx).roundToInt()
+                            val target = nearest * itemHeightPx
+                            scrollOffset.animateTo(
+                                targetValue = target,
                                 animationSpec = spring(
                                     dampingRatio = Spring.DampingRatioMediumBouncy,
-                                    stiffness = Spring.StiffnessLow
+                                    stiffness = Spring.StiffnessMedium
                                 )
                             )
                         }
                     },
                     onVerticalDrag = { change, dragAmount ->
-                        // Swipe UP → anti-clockwise → rotation decreases
-                        // Swipe DOWN → clockwise → rotation increases
-                        val rotationDelta = dragAmount * 0.5f
+                        // dragAmount > 0 = finger moving DOWN = scroll down
+                        // dragAmount < 0 = finger moving UP = scroll up
                         coroutineScope.launch {
-                            rotation.snapTo(rotation.value + rotationDelta)
+                            scrollOffset.snapTo(scrollOffset.value + dragAmount)
                         }
                         velocityTracker.addPosition(change.uptimeMillis, change.position)
+
+                        // Haptic: vibrate when passing each item
+                        val currentIndex = ((scrollOffset.value / itemHeightPx).roundToInt() % playlists.size).let {
+                            if (it < 0) it + playlists.size else it
+                        }
+                        if (currentIndex != lastSnappedIndex) {
+                            lastSnappedIndex = currentIndex
+                            haptics.performHapticFeedback(
+                                androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove
+                            )
+                        }
+
                         change.consume()
                     }
                 )
             }
             .pointerInput(playlists.size) {
-                // Tap detection for the 3 clickable playlists
+                // Tap detection for the 3 nearest playlists
                 awaitPointerEventScope {
                     while (true) {
-                        val down = awaitFirstDown()
-                        val up = awaitPointerEvent()
-                        val change = up.changes.firstOrNull() ?: continue
+                        awaitFirstDown(requireUnconsumed = false)
+                        val event = awaitPointerEvent(requireUnconsumed = false)
+                        val change = event.changes.firstOrNull() ?: continue
                         if (!change.pressed) {
-                            val tapX = change.position.x
                             val tapY = change.position.y
-                            val canvasWidth = size.width.toFloat()
-                            val canvasHeight = size.height.toFloat()
-                            val sphereCenterX = 0f
-                            val sphereCenterY = canvasHeight / 2f
-                            val orbitRadius = canvasWidth * 0.45f
-
-                            // Check which of the 3 nearest playlists was tapped
+                            val centerY = size.height / 2f
+                            // Check the 3 nearest playlists
                             for (offset in -1..1) {
-                                val idx = (selectedIndex + offset + playlists.size) % playlists.size
-                                val itemAngleDeg = (idx * anglePerItem + rotation.value)
-                                val itemAngleRad = (itemAngleDeg * PI / 180f).toFloat()
-                                val itemX = sphereCenterX + orbitRadius * cos(itemAngleRad)
-                                val itemY = sphereCenterY + orbitRadius * sin(itemAngleRad)
-                                val dist = sqrt((tapX - itemX).pow(2) + (tapY - itemY).pow(2))
-                                val tapRadius = with(density) { 80.dp.toPx() }
-                                if (dist < tapRadius) {
-                                    haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                val idx = (centerIndex + offset + playlists.size) % playlists.size
+                                val itemY = centerY + (idx - centerIndex) * itemHeightPx - scrollOffset.value % itemHeightPx
+                                val dist = abs(tapY - itemY)
+                                if (dist < itemHeightPx / 2f) {
+                                    haptics.performHapticFeedback(
+                                        androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress
+                                    )
                                     onPlaylistClick(playlists[idx])
                                     break
                                 }
@@ -362,83 +382,83 @@ private fun PlaylistWheel(
         Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
-            val sphereCenterX = 0f
-            val sphereCenterY = h / 2f
-            val sphereRadius = h * 0.35f
-            val orbitRadius = w * 0.45f
+            val centerY = h / 2f
+            val sphereCenterX = w * 0.15f  // sphere sits at 15% from left
+            val sphereRadius = h * 0.30f
 
-            // === 1. HALF SPHERE (dome on left, glossy like the sun) ===
-            // Radial gradient: bright center → dark right → transparent left
+            // === 1. HALF SPHERE (glossy 3D dome) ===
+            // Layer 1: base sphere with strong radial gradient
             val sphereGradient = Brush.radialGradient(
-                colors = listOf(
-                    Color.White.copy(alpha = 0.15f),  // center: subtle bright
-                    Color.White.copy(alpha = 0.05f),  // mid
-                    Color.Black.copy(alpha = 0.3f),   // right: darker
-                    Color.Transparent                   // left edge: fades to rail
+                colorStops = arrayOf(
+                    0.0f to Color.White.copy(alpha = 0.25f),  // bright center
+                    0.3f to Color.White.copy(alpha = 0.12f),  // mid-bright
+                    0.6f to Color.Black.copy(alpha = 0.4f),    // darker
+                    0.85f to Color.Black.copy(alpha = 0.6f),   // dark edge
+                    1.0f to Color.Transparent                     // fades to nothing
                 ),
-                center = Offset(sphereCenterX + sphereRadius * 0.3f, sphereCenterY),
+                center = Offset(sphereCenterX + sphereRadius * 0.2f, centerY - sphereRadius * 0.1f),
                 radius = sphereRadius
             )
             drawCircle(
                 brush = sphereGradient,
                 radius = sphereRadius,
-                center = Offset(sphereCenterX, sphereCenterY)
+                center = Offset(sphereCenterX, centerY)
             )
 
-            // Glossy highlight (small white ellipse on top-left of sphere)
-            drawOval(
-                color = Color.White.copy(alpha = 0.08f),
-                topLeft = Offset(sphereCenterX - sphereRadius * 0.2f, sphereCenterY - sphereRadius * 0.6f),
-                size = androidx.compose.ui.geometry.Size(sphereRadius * 0.5f, sphereRadius * 0.2f)
+            // Layer 2: glossy highlight (top-left, simulates light source)
+            val highlightGradient = Brush.radialGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = 0.15f),
+                    Color.White.copy(alpha = 0.04f),
+                    Color.Transparent
+                ),
+                center = Offset(sphereCenterX - sphereRadius * 0.15f, centerY - sphereRadius * 0.35f),
+                radius = sphereRadius * 0.4f
+            )
+            drawCircle(
+                brush = highlightGradient,
+                radius = sphereRadius * 0.4f,
+                center = Offset(sphereCenterX - sphereRadius * 0.15f, centerY - sphereRadius * 0.35f)
             )
 
-            // === 2. ORBIT (arc on the right side of sphere) ===
-            drawArc(
-                color = Color.White.copy(alpha = 0.06f),
-                startAngle = -80f,
-                sweepAngle = 160f,
-                useCenter = false,
-                topLeft = Offset(sphereCenterX - orbitRadius, sphereCenterY - orbitRadius),
-                size = androidx.compose.ui.geometry.Size(orbitRadius * 2f, orbitRadius * 2f),
-                style = Stroke(width = 1.dp.toPx())
-            )
+            // === 2. ORBIT RINGS (concentric circles around sphere) ===
+            val orbitRadii = listOf(sphereRadius * 1.3f, sphereRadius * 1.6f, sphereRadius * 1.9f, sphereRadius * 2.2f)
+            orbitRadii.forEachIndexed { i, r ->
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.04f + (i * 0.01f)),
+                    radius = r,
+                    center = Offset(sphereCenterX, centerY),
+                    style = Stroke(width = 0.8.dp.toPx())
+                )
+            }
 
-            // === 3. PLAYLIST NAMES along the orbit ===
-            playlists.forEachIndexed { i, playlist ->
-                val itemAngleDeg = (i * anglePerItem + rotation.value)
-                val itemAngleRad = (itemAngleDeg * PI / 180f).toFloat()
+            // === 3. PLAYLIST NAMES (vertical column to the RIGHT of sphere) ===
+            val textStartX = sphereCenterX + sphereRadius * 1.5f
+            val totalScroll = scrollOffset.value
 
-                val x = sphereCenterX + orbitRadius * cos(itemAngleRad)
-                val y = sphereCenterY + orbitRadius * sin(itemAngleRad)
+            playlists.forEachIndexed { i, _ ->
+                val playlist = playlists[i]
+                // Vertical position relative to center
+                val itemY = centerY + (i * itemHeightPx) - totalScroll
 
-                // Distance from center (0° = right = "main area")
-                var angleDistance = abs(itemAngleDeg % 360f)
-                if (angleDistance > 180f) angleDistance = 360f - angleDistance
+                // Distance from center (in items)
+                val distanceFromCenter = abs(itemY - centerY) / itemHeightPx
 
-                // Progressive text sizing (3 tiers)
-                val fontSize = when {
-                    angleDistance < anglePerItem * 0.6f -> 22f  // center: BIG
-                    angleDistance < anglePerItem * 1.8f -> 16f  // adjacent: medium
-                    angleDistance < anglePerItem * 3.0f -> 13f  // near: small
-                    else -> 10f                                    // far: tiny
-                }
+                // Skip items too far away (off-screen)
+                if (distanceFromCenter > 4) return@forEachIndexed
 
-                // Alpha: fade out on the LEFT side (near nav rail)
-                val cosVal = cos(itemAngleRad)
-                val alpha = when {
-                    cosVal > 0.3f -> 1f               // right side: fully visible
-                    cosVal > -0.2f -> (cosVal + 0.2f) / 0.5f  // transitioning
-                    else -> 0f                          // left side: invisible
-                }
+                // Progressive sizing (smooth interpolation, not just tiers)
+                val sizeFactor = (1f - (distanceFromCenter * 0.25f)).coerceIn(0.3f, 1f)
+                val fontSize = (22f * sizeFactor)
+                val fontWeight = if (distanceFromCenter < 0.5) FontWeight.Bold else FontWeight.Medium
 
-                if (alpha < 0.05f) return@forEachIndexed
+                // Alpha: fade out as distance increases
+                val alpha = (1f - (distanceFromCenter * 0.3f)).coerceIn(0.1f, 1f)
 
-                // Measure text at the calculated size
-                val fontWeight = if (angleDistance < anglePerItem * 0.6f) FontWeight.Bold
-                                 else FontWeight.Medium
-                val textColor = if (angleDistance < anglePerItem * 0.6f) CoralColors.Coral
-                                else Color.White
+                // Color: coral for center, white for others
+                val textColor = if (distanceFromCenter < 0.5) CoralColors.Coral else Color.White
 
+                // Measure text
                 val textLayout = textMeasurer.measure(
                     text = AnnotatedString(playlist.name),
                     style = TextStyle(
@@ -448,29 +468,55 @@ private fun PlaylistWheel(
                     ),
                     overflow = TextOverflow.Ellipsis,
                     maxLines = 1,
-                    softWrap = false
+                    softWrap = false,
+                    constraints = androidx.compose.ui.unit.Constraints(
+                        maxWidth = (w * 0.5f).toInt(),
+                        maxHeight = Int.MAX_VALUE
+                    )
                 )
 
+                // Draw text
                 drawText(
                     textLayoutResult = textLayout,
                     topLeft = Offset(
-                        x - textLayout.size.width / 2f,
-                        y - textLayout.size.height / 2f
+                        textStartX,
+                        itemY - textLayout.size.height / 2f
                     ),
                     alpha = alpha
                 )
 
-                // Small dot on the orbit for each playlist
+                // Dot on the nearest orbit ring for this item
+                val orbitIndex = (distanceFromCenter.toInt()).coerceIn(0, orbitRadii.size - 1)
                 drawCircle(
-                    color = if (angleDistance < anglePerItem * 0.6f) CoralColors.Coral
-                            else Color.White.copy(alpha = 0.3f * alpha),
-                    radius = if (angleDistance < anglePerItem * 0.6f) 5.dp.toPx() else 2.dp.toPx(),
+                    color = if (distanceFromCenter < 0.5) CoralColors.Coral
+                            else Color.White.copy(alpha = alpha * 0.4f),
+                    radius = if (distanceFromCenter < 0.5) 4.dp.toPx() else 2.dp.toPx(),
                     center = Offset(
-                        sphereCenterX + (orbitRadius - 15.dp.toPx()) * cos(itemAngleRad),
-                        sphereCenterY + (orbitRadius - 15.dp.toPx()) * sin(itemAngleRad)
+                        sphereCenterX + orbitRadii[orbitIndex],
+                        itemY
                     )
                 )
             }
+
+            // === 4. FADE GRADIENTS (top + bottom of text area) ===
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(Color.Black, Color.Transparent),
+                    startY = 0f,
+                    endY = itemHeightPx * 2
+                ),
+                topLeft = Offset(textStartX - 10.dp.toPx(), 0f),
+                size = androidx.compose.ui.geometry.Size(w - textStartX, itemHeightPx * 2)
+            )
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(Color.Transparent, Color.Black),
+                    startY = h - itemHeightPx * 2,
+                    endY = h
+                ),
+                topLeft = Offset(textStartX - 10.dp.toPx(), h - itemHeightPx * 2),
+                size = androidx.compose.ui.geometry.Size(w - textStartX, itemHeightPx * 2)
+            )
         }
 
         // Hint text
