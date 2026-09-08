@@ -2,14 +2,11 @@ package com.rajatxo.coral.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,25 +15,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
@@ -48,8 +36,6 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rajatxo.coral.ui.icons.CoralIcons
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 /**
  * Coral's vertical navigation rail — ViTune-style positioning.
@@ -86,7 +72,6 @@ fun CoralNavRail(
     onSettingsTabSelected: (CoralSettingsTab) -> Unit,
     onGearClick: () -> Unit,
     onBackClick: () -> Unit,
-    onPlaylistLongPress: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -137,13 +122,10 @@ fun CoralNavRail(
             ) {
                 if (mode == RailMode.Main) {
                     CoralTab.values().forEach { tab ->
-                        val longPressHandler: (() -> Unit)? =
-                            if (tab == CoralTab.Playlists) onPlaylistLongPress else null
                         RailLabel(
                             label = tab.label,
                             isSelected = tab == selectedMainTab,
-                            onClick = { onMainTabSelected(tab) },
-                            onLongPress = longPressHandler
+                            onClick = { onMainTabSelected(tab) }
                         )
                     }
                 } else {
@@ -174,8 +156,7 @@ fun CoralNavRail(
 private fun RailLabel(
     label: String,
     isSelected: Boolean,
-    onClick: () -> Unit,
-    onLongPress: (() -> Unit)? = null
+    onClick: () -> Unit
 ) {
     val color = if (isSelected) Color.White else CoralColors.TextMuted
     val weight = if (isSelected) FontWeight.Bold else FontWeight.Bold  // both bold now
@@ -207,98 +188,18 @@ private fun RailLabel(
     val textWidthDp = with(density) { layoutResult.size.width.toDp() }
     val textHeightPx = layoutResult.size.height.toFloat()
 
-    // --- Long-press countdown state (only used when onLongPress != null) ---
-    var showCountdown by remember { mutableStateOf(false) }
-    var countdownNumber by remember { mutableStateOf(3) }
-    var longPressJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    val longPressScope = rememberCoroutineScope()
-    var isLongPressing by remember { mutableStateOf(false) }
-
-    // Pop-up animation: scale 0 → 1 bouncy on show, fade 0 → 1 on show
-    val capsuleScale by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (showCountdown) 1f else 0f,
-        animationSpec = androidx.compose.animation.core.spring(
-            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
-            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
-        ),
-        label = "longPressScale"
-    )
-    val capsuleAlpha by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (showCountdown) 1f else 0f,
-        animationSpec = androidx.compose.animation.core.tween(250),
-        label = "longPressAlpha"
-    )
-
-    // Step 3: build the slot with COMBINED click + long-press handling.
-    // Putting both in one pointerInput avoids the clickable modifier
-    // stealing touch events from the long-press detector.
+    // Step 3: build the slot.
+    // Width = 48dp (rail width). Height = text natural width (so after rotation,
+    // the text fits vertically with zero clipping).
     Box(
         modifier = Modifier
             .width(48.dp)
             .height(textWidthDp)
-            .pointerInput(onLongPress) {
-                if (onLongPress == null) {
-                    // No long-press for this tab — just act as a click target
-                    awaitPointerEventScope {
-                        while (true) {
-                            val down = awaitFirstDown()
-                            var released = false
-                            while (!released) {
-                                val event = awaitPointerEvent()
-                                val change = event.changes.firstOrNull() ?: break
-                                if (!change.pressed) {
-                                    released = true
-                                    onClick()
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    // Combined click + long-press detection
-                    awaitPointerEventScope {
-                        while (true) {
-                            val down = awaitFirstDown()
-                            isLongPressing = false
-                            longPressJob?.cancel()
-                            down.consume()  // ← consume so clickable doesn't grab it
-
-                            // Start 1.7s hold, then 3-2-1 countdown, then fire onLongPress
-                            longPressJob = longPressScope.launch {
-                                delay(1700L)
-                                showCountdown = true
-                                countdownNumber = 3
-                                delay(1000L)
-                                countdownNumber = 2
-                                delay(1000L)
-                                countdownNumber = 1
-                                delay(1000L)
-                                showCountdown = false
-                                delay(250L)
-                                isLongPressing = true
-                                onLongPress()
-                            }
-
-                            // Wait for finger release
-                            var released = false
-                            while (!released) {
-                                val event = awaitPointerEvent()
-                                val change = event.changes.firstOrNull() ?: break
-                                change.consume()
-                                if (!change.pressed) {
-                                    released = true
-                                    // If countdown didn't complete, treat as click
-                                    if (!isLongPressing) {
-                                        longPressJob?.cancel()
-                                        showCountdown = false
-                                        onClick()
-                                    }
-                                    isLongPressing = false
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
     ) {
         // Step 4: draw the rotated text on a Canvas centered in the slot.
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -307,6 +208,12 @@ private fun RailLabel(
             val textWidthPx = layoutResult.size.width.toFloat()
             val textHeight = textHeightPx
 
+            // Rotate the canvas -90° around its center, then draw the text
+            // centered. After rotation, the text fits perfectly within the
+            // (canvasWidth, canvasHeight) bounds because:
+            //   - canvasHeight was set to textWidthDp (= textWidthPx in px)
+            //   - textWidthPx <= canvasHeight, so vertical fit
+            //   - textHeight (~14dp) < canvasWidth (48dp), so horizontal fit
             rotate(degrees = -90f, pivot = Offset(canvasWidth / 2f, canvasHeight / 2f)) {
                 drawText(
                     textLayoutResult = layoutResult,
@@ -315,55 +222,6 @@ private fun RailLabel(
                         y = (canvasHeight - textHeight) / 2f
                     )
                 )
-            }
-        }
-
-        // --- Countdown capsule overlay (shown during long-press) ---
-        // Rendered OUTSIDE the narrow 48dp slot using absolute positioning,
-        // so the capsule appears in the playlist wheel area to the right.
-        if (onLongPress != null && capsuleAlpha > 0.01f) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .wrapContentWidth(Alignment.End)
-                    .graphicsLayer {
-                        scaleX = capsuleScale
-                        scaleY = capsuleScale
-                        alpha = capsuleAlpha
-                    }
-            ) {
-                Row(
-                    modifier = Modifier
-                        .padding(end = 8.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Color(0xFF1A1A1A))
-                        .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "Colour wheel opening in",
-                        color = Color.White.copy(alpha = 0.8f),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    // Small inner capsule with the countdown number
-                    Box(
-                        modifier = Modifier
-                            .size(26.dp)
-                            .clip(RoundedCornerShape(13.dp))
-                            .background(Color.White),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = countdownNumber.toString(),
-                            color = Color.Black,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
             }
         }
     }

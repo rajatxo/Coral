@@ -71,7 +71,8 @@ fun PlaylistsScreen(
     onPlaylistClick: (Playlist) -> Unit,
     capsuleVisible: Boolean = false,
     capsuleRemaining: Long = 0L,
-    onExtend: () -> Unit = {}
+    onExtend: () -> Unit = {},
+    accentColor: Color = Color(0xFFF4B400)
 ) {
     val playlists by PlaylistStore.playlists.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
@@ -210,6 +211,7 @@ fun PlaylistsScreen(
                 PlaylistWheel(
                     playlists = playlists,
                     onPlaylistClick = onPlaylistClick,
+                    accentColor = accentColor,
                     modifier = Modifier
                         .fillMaxSize()
                         .statusBarsPadding()
@@ -286,7 +288,8 @@ fun PlaylistsScreen(
 private fun PlaylistWheel(
     playlists: List<Playlist>,
     onPlaylistClick: (Playlist) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    accentColor: Color = Color(0xFFF4B400)
 ) {
     if (playlists.isEmpty()) return
 
@@ -664,16 +667,19 @@ private fun PlaylistWheel(
                     }
                 }
 
-                // Color: active = pure white; inactive = white with reduced alpha
-                val textColor = Color.White
+                // Color: ACTIVE = accent color (default #F4B400, or auto-detected
+                // from currently-playing song's album art); INACTIVE = white.
+                val textColor = if (isActive) accentColor else Color.White
 
                 // === 5b. BALL MARKER on the second arc (textRadius orbit) ===
-                // One small filled white circle per playlist, positioned at the
+                // One small filled circle per playlist, positioned at the
                 // text anchor point on the second arc. Moves with the wheel.
+                // ACTIVE ball = accent color; INACTIVE balls = white.
                 // Diameter = 8dp, gap between consecutive balls ≈ 29dp.
                 val ballRadiusPx = with(density) { 4.dp.toPx() }
+                val ballColor = if (isActive) accentColor else Color.White
                 drawCircle(
-                    color = Color.White,
+                    color = ballColor,
                     radius = ballRadiusPx,
                     center = Offset(itemX, itemY),
                     alpha = alpha
