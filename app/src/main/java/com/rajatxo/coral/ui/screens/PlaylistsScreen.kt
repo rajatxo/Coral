@@ -295,23 +295,31 @@ private fun PlaylistWheel(
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
 
-    // --- Haptic feedback: "treat balls like buttons" ---
-    // The user wants the SAME vibration that real buttons give. So we use
-    // the exact same API that buttons use internally: View.performHapticFeedback
-    // with HapticFeedbackConstants.VIRTUAL_KEY. This is what fires when you
-    // tap any button in Android — if your phone vibrates for buttons, it will
-    // vibrate for these balls too.
-    //
-    // We use BOTH the View API AND the Vibrator API as a fallback chain:
-    //   1. View.performHapticFeedback(VIRTUAL_KEY) — respects system settings,
-    //      fires when "touch feedback" is ON in phone settings (default).
-    //   2. If that returns false, fall back to direct Vibrator API with
-    //      EFFECT_CLICK (a strong, button-like click).
-    //
-    // The flags FLAG_IGNORE_VIEW_SETTING and FLAG_IGNORE_GLOBAL_SETTING force
-    // it to fire even if the view or system has haptic feedback disabled.
+    // --- Sound effect for wheel scroll (CC0, commercial-safe) ---
+    // Kenney UI Audio pack — switch13.wav. Short, crisp, mechanical tick.
+    // Loaded via SoundPool (low latency, can overlap). Plays on every ball
+    // boundary crossing during scroll, paired with the haptic tick.
     val context = androidx.compose.ui.platform.LocalContext.current
     val view = androidx.compose.ui.platform.LocalView.current
+    val soundPool = remember {
+        android.media.SoundPool.Builder()
+            .setMaxStreams(2)  // allow overlapping ticks during fast scroll
+            .setAudioAttributes(
+                android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            .build()
+    }
+    val tickSoundId = remember {
+        soundPool.load(context, com.rajatxo.coral.R.raw.wheel_tick, 1)
+    }
+
+    // --- Vibrator fallback (used if View.performHapticFeedback returns false) ---
+    // Compose's HapticFeedbackType.TextHandleMove is too subtle on Android 13
+    // and on some OEMs like Realme. We use View.performHapticFeedback (the same
+    // API buttons use) as the primary, and the Vibrator service as fallback.
     val vibrator = remember {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
             val vm = context.getSystemService(android.content.Context.VIBRATOR_MANAGER_SERVICE)
@@ -324,9 +332,19 @@ private fun PlaylistWheel(
         }
     }
 
-    /** Fire a button-press-style haptic tick. Works on all Android versions. */
+    /** Fire a button-press-style haptic tick + sound. Works on all Android. */
     fun tickHaptic() {
-        // Method 1: View.performHapticFeedback — the exact API buttons use.
+        // 1. SOUND: short mechanical tick (CC0, commercial-safe)
+        soundPool.play(
+            tickSoundId,
+            0.6f,   // left volume
+            0.6f,   // right volume
+            1,      // priority
+            0,      // loop (0 = no loop)
+            1f      // playback rate
+        )
+
+        // 2. HAPTIC: View.performHapticFeedback — the exact API buttons use.
         val performed = view.performHapticFeedback(
             android.view.HapticFeedbackConstants.VIRTUAL_KEY,
             android.view.HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING or
@@ -334,10 +352,9 @@ private fun PlaylistWheel(
         )
         if (performed) return
 
-        // Method 2: Fallback — direct Vibrator API with a stronger effect.
+        // 3. HAPTIC FALLBACK: direct Vibrator API with EFFECT_CLICK.
         val v = vibrator ?: return
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            // EFFECT_CLICK is a strong button-like click (stronger than EFFECT_TICK).
             v.vibrate(
                 android.os.VibrationEffect.createPredefined(
                     android.os.VibrationEffect.EFFECT_CLICK
