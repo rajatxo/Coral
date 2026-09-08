@@ -5,8 +5,8 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -38,7 +38,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
@@ -79,6 +81,10 @@ fun PlaylistsScreen(
 
     // --- Wheel/Grid toggle state ---
     var useWheel by remember { mutableStateOf(true) }
+
+    // --- Wheel rotation state (for showing/hiding the selection capsule) ---
+    var isRotating by remember { mutableStateOf(false) }
+    var centerPlaylist by remember { mutableStateOf<Playlist?>(null) }
 
     Box(modifier = Modifier.fillMaxSize().background(CoralColors.Surface)) {
         // Header Column: Row(capsule + title) + big capsule with inner items
@@ -182,6 +188,31 @@ fun PlaylistsScreen(
             }
         }
 
+        // --- Selection capsule (below the big capsule) ---
+        // Only visible while the wheel is rotating. Fades in on drag start,
+        // fades out 1.5s after the wheel stops. Shows the currently-selected
+        // playlist name. Click to open it.
+        if (useWheel && playlists.isNotEmpty()) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = isRotating && centerPlaylist != null,
+                enter = androidx.compose.animation.fadeIn(
+                    animationSpec = androidx.compose.animation.core.tween(300)
+                ),
+                exit = androidx.compose.animation.fadeOut(
+                    animationSpec = androidx.compose.animation.core.tween(300)
+                ),
+                modifier = Modifier.padding(top = 8.dp, start = 16.dp)
+            ) {
+                SelectionCapsule(
+                    playlistName = centerPlaylist?.name ?: "",
+                    accentColor = accentColor,
+                    onClick = {
+                        centerPlaylist?.let { onPlaylistClick(it) }
+                    }
+                )
+            }
+        }
+
         // --- Content: Wheel or Grid ---
         if (playlists.isEmpty()) {
             Column(
@@ -210,8 +241,10 @@ fun PlaylistsScreen(
             if (useWheel) {
                 PlaylistWheel(
                     playlists = playlists,
-                    onPlaylistClick = onPlaylistClick,
                     accentColor = accentColor,
+                    onRotationStart = { isRotating = true },
+                    onRotationEnd = { isRotating = false },
+                    onCenterPlaylistChange = { centerPlaylist = it },
                     modifier = Modifier
                         .fillMaxSize()
                         .statusBarsPadding()
@@ -287,9 +320,11 @@ fun PlaylistsScreen(
 @Composable
 private fun PlaylistWheel(
     playlists: List<Playlist>,
-    onPlaylistClick: (Playlist) -> Unit,
     modifier: Modifier = Modifier,
-    accentColor: Color = Color(0xFFF4B400)
+    accentColor: Color = Color(0xFFF4B400),
+    onRotationStart: () -> Unit = {},
+    onRotationEnd: () -> Unit = {},
+    onCenterPlaylistChange: (Playlist) -> Unit = {}
 ) {
     if (playlists.isEmpty()) return
 
@@ -399,28 +434,6 @@ private fun PlaylistWheel(
         playTickSound()
     }
 
-    /** Stronger haptic for tap-to-open (a firm double-click-like feedback). */
-    fun clickHaptic() {
-        val performed = view.performHapticFeedback(
-            android.view.HapticFeedbackConstants.LONG_PRESS,
-            android.view.HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING or
-            android.view.HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
-        )
-        if (performed) return
-
-        val v = vibrator ?: return
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            v.vibrate(
-                android.os.VibrationEffect.createPredefined(
-                    android.os.VibrationEffect.EFFECT_HEAVY_CLICK
-                )
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            v.vibrate(50)
-        }
-    }
-
     // --- Geometry constants ---
     // Angular spacing between adjacent items (degrees). 8° gives ~22 visible
     // items across a 180° window — enough density without crowding the apex.
@@ -448,13 +461,25 @@ private fun PlaylistWheel(
 
     val centerIndex = remember(scrollOffset.value) { indexAtOffset(scrollOffset.value) }
 
-    // --- Gestures: rotational drag + physics fling + snap + tap ---
+    // Notify parent whenever the center playlist changes (during scroll + at rest)
+    androidx.compose.runtime.LaunchedEffect(centerIndex, playlists) {
+        if (playlists.isNotEmpty()) {
+            onCenterPlaylistChange(playlists[centerIndex])
+        }
+    }
+
+    // --- Gestures: rotational drag + physics fling + snap ---
+    // NOTE: Wheel is NOT clickable. User opens playlists via the selection
+    // capsule that appears below the header capsule.
     Box(
         modifier = modifier
             .pointerInput(playlists.size) {
                 var velocityTracker = VelocityTracker()
                 detectVerticalDragGestures(
-                    onDragStart = { velocityTracker = VelocityTracker() },
+                    onDragStart = {
+                        velocityTracker = VelocityTracker()
+                        onRotationStart()
+                    },
                     onDragEnd = {
                         val velocity = velocityTracker.calculateVelocity().y
                         coroutineScope.launch {
@@ -474,6 +499,9 @@ private fun PlaylistWheel(
                                     stiffness = Spring.StiffnessMedium
                                 )
                             )
+                            // Wait 1.5s so user can read the name + click the capsule
+                            kotlinx.coroutines.delay(1500L)
+                            onRotationEnd()
                         }
                     },
                     onVerticalDrag = { change, dragAmount ->
@@ -489,15 +517,6 @@ private fun PlaylistWheel(
                             tickHaptic()
                         }
                         change.consume()
-                    }
-                )
-            }
-            .pointerInput(playlists.size) {
-                // Tap to open the currently-selected item (apex)
-                detectTapGestures(
-                    onTap = {
-                        clickHaptic()
-                        onPlaylistClick(playlists[centerIndex])
                     }
                 )
             }
@@ -858,6 +877,86 @@ private fun PlaylistCard(
             text = "${playlist.songIds.size} ${if (playlist.songIds.size == 1) "song" else "songs"}",
             color = Color(0xFFB0B0B0),
             fontSize = 12.sp
+        )
+    }
+}
+
+// =============================================================================
+// SELECTION CAPSULE — glossy pill showing the currently-selected playlist name
+// =============================================================================
+// Design:
+//   - Medium-sized rounded pill (not too long, not too short)
+//   - Background = accent color (auto-detected from album art, default #F4B400)
+//   - Glossy white stroke border (like the mini player)
+//   - Glossy reflection overlay (vertical gradient: white top → transparent →
+//     dark bottom)
+//   - Text color auto-detected: black on bright colors, white on dark colors
+//   - Clickable to open the playlist
+// =============================================================================
+
+@Composable
+private fun SelectionCapsule(
+    playlistName: String,
+    accentColor: Color,
+    onClick: () -> Unit
+) {
+    // Auto-detect text color based on luminance (perceived brightness)
+    // Formula: luminance = 0.299*R + 0.587*G + 0.114*B
+    // If luminance > 0.5, color is "bright" → use black text
+    // If luminance <= 0.5, color is "dark" → use white text
+    val luminance = 0.299f * accentColor.red +
+                    0.587f * accentColor.green +
+                    0.114f * accentColor.blue
+    val textColor = if (luminance > 0.5f) Color.Black else Color.White
+
+    // Haptic feedback on click (same View.performHapticFeedback approach as
+    // the wheel — works reliably on all devices including Realme)
+    val view = androidx.compose.ui.platform.LocalView.current
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(accentColor)
+            .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
+            .drawWithContent {
+                drawContent()
+                // Glossy reflection overlay: white at top, transparent in middle,
+                // subtle dark at bottom — gives the "glossy pill" look
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.4f),
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.08f)
+                        )
+                    ),
+                    size = size
+                )
+            }
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {
+                    // Fire haptic feedback
+                    try {
+                        view.performHapticFeedback(
+                            android.view.HapticFeedbackConstants.VIRTUAL_KEY,
+                            android.view.HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING or
+                            android.view.HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+                        )
+                    } catch (_: Exception) { }
+                    onClick()
+                }
+            )
+            .padding(horizontal = 20.dp, vertical = 8.dp)
+    ) {
+        Text(
+            text = playlistName,
+            color = textColor,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
