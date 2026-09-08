@@ -467,7 +467,14 @@ private fun PlaylistWheel(
 
                 // Active = UPPERCASE, inactive = Title Case
                 val isActive = absOffset < 0.5f
-                val displayText = if (isActive) playlist.name.uppercase() else playlist.name.titlecase()
+                val displayText = if (isActive) {
+                    playlist.name.uppercase()
+                } else {
+                    // Title Case: lowercase everything, then capitalize first char
+                    playlist.name.lowercase().replaceFirstChar { ch ->
+                        if (ch.isLowerCase()) ch.uppercaseChar().toString() else ch.toString()
+                    }
+                }
 
                 // Color: active = pure white; inactive = white with reduced alpha
                 val textColor = Color.White
