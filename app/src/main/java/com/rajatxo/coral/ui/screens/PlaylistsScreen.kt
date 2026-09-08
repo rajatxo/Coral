@@ -313,8 +313,9 @@ private fun PlaylistWheel(
     var lastSnappedIndex by remember { mutableStateOf(0) }
 
     // --- Selection helper ---
+    // NOTE: negated to match rotationItems inversion (scroll DOWN = CW).
     fun indexAtOffset(offset: Float): Int {
-        val raw = (offset / pxPerItem).roundToInt()
+        val raw = (-offset / pxPerItem).roundToInt()
         val mod = raw % playlists.size
         return if (mod < 0) mod + playlists.size else mod
     }
@@ -462,7 +463,9 @@ private fun PlaylistWheel(
 
             // === 4. TEXT ITEMS on the outer (invisible) text orbit ===
             // scrollOffset / pxPerItem = how many "items" the wheel has rotated.
-            val rotationItems = scrollOffset.value / pxPerItem
+            // NEGATED so that scrolling DOWN = clockwise rotation (items move
+            // down on the visible arc), scrolling UP = anticlockwise.
+            val rotationItems = -scrollOffset.value / pxPerItem
 
             // Playfair Display Italic — premium high-contrast editorial serif.
             val activeFontSp = 46f
@@ -529,6 +532,18 @@ private fun PlaylistWheel(
 
                 // Color: active = pure white; inactive = white with reduced alpha
                 val textColor = Color.White
+
+                // === 5b. BALL MARKER on the second arc (textRadius orbit) ===
+                // One small filled white circle per playlist, positioned at the
+                // text anchor point on the second arc. Moves with the wheel.
+                // Diameter = 8dp, gap between consecutive balls ≈ 29dp.
+                val ballRadiusPx = with(density) { 4.dp.toPx() }
+                drawCircle(
+                    color = Color.White,
+                    radius = ballRadiusPx,
+                    center = Offset(itemX, itemY),
+                    alpha = alpha
+                )
 
                 // === 6. MEASURE TEXT ===
                 val textLayout = textMeasurer.measure(
