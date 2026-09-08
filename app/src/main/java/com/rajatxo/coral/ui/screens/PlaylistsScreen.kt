@@ -468,11 +468,15 @@ private fun PlaylistWheel(
             val rotationItems = -scrollOffset.value / pxPerItem
 
             // Playfair Display Italic — premium high-contrast editorial serif.
-            val activeFontSp = 46f
-            val inactiveFontSp = 18f
+            // Inactive text made smaller relative to active (was 18sp → 16sp)
+            // so the active item stands out more clearly.
+            val activeFontSp = 42f
+            val inactiveFontSp = 16f
 
-            // ±50° visible window at 8° step = ~6 items each side.
-            val visibleSpan = 6
+            // ±50° visible window at 8° step = ~6 items each side. Extended to 7
+            // so one more ball is visible at each end (fading to near-zero
+            // opacity as it approaches the screen edge).
+            val visibleSpan = 7
 
             for (offset in -visibleSpan..visibleSpan) {
                 // Index in playlist array for this slot
@@ -500,12 +504,14 @@ private fun PlaylistWheel(
 
                 // === 5. STYLING CURVES (per AI spec) ===
                 // Opacity: 100% at apex → 50% (step 1) → 25% (step 2) → 5% (step 3+) → 0
+                // Extended curve so the 7th item is visible but barely (fading out).
                 val alpha = when {
                     absOffset < 0.5f -> 1f
                     absOffset < 1.5f -> lerp(1f, 0.50f, (absOffset - 0.5f))
                     absOffset < 2.5f -> lerp(0.50f, 0.25f, (absOffset - 1.5f))
                     absOffset < 3.5f -> lerp(0.25f, 0.05f, (absOffset - 2.5f))
-                    else -> lerp(0.05f, 0f, (absOffset - 3.5f).coerceIn(0f, 1f))
+                    absOffset < 4.5f -> lerp(0.05f, 0.02f, (absOffset - 3.5f))
+                    else -> lerp(0.02f, 0f, (absOffset - 4.5f).coerceIn(0f, 1f))
                 }.coerceIn(0f, 1f)
 
                 // Scale: 1.0 at apex → 0.70 → 0.55 → 0.45 (smooth shrink)
@@ -545,8 +551,27 @@ private fun PlaylistWheel(
                     alpha = alpha
                 )
 
-                // === 6. MEASURE TEXT ===
-                val textLayout = textMeasurer.measure(
+                // === 6. MEASURE TEXT (then auto-fit if too wide) ===
+                //
+                // Auto-fit: like the SleepTimerCapsule fits its container, the
+                // main playlist text auto-shrinks to fit available width.
+                // We measure at the target size, and if the text would extend
+                // past the right edge of the screen, we scale the font size
+                // down proportionally so it just fits.
+                //
+                // Available width = (screen width - textStartX - right margin).
+                // Text starts at (ball edge + gap) and extends outward.
+                // ballRadiusPx already defined above (ball marker section).
+                val gapAfterBallPx = with(density) { 6.dp.toPx() }
+                val rightMarginPx = with(density) { 12.dp.toPx() }
+
+                // Max available width for text = from (ball edge + gap) to right screen edge.
+                val textStartX = itemX + ballRadiusPx + gapAfterBallPx
+                val maxTextWidth = (w - rightMarginPx - textStartX).coerceAtLeast(50f)
+
+                // First measure at target size
+                var fontSp = lerp(activeFontSp, inactiveFontSp, (1f - scale).coerceIn(0f, 1f))
+                var textLayout = textMeasurer.measure(
                     text = AnnotatedString(displayText),
                     style = TextStyle(
                         color = textColor,
@@ -559,10 +584,36 @@ private fun PlaylistWheel(
                     maxLines = 1,
                     softWrap = false,
                     constraints = androidx.compose.ui.unit.Constraints(
-                        maxWidth = (w * 0.9f).toInt(),
+                        maxWidth = Int.MAX_VALUE,
                         maxHeight = Int.MAX_VALUE
                     )
                 )
+
+                // Auto-fit: if text is wider than available, shrink font size
+                // proportionally so it just fits. This is the "sleep timer
+                // capsule" behavior — short names stay big, long names shrink.
+                val measuredWidth = textLayout.size.width.toFloat()
+                if (measuredWidth > maxTextWidth && measuredWidth > 0f) {
+                    val shrinkRatio = maxTextWidth / measuredWidth
+                    fontSp = (fontSp * shrinkRatio).coerceAtLeast(10f)
+                    textLayout = textMeasurer.measure(
+                        text = AnnotatedString(displayText),
+                        style = TextStyle(
+                            color = textColor,
+                            fontSize = fontSp.sp,
+                            fontWeight = FontWeight.Normal,
+                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                            fontFamily = com.rajatxo.coral.ui.theme.PlayfairItalicFamily
+                        ),
+                        overflow = TextOverflow.Visible,
+                        maxLines = 1,
+                        softWrap = false,
+                        constraints = androidx.compose.ui.unit.Constraints(
+                            maxWidth = Int.MAX_VALUE,
+                            maxHeight = Int.MAX_VALUE
+                        )
+                    )
+                }
 
                 // === 7. TEXT PLACEMENT — IN FRONT OF BALL, PERPENDICULAR TO SLOPE ===
                 //
@@ -587,7 +638,7 @@ private fun PlaylistWheel(
                 //   textCenterY = itemY + (ballRadius + gap + textWidth/2) * sin(θ)
                 val textW = textLayout.size.width.toFloat()
                 val textH = textLayout.size.height.toFloat()
-                val gapAfterBallPx = with(density) { 6.dp.toPx() }  // gap between ball edge and text start
+                // gapAfterBallPx already defined above in the measure section
 
                 // Total distance from ball center to text center, along radial
                 val textOffsetPx = ballRadiusPx + gapAfterBallPx + textW / 2f
