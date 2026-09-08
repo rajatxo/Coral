@@ -159,8 +159,33 @@ fun PlaylistsScreen(
                     )
                 }
 
-                // Flexible space between
-                Spacer(modifier = Modifier.weight(1f))
+                // Flexible space between - now holds the selection capsule
+                // (nested inside the big capsule, between "New" and "Grid").
+                // Only visible while the wheel is rotating. Fades in/out.
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = useWheel && isRotating && centerPlaylist != null && playlists.isNotEmpty(),
+                        enter = androidx.compose.animation.fadeIn(
+                            animationSpec = androidx.compose.animation.core.tween(300)
+                        ),
+                        exit = androidx.compose.animation.fadeOut(
+                            animationSpec = androidx.compose.animation.core.tween(300)
+                        )
+                    ) {
+                        SelectionCapsule(
+                            playlistName = centerPlaylist?.name ?: "",
+                            accentColor = accentColor,
+                            onClick = {
+                                centerPlaylist?.let { onPlaylistClick(it) }
+                            }
+                        )
+                    }
+                }
 
                 // Toggle capsule: Wheel / Grid (right side)
                 Row(
@@ -183,37 +208,6 @@ fun PlaylistsScreen(
                         color = Color.White,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium
-                    )
-                }
-            }
-        }
-
-        // --- Selection capsule (below the big capsule, centered horizontally) ---
-        // Only visible while the wheel is rotating. Fades in on drag start,
-        // fades out 1.5s after the wheel stops. Shows the currently-selected
-        // playlist name. Click to open it.
-        if (useWheel && playlists.isNotEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = isRotating && centerPlaylist != null,
-                    enter = androidx.compose.animation.fadeIn(
-                        animationSpec = androidx.compose.animation.core.tween(300)
-                    ),
-                    exit = androidx.compose.animation.fadeOut(
-                        animationSpec = androidx.compose.animation.core.tween(300)
-                    )
-                ) {
-                    SelectionCapsule(
-                        playlistName = centerPlaylist?.name ?: "",
-                        accentColor = accentColor,
-                        onClick = {
-                            centerPlaylist?.let { onPlaylistClick(it) }
-                        }
                     )
                 }
             }
@@ -956,14 +950,37 @@ private fun SelectionCapsule(
             )
             .padding(horizontal = 20.dp, vertical = 8.dp)
     ) {
-        Text(
-            text = playlistName,
-            color = textColor,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+        // Smooth animated transition when playlist name changes.
+        // New name slides in from the right while old name slides out to the left,
+        // with a quick fade. Total duration ~200ms — smooth but fast.
+        androidx.compose.animation.AnimatedContent(
+            targetState = playlistName,
+            transitionSpec = {
+                // Slide horizontally + fade simultaneously
+                (androidx.compose.animation.slideIntoContainer(
+                    towards = androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Left,
+                    animationSpec = androidx.compose.animation.core.tween(180)
+                ) + androidx.compose.animation.fadeIn(
+                    animationSpec = androidx.compose.animation.core.tween(180)
+                )) togetherWith (androidx.compose.animation.slideOutOfContainer(
+                    towards = androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Left,
+                    animationSpec = androidx.compose.animation.core.tween(180)
+                ) + androidx.compose.animation.fadeOut(
+                    animationSpec = androidx.compose.animation.core.tween(180)
+                ))
+            },
+            contentAlignment = Alignment.Center,
+            label = "playlistNameTransition"
+        ) { targetName ->
+            Text(
+                text = targetName,
+                color = textColor,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
