@@ -300,9 +300,8 @@ private fun PlaylistWheel(
 
     Box(
         modifier = modifier
-            .clip(androidx.compose.foundation.shape.RectangleShape)
             .pointerInput(playlists.size) {
-                val velocityTracker = VelocityTracker()
+                var velocityTracker = VelocityTracker()
                 detectVerticalDragGestures(
                     onDragStart = { velocityTracker = VelocityTracker() },
                     onDragEnd = {
@@ -310,10 +309,10 @@ private fun PlaylistWheel(
                         val velocity = velocityTracker.calculateVelocity().y
                         coroutineScope.launch {
                             // Fling with deceleration
-                            scrollOffset.animateTo(
-                                targetValue = scrollOffset.value + velocity * 0.3f,
+                            scrollOffset.animateDecay(
+                                initialVelocity = velocity * 0.3f,
                                 animationSpec = androidx.compose.animation.core.exponentialDecay(
-                                    friction = 0.9f
+                                    frictionMultiplier = 0.9f
                                 )
                             )
                             // SNAP to nearest item
@@ -355,8 +354,8 @@ private fun PlaylistWheel(
                 // Tap detection for the 3 nearest playlists
                 awaitPointerEventScope {
                     while (true) {
-                        awaitFirstDown(requireUnconsumed = false)
-                        val event = awaitPointerEvent(requireUnconsumed = false)
+                        awaitFirstDown()
+                        val event = awaitPointerEvent()
                         val change = event.changes.firstOrNull() ?: continue
                         if (!change.pressed) {
                             val tapY = change.position.y
