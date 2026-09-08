@@ -3,6 +3,13 @@ package com.rajatxo.coral.ui.screens
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.slideIntoContainer
+import androidx.compose.animation.slideOutOfContainer
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -952,20 +959,20 @@ private fun SelectionCapsule(
     ) {
         // Smooth animated transition when playlist name changes.
         // New name slides in from the right while old name slides out to the left,
-        // with a quick fade. Total duration ~200ms — smooth but fast.
-        androidx.compose.animation.AnimatedContent(
+        // with a quick fade. Total duration ~180ms — smooth but fast.
+        AnimatedContent(
             targetState = playlistName,
             transitionSpec = {
                 // Slide horizontally + fade simultaneously
-                (androidx.compose.animation.slideIntoContainer(
-                    towards = androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Left,
+                (slideIntoContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Left,
                     animationSpec = androidx.compose.animation.core.tween(180)
-                ) + androidx.compose.animation.fadeIn(
+                ) + fadeIn(
                     animationSpec = androidx.compose.animation.core.tween(180)
-                )) togetherWith (androidx.compose.animation.slideOutOfContainer(
-                    towards = androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Left,
+                )) togetherWith (slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Left,
                     animationSpec = androidx.compose.animation.core.tween(180)
-                ) + androidx.compose.animation.fadeOut(
+                ) + fadeOut(
                     animationSpec = androidx.compose.animation.core.tween(180)
                 ))
             },
