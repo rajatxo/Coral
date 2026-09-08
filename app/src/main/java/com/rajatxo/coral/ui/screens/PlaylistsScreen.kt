@@ -188,28 +188,34 @@ fun PlaylistsScreen(
             }
         }
 
-        // --- Selection capsule (below the big capsule) ---
+        // --- Selection capsule (below the big capsule, centered horizontally) ---
         // Only visible while the wheel is rotating. Fades in on drag start,
         // fades out 1.5s after the wheel stops. Shows the currently-selected
         // playlist name. Click to open it.
         if (useWheel && playlists.isNotEmpty()) {
-            androidx.compose.animation.AnimatedVisibility(
-                visible = isRotating && centerPlaylist != null,
-                enter = androidx.compose.animation.fadeIn(
-                    animationSpec = androidx.compose.animation.core.tween(300)
-                ),
-                exit = androidx.compose.animation.fadeOut(
-                    animationSpec = androidx.compose.animation.core.tween(300)
-                ),
-                modifier = Modifier.padding(top = 8.dp, start = 16.dp)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                contentAlignment = Alignment.Center
             ) {
-                SelectionCapsule(
-                    playlistName = centerPlaylist?.name ?: "",
-                    accentColor = accentColor,
-                    onClick = {
-                        centerPlaylist?.let { onPlaylistClick(it) }
-                    }
-                )
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = isRotating && centerPlaylist != null,
+                    enter = androidx.compose.animation.fadeIn(
+                        animationSpec = androidx.compose.animation.core.tween(300)
+                    ),
+                    exit = androidx.compose.animation.fadeOut(
+                        animationSpec = androidx.compose.animation.core.tween(300)
+                    )
+                ) {
+                    SelectionCapsule(
+                        playlistName = centerPlaylist?.name ?: "",
+                        accentColor = accentColor,
+                        onClick = {
+                            centerPlaylist?.let { onPlaylistClick(it) }
+                        }
+                    )
+                }
             }
         }
 
