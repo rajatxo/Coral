@@ -295,12 +295,23 @@ private fun PlaylistWheel(
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
 
-    // --- Vibrator for reliable medium-strength haptic tick ---
-    // Compose's HapticFeedbackType.TextHandleMove is too subtle on Android 13
-    // (and on some OEMs like Realme it doesn't fire at all). We use the
-    // platform Vibrator service directly with a predefined effect so the
-    // tick is felt consistently across all devices, even low-end ones.
+    // --- Haptic feedback: "treat balls like buttons" ---
+    // The user wants the SAME vibration that real buttons give. So we use
+    // the exact same API that buttons use internally: View.performHapticFeedback
+    // with HapticFeedbackConstants.VIRTUAL_KEY. This is what fires when you
+    // tap any button in Android — if your phone vibrates for buttons, it will
+    // vibrate for these balls too.
+    //
+    // We use BOTH the View API AND the Vibrator API as a fallback chain:
+    //   1. View.performHapticFeedback(VIRTUAL_KEY) — respects system settings,
+    //      fires when "touch feedback" is ON in phone settings (default).
+    //   2. If that returns false, fall back to direct Vibrator API with
+    //      EFFECT_CLICK (a strong, button-like click).
+    //
+    // The flags FLAG_IGNORE_VIEW_SETTING and FLAG_IGNORE_GLOBAL_SETTING force
+    // it to fire even if the view or system has haptic feedback disabled.
     val context = androidx.compose.ui.platform.LocalContext.current
+    val view = androidx.compose.ui.platform.LocalView.current
     val vibrator = remember {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
             val vm = context.getSystemService(android.content.Context.VIBRATOR_MANAGER_SERVICE)
@@ -313,38 +324,20 @@ private fun PlaylistWheel(
         }
     }
 
-    /** Fire a short, medium-strength haptic tick. Works on all Android versions. */
+    /** Fire a button-press-style haptic tick. Works on all Android versions. */
     fun tickHaptic() {
-        val v = vibrator ?: run {
-            // Fallback to Compose haptic if Vibrator service unavailable
-            haptics.performHapticFeedback(
-                androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove
-            )
-            return
-        }
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            // Android 10+ — use VibrationEffect predefined TICK (medium strength)
-            v.vibrate(
-                android.os.VibrationEffect.createPredefined(
-                    android.os.VibrationEffect.EFFECT_TICK
-                )
-            )
-        } else {
-            // Android 9 and below — fallback to a short 20ms vibration
-            @Suppress("DEPRECATION")
-            v.vibrate(20)
-        }
-    }
+        // Method 1: View.performHapticFeedback — the exact API buttons use.
+        val performed = view.performHapticFeedback(
+            android.view.HapticFeedbackConstants.VIRTUAL_KEY,
+            android.view.HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING or
+            android.view.HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+        )
+        if (performed) return
 
-    /** Stronger haptic for tap-to-open (a firm click). */
-    fun clickHaptic() {
-        val v = vibrator ?: run {
-            haptics.performHapticFeedback(
-                androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress
-            )
-            return
-        }
+        // Method 2: Fallback — direct Vibrator API with a stronger effect.
+        val v = vibrator ?: return
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            // EFFECT_CLICK is a strong button-like click (stronger than EFFECT_TICK).
             v.vibrate(
                 android.os.VibrationEffect.createPredefined(
                     android.os.VibrationEffect.EFFECT_CLICK
@@ -352,7 +345,29 @@ private fun PlaylistWheel(
             )
         } else {
             @Suppress("DEPRECATION")
-            v.vibrate(40)
+            v.vibrate(30)
+        }
+    }
+
+    /** Stronger haptic for tap-to-open (a firm double-click-like feedback). */
+    fun clickHaptic() {
+        val performed = view.performHapticFeedback(
+            android.view.HapticFeedbackConstants.LONG_PRESS,
+            android.view.HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING or
+            android.view.HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+        )
+        if (performed) return
+
+        val v = vibrator ?: return
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            v.vibrate(
+                android.os.VibrationEffect.createPredefined(
+                    android.os.VibrationEffect.EFFECT_HEAVY_CLICK
+                )
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            v.vibrate(50)
         }
     }
 
