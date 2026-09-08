@@ -39,12 +39,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
@@ -90,11 +89,15 @@ fun PlaylistsScreen(
 
     Box(modifier = Modifier.fillMaxSize().background(CoralColors.Surface)) {
         // Header Column: Row(capsule + title) + big capsule with inner items
+        // zIndex(1f) keeps the header ABOVE the wheel so the Grid/Wheel
+        // toggle capsule stays clickable (otherwise the wheel's pointerInput
+        // would intercept touches over the header area).
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
                 .padding(start = 16.dp, end = 20.dp, top = 16.dp)
+                .zIndex(1f)
         ) {
             // Header Row: capsule (weight=1f) + title text
             Row(
@@ -190,26 +193,31 @@ fun PlaylistsScreen(
                 }
 
                 // Toggle capsule: Wheel / Grid (right side)
+                // Same size + shape as the "New" capsule on the left:
+                // 32dp height, 16dp rounded corners, pure white background,
+                // pure black text.
                 Row(
                     modifier = Modifier
                         .padding(end = 4.dp)
                         .height(32.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Color.White.copy(alpha = 0.15f))
+                        .background(Color.White)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
-                            onClick = { useWheel = !useWheel }
+                            onClick = {
+                                useWheel = !useWheel
+                            }
                         )
-                        .padding(horizontal = 10.dp),
+                        .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
                         text = if (useWheel) "Grid" else "Wheel",
-                        color = Color.White,
+                        color = Color.Black,
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
@@ -815,16 +823,6 @@ private fun PlaylistWheel(
                 drawContext.canvas.restore()
             }
         }
-
-        // Hint text
-        Text(
-            text = "Slide to spin • Tap to open",
-            color = CoralColors.TextMuted,
-            fontSize = 11.sp,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 20.dp)
-        )
     }
 }
 
@@ -954,47 +952,33 @@ private fun SelectionCapsule(
     ) {
         // Smooth animated transition when playlist name changes.
         // New name slides in from the right while old name slides out to the left,
-        // with a BLUR transition (instead of fade). Total duration ~180ms.
-        //
-        // Implementation: We drive the blur manually by tracking each text's
-        // progress (0 = just appearing or disappearing, 1 = fully settled).
-        // We use animateFloatAsState on a 'version' counter that ticks every
-        // time the playlist name changes, with custom enter/exit blur curves.
-        var nameVersion by remember { mutableStateOf(0) }
-        androidx.compose.runtime.LaunchedEffect(playlistName) { nameVersion++ }
-
-        Box(
-            modifier = Modifier.fillMaxWidth(),
-            contentAlignment = Alignment.Center
-        ) {
-            // Animate progress 0 → 1 on name change
-            val enterProgress by androidx.compose.animation.core.animateFloatAsState(
-                targetValue = nameVersion.toFloat(),
-                animationSpec = androidx.compose.animation.core.tween(180),
-                label = "blurEnter"
-            )
-            // Map progress to blur radius (max ~12px blur at progress=0, 0 at settled)
-            // Each integer step in nameVersion = one name change.
-            // fractional part = animation progress (0 just changed, ~1 settled)
-            val frac = enterProgress - enterProgress.toInt()
-            val blurRadius = (1f - frac) * 12f  // 12px → 0px
-
+        // with a quick fade. Total duration ~180ms — smooth but fast.
+        androidx.compose.animation.AnimatedContent(
+            targetState = playlistName,
+            transitionSpec = {
+                // Slide horizontally + fade simultaneously
+                (androidx.compose.animation.slideIntoContainer(
+                    towards = androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Left,
+                    animationSpec = androidx.compose.animation.core.tween(180)
+                ) + androidx.compose.animation.fadeIn(
+                    animationSpec = androidx.compose.animation.core.tween(180)
+                )) togetherWith (androidx.compose.animation.slideOutOfContainer(
+                    towards = androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Left,
+                    animationSpec = androidx.compose.animation.core.tween(180)
+                ) + androidx.compose.animation.fadeOut(
+                    animationSpec = androidx.compose.animation.core.tween(180)
+                ))
+            },
+            contentAlignment = Alignment.Center,
+            label = "playlistNameTransition"
+        ) { targetName ->
             Text(
-                text = playlistName,
+                text = targetName,
                 color = textColor,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.graphicsLayer {
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                        val r = blurRadius.coerceAtLeast(0.1f)
-                        renderEffect = android.graphics.RenderEffect.createBlurEffect(
-                            r, r,
-                            android.graphics.Shader.TileMode.CLAMP
-                        ).asComposeRenderEffect()
-                    }
-                }
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
