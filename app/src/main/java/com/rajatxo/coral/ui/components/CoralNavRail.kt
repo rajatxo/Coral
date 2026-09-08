@@ -229,62 +229,76 @@ private fun RailLabel(
         label = "longPressAlpha"
     )
 
-    // Step 3: build the slot.
+    // Step 3: build the slot with COMBINED click + long-press handling.
+    // Putting both in one pointerInput avoids the clickable modifier
+    // stealing touch events from the long-press detector.
     Box(
         modifier = Modifier
             .width(48.dp)
             .height(textWidthDp)
-            // Long-press detection — only when onLongPress is provided
-            .then(
-                if (onLongPress != null) Modifier.pointerInput(Unit) {
+            .pointerInput(onLongPress) {
+                if (onLongPress == null) {
+                    // No long-press for this tab — just act as a click target
+                    awaitPointerEventScope {
+                        while (true) {
+                            val down = awaitFirstDown()
+                            var released = false
+                            while (!released) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull() ?: break
+                                if (!change.pressed) {
+                                    released = true
+                                    onClick()
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Combined click + long-press detection
                     awaitPointerEventScope {
                         while (true) {
                             val down = awaitFirstDown()
                             isLongPressing = false
                             longPressJob?.cancel()
+                            down.consume()  // ← consume so clickable doesn't grab it
 
                             // Start 1.7s hold, then 3-2-1 countdown, then fire onLongPress
                             longPressJob = longPressScope.launch {
-                                // Phase 1: hold for 1.7 seconds (no UI feedback)
                                 delay(1700L)
-
-                                // Phase 2: pop up the capsule with countdown 3 → 2 → 1
                                 showCountdown = true
                                 countdownNumber = 3
                                 delay(1000L)
-
                                 countdownNumber = 2
                                 delay(1000L)
-
                                 countdownNumber = 1
                                 delay(1000L)
-
-                                // Phase 3: countdown done — fade out, fire callback
                                 showCountdown = false
-                                delay(250L)  // wait for fade-out animation
+                                delay(250L)
                                 isLongPressing = true
                                 onLongPress()
                             }
 
-                            while (true) {
+                            // Wait for finger release
+                            var released = false
+                            while (!released) {
                                 val event = awaitPointerEvent()
                                 val change = event.changes.firstOrNull() ?: break
+                                change.consume()
                                 if (!change.pressed) {
-                                    // Finger lifted before countdown completed — cancel
-                                    longPressJob?.cancel()
-                                    showCountdown = false
-                                    break
+                                    released = true
+                                    // If countdown didn't complete, treat as click
+                                    if (!isLongPressing) {
+                                        longPressJob?.cancel()
+                                        showCountdown = false
+                                        onClick()
+                                    }
+                                    isLongPressing = false
                                 }
                             }
                         }
                     }
-                } else Modifier
-            )
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = { if (!isLongPressing) onClick() }
-            )
+                }
+            }
     ) {
         // Step 4: draw the rotated text on a Canvas centered in the slot.
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -305,8 +319,8 @@ private fun RailLabel(
         }
 
         // --- Countdown capsule overlay (shown during long-press) ---
-        // Only rendered when onLongPress is set AND capsule is visible.
-        // Positioned to the RIGHT of the rail label (where the playlist wheel lives).
+        // Rendered OUTSIDE the narrow 48dp slot using absolute positioning,
+        // so the capsule appears in the playlist wheel area to the right.
         if (onLongPress != null && capsuleAlpha > 0.01f) {
             Box(
                 modifier = Modifier
