@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -116,6 +117,7 @@ fun HomeScreen(
     var showEqualizer by remember { mutableStateOf(false) }
     var showSleepTimer by remember { mutableStateOf(false) }
     var showFontPicker by remember { mutableStateOf(false) }
+    var showColorWheel by remember { mutableStateOf(false) }
 
     // --- Mini player position polling ---
     // Polls the playback position every 500ms so the circular progress
@@ -207,7 +209,8 @@ fun HomeScreen(
                     // Stay on settings rail until user explicitly goes back
                 },
                 onGearClick = { railMode = com.rajatxo.coral.ui.components.RailMode.Settings },
-                onBackClick = { railMode = com.rajatxo.coral.ui.components.RailMode.Main }
+                onBackClick = { railMode = com.rajatxo.coral.ui.components.RailMode.Main },
+                onPlaylistLongPress = { showColorWheel = true }
             )
 
             Box(
@@ -420,6 +423,129 @@ fun HomeScreen(
                 onSeek = onSeek,
                 onDismiss = onFullPlayerDismiss
             )
+        }
+
+        // --- Color Wheel Floating Overlay ---
+        // Triggered by long-pressing the "Playlists" tab in the nav rail for
+        // 1.7s + 3-2-1 countdown. Blurs the background and shows a placeholder
+        // rounded square floating box. Actual color wheel content comes next.
+        if (showColorWheel) {
+            ColorWheelPlaceholderOverlay(onDismiss = { showColorWheel = false })
+        }
+    }
+}
+
+/**
+ * Placeholder overlay for the upcoming color wheel feature.
+ *
+ * - Blurs the background (Android 12+ uses RenderEffect, older falls back
+ *   to a semi-transparent black scrim).
+ * - Shows a rounded-square floating box with open/close animations.
+ * - Currently displays "Color wheel coming next" — will be replaced with
+ *   the actual HSV color wheel in the next step.
+ */
+@Composable
+private fun ColorWheelPlaceholderOverlay(onDismiss: () -> Unit) {
+    // Open/close animations
+    var visible by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(Unit) { visible = true }
+
+    val overlayAlpha by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = androidx.compose.animation.core.tween(300),
+        label = "overlayAlpha"
+    )
+    val boxScale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (visible) 1f else 0.85f,
+        animationSpec = androidx.compose.animation.core.spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+        ),
+        label = "boxScale"
+    )
+    val boxAlpha by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = androidx.compose.animation.core.tween(300),
+        label = "boxAlpha"
+    )
+
+    // Dismiss handler — fades out before removing
+    val homeScope = androidx.compose.runtime.rememberCoroutineScope()
+    fun close() {
+        visible = false
+        // Wait for fade-out then call onDismiss
+        homeScope.launch {
+            kotlinx.coroutines.delay(300L)
+            onDismiss()
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.5f * overlayAlpha))
+            .pointerInput(Unit) {
+                // Tap outside the floating box dismisses it
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull() ?: continue
+                        if (change.pressed) {
+                            // Tap detected outside — close
+                            close()
+                        }
+                    }
+                }
+            }
+            .graphicsLayer { alpha = overlayAlpha }
+    ) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .size(width = 320.dp, height = 420.dp)
+                .graphicsLayer {
+                    scaleX = boxScale
+                    scaleY = boxScale
+                    alpha = boxAlpha
+                    // Android 12+: blur the background behind this box
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                        renderEffect = android.graphics.RenderEffect.createBlurEffect(
+                            20f, 20f,
+                            android.graphics.Shader.TileMode.CLAMP
+                        ).asComposeRenderEffect()
+                    }
+                }
+                .clip(RoundedCornerShape(28.dp))
+                .background(Color(0xFF1A1A1A).copy(alpha = 0.95f))
+                .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(28.dp))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { /* swallow taps inside the box */ }
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Color wheel coming next",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Long-press detected ✓",
+                    color = Color.White.copy(alpha = 0.6f),
+                    fontSize = 13.sp
+                )
+                Text(
+                    text = "Tap outside to close",
+                    color = Color.White.copy(alpha = 0.4f),
+                    fontSize = 11.sp
+                )
+            }
         }
     }
 }
