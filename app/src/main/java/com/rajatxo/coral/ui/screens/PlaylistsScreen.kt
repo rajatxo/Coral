@@ -295,6 +295,67 @@ private fun PlaylistWheel(
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
 
+    // --- Vibrator for reliable medium-strength haptic tick ---
+    // Compose's HapticFeedbackType.TextHandleMove is too subtle on Android 13
+    // (and on some OEMs like Realme it doesn't fire at all). We use the
+    // platform Vibrator service directly with a predefined effect so the
+    // tick is felt consistently across all devices, even low-end ones.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val vibrator = remember {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            val vm = context.getSystemService(android.content.Context.VIBRATOR_MANAGER_SERVICE)
+                    as? android.os.VibratorManager
+            vm?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(android.content.Context.VIBRATOR_SERVICE)
+                    as? android.os.Vibrator
+        }
+    }
+
+    /** Fire a short, medium-strength haptic tick. Works on all Android versions. */
+    fun tickHaptic() {
+        val v = vibrator ?: run {
+            // Fallback to Compose haptic if Vibrator service unavailable
+            haptics.performHapticFeedback(
+                androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove
+            )
+            return
+        }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            // Android 10+ — use VibrationEffect predefined TICK (medium strength)
+            v.vibrate(
+                android.os.VibrationEffect.createPredefined(
+                    android.os.VibrationEffect.EFFECT_TICK
+                )
+            )
+        } else {
+            // Android 9 and below — fallback to a short 20ms vibration
+            @Suppress("DEPRECATION")
+            v.vibrate(20)
+        }
+    }
+
+    /** Stronger haptic for tap-to-open (a firm click). */
+    fun clickHaptic() {
+        val v = vibrator ?: run {
+            haptics.performHapticFeedback(
+                androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress
+            )
+            return
+        }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            v.vibrate(
+                android.os.VibrationEffect.createPredefined(
+                    android.os.VibrationEffect.EFFECT_CLICK
+                )
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            v.vibrate(40)
+        }
+    }
+
     // --- Geometry constants ---
     // Angular spacing between adjacent items (degrees). 8° gives ~22 visible
     // items across a 180° window — enough density without crowding the apex.
@@ -360,9 +421,7 @@ private fun PlaylistWheel(
                         val currentIdx = indexAtOffset(scrollOffset.value)
                         if (currentIdx != lastSnappedIndex) {
                             lastSnappedIndex = currentIdx
-                            haptics.performHapticFeedback(
-                                androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove
-                            )
+                            tickHaptic()
                         }
                         change.consume()
                     }
@@ -372,9 +431,7 @@ private fun PlaylistWheel(
                 // Tap to open the currently-selected item (apex)
                 detectTapGestures(
                     onTap = {
-                        haptics.performHapticFeedback(
-                            androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress
-                        )
+                        clickHaptic()
                         onPlaylistClick(playlists[centerIndex])
                     }
                 )
