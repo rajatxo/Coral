@@ -411,38 +411,54 @@ private fun PlaylistWheel(
             val arcSweepDeg = 100f
             val arcStartDeg = -arcSweepDeg / 2f
 
-            // Render the arc as N small segments. Each segment's alpha is
-            // interpolated so it's full opacity (0.6) at the center and
-            // smoothly fades to 0 at both endpoints. This makes the arc feel
-            // like it dissolves into the navigation rail text.
-            val arcSegments = 40
-            val arcStrokePx = with(density) { 1.5.dp.toPx() }
-            val arcFullAlpha = 0.6f
-            val fadeRange = 0.35f  // last 35% of arc on each end fades to 0
-            for (i in 0 until arcSegments) {
-                // This segment spans [segStart, segEnd] as fractions of total arc.
-                val segStart = i / arcSegments.toFloat()
-                val segEnd = (i + 1) / arcSegments.toFloat()
-                // Distance from nearest endpoint (0 = at endpoint, 1 = at center).
-                val distFromEndpoint = minOf(segStart, 1f - segStart)
-                // Alpha: 1.0 in the middle 30%, fades linearly to 0 in last 35%.
-                val segAlpha = if (distFromEndpoint > fadeRange) {
-                    arcFullAlpha
-                } else {
-                    arcFullAlpha * (distFromEndpoint / fadeRange)
-                }
-                if (segAlpha <= 0.01f) continue
+            // Helper: draw an arc with endpoints fading to 0 over [fadeRange]
+            // fraction of each end. Used for both the main arc and the
+            // temporary alignment arc so they share the same dissolve style.
+            fun drawFadingArc(radius: Float, fullAlpha: Float, strokePx: Float) {
+                val arcSegments = 40
+                val fadeRange = 0.35f  // last 35% of arc on each end fades to 0
+                for (i in 0 until arcSegments) {
+                    val segStart = i / arcSegments.toFloat()
+                    val segEnd = (i + 1) / arcSegments.toFloat()
+                    val distFromEndpoint = minOf(segStart, 1f - segStart)
+                    val segAlpha = if (distFromEndpoint > fadeRange) {
+                        fullAlpha
+                    } else {
+                        fullAlpha * (distFromEndpoint / fadeRange)
+                    }
+                    if (segAlpha <= 0.01f) continue
 
-                drawArc(
-                    color = Color.White.copy(alpha = segAlpha),
-                    startAngle = arcStartDeg + segStart * arcSweepDeg,
-                    sweepAngle = (segEnd - segStart) * arcSweepDeg,
-                    useCenter = false,
-                    topLeft = Offset(pivotX - arcRadius, pivotY - arcRadius),
-                    size = androidx.compose.ui.geometry.Size(arcRadius * 2f, arcRadius * 2f),
-                    style = Stroke(width = arcStrokePx)
-                )
+                    drawArc(
+                        color = Color.White.copy(alpha = segAlpha),
+                        startAngle = arcStartDeg + segStart * arcSweepDeg,
+                        sweepAngle = (segEnd - segStart) * arcSweepDeg,
+                        useCenter = false,
+                        topLeft = Offset(pivotX - radius, pivotY - radius),
+                        size = androidx.compose.ui.geometry.Size(radius * 2f, radius * 2f),
+                        style = Stroke(width = strokePx)
+                    )
+                }
             }
+
+            // Main indicator arc — solid white, 1.5px, 60% alpha at center.
+            drawFadingArc(
+                radius = arcRadius,
+                fullAlpha = 0.6f,
+                strokePx = with(density) { 1.5.dp.toPx() }
+            )
+
+            // ──────────────────────────────────────────────────────────────
+            // ⚠️ TEMPORARY ALIGNMENT ARC — REMOVE LATER
+            // User asked for a second arc just outside the main one, used as a
+            // visual alignment guide for text placement. Same fade style.
+            // Gap between arcs = 30dp (matches textRadius offset).
+            // To remove: delete this block (and the helper if no longer used).
+            // ──────────────────────────────────────────────────────────────
+            drawFadingArc(
+                radius = textRadius,
+                fullAlpha = 0.35f,
+                strokePx = with(density) { 1.0.dp.toPx() }
+            )
 
             // === 4. TEXT ITEMS on the outer (invisible) text orbit ===
             // scrollOffset / pxPerItem = how many "items" the wheel has rotated.
