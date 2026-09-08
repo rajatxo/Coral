@@ -312,8 +312,31 @@ private fun PlaylistWheel(
             )
             .build()
     }
+    // Track whether the sound has finished loading (SoundPool.load is async).
+    // If we play before loading completes, play() silently does nothing.
+    var soundLoaded by remember { mutableStateOf(false) }
     val tickSoundId = remember {
+        soundPool.setOnLoadCompleteListener { _, sampleId, status ->
+            if (status == 0) soundLoaded = true
+        }
         soundPool.load(context, com.rajatxo.coral.R.raw.wheel_tick, 1)
+    }
+
+    /** Play the tick sound. Only fires after the sound has finished loading. */
+    fun playTickSound() {
+        if (!soundLoaded) return
+        try {
+            soundPool.play(
+                tickSoundId,
+                0.6f,   // left volume
+                0.6f,   // right volume
+                1,      // priority
+                0,      // loop (0 = no loop)
+                1f      // playback rate
+            )
+        } catch (_: Exception) {
+            // Swallow — sound is non-critical, haptic should still fire
+        }
     }
 
     // --- Vibrator fallback (used if View.performHapticFeedback returns false) ---
@@ -334,36 +357,43 @@ private fun PlaylistWheel(
 
     /** Fire a button-press-style haptic tick + sound. Works on all Android. */
     fun tickHaptic() {
-        // 1. SOUND: short mechanical tick (CC0, commercial-safe)
-        soundPool.play(
-            tickSoundId,
-            0.6f,   // left volume
-            0.6f,   // right volume
-            1,      // priority
-            0,      // loop (0 = no loop)
-            1f      // playback rate
-        )
-
-        // 2. HAPTIC: View.performHapticFeedback — the exact API buttons use.
-        val performed = view.performHapticFeedback(
-            android.view.HapticFeedbackConstants.VIRTUAL_KEY,
-            android.view.HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING or
-            android.view.HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
-        )
-        if (performed) return
-
-        // 3. HAPTIC FALLBACK: direct Vibrator API with EFFECT_CLICK.
-        val v = vibrator ?: return
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            v.vibrate(
-                android.os.VibrationEffect.createPredefined(
-                    android.os.VibrationEffect.EFFECT_CLICK
-                )
+        // 1. HAPTIC (always fires first, so it never gets blocked by sound):
+        //    View.performHapticFeedback — the exact API buttons use.
+        var hapticPerformed = false
+        try {
+            hapticPerformed = view.performHapticFeedback(
+                android.view.HapticFeedbackConstants.VIRTUAL_KEY,
+                android.view.HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING or
+                android.view.HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
             )
-        } else {
-            @Suppress("DEPRECATION")
-            v.vibrate(30)
+        } catch (_: Exception) {
+            // Swallow — fall through to Vibrator fallback
         }
+
+        // 2. HAPTIC FALLBACK: if View.performHapticFeedback returned false,
+        //    use the direct Vibrator API with EFFECT_CLICK.
+        if (!hapticPerformed) {
+            try {
+                val v = vibrator
+                if (v != null) {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                        v.vibrate(
+                            android.os.VibrationEffect.createPredefined(
+                                android.os.VibrationEffect.EFFECT_CLICK
+                            )
+                        )
+                    } else {
+                        @Suppress("DEPRECATION")
+                        v.vibrate(30)
+                    }
+                }
+            } catch (_: Exception) {
+                // Swallow — haptic is best-effort, not critical
+            }
+        }
+
+        // 3. SOUND (plays after haptic, so even if sound fails, haptic already fired):
+        playTickSound()
     }
 
     /** Stronger haptic for tap-to-open (a firm double-click-like feedback). */
