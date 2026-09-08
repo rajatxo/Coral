@@ -522,8 +522,9 @@ private fun PlaylistWheel(
                     else -> lerp(0.55f, 0.45f, (absOffset - 2.5f).coerceIn(0f, 1f))
                 }
 
-                // Interpolated font size (active is 2.5× larger than inactive)
-                val fontSp = lerp(activeFontSp, inactiveFontSp, (1f - scale).coerceIn(0f, 1f))
+                // Interpolated font size (active is ~2.6× larger than inactive).
+                // Note: actual fontSp is computed in the auto-fit section below
+                // (may be shrunk to fit available width).
 
                 // Active = UPPERCASE, inactive = Title Case
                 val isActive = absOffset < 0.5f
