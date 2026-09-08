@@ -384,20 +384,26 @@ private fun PlaylistWheel(
             val h = size.height
 
             // === 1. PIVOT (off-screen, left, vertically centered) ===
+            // Pivot vertically centered on the wheel area (which itself sits
+            // between "Quick picks" at ~26% and "Folders" at ~85% of screen).
             val pivotX = w * -0.40f
             val pivotY = h * 0.50f
 
             // === 2. RADII ===
-            // Text path radius — large so the arc sweeps a broad, smooth
-            // rightward curve. ~80% of screen height.
-            val textRadius = h * 0.80f
+            // Text path radius. Sized so the visible arc window (±35°) sweeps
+            // vertically from ~26% (Quick picks) to ~85% (Folders) of screen
+            // height. With ±35° sweep and chord = 0.59·h, radius ≈ 0.51·h.
+            // Use 0.50·h for a hair of safety so text never clips the nav rail.
+            val textRadius = h * 0.50f
 
             // Indicator arc radius — sits just INSIDE the text items.
             val indicatorRadius = textRadius - with(density) { 24.dp.toPx() }
 
             // === 3. INDICATOR ARC (single thin white line) ===
-            // Drawn across the visible rightward arc window (about ±70°).
-            val arcSweepDeg = 140f
+            // Visible arc window: ±35° from horizontal. Total sweep = 70°.
+            // This makes the arc cover the vertical span between Quick picks
+            // (top) and Folders (bottom) on the nav rail.
+            val arcSweepDeg = 70f
             drawArc(
                 color = Color.White,
                 startAngle = -arcSweepDeg / 2f,
@@ -413,12 +419,12 @@ private fun PlaylistWheel(
             val rotationItems = scrollOffset.value / pxPerItem
 
             // Active font size — Playfair Display Italic, large, premium.
-            val activeFontSp = 52f
-            val inactiveFontSp = 22f
+            val activeFontSp = 48f
+            val inactiveFontSp = 18f
 
             // How many items above/below center to render. With 8° step and
-            // ±70° visible window, that's ~9 items each side.
-            val visibleSpan = 9
+            // ±35° visible window, that's ~5 items each side.
+            val visibleSpan = 5
 
             for (offset in -visibleSpan..visibleSpan) {
                 // Index in playlist array for this slot
