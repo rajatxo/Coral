@@ -384,28 +384,27 @@ private fun PlaylistWheel(
             val h = size.height
 
             // === 1. PIVOT (off-screen, left, vertically centered) ===
-            // Pivot vertically centered on the wheel area (which itself sits
-            // between "Quick picks" at ~26% and "Folders" at ~85% of screen).
-            val pivotX = w * -0.40f
+            // Pivot anchored off-screen left at x = -50% screen width,
+            // y = 50% screen height. The huge imaginary circle extends off-screen.
+            val pivotX = w * -0.50f
             val pivotY = h * 0.50f
 
             // === 2. RADII ===
-            // Text path radius. Sized so the visible arc window (±35°) sweeps
-            // vertically from ~26% (Quick picks) to ~85% (Folders) of screen
-            // height. With ±35° sweep and chord = 0.59·h, radius ≈ 0.51·h.
-            // Use 0.50·h for a hair of safety so text never clips the nav rail.
-            val textRadius = h * 0.50f
+            // Text path radius ≈ 65% of screen height. Large enough that the
+            // visible ±30° arc feels like a small slice of a huge imaginary
+            // circle extending off-screen to the left.
+            val textRadius = h * 0.65f
 
-            // Indicator arc radius — sits just INSIDE the text items.
-            val indicatorRadius = textRadius - with(density) { 24.dp.toPx() }
+            // Indicator arc radius — sits just INSIDE the text items (per spec).
+            val indicatorRadius = textRadius - with(density) { 18.dp.toPx() }
 
-            // === 3. INDICATOR ARC (single thin white line) ===
-            // Visible arc window: ±35° from horizontal. Total sweep = 70°.
-            // This makes the arc cover the vertical span between Quick picks
-            // (top) and Folders (bottom) on the nav rail.
-            val arcSweepDeg = 70f
+            // === 3. INDICATOR ARC (single thin white semi-transparent line) ===
+            // Visible arc window: ±30° from horizontal apex. Total sweep = 60°.
+            // Spans vertically from ~17% to ~83% of Canvas height — matches the
+            // Quick picks (top) → Folders (bottom) nav rail range.
+            val arcSweepDeg = 60f
             drawArc(
-                color = Color.White,
+                color = Color.White.copy(alpha = 0.6f),
                 startAngle = -arcSweepDeg / 2f,
                 sweepAngle = arcSweepDeg,
                 useCenter = false,
@@ -418,13 +417,12 @@ private fun PlaylistWheel(
             // scrollOffset / pxPerItem = how many "items" the wheel has rotated.
             val rotationItems = scrollOffset.value / pxPerItem
 
-            // Active font size — Playfair Display Italic, large, premium.
-            val activeFontSp = 48f
-            val inactiveFontSp = 18f
+            // Playfair Display Italic — premium high-contrast editorial serif.
+            val activeFontSp = 50f
+            val inactiveFontSp = 20f
 
-            // How many items above/below center to render. With 8° step and
-            // ±35° visible window, that's ~5 items each side.
-            val visibleSpan = 5
+            // ±30° visible window at 8° step = ~4 items each side.
+            val visibleSpan = 4
 
             for (offset in -visibleSpan..visibleSpan) {
                 // Index in playlist array for this slot
@@ -450,17 +448,17 @@ private fun PlaylistWheel(
                 // Skip if off-screen horizontally
                 if (itemX < -200f || itemX > w + 200f) continue
 
-                // === 5. STYLING CURVES ===
-                // Opacity: 1.0 at apex → ~0.60 at step 1 → ~0.35 at step 2 → ~0.12 at step 3+
+                // === 5. STYLING CURVES (per AI spec) ===
+                // Opacity: 100% at apex → 50% (step 1) → 25% (step 2) → 5% (step 3+) → 0
                 val alpha = when {
                     absOffset < 0.5f -> 1f
-                    absOffset < 1.5f -> lerp(1f, 0.60f, (absOffset - 0.5f))
-                    absOffset < 2.5f -> lerp(0.60f, 0.35f, (absOffset - 1.5f))
-                    absOffset < 3.5f -> lerp(0.35f, 0.15f, (absOffset - 2.5f))
-                    else -> lerp(0.15f, 0f, (absOffset - 3.5f).coerceIn(0f, 1f))
+                    absOffset < 1.5f -> lerp(1f, 0.50f, (absOffset - 0.5f))
+                    absOffset < 2.5f -> lerp(0.50f, 0.25f, (absOffset - 1.5f))
+                    absOffset < 3.5f -> lerp(0.25f, 0.05f, (absOffset - 2.5f))
+                    else -> lerp(0.05f, 0f, (absOffset - 3.5f).coerceIn(0f, 1f))
                 }.coerceIn(0f, 1f)
 
-                // Scale: 1.0 at apex → 0.7 → 0.55 → 0.45
+                // Scale: 1.0 at apex → 0.70 → 0.55 → 0.45 (smooth shrink)
                 val scale = when {
                     absOffset < 0.5f -> 1f
                     absOffset < 1.5f -> lerp(1f, 0.70f, (absOffset - 0.5f))
@@ -468,7 +466,7 @@ private fun PlaylistWheel(
                     else -> lerp(0.55f, 0.45f, (absOffset - 2.5f).coerceIn(0f, 1f))
                 }
 
-                // Interpolated font size
+                // Interpolated font size (active is 2.5× larger than inactive)
                 val fontSp = lerp(activeFontSp, inactiveFontSp, (1f - scale).coerceIn(0f, 1f))
 
                 // Active = UPPERCASE, inactive = Title Case
@@ -504,24 +502,26 @@ private fun PlaylistWheel(
                     )
                 )
 
-                // === 7. DRAW WITH TANGENT ROTATION ===
-                // Tangent angle at this point on the arc: perpendicular to the
-                // radial direction. For a circle parameterized by angle θ:
-                //   point = (cos θ, sin θ)
-                //   tangent = (-sin θ, cos θ)
-                // The text baseline should align with this tangent direction.
-                // In Compose, rotate() takes degrees clockwise from +X axis.
-                // Tangent angle = itemAngleDeg + 90° (so text "lies along" arc).
-                val tangentDeg = itemAngleDeg + 90f
+                // === 7. DRAW WITH RADIAL ROTATION (perpendicular to slope) ===
+                // The "slope" at any point on the arc is the tangent direction.
+                // Perpendicular to slope = radial direction = direction from
+                // pivot to the point. For a circle parameterized by angle θ:
+                //   point = (cos θ, sin θ)  — this IS the radial direction
+                // So text rotation = θ (NOT θ + 90°).
+                // At apex (θ=0°): text is horizontal, reads left-to-right.
+                // At upper arc (θ<0°): text tilts up-to-the-right.
+                // At lower arc (θ>0°): text tilts down-to-the-right.
+                // All labels visually radiate outward from the off-screen pivot.
+                val radialDeg = itemAngleDeg
 
                 // Anchor: place text so its visual CENTER sits on (itemX, itemY).
                 val textW = textLayout.size.width.toFloat()
                 val textH = textLayout.size.height.toFloat()
 
                 drawContext.canvas.save()
-                // Translate to the item point, rotate to tangent, draw text centered.
+                // Translate to the item point, rotate radially, draw text centered.
                 drawContext.canvas.translate(itemX, itemY)
-                drawContext.canvas.rotate(tangentDeg)
+                drawContext.canvas.rotate(radialDeg)
                 drawText(
                     textLayoutResult = textLayout,
                     topLeft = Offset(-textW / 2f, -textH / 2f),
