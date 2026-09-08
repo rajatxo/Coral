@@ -3,11 +3,6 @@ package com.rajatxo.coral.ui.screens
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedContentTransitionScope
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -47,6 +42,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
@@ -957,33 +953,47 @@ private fun SelectionCapsule(
     ) {
         // Smooth animated transition when playlist name changes.
         // New name slides in from the right while old name slides out to the left,
-        // with a quick fade. Total duration ~180ms — smooth but fast.
-        AnimatedContent(
-            targetState = playlistName,
-            transitionSpec = {
-                // Slide horizontally + fade simultaneously
-                (slideIntoContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.Left,
-                    animationSpec = androidx.compose.animation.core.tween(180)
-                ) + fadeIn(
-                    animationSpec = androidx.compose.animation.core.tween(180)
-                )) togetherWith (slideOutOfContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.Left,
-                    animationSpec = androidx.compose.animation.core.tween(180)
-                ) + fadeOut(
-                    animationSpec = androidx.compose.animation.core.tween(180)
-                ))
-            },
-            contentAlignment = Alignment.Center,
-            label = "playlistNameTransition"
-        ) { targetName ->
+        // with a BLUR transition (instead of fade). Total duration ~180ms.
+        //
+        // Implementation: We drive the blur manually by tracking each text's
+        // progress (0 = just appearing or disappearing, 1 = fully settled).
+        // We use animateFloatAsState on a 'version' counter that ticks every
+        // time the playlist name changes, with custom enter/exit blur curves.
+        var nameVersion by remember { mutableStateOf(0) }
+        androidx.compose.runtime.LaunchedEffect(playlistName) { nameVersion++ }
+
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.Center
+        ) {
+            // Animate progress 0 → 1 on name change
+            val enterProgress by androidx.compose.animation.core.animateFloatAsState(
+                targetValue = nameVersion.toFloat(),
+                animationSpec = androidx.compose.animation.core.tween(180),
+                label = "blurEnter"
+            )
+            // Map progress to blur radius (max ~12px blur at progress=0, 0 at settled)
+            // Each integer step in nameVersion = one name change.
+            // fractional part = animation progress (0 just changed, ~1 settled)
+            val frac = enterProgress - enterProgress.toInt()
+            val blurRadius = (1f - frac) * 12f  // 12px → 0px
+
             Text(
-                text = targetName,
+                text = playlistName,
                 color = textColor,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.graphicsLayer {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                        val r = blurRadius.coerceAtLeast(0.1f)
+                        renderEffect = android.graphics.RenderEffect.createBlurEffect(
+                            r, r,
+                            android.graphics.Shader.TileMode.CLAMP
+                        ).asComposeRenderEffect()
+                    }
+                }
             )
         }
     }
