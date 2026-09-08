@@ -32,6 +32,22 @@ val QuirkFontFamily = FontFamily(
 )
 
 /**
+ * Playfair Display Italic — premium high-contrast serif used ONLY by the
+ * PlaylistWheel (rotary picker). The active (selected) item renders in
+ * UPPERCASE at full size, while inactive neighbours render in Title Case
+ * with progressive opacity/scale falloff.
+ *
+ * Licensed under the SIL Open Font License (OFL) — free for commercial use.
+ * Bundled in res/font/playfair_display_italic.ttf.
+ */
+val PlayfairItalicFamily = FontFamily(
+    Font(R.font.playfair_display_italic, FontWeight.Normal),
+    Font(R.font.playfair_display_italic, FontWeight.Medium),
+    Font(R.font.playfair_display_italic, FontWeight.SemiBold),
+    Font(R.font.playfair_display_italic, FontWeight.Bold)
+)
+
+/**
  * Coral's type scale — dynamic, generated from the user's font choice.
  *
  * The user picks a font in Settings → Appearance → Font. [FontManager]
