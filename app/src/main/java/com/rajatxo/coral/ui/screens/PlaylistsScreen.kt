@@ -384,38 +384,40 @@ private fun PlaylistWheel(
             val h = size.height
 
             // === 1. PIVOT (off-screen, left, vertically centered) ===
-            // Pivot anchored off-screen left at x = -50% screen width,
-            // y = 50% screen height. The huge imaginary circle extends off-screen.
+            // Single absolute center point for the entire wheel.
+            // X = -50% screen width, Y = 50% screen height.
             val pivotX = w * -0.50f
             val pivotY = h * 0.50f
 
-            // === 2. RADII ===
-            // Text path radius ≈ 80% of screen WIDTH (not height). This is the
-            // key fix: using width makes the imaginary circle BIG in absolute
-            // terms but positions the visible arc on the LEFT HALF of screen,
-            // with the apex at ~30% from left (matching the PicsArt mockup
-            // where the ✓ tick is on the left and the ✗ is on the right).
-            val textRadius = w * 0.80f
+            // === 2. DUAL CONCENTRIC RADII SYSTEM ===
+            // The arc line and text live on two different orbits that share
+            // the SAME off-screen pivot point. This prevents the arc from
+            // cutting through the text.
+            //
+            // Radius A — Visible arc line (1.5px semi-transparent white).
+            val arcRadius = w * 0.65f
 
-            // Indicator arc radius — sits just INSIDE the text items (per spec).
-            val indicatorRadius = textRadius - with(density) { 18.dp.toPx() }
+            // Radius B — Text orbit. Sits 30px OUTSIDE the arc line so text
+            // never intersects the visible line. Text anchor is the LEFT edge
+            // of each label, pinned to this radius.
+            val textRadius = arcRadius + with(density) { 30.dp.toPx() }
 
             // === 3. INDICATOR ARC (single thin white semi-transparent line) ===
             // Visible arc window: ±50° from horizontal apex. Total sweep = 100°.
             // This puts the arc on the LEFT HALF of screen (apex at ~30% from
-            // left, endpoints at ~1% from left edge).
+            // left, endpoints near the left edge).
             val arcSweepDeg = 100f
             drawArc(
                 color = Color.White.copy(alpha = 0.6f),
                 startAngle = -arcSweepDeg / 2f,
                 sweepAngle = arcSweepDeg,
                 useCenter = false,
-                topLeft = Offset(pivotX - indicatorRadius, pivotY - indicatorRadius),
-                size = androidx.compose.ui.geometry.Size(indicatorRadius * 2f, indicatorRadius * 2f),
+                topLeft = Offset(pivotX - arcRadius, pivotY - arcRadius),
+                size = androidx.compose.ui.geometry.Size(arcRadius * 2f, arcRadius * 2f),
                 style = Stroke(width = with(density) { 1.5.dp.toPx() })
             )
 
-            // === 4. TEXT ITEMS on the outer arc ===
+            // === 4. TEXT ITEMS on the outer (invisible) text orbit ===
             // scrollOffset / pxPerItem = how many "items" the wheel has rotated.
             val rotationItems = scrollOffset.value / pxPerItem
 
@@ -504,29 +506,36 @@ private fun PlaylistWheel(
                     )
                 )
 
-                // === 7. DRAW WITH RADIAL ROTATION (perpendicular to slope) ===
-                // The "slope" at any point on the arc is the tangent direction.
-                // Perpendicular to slope = radial direction = direction from
-                // pivot to the point. For a circle parameterized by angle θ:
-                //   point = (cos θ, sin θ)  — this IS the radial direction
-                // So text rotation = θ (NOT θ + 90°).
-                // At apex (θ=0°): text is horizontal, reads left-to-right.
-                // At upper arc (θ<0°): text tilts up-to-the-right.
-                // At lower arc (θ>0°): text tilts down-to-the-right.
-                // All labels visually radiate outward from the off-screen pivot.
-                val radialDeg = itemAngleDeg
+                // === 7. DRAW WITH LEFT-EDGE ANCHOR + TANGENT ROTATION ===
+                // Per spec:
+                //   - Anchor: LEFT-CENTER edge of text (not center).
+                //   - Pin the left edge to coordinates on Radius B (textRadius).
+                //   - Because anchor is on the left, text flows outward to the
+                //     right, leaving a uniform ~30px gap between the first
+                //     letter of every word and the visible arc line.
+                //   - Rotation: tangent to the curve at θ → rotation angle = θ + 90°.
+                //   - At apex (θ=0°): rotation = 90° → text is horizontal.
+                //
+                // Tangent math:
+                //   point on circle = (cos θ, sin θ)
+                //   tangent direction = (-sin θ, cos θ)
+                //   tangent angle (from +X axis, clockwise in screen coords) = θ + 90°
+                val tangentDeg = itemAngleDeg + 90f
 
-                // Anchor: place text so its visual CENTER sits on (itemX, itemY).
-                val textW = textLayout.size.width.toFloat()
+                // Anchor: text's LEFT-CENTER edge sits at (itemX, itemY).
+                // After translate+rotate, the local origin is at (itemX, itemY).
+                // topLeft = (0, -textH/2) pins the LEFT edge (x=0) and vertically
+                // centers (y=-textH/2 → text extends from -textH/2 to +textH/2).
                 val textH = textLayout.size.height.toFloat()
 
                 drawContext.canvas.save()
-                // Translate to the item point, rotate radially, draw text centered.
+                // Translate to the anchor point on the text orbit, rotate to
+                // tangent, then draw text with left-edge anchor.
                 drawContext.canvas.translate(itemX, itemY)
-                drawContext.canvas.rotate(radialDeg)
+                drawContext.canvas.rotate(tangentDeg)
                 drawText(
                     textLayoutResult = textLayout,
-                    topLeft = Offset(-textW / 2f, -textH / 2f),
+                    topLeft = Offset(0f, -textH / 2f),
                     alpha = alpha
                 )
                 drawContext.canvas.restore()
