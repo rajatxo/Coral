@@ -436,9 +436,9 @@ private fun PlaylistWheel(
     var lastSnappedIndex by remember { mutableStateOf(0) }
 
     // --- Selection helper ---
-    // NOTE: negated to match rotationItems inversion (scroll DOWN = CW).
+    // NOTE: NOT negated. Scroll DOWN = items move DOWN on visible arc.
     fun indexAtOffset(offset: Float): Int {
-        val raw = (-offset / pxPerItem).roundToInt()
+        val raw = (offset / pxPerItem).roundToInt()
         val mod = raw % playlists.size
         return if (mod < 0) mod + playlists.size else mod
     }
@@ -582,9 +582,9 @@ private fun PlaylistWheel(
 
             // === 4. TEXT ITEMS on the outer (invisible) text orbit ===
             // scrollOffset / pxPerItem = how many "items" the wheel has rotated.
-            // NEGATED so that scrolling DOWN = clockwise rotation (items move
-            // down on the visible arc), scrolling UP = anticlockwise.
-            val rotationItems = -scrollOffset.value / pxPerItem
+            // Scroll DOWN → wheel rotates ANTICLOCKWISE (balls move up on arc).
+            // Scroll UP → wheel rotates CLOCKWISE (balls move down on arc).
+            val rotationItems = scrollOffset.value / pxPerItem
 
             // Playfair Display Italic — premium high-contrast editorial serif.
             // Inactive text made smaller relative to active (was 18sp → 16sp)
