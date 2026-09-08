@@ -402,20 +402,47 @@ private fun PlaylistWheel(
             // of each label, pinned to this radius.
             val textRadius = arcRadius + with(density) { 30.dp.toPx() }
 
-            // === 3. INDICATOR ARC (single thin white semi-transparent line) ===
+            // === 3. INDICATOR ARC (single thin white semi-transparent line,
+            //         with endpoints fading to 0 so the arc dissolves into the
+            //         navigation rail text on both ends) ===
             // Visible arc window: ±50° from horizontal apex. Total sweep = 100°.
             // This puts the arc on the LEFT HALF of screen (apex at ~30% from
             // left, endpoints near the left edge).
             val arcSweepDeg = 100f
-            drawArc(
-                color = Color.White.copy(alpha = 0.6f),
-                startAngle = -arcSweepDeg / 2f,
-                sweepAngle = arcSweepDeg,
-                useCenter = false,
-                topLeft = Offset(pivotX - arcRadius, pivotY - arcRadius),
-                size = androidx.compose.ui.geometry.Size(arcRadius * 2f, arcRadius * 2f),
-                style = Stroke(width = with(density) { 1.5.dp.toPx() })
-            )
+            val arcStartDeg = -arcSweepDeg / 2f
+
+            // Render the arc as N small segments. Each segment's alpha is
+            // interpolated so it's full opacity (0.6) at the center and
+            // smoothly fades to 0 at both endpoints. This makes the arc feel
+            // like it dissolves into the navigation rail text.
+            val arcSegments = 40
+            val arcStrokePx = with(density) { 1.5.dp.toPx() }
+            val arcFullAlpha = 0.6f
+            val fadeRange = 0.35f  // last 35% of arc on each end fades to 0
+            for (i in 0 until arcSegments) {
+                // This segment spans [segStart, segEnd] as fractions of total arc.
+                val segStart = i / arcSegments.toFloat()
+                val segEnd = (i + 1) / arcSegments.toFloat()
+                // Distance from nearest endpoint (0 = at endpoint, 1 = at center).
+                val distFromEndpoint = minOf(segStart, 1f - segStart)
+                // Alpha: 1.0 in the middle 30%, fades linearly to 0 in last 35%.
+                val segAlpha = if (distFromEndpoint > fadeRange) {
+                    arcFullAlpha
+                } else {
+                    arcFullAlpha * (distFromEndpoint / fadeRange)
+                }
+                if (segAlpha <= 0.01f) continue
+
+                drawArc(
+                    color = Color.White.copy(alpha = segAlpha),
+                    startAngle = arcStartDeg + segStart * arcSweepDeg,
+                    sweepAngle = (segEnd - segStart) * arcSweepDeg,
+                    useCenter = false,
+                    topLeft = Offset(pivotX - arcRadius, pivotY - arcRadius),
+                    size = androidx.compose.ui.geometry.Size(arcRadius * 2f, arcRadius * 2f),
+                    style = Stroke(width = arcStrokePx)
+                )
+            }
 
             // === 4. TEXT ITEMS on the outer (invisible) text orbit ===
             // scrollOffset / pxPerItem = how many "items" the wheel has rotated.
