@@ -167,7 +167,7 @@ fun CoralApp() {
     }
 
     // When user grants permissions via PermissionScreen, scan music + load HomeScreen
-    val onPermissionsGranted = {
+    val onPermissionsGranted: () -> Unit = {
         hasPermission = true
         isLoading = true
         scope.launch {
