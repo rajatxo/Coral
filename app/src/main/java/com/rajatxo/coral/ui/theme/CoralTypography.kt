@@ -48,6 +48,38 @@ val PlayfairItalicFamily = FontFamily(
 )
 
 /**
+ * Vermiglione — editorial italic serif used ONLY by the permission screen
+ * hero typography (the big "C" in "Coral"). Dramatic sweeping high-contrast
+ * look, like a Vogue magazine masthead.
+ *
+ * Licensed under the SIL Open Font License (OFL) — free for commercial use.
+ * Bundled in res/font/vermiglione_italic.ttf.
+ */
+val VermiglioneFamily = FontFamily(
+    Font(R.font.vermiglione_italic, FontWeight.Normal),
+    Font(R.font.vermiglione_italic, FontWeight.Medium),
+    Font(R.font.vermiglione_italic, FontWeight.SemiBold),
+    Font(R.font.vermiglione_italic, FontWeight.Bold),
+    Font(R.font.vermiglione_italic, FontWeight.ExtraLight),
+    Font(R.font.vermiglione_italic, FontWeight.Light)
+)
+
+/**
+ * Cal Sans — geometric modern sans-serif used ONLY by the permission screen
+ * for the "ORAL" portion of the hero typography. Anchors Vermiglione's
+ * dramatic "C" with something structured and modern.
+ *
+ * Licensed under the SIL Open Font License (OFL) — free for commercial use.
+ * Bundled in res/font/cal_sans_semibold.ttf.
+ */
+val CalSansFamily = FontFamily(
+    Font(R.font.cal_sans_semibold, FontWeight.Normal),
+    Font(R.font.cal_sans_semibold, FontWeight.SemiBold),
+    Font(R.font.cal_sans_semibold, FontWeight.Medium),
+    Font(R.font.cal_sans_semibold, FontWeight.Bold)
+)
+
+/**
  * Coral's type scale — dynamic, generated from the user's font choice.
  *
  * The user picks a font in Settings → Appearance → Font. [FontManager]

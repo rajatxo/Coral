@@ -118,6 +118,25 @@ fun CoralApp() {
     var isPlaying by remember { mutableStateOf(false) }
     var showFullPlayer by remember { mutableStateOf(false) }
 
+    // Check if permissions are already granted (e.g. returning user).
+    // If granted, skip the permission screen entirely. If not, show it.
+    var permissionChecked by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        val notifOk = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+        } else true
+        val musicOk = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.checkSelfPermission(Manifest.permission.READ_MEDIA_AUDIO) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+        } else {
+            context.checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+        }
+        hasPermission = notifOk && musicOk
+        permissionChecked = true
+    }
+
     LaunchedEffect(Unit) {
         val sessionToken = SessionToken(context, ComponentName(context, CoralPlaybackService::class.java))
         val controllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
@@ -130,25 +149,12 @@ fun CoralApp() {
                 currentSongArtist = mediaItem?.mediaMetadata?.artist?.toString()
                 currentSongAlbum = mediaItem?.mediaMetadata?.albumTitle?.toString()
                 currentSongArt = mediaItem?.mediaMetadata?.artworkUri
-                // Resolve the song's MediaStore ID from the mediaId we set when building MediaItems.
-                // This lets us look it up for favorites / playlist membership.
                 currentSongId = mediaItem?.mediaId?.toLongOrNull()
             }
             override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
         })
 
         // --- BUG FIX: Restore mini player state after app restart ---
-        // When the app is killed from the task manager and reopened, the
-        // playback service is still running (the song keeps playing), but
-        // our state variables (currentSongTitle, etc.) are all null because
-        // they were re-initialized in this composable.
-        //
-        // The Player.Listener above only fires on STATE CHANGES — it
-        // doesn't fire for the currently-playing song. So we have to
-        // explicitly read the current state from the controller here.
-        //
-        // Without this fix, the mini player wouldn't appear after restarting
-        // the app, even though the song was still playing.
         val currentMediaItem = controller.currentMediaItem
         if (currentMediaItem != null) {
             currentSongTitle = currentMediaItem.mediaMetadata.title?.toString()
@@ -160,62 +166,29 @@ fun CoralApp() {
         isPlaying = controller.isPlaying
     }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        hasPermission = permissions.values.all { it }
-        if (hasPermission) {
-            isLoading = true
-            scope.launch {
-                val scannedSongs = withContext(Dispatchers.IO) { MusicScanner.scanMusic(context.contentResolver) }
-                songs.clear()
-                songs.addAll(scannedSongs)
-                isLoading = false
-            }
-        } else { Toast.makeText(context, "Permission denied.", Toast.LENGTH_SHORT).show() }
+    // When user grants permissions via PermissionScreen, scan music + load HomeScreen
+    val onPermissionsGranted = {
+        hasPermission = true
+        isLoading = true
+        scope.launch {
+            val scannedSongs = withContext(Dispatchers.IO) { MusicScanner.scanMusic(context.contentResolver) }
+            songs.clear()
+            songs.addAll(scannedSongs)
+            isLoading = false
+        }
     }
-
-    LaunchedEffect(Unit) {
-        val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            arrayOf(Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.POST_NOTIFICATIONS)
-        } else { arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE) }
-        permissionLauncher.launch(permissions)
-    }
-
-    // NOTE: We intentionally do NOT call startForegroundService() here.
-    //
-    // Previous bug: calling startForegroundService() on app launch started
-    // a 5-second countdown. If no song was playing within 5 seconds (which
-    // is the normal case — the user is browsing their song list), Android
-    // threw ForegroundServiceDidNotStartInTimeException and crashed the app.
-    // This was the "crash after 8-10 seconds" bug.
-    //
-    // Fix: Don't start the service explicitly. Media3's MediaController
-    // will bind to the service automatically when MediaController.Builder()
-    // .buildAsync() is called (in the LaunchedEffect above). The service
-    // starts as a regular bound service. When the user taps a song and
-    // playback begins, MediaSessionService promotes itself to foreground
-    // automatically and shows the media notification — no timing issues.
 
     Box(modifier = Modifier.fillMaxSize().background(CoralColors.Surface)) {
         when {
+            !permissionChecked -> {
+                // Brief loading state while checking permissions
+                Box(modifier = Modifier.fillMaxSize().background(CoralColors.Surface))
+            }
             !hasPermission -> {
-                Column(modifier = Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Text(text = "🪸", fontSize = 64.sp, color = Color.White)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(text = "Coral needs permission", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(text = "To scan and play your music, Coral needs access to your audio files.", color = Color(0xFFB0B0B0), fontSize = 14.sp, textAlign = TextAlign.Center)
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Box(modifier = Modifier.clip(RoundedCornerShape(24.dp)).background(Color(0xFFFF6B6B)).clickable {
-                        val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            arrayOf(Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.POST_NOTIFICATIONS)
-                        } else { arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE) }
-                        permissionLauncher.launch(permissions)
-                    }.padding(horizontal = 32.dp, vertical = 12.dp)) {
-                        Text(text = "Grant Permission", color = Color.White, fontWeight = FontWeight.Bold)
-                    }
-                }
+                // New premium permission screen
+                com.rajatxo.coral.ui.screens.PermissionScreen(
+                    onPermissionsGranted = onPermissionsGranted
+                )
             }
             isLoading -> {
                 Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -263,8 +236,6 @@ fun CoralApp() {
                         }
                     },
                     onSongClickWithQueue = { song, songList ->
-                        // Used by PlaylistDetailScreen — sets the queue to the playlist's
-                        // songs (in their playlist order) and starts from the tapped song.
                         mediaController?.let { controller ->
                             val mediaItems = songList.map { s ->
                                 MediaItem.Builder().setUri(s.uri).setMediaId(s.id.toString())
