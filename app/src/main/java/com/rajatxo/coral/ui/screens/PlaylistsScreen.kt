@@ -267,15 +267,20 @@ fun PlaylistsScreen(
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 // "All Playlist" capsule — shows playlist name on rotate, 3s timeout
-                // Width is fixed to the DEFAULT text ("All Playlist") so it
-                // doesn't resize when the playlist name changes. Uses the
-                // double-Text trick (same as Grid/Wheel capsule).
+                // Background = accent color (default #F4B400 golden yellow, or
+                // auto-detected from currently-playing song's album art).
+                // Text = black (auto-detected: luminance > 0.5 → black text).
+                val pillLuminance = 0.299f * accentColor.red +
+                    0.587f * accentColor.green +
+                    0.114f * accentColor.blue
+                val pillTextColor = if (pillLuminance > 0.5f) Color.Black else Color.White
+
                 Row(
                     modifier = Modifier
                         .height(32.dp)
                         .width(IntrinsicSize.Max)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Color.White)
+                        .background(accentColor)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
@@ -300,7 +305,7 @@ fun PlaylistsScreen(
                         )
                         Text(
                             text = playlistPillText,
-                            color = Color.Black,
+                            color = pillTextColor,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
@@ -359,44 +364,17 @@ fun PlaylistsScreen(
             }
         } else {
             if (useWheel) {
-                // === CLEAN SLATE: just the first arc in the bottom-left corner ===
-                // All wheel code removed. We're rebuilding the arc placement from
-                // scratch. This Canvas draws ONLY the arc line — no balls, no text,
-                // no scrolling. Just the curve so we can verify its position.
-                Canvas(
+                PlaylistWheel(
+                    playlists = playlists,
+                    accentColor = accentColor,
+                    onRotationStart = { isRotating = true },
+                    onRotationEnd = { isRotating = false },
+                    onCenterPlaylistChange = { centerPlaylist = it },
                     modifier = Modifier
                         .fillMaxSize()
                         .statusBarsPadding()
-                        .padding(top = 110.dp, bottom = 16.dp)
-                ) {
-                    val w = size.width
-                    val h = size.height
-
-                    // Pivot: off-screen bottom-left
-                    // X = -30% screen width (off-screen left)
-                    // Y = 75% screen height (lower area — the arc curves upward)
-                    val pivotX = w * -0.30f
-                    val pivotY = h * 0.75f
-
-                    // Radius — medium size
-                    val arcRadius = w * 0.55f
-
-                    // Arc: centered at 0° (pointing RIGHT from the left-side pivot)
-                    // Sweep = 40°, so the arc spans from -20° to +20°
-                    val arcSweepDeg = 40f
-                    val arcStartDeg = -arcSweepDeg / 2f
-
-                    // Draw the arc — thin white line, 1.5dp stroke
-                    drawArc(
-                        color = Color.White.copy(alpha = 0.6f),
-                        startAngle = arcStartDeg,
-                        sweepAngle = arcSweepDeg,
-                        useCenter = false,
-                        topLeft = Offset(pivotX - arcRadius, pivotY - arcRadius),
-                        size = androidx.compose.ui.geometry.Size(arcRadius * 2f, arcRadius * 2f),
-                        style = Stroke(width = 1.5.dp.toPx())
-                    )
-                }
+                        .padding(top = 150.dp, bottom = 16.dp)
+                )
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
@@ -582,9 +560,9 @@ private fun PlaylistWheel(
     }
 
     // --- Geometry constants ---
-    // Angular spacing between adjacent items (degrees). Reduced from 8° → 6°
-    // so more items fit in the smaller 35° sweep window.
-    val angleStepDeg = 6f
+    // Angular spacing between adjacent items (degrees). 8° gives ~22 visible
+    // items across a 180° window — enough density without crowding the apex.
+    val angleStepDeg = 8f
 
     // Pixels of vertical drag required to advance the wheel by ONE item.
     val pxPerItem = with(density) { 64.dp.toPx() }
@@ -598,7 +576,7 @@ private fun PlaylistWheel(
     var lastSnappedIndex by remember { mutableStateOf(0) }
 
     // --- Selection helper ---
-    // NOTE: NOT negated. Scroll DOWN = items move DOWN on visible arc.
+    // Scroll DOWN = clockwise (items move DOWN). Scroll UP = anticlockwise (items move UP).
     fun indexAtOffset(offset: Float): Int {
         val raw = (offset / pxPerItem).roundToInt()
         val mod = raw % playlists.size
@@ -677,8 +655,8 @@ private fun PlaylistWheel(
             // Y = 60% screen height — centered on "Playlists" nav rail item,
             //    so the arc is symmetric: apex at Playlists, top at Songs,
             //    bottom at Artists.
-            val pivotX = w * -0.30f
-            val pivotY = h * 0.60f
+            val pivotX = w * -0.50f
+            val pivotY = h * 0.50f
 
             // === 2. DUAL CONCENTRIC RADII SYSTEM ===
             // Medium radius (0.55w) + larger sweep (40°) = visible curve
@@ -686,16 +664,13 @@ private fun PlaylistWheel(
             // Apex lands at ~25% from left edge (near the Playlists nav text).
             //
             // Radius A — Visible arc line (1.5px semi-transparent white).
-            val arcRadius = w * 0.55f
+            val arcRadius = w * 0.65f
 
-            // Radius B — Text orbit. Sits 18dp OUTSIDE the arc line.
-            val textRadius = arcRadius + with(density) { 18.dp.toPx() }
+            // Radius B — Text orbit. Sits 30dp OUTSIDE the arc line.
+            val textRadius = arcRadius + with(density) { 30.dp.toPx() }
 
             // === 3. INDICATOR ARC ===
-            // 40° sweep so the arc is clearly visible (not flat). Combined
-            // with arcRadius = 0.55w, the vertical span is ~17% of screen
-            // height — matching the Songs→Artists range on the nav rail.
-            val arcSweepDeg = 40f
+            val arcSweepDeg = 100f
             val arcStartDeg = -arcSweepDeg / 2f
 
             // Helper: draw an arc with endpoints fading to 0 over [fadeRange]
@@ -749,19 +724,15 @@ private fun PlaylistWheel(
 
             // === 4. TEXT ITEMS on the outer (invisible) text orbit ===
             // scrollOffset / pxPerItem = how many "items" the wheel has rotated.
-            // Scroll DOWN → wheel rotates ANTICLOCKWISE (balls move up on arc).
-            // Scroll UP → wheel rotates CLOCKWISE (balls move down on arc).
+            // Scroll DOWN = clockwise (items move DOWN). Scroll UP = anticlockwise (items move UP).
             val rotationItems = scrollOffset.value / pxPerItem
 
             // Playfair Display Italic — premium high-contrast editorial serif.
-            // ALL ITEMS SAME SIZE — active item distinguished only by color
-            // (accentColor) and opacity (100%), not by size.
-            val activeFontSp = 24f
-            val inactiveFontSp = 24f
+            val activeFontSp = 42f
+            val inactiveFontSp = 16f
 
-            // ±17.5° visible window at 6° step = ~3 items each side.
-            // Tighter window matches the smaller arc sweep.
-            val visibleSpan = 3
+            // ±50° visible window at 8° step = ~6 items each side.
+            val visibleSpan = 7
 
             for (offset in -visibleSpan..visibleSpan) {
                 // Index in playlist array for this slot
@@ -838,8 +809,8 @@ private fun PlaylistWheel(
                 // One small filled circle per playlist, positioned at the
                 // text anchor point on the second arc. Moves with the wheel.
                 // ACTIVE ball = accent color; INACTIVE balls = white.
-                // Diameter = 6dp (was 8dp) — smaller for two-wheel layout.
-                val ballRadiusPx = with(density) { 3.dp.toPx() }
+                // Diameter = 8dp, gap between consecutive balls ≈ 29dp.
+                val ballRadiusPx = with(density) { 4.dp.toPx() }
                 val ballColor = if (isActive) accentColor else Color.White
                 drawCircle(
                     color = ballColor,
@@ -859,10 +830,8 @@ private fun PlaylistWheel(
                 // Available width = (screen width - textStartX - right margin).
                 // Text starts at (ball edge + gap) and extends outward.
                 // ballRadiusPx already defined above (ball marker section).
-                val gapAfterBallPx = with(density) { 4.dp.toPx() }
-                // Increased right margin (was 12dp → 100dp) to reserve space
-                // on the right side for the upcoming second (smaller) wheel.
-                val rightMarginPx = with(density) { 100.dp.toPx() }
+                val gapAfterBallPx = with(density) { 6.dp.toPx() }
+                val rightMarginPx = with(density) { 12.dp.toPx() }
 
                 // Max available width for text = from (ball edge + gap) to right screen edge.
                 val textStartX = itemX + ballRadiusPx + gapAfterBallPx
