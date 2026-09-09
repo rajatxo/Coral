@@ -727,7 +727,7 @@ private fun PlaylistWheel(
             // Third arc around the second (text) arc.
             // Gap between second arc and this third arc = 215dp.
             // ──────────────────────────────────────────────────────────────
-            val thirdArcRadius = textRadius + with(density) { 200.dp.toPx() }
+            val thirdArcRadius = textRadius + with(density) { 185.dp.toPx() }
             drawFadingArc(
                 radius = thirdArcRadius,
                 fullAlpha = 0.35f,
@@ -831,18 +831,17 @@ private fun PlaylistWheel(
                     alpha = alpha
                 )
 
-                // === 6. MEASURE TEXT — AUTO-FIT TO 200dp (touch the third arc) ===
+                // === 6. MEASURE TEXT — SHRINK ONLY IF WIDER THAN 173dp ===
                 //
-                // Every playlist name is sized so its WIDTH = exactly 200dp.
-                // Short names → bigger font (grow to fill 200dp).
-                // Long names → smaller font (shrink to fit 200dp).
-                // This makes the wheel look like a spinning CD — all "spokes"
-                // are the same length, touching the third arc.
+                // RULE: No playlist name can exceed 173dp in width.
+                // - Long names (wider than 173dp) → font SHRINKS to fit 173dp
+                // - Short names (narrower than 173dp) → stay at natural size
+                //   (no growing to fill the space)
                 //
-                // The text LEFT edge starts at ball + gap (on the second arc).
-                // The text RIGHT edge ends at the third arc (200dp gap).
+                // Text LEFT edge starts at ball + gap (on the second arc).
+                // Text RIGHT edge is AT MOST the third arc (185dp from second arc).
                 val gapAfterBallPx = with(density) { 6.dp.toPx() }
-                val targetTextWidthPx = with(density) { 200.dp.toPx() }
+                val maxTextWidthPx = with(density) { 173.dp.toPx() }
 
                 // Base font size (active=42sp, inactive=16sp, interpolated by scale)
                 val baseFontSp = lerp(activeFontSp, inactiveFontSp, (1f - scale).coerceIn(0f, 1f))
@@ -867,12 +866,12 @@ private fun PlaylistWheel(
                     )
                 )
 
-                // Auto-fit: scale font so text width = 200dp (targetTextWidthPx)
-                // Short names grow, long names shrink. Min 8sp, max 60sp.
+                // SHRINK ONLY: if text is wider than 173dp, scale font down
+                // so it fits. Short names stay at their natural size.
                 val measuredWidth = textLayout.size.width.toFloat()
-                if (measuredWidth > 0f) {
-                    val ratio = targetTextWidthPx / measuredWidth
-                    fontSp = (baseFontSp * ratio).coerceIn(8f, 60f)
+                if (measuredWidth > maxTextWidthPx && measuredWidth > 0f) {
+                    val shrinkRatio = maxTextWidthPx / measuredWidth
+                    fontSp = (baseFontSp * shrinkRatio).coerceAtLeast(8f)
                     textLayout = textMeasurer.measure(
                         text = AnnotatedString(displayText),
                         style = TextStyle(
@@ -892,22 +891,19 @@ private fun PlaylistWheel(
                     )
                 }
 
-                // === 7. TEXT PLACEMENT — IN FRONT OF BALL, TOUCHING THIRD ARC ===
+                // === 7. TEXT PLACEMENT — IN FRONT OF BALL ===
                 //
                 // Text LEFT edge = ball + gap (on second arc)
-                // Text RIGHT edge = third arc (200dp from second arc)
-                // Text center = ball + gap + targetTextWidthPx/2 (along radial)
+                // Text center = ball + gap + actualTextWidth/2 (along radial)
+                // Text RIGHT edge = at most the third arc (185dp from second arc)
                 //
-                // Since ALL text is 200dp wide, the text center is always at
-                // a FIXED distance from the ball — creating uniform "spokes"
-                // that look like a CD spinning.
+                // Uses the ACTUAL measured text width (not a fixed target),
+                // so short names sit closer to the ball and long names
+                // extend further (up to the 173dp limit).
                 val textW = textLayout.size.width.toFloat()
                 val textH = textLayout.size.height.toFloat()
 
-                // Use targetTextWidthPx for positioning (not measured textW)
-                // so all text ends at the same point (third arc) regardless
-                // of minor measurement rounding.
-                val textOffsetPx = ballRadiusPx + gapAfterBallPx + targetTextWidthPx / 2f
+                val textOffsetPx = ballRadiusPx + gapAfterBallPx + textW / 2f
                 val textCenterX = itemX + textOffsetPx * cos(itemAngleRad)
                 val textCenterY = itemY + textOffsetPx * sin(itemAngleRad)
 
