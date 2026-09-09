@@ -88,9 +88,30 @@ fun PlaylistsScreen(
     // --- Wheel/Grid toggle state ---
     var useWheel by remember { mutableStateOf(true) }
 
-    // --- Wheel rotation state (for showing/hiding the selection capsule) ---
+    // --- Wheel rotation state ---
     var isRotating by remember { mutableStateOf(false) }
     var centerPlaylist by remember { mutableStateOf<Playlist?>(null) }
+
+    // --- "All Playlist" pill text + 3-second timeout ---
+    // Default: "All Playlist". When user rotates the wheel, the center
+    // playlist name shows. After 3 seconds of no change, reverts to
+    // "All Playlist". The capsule itself is ALWAYS visible (permanent).
+    var playlistPillText by remember { mutableStateOf("All Playlist") }
+    var playlistPillJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    val pillScope = rememberCoroutineScope()
+
+    // When the center playlist changes, update the pill text and start
+    // a 3-second timer to revert to "All Playlist".
+    androidx.compose.runtime.LaunchedEffect(centerPlaylist) {
+        if (centerPlaylist != null) {
+            playlistPillText = centerPlaylist!!.name
+            playlistPillJob?.cancel()
+            playlistPillJob = pillScope.launch {
+                kotlinx.coroutines.delay(3000L)
+                playlistPillText = "All Playlist"
+            }
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize().background(CoralColors.Surface)) {
         // Header Column: Row(capsule + title) + big capsule with inner items
@@ -129,20 +150,23 @@ fun PlaylistsScreen(
 
             Spacer(modifier = Modifier.size(8.dp))
 
-            // --- Big capsule with inner items ---
-            // [small create capsule] ........... [wheel/grid toggle]
+            // --- Big capsule with 4 permanent inner capsules ---
+            // [New] [All Playlist] [All Tags] [Grid/Wheel toggle]
+            // All capsules are the same shape: 32dp height, 16dp rounded
+            // corners, pure white background, pure black text.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(40.dp)
                     .clip(RoundedCornerShape(20.dp))
-                    .background(CoralColors.SurfaceVariant),
-                verticalAlignment = Alignment.CenterVertically
+                    .background(CoralColors.SurfaceVariant)
+                    .padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                // Small inner capsule: "New" (left side)
+                // 1. "New" capsule (left side)
                 Row(
                     modifier = Modifier
-                        .padding(start = 4.dp)
                         .height(32.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color.White)
@@ -169,41 +193,12 @@ fun PlaylistsScreen(
                     )
                 }
 
-                // Flexible space between - now holds the selection capsule
-                // (nested inside the big capsule, between "New" and "Grid").
-                // Only visible while the wheel is rotating. Fades in/out.
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 4.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = useWheel && isRotating && centerPlaylist != null && playlists.isNotEmpty(),
-                        enter = androidx.compose.animation.fadeIn(
-                            animationSpec = androidx.compose.animation.core.tween(300)
-                        ),
-                        exit = androidx.compose.animation.fadeOut(
-                            animationSpec = androidx.compose.animation.core.tween(300)
-                        )
-                    ) {
-                        SelectionCapsule(
-                            playlistName = centerPlaylist?.name ?: "",
-                            accentColor = accentColor,
-                            onClick = {
-                                centerPlaylist?.let { onPlaylistClick(it) }
-                            }
-                        )
-                    }
-                }
-
-                // Toggle capsule: Wheel / Grid (right side)
-                // Same size + shape as the "New" capsule on the left:
-                // 32dp height, 16dp rounded corners, pure white background,
-                // pure black text.
+                // 2. "All Playlist" capsule (permanent, shows playlist name on rotate)
+                // Text changes to the center playlist name when user rotates
+                // the wheel. After 3 seconds, reverts to "All Playlist".
+                // Clicking when showing a playlist name opens that playlist.
                 Row(
                     modifier = Modifier
-                        .padding(end = 4.dp)
                         .height(32.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color.White)
@@ -211,12 +206,55 @@ fun PlaylistsScreen(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                             onClick = {
-                                useWheel = !useWheel
+                            // If showing a playlist name (not "All Playlist"), open it
+                            if (playlistPillText != "All Playlist" && centerPlaylist != null) {
+                                centerPlaylist?.let { onPlaylistClick(it) }
                             }
+                        }
                         )
                         .padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = playlistPillText,
+                        color = Color.Black,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // 3. "All Tags" capsule (permanent, just text for now)
+                Row(
+                    modifier = Modifier
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.White)
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "All Tags",
+                        color = Color.Black,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                // 4. Grid/Wheel toggle capsule (right side)
+                Row(
+                    modifier = Modifier
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.White)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { useWheel = !useWheel }
+                        )
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         text = if (useWheel) "Grid" else "Wheel",
