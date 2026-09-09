@@ -2,6 +2,7 @@ package com.rajatxo.coral.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,25 +19,23 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,22 +45,24 @@ import com.rajatxo.coral.data.store.PlaylistStore
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.icons.CoralIcons
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
- * Playlist detail screen — SimpMusic-style immersive.
+ * Playlist detail screen — SimpMusic-inspired immersive design.
  *
- * Layout:
- *  - Layer 1: full-screen blurred background using the first song's album art
- *  - Layer 2: vertical gradient (primary -> black) so text stays readable
- *  - Layer 3: content column:
- *      - top bar: ChevronDown (back), playlist name (small), MoreVertical
- *      - large cover (square, 24dp rounded, shadow)
- *      - playlist name (28sp bold)
- *      - "{n} songs" subtitle
- *      - row of action buttons: Play all | Shuffle | Add songs
- *      - song list
- *
- * Empty state: shows a friendly "Add songs" call-to-action.
+ * Layout (top to bottom):
+ *   1. Blurred album art background (full screen)
+ *   2. Dark gradient overlay for readability
+ *   3. Top bar: back arrow (left) + 3-dot menu (right)
+ *   4. Large square cover (centered, rounded corners, shadow)
+ *   5. Playlist name (large, bold, centered)
+ *   6. "Your Playlist" subtitle
+ *   7. Creation date (grey, small)
+ *   8. Action row: Shuffle (circle) | Play (white pill) | Search (circle)
+ *   9. Sort bar pill: "Sort by: Custom Order" + song count badge
+ *  10. Song list: album art | title + artist | duration
  */
 @Composable
 fun PlaylistDetailScreen(
@@ -74,7 +75,6 @@ fun PlaylistDetailScreen(
     onSongClick: (Song, List<Song>) -> Unit,
     onAddSongsClick: () -> Unit
 ) {
-    // Re-fetch the playlist from the store so we get updates when songs are added
     val playlists by PlaylistStore.playlists.collectAsState()
     val livePlaylist = playlists.firstOrNull { it.id == playlist.id } ?: playlist
 
@@ -84,9 +84,14 @@ fun PlaylistDetailScreen(
     }
 
     val backgroundArtUri = songsInPlaylist.firstOrNull()?.albumArtUri?.toString()
+    val coverArtUri = livePlaylist.coverUri ?: songsInPlaylist.firstOrNull()?.albumArtUri?.toString()
+    val dateFormat = remember { SimpleDateFormat("HH:mm – dd MMMM yyyy", Locale.getDefault()) }
+    val createdText = remember(livePlaylist.createdAtMs) {
+        dateFormat.format(Date(livePlaylist.createdAtMs))
+    }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        // Layer 1: blurred background
+    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0A))) {
+        // --- Layer 1: Blurred background ---
         if (backgroundArtUri != null) {
             AsyncImage(
                 model = backgroundArtUri,
@@ -94,26 +99,27 @@ fun PlaylistDetailScreen(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
-                    .blur(40.dp)
+                    .blur(50.dp)
             )
         }
 
-        // Layer 2: dark gradient overlay
+        // --- Layer 2: Gradient overlay for readability ---
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
-                            0.0f to Color.Black.copy(alpha = 0.55f),
-                            0.4f to Color.Black.copy(alpha = 0.75f),
-                            1.0f to Color.Black.copy(alpha = 0.95f)
+                            0.0f to Color.Black.copy(alpha = 0.4f),
+                            0.35f to Color.Black.copy(alpha = 0.7f),
+                            0.7f to Color.Black.copy(alpha = 0.9f),
+                            1.0f to Color.Black.copy(alpha = 0.97f)
                         )
                     )
                 )
         )
 
-        // Layer 3: content
+        // --- Layer 3: Content ---
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -128,12 +134,17 @@ fun PlaylistDetailScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Back button
                 Box(
                     modifier = Modifier
                         .size(40.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(Color.White.copy(alpha = 0.10f))
-                        .clickable(onClick = onBackClick),
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.12f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onBackClick
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -143,19 +154,17 @@ fun PlaylistDetailScreen(
                         modifier = Modifier.size(22.dp)
                     )
                 }
-                Text(
-                    text = "PLAYLIST",
-                    color = Color.White.copy(alpha = 0.6f),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.5.sp
-                )
+                // 3-dot menu
                 Box(
                     modifier = Modifier
                         .size(40.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(Color.White.copy(alpha = 0.10f))
-                        .clickable { /* TODO: rename / delete menu */ },
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.12f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { /* TODO: tag management menu */ }
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -171,45 +180,27 @@ fun PlaylistDetailScreen(
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                    start = 20.dp, end = 20.dp, top = 8.dp, bottom = 32.dp
+                    start = 20.dp, end = 20.dp, top = 8.dp, bottom = 100.dp
                 )
             ) {
-                // Cover
+                // Large cover image (square, rounded, centered)
                 item {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .aspectRatio(1f)
+                            .padding(horizontal = 32.dp)
                             .clip(RoundedCornerShape(20.dp))
-                            .shadow(20.dp, RoundedCornerShape(20.dp))
                             .background(CoralColors.SurfaceVariant),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (livePlaylist.coverUri != null) {
+                        if (coverArtUri != null) {
                             AsyncImage(
-                                model = livePlaylist.coverUri,
+                                model = coverArtUri,
                                 contentDescription = "Playlist cover",
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize()
                             )
-                        } else if (songsInPlaylist.isNotEmpty()) {
-                            // Use the first song's album art as the cover
-                            val firstSongArt = songsInPlaylist.first().albumArtUri
-                            if (firstSongArt != null) {
-                                AsyncImage(
-                                    model = firstSongArt,
-                                    contentDescription = "Playlist cover",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = CoralIcons.Music,
-                                    contentDescription = null,
-                                    tint = Color(0xFF444444),
-                                    modifier = Modifier.size(80.dp)
-                                )
-                            }
                         } else {
                             Icon(
                                 imageVector = CoralIcons.Music,
@@ -221,62 +212,176 @@ fun PlaylistDetailScreen(
                     }
                 }
 
-                // Title + count
+                // Playlist name + subtitle + date (centered)
                 item {
-                    Column(modifier = Modifier.padding(top = 24.dp)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
                         Text(
                             text = livePlaylist.name,
                             color = Color.White,
-                            fontSize = 28.sp,
+                            fontSize = 26.sp,
                             fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "${songsInPlaylist.size} ${if (songsInPlaylist.size == 1) "song" else "songs"}",
+                            text = "Your Playlist",
                             color = Color.White.copy(alpha = 0.7f),
-                            fontSize = 13.sp
+                            fontSize = 14.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Created at $createdText",
+                            color = Color.White.copy(alpha = 0.4f),
+                            fontSize = 11.sp,
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
 
-                // Action row: Play all | Shuffle | Add songs
+                // Action row: Shuffle | Play | Search
                 item {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 24.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            .padding(top = 20.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        ActionButton(
-                            text = "Play all",
-                            icon = CoralIcons.Play,
-                            isPrimary = true,
-                            enabled = songsInPlaylist.isNotEmpty(),
-                            onClick = { onPlayAll(songsInPlaylist) },
-                            modifier = Modifier.weight(1f)
-                        )
-                        ActionButton(
-                            text = "Shuffle",
-                            icon = CoralIcons.Shuffle,
-                            isPrimary = false,
-                            enabled = songsInPlaylist.isNotEmpty(),
-                            onClick = { onShuffle(songsInPlaylist) },
-                            modifier = Modifier.weight(1f)
-                        )
-                        ActionButton(
-                            text = "Add",
-                            icon = CoralIcons.Queue,
-                            isPrimary = false,
-                            enabled = true,
-                            onClick = onAddSongsClick,
-                            modifier = Modifier.weight(1f)
-                        )
+                        // Shuffle (circular grey button)
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.15f))
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    enabled = songsInPlaylist.isNotEmpty(),
+                                    onClick = { onShuffle(songsInPlaylist) }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = CoralIcons.Shuffle,
+                                contentDescription = "Shuffle",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(16.dp))
+
+                        // Play (white pill button)
+                        Row(
+                            modifier = Modifier
+                                .height(48.dp)
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(Color.White)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    enabled = songsInPlaylist.isNotEmpty(),
+                                    onClick = { onPlayAll(songsInPlaylist) }
+                                )
+                                .padding(horizontal = 24.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = CoralIcons.Play,
+                                contentDescription = "Play",
+                                tint = Color.Black,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Play",
+                                color = Color.Black,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(16.dp))
+
+                        // Add/Search (circular grey button)
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.15f))
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = onAddSongsClick
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = CoralIcons.Search,
+                                contentDescription = "Add songs",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
 
-                // Songs list
+                // Sort bar pill
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 20.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color.White.copy(alpha = 0.08f))
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "=",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Sort by: Custom Order",
+                                color = Color.White.copy(alpha = 0.8f),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        // Song count badge
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color.White.copy(alpha = 0.1f))
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "${songsInPlaylist.size}",
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+
+                // Song list
                 if (songsInPlaylist.isEmpty()) {
                     item {
                         Column(
@@ -295,7 +400,7 @@ fun PlaylistDetailScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Tap \"Add\" to pick songs from your library.",
+                                text = "Tap the search icon to add songs.",
                                 color = Color.White.copy(alpha = 0.6f),
                                 fontSize = 13.sp
                             )
@@ -316,45 +421,6 @@ fun PlaylistDetailScreen(
 }
 
 @Composable
-private fun ActionButton(
-    text: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    isPrimary: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .height(48.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(
-                if (isPrimary) Color(0xFFFF6B6B).copy(alpha = if (enabled) 1f else 0.4f)
-                else Color.White.copy(alpha = if (enabled) 0.12f else 0.05f)
-            )
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = text,
-            tint = if (isPrimary) Color.White else Color.White.copy(alpha = 0.85f),
-            modifier = Modifier.size(16.dp)
-        )
-        Spacer(modifier = Modifier.width(6.dp))
-        Text(
-            text = text,
-            color = if (isPrimary) Color.White else Color.White.copy(alpha = 0.85f),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1
-        )
-    }
-}
-
-@Composable
 private fun PlaylistSongRow(
     song: Song,
     isCurrent: Boolean,
@@ -363,14 +429,19 @@ private fun PlaylistSongRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Album art thumbnail
         Box(
             modifier = Modifier
-                .size(44.dp)
-                .clip(RoundedCornerShape(6.dp))
+                .size(50.dp)
+                .clip(RoundedCornerShape(8.dp))
                 .background(CoralColors.SurfaceVariant),
             contentAlignment = Alignment.Center
         ) {
@@ -386,34 +457,39 @@ private fun PlaylistSongRow(
                     imageVector = CoralIcons.Music,
                     contentDescription = null,
                     tint = Color(0xFF888888),
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }
+
         Spacer(modifier = Modifier.width(12.dp))
+
+        // Title + artist
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = song.title,
-                color = if (isCurrent) Color(0xFFFF6B6B) else Color.White,
-                fontSize = 15.sp,
+                color = if (isCurrent) CoralColors.Coral else Color.White,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = song.artist,
-                color = Color.White.copy(alpha = 0.6f),
-                fontSize = 13.sp,
+                color = Color.White.copy(alpha = 0.5f),
+                fontSize = 12.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
+
+        // Duration
         val totalSec = song.duration / 1000
         val mm = totalSec / 60
         val ss = totalSec % 60
         Text(
             text = "$mm:${String.format("%02d", ss)}",
-            color = Color.White.copy(alpha = 0.5f),
+            color = Color.White.copy(alpha = 0.4f),
             fontSize = 12.sp
         )
     }
