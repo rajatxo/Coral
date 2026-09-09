@@ -169,7 +169,11 @@ fun PlaylistsScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                // "New" capsule (left side)
+                // "New" capsule (left side) — width matches "All Playlist"
+                // capsule below so the two big capsules align visually.
+                // Uses the double-Text trick: transparent "All Playlist"
+                // text underneath sizes the capsule to match, the visible
+                // "New" text + icon sit on top.
                 Row(
                     modifier = Modifier
                         .height(32.dp)
@@ -185,18 +189,33 @@ fun PlaylistsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Icon(
-                        imageVector = CoralIcons.Play,
-                        contentDescription = null,
-                        tint = Color.Black,
-                        modifier = Modifier.size(10.dp)
-                    )
-                    Text(
-                        text = "New",
-                        color = Color.Black,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Box(contentAlignment = Alignment.Center) {
+                        // Invisible sizer: sizes the capsule to "All Playlist"
+                        Text(
+                            text = "All Playlist",
+                            color = Color.Transparent,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        // Visible content: icon + "New"
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = CoralIcons.Play,
+                                contentDescription = null,
+                                tint = Color.Black,
+                                modifier = Modifier.size(10.dp)
+                            )
+                            Text(
+                                text = "New",
+                                color = Color.Black,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
                 }
 
                 // Spacer to push Grid/Wheel to the right
@@ -248,6 +267,9 @@ fun PlaylistsScreen(
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 // "All Playlist" capsule — shows playlist name on rotate, 3s timeout
+                // Width is fixed to the DEFAULT text ("All Playlist") so it
+                // doesn't resize when the playlist name changes. Uses the
+                // double-Text trick (same as Grid/Wheel capsule).
                 Row(
                     modifier = Modifier
                         .height(32.dp)
@@ -266,17 +288,32 @@ fun PlaylistsScreen(
                         .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = playlistPillText,
-                        color = Color.Black,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    // Render "All Playlist" transparent underneath so the
+                    // capsule is always sized to the default text width,
+                    // regardless of the current playlist name.
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "All Playlist",
+                            color = Color.Transparent,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = playlistPillText,
+                            color = Color.Black,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
 
-                // "All Tags" capsule
+                // Spacer pushes "All Tags" capsule to the very right,
+                // so it sits exactly below the Grid/Wheel capsule above.
+                Spacer(modifier = Modifier.weight(1f))
+
+                // "All Tags" capsule — fixed at the right end
                 Row(
                     modifier = Modifier
                         .height(32.dp)
