@@ -359,25 +359,42 @@ fun PlaylistsScreen(
             }
         } else {
             if (useWheel) {
-                Box(
+                // === CLEAN SLATE: just the first arc in the bottom-left corner ===
+                // All wheel code removed. We're rebuilding the arc placement from
+                // scratch. This Canvas draws ONLY the arc line — no balls, no text,
+                // no scrolling. Just the curve so we can verify its position.
+                Canvas(
                     modifier = Modifier
                         .fillMaxSize()
                         .statusBarsPadding()
                         .padding(top = 110.dp, bottom = 16.dp)
                 ) {
-                    PlaylistWheel(
-                        playlists = playlists,
-                        accentColor = accentColor,
-                        onRotationStart = { isRotating = true },
-                        onRotationEnd = { isRotating = false },
-                        onCenterPlaylistChange = { centerPlaylist = it },
-                        modifier = Modifier.fillMaxSize()
-                    )
-                    // Tag wheel overlay — top-right corner (step 2: static, no interaction yet)
-                    TagWheel(
-                        tags = PlaylistStore.getAllTags(),
-                        accentColor = accentColor,
-                        modifier = Modifier.fillMaxSize()
+                    val w = size.width
+                    val h = size.height
+
+                    // Pivot: off-screen bottom-left
+                    // X = -30% screen width (off-screen left)
+                    // Y = 75% screen height (lower area — the arc curves upward)
+                    val pivotX = w * -0.30f
+                    val pivotY = h * 0.75f
+
+                    // Radius — medium size
+                    val arcRadius = w * 0.55f
+
+                    // Arc: centered at 0° (pointing RIGHT from the left-side pivot)
+                    // Sweep = 40°, so the arc spans from -20° to +20°
+                    val arcSweepDeg = 40f
+                    val arcStartDeg = -arcSweepDeg / 2f
+
+                    // Draw the arc — thin white line, 1.5dp stroke
+                    drawArc(
+                        color = Color.White.copy(alpha = 0.6f),
+                        startAngle = arcStartDeg,
+                        sweepAngle = arcSweepDeg,
+                        useCenter = false,
+                        topLeft = Offset(pivotX - arcRadius, pivotY - arcRadius),
+                        size = androidx.compose.ui.geometry.Size(arcRadius * 2f, arcRadius * 2f),
+                        style = Stroke(width = 1.5.dp.toPx())
                     )
                 }
             } else {
