@@ -13,7 +13,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +23,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -45,14 +45,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
-import com.rajatxo.coral.ui.theme.VermiglioneFamily
 import kotlinx.coroutines.delay
 
 /**
@@ -181,104 +179,99 @@ fun PermissionScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(CoralColors.Surface)  // pure black
+            .background(
+                // Cream gradient background: #F6E9C7 → #FFFACD
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFFF6E9C7),
+                        Color(0xFFFFFACD)
+                    )
+                )
+            )
             .graphicsLayer { alpha = fadeAlpha }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .padding(horizontal = 28.dp, vertical = 24.dp),
+                .padding(horizontal = 24.dp, vertical = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+            verticalArrangement = Arrangement.Top
         ) {
             // ─────────────────────────────────────────────────────────
-            // TOP — Hero typography: "Coral"
+            // TOP — "CORAL" word, all same size, Cal Sans, black
+            // ─────────────────────────────────────────────────────────
+            Text(
+                text = "CORAL",
+                color = Color.Black,
+                fontSize = 64.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = CalSansFamily,
+                letterSpacing = 6.sp
+            )
+
+            Spacer(modifier = Modifier.height(48.dp))
+
+            // ─────────────────────────────────────────────────────────
+            // MIDDLE — Pure black rounded box containing everything
             // ─────────────────────────────────────────────────────────
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(32.dp))
+                    .background(Color.Black)  // pure black, no border
+                    .padding(horizontal = 20.dp, vertical = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // The big italic "C" — Vermiglione, Bold, ~180sp
+                // "Allow access to begin" — Poppins, white
                 Text(
-                    text = AnnotatedString("C"),
+                    text = "Allow Access to begin",
                     color = Color.White,
-                    fontSize = 180.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                    fontFamily = VermiglioneFamily,
-                    letterSpacing = 0.sp,
-                    lineHeight = 180.sp
-                )
-                // The structured "ORAL" — Cal Sans SemiBold, ~90sp
-                Text(
-                    text = "ORAL",
-                    color = Color.White,
-                    fontSize = 42.sp,
+                    fontSize = 17.sp,
                     fontWeight = FontWeight.SemiBold,
-                    fontFamily = CalSansFamily,
-                    letterSpacing = 8.sp
-                )
-                Spacer(modifier = Modifier.height(20.dp))
-                // Subtitle
-                Text(
-                    text = "allow access to begin",
-                    color = Color.White.copy(alpha = 0.55f),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-
-            // ─────────────────────────────────────────────────────────
-            // MIDDLE — Permission cards
-            // ─────────────────────────────────────────────────────────
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // --- Card 1: Notifications ---
-                PermissionCard(
-                    icon = {
-                        Icon(
-                            imageVector = CoralIcons.Play,  // Bell-ish icon fallback
-                            contentDescription = null,
-                            tint = if (notifGranted) Color.Black else Color.White.copy(alpha = 0.7f),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    },
-                    title = "Notifications",
-                    subtitle = "For playback controls",
-                    isOn = notifGranted,
-                    onClick = {
-                        if (notifGranted) {
-                            openAppSettings()  // already granted → open settings to manage
-                        } else {
-                            requestNotifications()
-                        }
-                    }
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                    textAlign = TextAlign.Center
                 )
 
-                // --- Card 2: Music files ---
-                PermissionCard(
-                    icon = {
-                        Icon(
-                            imageVector = CoralIcons.ListMusic,
-                            contentDescription = null,
-                            tint = if (musicGranted) Color.Black else Color.White.copy(alpha = 0.7f),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    },
-                    title = "Music files",
-                    subtitle = "To scan your library",
-                    isOn = musicGranted,
-                    onClick = {
-                        if (musicGranted) {
-                            openAppSettings()
-                        } else {
-                            requestMusic()
+                // --- Two permission cards with red gradient background ---
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PermissionCard(
+                        icon = {
+                            Icon(
+                                imageVector = CoralIcons.Play,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        },
+                        title = "Notifications",
+                        subtitle = "For playback controls",
+                        isOn = notifGranted,
+                        onClick = {
+                            if (notifGranted) openAppSettings()
+                            else requestNotifications()
                         }
-                    }
-                )
+                    )
+
+                    PermissionCard(
+                        icon = {
+                            Icon(
+                                imageVector = CoralIcons.ListMusic,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        },
+                        title = "Music files",
+                        subtitle = "To scan your library",
+                        isOn = musicGranted,
+                        onClick = {
+                            if (musicGranted) openAppSettings()
+                            else requestMusic()
+                        }
+                    )
+                }
 
                 // --- Hint (shown briefly when a permission is denied) ---
                 AnimatedVisibility(
@@ -288,23 +281,29 @@ fun PermissionScreen(
                 ) {
                     Text(
                         text = when (hintTarget) {
-                            "notifications" -> "Coral needs notifications to control playback from your lock screen."
-                            "music" -> "Coral needs access to your audio files to play them."
+                            "notifications" -> "Coral needs notifications to control playback."
+                            "music" -> "Coral needs access to your audio files."
                             else -> ""
                         },
-                        color = Color(0xFFFF6B6B).copy(alpha = 0.85f),
+                        color = Color(0xFFFF6B6B).copy(alpha = 0.9f),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(top = 4.dp)
+                        textAlign = TextAlign.Center
                     )
                 }
             }
 
+            Spacer(modifier = Modifier.height(20.dp))
+
             // ─────────────────────────────────────────────────────────
-            // BOTTOM — empty space for now (will later hold a "Continue" hint
-            // or progress indicator once both toggles are ON)
+            // BOTTOM — "we respect your privacy"
             // ─────────────────────────────────────────────────────────
-            Box(modifier = Modifier.height(32.dp))
+            Text(
+                text = "we respect your privacy",
+                color = Color.Black.copy(alpha = 0.55f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
+            )
         }
     }
 }
@@ -312,8 +311,8 @@ fun PermissionScreen(
 /**
  * A single permission card with icon, title, subtitle, and an iOS-style toggle.
  *
- * When the toggle is OFF: dark gray card, gray toggle
- * When the toggle is ON: coral card with glossy reflection, white toggle
+ * Card background: red gradient #ee0039 → #54091b (always, regardless of state).
+ * Title/subtitle: always white.
  */
 @Composable
 private fun PermissionCard(
@@ -323,72 +322,51 @@ private fun PermissionCard(
     isOn: Boolean,
     onClick: () -> Unit
 ) {
-    // Animated border color: red flash when denied, back to normal otherwise
-    // (Skipped for now — keep it simple)
-
-    val cardBg = if (isOn) {
-        // Glossy coral when granted — same style as the wheel's selection capsule
-        Brush.verticalGradient(
-            colors = listOf(
-                Color(0xFFFF6B6B).copy(alpha = 0.95f),
-                Color(0xFFFF6B6B),
-                Color(0xFFE55A5A).copy(alpha = 0.92f)
-            )
+    // Red gradient background — always (per user spec)
+    val cardBg = Brush.verticalGradient(
+        colors = listOf(
+            Color(0xFFee0039),
+            Color(0xFF54091b)
         )
-    } else {
-        // Dark gray pill when not granted
-        Brush.verticalGradient(
-            colors = listOf(
-                Color(0xFF1F1F1F),
-                Color(0xFF181818)
-            )
-        )
-    }
-
-    val titleColor = if (isOn) Color.Black else Color.White
-    val subtitleColor = if (isOn) Color.Black.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.5f)
-    val borderColor = if (isOn) Color.White.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.08f)
+    )
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(18.dp))
             .background(cardBg)
-            .border(1.dp, borderColor, RoundedCornerShape(20.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 18.dp, vertical = 14.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Icon in a small circle
+        // Icon
         Box(
             modifier = Modifier
-                .size(36.dp)
+                .size(32.dp)
                 .clip(CircleShape)
-                .background(
-                    if (isOn) Color.White.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.05f)
-                ),
+                .background(Color.White.copy(alpha = 0.15f)),
             contentAlignment = Alignment.Center
         ) {
             icon()
         }
 
-        // Title + subtitle
+        // Title + subtitle (always white)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                color = titleColor,
-                fontSize = 15.sp,
+                color = Color.White,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
                 text = subtitle,
-                color = subtitleColor,
-                fontSize = 12.sp
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 11.sp
             )
         }
 
@@ -400,35 +378,37 @@ private fun PermissionCard(
 /**
  * iOS-style toggle switch — pill track with a circular thumb that slides.
  *
- * OFF: gray track, thumb on left
- * ON: coral track, thumb on right (with subtle drop shadow)
+ * OFF: dark track, white thumb on left
+ * ON: white track, red thumb on right
+ *
+ * FIX: previous version used align(CenterStart) + padding(start) which
+ * doesn't move the thumb. Now using offset() which actually translates
+ * the thumb position.
  */
 @Composable
 private fun IosToggle(isOn: Boolean) {
     val thumbOffset by animateDpAsState(
-        targetValue = if (isOn) 22.dp else 0.dp,
+        targetValue = if (isOn) 20.dp else 0.dp,
         animationSpec = tween(200),
         label = "toggleThumb"
     )
 
     Box(
         modifier = Modifier
-            .width(46.dp)
-            .height(26.dp)
-            .clip(RoundedCornerShape(13.dp))
+            .width(44.dp)
+            .height(24.dp)
+            .clip(RoundedCornerShape(12.dp))
             .background(
-                if (isOn) Color.White.copy(alpha = 0.95f) else Color(0xFF3A3A3A)
+                if (isOn) Color.White else Color(0xFF3A3A3A)
             )
-            .padding(horizontal = 2.dp, vertical = 2.dp)
     ) {
-        // Thumb (circle that slides)
+        // Thumb — uses offset() instead of padding() to actually slide
         Box(
             modifier = Modifier
-                .size(22.dp)
+                .size(20.dp)
+                .offset(x = thumbOffset + 2.dp, y = 2.dp)
                 .clip(CircleShape)
-                .background(if (isOn) Color(0xFFFF6B6B) else Color.White.copy(alpha = 0.85f))
-                .align(Alignment.CenterStart)
-                .padding(start = thumbOffset)
+                .background(if (isOn) Color(0xFFee0039) else Color.White.copy(alpha = 0.85f))
         )
     }
 }
