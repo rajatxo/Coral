@@ -624,7 +624,7 @@ private fun PlaylistWheel(
 
             // Playfair Display Italic — premium high-contrast editorial serif.
             // ALL ITEMS SAME SIZE — active item distinguished only by color
-            (accentColor) and opacity (100%), not by size.
+            // (accentColor) and opacity (100%), not by size.
             val activeFontSp = 24f
             val inactiveFontSp = 24f
 
