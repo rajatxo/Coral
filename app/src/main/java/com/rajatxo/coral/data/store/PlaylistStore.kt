@@ -126,6 +126,80 @@ object PlaylistStore {
     fun getPlaylist(playlistId: Long): Playlist? =
         _playlists.value.firstOrNull { it.id == playlistId }
 
+    // ---------- Tags ----------
+
+    /**
+     * Returns all unique tag names across all playlists, sorted alphabetically.
+     * Used by the tag wheel to populate its ball list.
+     */
+    fun getAllTags(): List<String> =
+        _playlists.value.flatMap { it.tags }.distinct().sorted()
+
+    /**
+     * Returns all playlists that have [tagName] in their tags list.
+     * Used by the playlist wheel when a tag is selected on the tag wheel.
+     */
+    fun getPlaylistsForTag(tagName: String): List<Playlist> =
+        _playlists.value.filter { tagName in it.tags }
+
+    /**
+     * Assigns a tag to a playlist. If the tag doesn't exist on any playlist
+     * yet, it's effectively "created" (tags are implicit — they exist if at
+     * least one playlist has them).
+     *
+     * @param playlistId  The playlist to tag.
+     * @param tagName     The tag name to assign. Trimmed. If blank, no-op.
+     * @return true if the tag was added, false if it was already assigned
+     *         or the playlist wasn't found or the tag name was blank.
+     */
+    fun addTagToPlaylist(playlistId: Long, tagName: String): Boolean {
+        val cleanTag = tagName.trim()
+        if (cleanTag.isEmpty()) return false
+        var changed = false
+        _playlists.value = _playlists.value.map { p ->
+            if (p.id == playlistId && cleanTag !in p.tags) {
+                changed = true
+                p.copy(tags = p.tags + cleanTag)
+            } else p
+        }
+        if (changed) persistPlaylists()
+        return changed
+    }
+
+    /**
+     * Removes a tag from a playlist.
+     *
+     * @param playlistId  The playlist to untag.
+     * @param tagName     The tag name to remove.
+     * @return true if the tag was removed, false otherwise.
+     */
+    fun removeTagFromPlaylist(playlistId: Long, tagName: String): Boolean {
+        var changed = false
+        _playlists.value = _playlists.value.map { p ->
+            if (p.id == playlistId && tagName in p.tags) {
+                changed = true
+                p.copy(tags = p.tags - tagName)
+            } else p
+        }
+        if (changed) persistPlaylists()
+        return changed
+    }
+
+    /**
+     * Deletes a tag from ALL playlists. Used when a user wants to remove a
+     * tag entirely (e.g. from the tag management UI).
+     */
+    fun deleteTag(tagName: String) {
+        var changed = false
+        _playlists.value = _playlists.value.map { p ->
+            if (tagName in p.tags) {
+                changed = true
+                p.copy(tags = p.tags - tagName)
+            } else p
+        }
+        if (changed) persistPlaylists()
+    }
+
     // ---------- Favorites ----------
 
     private fun loadFavorites() {
