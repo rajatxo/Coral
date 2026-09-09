@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -135,35 +136,71 @@ fun CoralApp() {
         }
         hasPermission = notifOk && musicOk
         permissionChecked = true
+
+        // FIX: If permissions are already granted (returning user, cold-start
+        // from widget, etc.), we need to scan music NOW — otherwise the
+        // HomeScreen shows "No music found" because `songs` is empty.
+        // Previously, music scanning only happened via the PermissionScreen
+        // callback, which is skipped when permissions are already granted.
+        if (hasPermission && songs.isEmpty() && !isLoading) {
+            isLoading = true
+            val scannedSongs = withContext(Dispatchers.IO) { MusicScanner.scanMusic(context.contentResolver) }
+            songs.clear()
+            songs.addAll(scannedSongs)
+            isLoading = false
+        }
     }
 
     LaunchedEffect(Unit) {
-        val sessionToken = SessionToken(context, ComponentName(context, CoralPlaybackService::class.java))
-        val controllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
-        val controller = controllerFuture.await()
-        mediaController = controller
+        try {
+            val sessionToken = SessionToken(context, ComponentName(context, CoralPlaybackService::class.java))
+            val controllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
+            val controller = controllerFuture.await()
+            mediaController = controller
 
-        controller.addListener(object : Player.Listener {
-            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                currentSongTitle = mediaItem?.mediaMetadata?.title?.toString()
-                currentSongArtist = mediaItem?.mediaMetadata?.artist?.toString()
-                currentSongAlbum = mediaItem?.mediaMetadata?.albumTitle?.toString()
-                currentSongArt = mediaItem?.mediaMetadata?.artworkUri
-                currentSongId = mediaItem?.mediaId?.toLongOrNull()
+            controller.addListener(object : Player.Listener {
+                override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                    currentSongTitle = mediaItem?.mediaMetadata?.title?.toString()
+                    currentSongArtist = mediaItem?.mediaMetadata?.artist?.toString()
+                    currentSongAlbum = mediaItem?.mediaMetadata?.albumTitle?.toString()
+                    currentSongArt = mediaItem?.mediaMetadata?.artworkUri
+                    currentSongId = mediaItem?.mediaId?.toLongOrNull()
+                }
+                override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
+            })
+
+            // --- BUG FIX: Restore mini player state after app restart ---
+            val currentMediaItem = controller.currentMediaItem
+            if (currentMediaItem != null) {
+                currentSongTitle = currentMediaItem.mediaMetadata.title?.toString()
+                currentSongArtist = currentMediaItem.mediaMetadata.artist?.toString()
+                currentSongAlbum = currentMediaItem.mediaMetadata.albumTitle?.toString()
+                currentSongArt = currentMediaItem.mediaMetadata.artworkUri
+                currentSongId = currentMediaItem.mediaId.toLongOrNull()
             }
-            override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
-        })
-
-        // --- BUG FIX: Restore mini player state after app restart ---
-        val currentMediaItem = controller.currentMediaItem
-        if (currentMediaItem != null) {
-            currentSongTitle = currentMediaItem.mediaMetadata.title?.toString()
-            currentSongArtist = currentMediaItem.mediaMetadata.artist?.toString()
-            currentSongAlbum = currentMediaItem.mediaMetadata.albumTitle?.toString()
-            currentSongArt = currentMediaItem.mediaMetadata.artworkUri
-            currentSongId = currentMediaItem.mediaId.toLongOrNull()
+            isPlaying = controller.isPlaying
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // Expected when the LaunchedEffect is cancelled (e.g. on rotation).
+            // Don't rethrow — just clean up.
+            // The new Activity instance will rebuild the controller.
+        } catch (e: Exception) {
+            // Any other error (service not running, timeout, etc.)
+            // Don't crash the app — the user can still browse music without
+            // a media controller, they just can't play it.
+            android.util.Log.e("CoralApp", "MediaController setup failed", e)
         }
-        isPlaying = controller.isPlaying
+    }
+
+    // FIX: Release the MediaController when the composable leaves the
+    // composition (e.g. on rotation). This prevents controller leaks and
+    // the "controller still attached to dead service" crash.
+    DisposableEffect(Unit) {
+        onDispose {
+            try {
+                mediaController?.release()
+            } catch (_: Exception) { }
+            mediaController = null
+        }
     }
 
     // When user grants permissions via PermissionScreen, scan music + load HomeScreen
