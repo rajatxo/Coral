@@ -26,7 +26,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -73,7 +75,8 @@ fun PlaylistDetailScreen(
     onPlayAll: (List<Song>) -> Unit,
     onShuffle: (List<Song>) -> Unit,
     onSongClick: (Song, List<Song>) -> Unit,
-    onAddSongsClick: () -> Unit
+    onAddSongsClick: () -> Unit,
+    onDeletePlaylist: () -> Unit
 ) {
     val playlists by PlaylistStore.playlists.collectAsState()
     val livePlaylist = playlists.firstOrNull { it.id == playlist.id } ?: playlist
@@ -89,6 +92,10 @@ fun PlaylistDetailScreen(
     val createdText = remember(livePlaylist.createdAtMs) {
         dateFormat.format(Date(livePlaylist.createdAtMs))
     }
+
+    // 3-dot menu popup state
+    var showMenu by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0A))) {
         // --- Layer 1: Blurred background ---
@@ -154,25 +161,65 @@ fun PlaylistDetailScreen(
                         modifier = Modifier.size(22.dp)
                     )
                 }
-                // 3-dot menu
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.12f))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { /* TODO: tag management menu */ }
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = CoralIcons.MoreVertical,
-                        contentDescription = "More",
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
+                // 3-dot menu with popup
+                Box {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.12f))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { showMenu = true }
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = CoralIcons.MoreVertical,
+                            contentDescription = "More",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    // Dropdown menu — small rounded square
+                    androidx.compose.material3.DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false },
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFF1A1A1A))
+                    ) {
+                        // Delete playlist option
+                        Row(
+                            modifier = Modifier
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = {
+                                        showMenu = false
+                                        showDeleteConfirm = true
+                                    }
+                                )
+                                .padding(horizontal = 20.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = CoralIcons.Heart,
+                                contentDescription = null,
+                                tint = Color(0xFFFF6B6B),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Delete playlist",
+                                color = Color(0xFFFF6B6B),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
                 }
             }
 
@@ -416,6 +463,41 @@ fun PlaylistDetailScreen(
                     }
                 }
             }
+        }
+
+        // Delete confirmation dialog
+        if (showDeleteConfirm) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { showDeleteConfirm = false },
+                containerColor = CoralColors.SurfaceVariant,
+                titleContentColor = Color.White,
+                title = { Text("Delete playlist") },
+                text = {
+                    Text(
+                        text = "Are you sure you want to delete \"${livePlaylist.name}\"? This cannot be undone.",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 14.sp
+                    )
+                },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(
+                        onClick = {
+                            showDeleteConfirm = false
+                            PlaylistStore.deletePlaylist(livePlaylist.id)
+                            onDeletePlaylist()
+                        }
+                    ) {
+                        Text("Delete", color = Color(0xFFFF6B6B), fontWeight = FontWeight.SemiBold)
+                    }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(
+                        onClick = { showDeleteConfirm = false }
+                    ) {
+                        Text("Cancel", color = Color(0xFF888888))
+                    }
+                }
+            )
         }
     }
 }

@@ -459,7 +459,8 @@ fun HomeScreen(
                     onAddSongsClick = {
                         playlistForPicker = playlist
                         showSongPicker = true
-                    }
+                    },
+                    onDeletePlaylist = { selectedPlaylist = null }
                 )
             }
         }
