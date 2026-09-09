@@ -546,26 +546,27 @@ private fun PlaylistWheel(
             val pivotX = w * -0.50f
             val pivotY = h * 0.50f
 
-            // === 2. DUAL CONCENTRIC RADII SYSTEM ===
+            // === 2. DUAL CONCENTRIC RADII SYSTEM (SMALLER for two-wheel layout) ===
+            // Reduced from 0.65w → 0.45w to leave space on the right side
+            // for the upcoming second (smaller) wheel.
             // The arc line and text live on two different orbits that share
             // the SAME off-screen pivot point. This prevents the arc from
             // cutting through the text.
             //
             // Radius A — Visible arc line (1.5px semi-transparent white).
-            val arcRadius = w * 0.65f
+            val arcRadius = w * 0.45f
 
-            // Radius B — Text orbit. Sits 30px OUTSIDE the arc line so text
-            // never intersects the visible line. Text anchor is the LEFT edge
-            // of each label, pinned to this radius.
-            val textRadius = arcRadius + with(density) { 30.dp.toPx() }
+            // Radius B — Text orbit. Sits 18dp OUTSIDE the arc line (was 30dp)
+            // so text never intersects the visible line. Text anchor is the
+            // LEFT edge of each label, pinned to this radius.
+            val textRadius = arcRadius + with(density) { 18.dp.toPx() }
 
             // === 3. INDICATOR ARC (single thin white semi-transparent line,
             //         with endpoints fading to 0 so the arc dissolves into the
             //         navigation rail text on both ends) ===
-            // Visible arc window: ±50° from horizontal apex. Total sweep = 100°.
-            // This puts the arc on the LEFT HALF of screen (apex at ~30% from
-            // left, endpoints near the left edge).
-            val arcSweepDeg = 100f
+            // Reduced sweep from 100° → 75° so the wheel doesn't extend so
+            // far down the screen.
+            val arcSweepDeg = 75f
             val arcStartDeg = -arcSweepDeg / 2f
 
             // Helper: draw an arc with endpoints fading to 0 over [fadeRange]
@@ -624,15 +625,16 @@ private fun PlaylistWheel(
             val rotationItems = scrollOffset.value / pxPerItem
 
             // Playfair Display Italic — premium high-contrast editorial serif.
-            // Inactive text made smaller relative to active (was 18sp → 16sp)
-            // so the active item stands out more clearly.
-            val activeFontSp = 42f
-            val inactiveFontSp = 16f
+            // ALL ITEMS NOW SAME SIZE — user requested this so the wheel
+            // doesn't dominate the screen (leaving room for the upcoming
+            // second wheel on the right). Active item is now distinguished
+            // only by color (accentColor) and opacity (100%), not by size.
+            val activeFontSp = 24f      // was 42
+            val inactiveFontSp = 24f    // was 16, now matches active
 
-            // ±50° visible window at 8° step = ~6 items each side. Extended to 7
-            // so one more ball is visible at each end (fading to near-zero
-            // opacity as it approaches the screen edge).
-            val visibleSpan = 7
+            // ±37.5° visible window at 8° step = ~5 items each side (was 7).
+            // Smaller window means less vertical space consumed.
+            val visibleSpan = 5
 
             for (offset in -visibleSpan..visibleSpan) {
                 // Index in playlist array for this slot
@@ -709,8 +711,8 @@ private fun PlaylistWheel(
                 // One small filled circle per playlist, positioned at the
                 // text anchor point on the second arc. Moves with the wheel.
                 // ACTIVE ball = accent color; INACTIVE balls = white.
-                // Diameter = 8dp, gap between consecutive balls ≈ 29dp.
-                val ballRadiusPx = with(density) { 4.dp.toPx() }
+                // Diameter = 6dp (was 8dp) — smaller for two-wheel layout.
+                val ballRadiusPx = with(density) { 3.dp.toPx() }
                 val ballColor = if (isActive) accentColor else Color.White
                 drawCircle(
                     color = ballColor,
@@ -730,8 +732,10 @@ private fun PlaylistWheel(
                 // Available width = (screen width - textStartX - right margin).
                 // Text starts at (ball edge + gap) and extends outward.
                 // ballRadiusPx already defined above (ball marker section).
-                val gapAfterBallPx = with(density) { 6.dp.toPx() }
-                val rightMarginPx = with(density) { 12.dp.toPx() }
+                val gapAfterBallPx = with(density) { 4.dp.toPx() }
+                // Increased right margin (was 12dp → 100dp) to reserve space
+                // on the right side for the upcoming second (smaller) wheel.
+                val rightMarginPx = with(density) { 100.dp.toPx() }
 
                 // Max available width for text = from (ball edge + gap) to right screen edge.
                 val textStartX = itemX + ballRadiusPx + gapAfterBallPx
