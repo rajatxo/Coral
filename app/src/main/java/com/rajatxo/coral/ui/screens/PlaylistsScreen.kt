@@ -152,13 +152,13 @@ fun PlaylistsScreen(
 
             Spacer(modifier = Modifier.size(8.dp))
 
-            // --- Big capsule with 4 permanent inner capsules ---
-            // [New] [All Playlist] [All Tags] [Grid/Wheel toggle]
-            // All capsules are the same shape: 32dp height, 16dp rounded
-            // corners, pure white background, pure black text.
-            // Each capsule uses width(IntrinsicSize.Max) so its width stays
-            // FIXED even when the text changes (e.g. "Grid" ↔ "Wheel",
-            // or "All Playlist" ↔ playlist name). No shape change on swap.
+            // --- TWO big capsules, stacked vertically ---
+            // Big Capsule 1 (top):    [New] ........... [Grid/Wheel]
+            // Big Capsule 2 (below):  [All Playlist] [All Tags]
+            // Both capsules are the same size: 40dp height, 20dp rounded
+            // corners, SurfaceVariant background.
+
+            // === Big Capsule 1: New + Grid/Wheel ===
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -169,7 +169,7 @@ fun PlaylistsScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                // 1. "New" capsule (left side) — fixed position, never moves
+                // "New" capsule (left side)
                 Row(
                     modifier = Modifier
                         .height(32.dp)
@@ -199,8 +199,55 @@ fun PlaylistsScreen(
                     )
                 }
 
-                // 2. "All Playlist" capsule — fixed position, never moves
-                // Text changes to playlist name on rotate, after 3s reverts.
+                // Spacer to push Grid/Wheel to the right
+                Spacer(modifier = Modifier.weight(1f))
+
+                // Grid/Wheel toggle capsule (right side)
+                Row(
+                    modifier = Modifier
+                        .height(32.dp)
+                        .width(IntrinsicSize.Max)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.White)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { useWheel = !useWheel }
+                        )
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "Wheel",
+                            color = Color.Transparent,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = if (useWheel) "Grid" else "Wheel",
+                            color = Color.Black,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.size(4.dp))
+
+            // === Big Capsule 2: All Playlist + All Tags ===
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(CoralColors.SurfaceVariant)
+                    .padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // "All Playlist" capsule — shows playlist name on rotate, 3s timeout
                 Row(
                     modifier = Modifier
                         .height(32.dp)
@@ -229,7 +276,7 @@ fun PlaylistsScreen(
                     )
                 }
 
-                // 3. "All Tags" capsule — fixed position, never moves
+                // "All Tags" capsule
                 Row(
                     modifier = Modifier
                         .height(32.dp)
@@ -245,43 +292,6 @@ fun PlaylistsScreen(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold
                     )
-                }
-
-                // 4. Grid/Wheel toggle capsule — fixed position, never moves
-                // Width is sized to the WIDER of "Grid"/"Wheel" so it
-                // doesn't resize when toggling.
-                Row(
-                    modifier = Modifier
-                        .height(32.dp)
-                        .width(IntrinsicSize.Max)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color.White)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { useWheel = !useWheel }
-                        )
-                        .padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Render BOTH "Grid" and "Wheel" text but make the
-                    // non-active one invisible (alpha=0). This way the
-                    // capsule is always sized to fit the widest of the two,
-                    // and never changes shape when toggling.
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "Wheel",
-                            color = Color.Transparent,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = if (useWheel) "Grid" else "Wheel",
-                            color = Color.Black,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
                 }
             }
         }
