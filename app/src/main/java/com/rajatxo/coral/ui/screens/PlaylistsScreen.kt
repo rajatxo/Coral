@@ -373,7 +373,7 @@ fun PlaylistsScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .statusBarsPadding()
-                        .padding(top = 150.dp, bottom = 16.dp)
+                        .padding(top = 130.dp, bottom = 16.dp)
                 )
             } else {
                 LazyVerticalGrid(
@@ -718,18 +718,6 @@ private fun PlaylistWheel(
             // ──────────────────────────────────────────────────────────────
             drawFadingArc(
                 radius = textRadius,
-                fullAlpha = 0.35f,
-                strokePx = with(density) { 1.0.dp.toPx() }
-            )
-
-            // ──────────────────────────────────────────────────────────────
-            // ⚠️ TEMPORARY THIRD ARC — REMOVE LATER
-            // Third arc around the second (text) arc.
-            // Gap between second arc and this third arc = 215dp.
-            // ──────────────────────────────────────────────────────────────
-            val thirdArcRadius = textRadius + with(density) { 185.dp.toPx() }
-            drawFadingArc(
-                radius = thirdArcRadius,
                 fullAlpha = 0.35f,
                 strokePx = with(density) { 1.0.dp.toPx() }
             )
