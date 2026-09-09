@@ -317,4 +317,66 @@ object CoralIcons {
         moveTo(21f, 21f)
         lineTo(16.7f, 16.7f)
     }
+
+    /**
+     * Lucide bell-ring icon (MIT licensed).
+     *
+     * A bell with four little sound-wave lines on top — used by the permission
+     * screen for the Notifications card.
+     */
+    val BellRing: ImageVector = stroke("BellRing") {
+        // Bottom notch (the clapper)
+        moveTo(10.268f, 21f)
+        arcToRelative(2f, 2f, 0f, false, false, 3.464f, 0f)
+        // Bell body
+        moveTo(3.262f, 15.326f)
+        arcToRelative(1f, 1f, 0f, false, false, 0.738f, 0.674f)
+        horizontalLineToRelative(16f)
+        arcToRelative(1f, 1f, 0f, false, false, 0.74f, -1.673f)
+        curveToRelative(-1.33f, -1.371f, -2.74f, -2.828f, -2.74f, -7.327f)
+        arcToRelative(6f, 6f, 0f, false, false, -12f, 0f)
+        curveToRelative(0f, 4.499f, -1.411f, 5.956f, -2.738f, 7.326f)
+        // Four sound-wave lines at the top
+        moveTo(4f, 2f)
+        verticalLineToRelative(2f)
+        moveTo(8f, 2f)
+        verticalLineToRelative(2f)
+        moveTo(16f, 2f)
+        verticalLineToRelative(2f)
+        moveTo(20f, 2f)
+        verticalLineToRelative(2f)
+    }
+
+    /**
+     * Lucide file-headphone icon (MIT licensed).
+     *
+     * A document/file outline with a small headphone graphic inside — used
+     * by the permission screen for the Music files card.
+     */
+    val FileHeadphone: ImageVector = stroke("FileHeadphone") {
+        // File outline (open-bottom shape, no bottom border)
+        moveTo(4f, 22f)
+        horizontalLineToRelative(14f)
+        arcToRelative(2f, 2f, 0f, false, false, 2f, -2f)
+        verticalLineTo(7f)
+        lineTo(15f, 2f)
+        horizontalLineTo(6f)
+        arcToRelative(2f, 2f, 0f, false, false, -2f, 2f)
+        verticalLineToRelative(2f)
+        // Corner fold
+        moveTo(14f, 2f)
+        verticalLineToRelative(4f)
+        arcToRelative(2f, 2f, 0f, false, false, 2f, 2f)
+        horizontalLineToRelative(4f)
+        // Headphone (left vertical line + curved ear cup)
+        moveTo(7f, 10f)
+        verticalLineToRelative(5f)
+        // Right ear cup
+        moveTo(10f, 14f)
+        arcToRelative(2f, 2f, 0f, false, false, -2f, 2f)
+        verticalLineToRelative(1f)
+        arcToRelative(2f, 2f, 0f, false, false, 2f, 2f)
+        arcToRelative(2f, 2f, 0f, false, false, 2f, -2f)
+        verticalLineToRelative(-3f)
+    }
 }

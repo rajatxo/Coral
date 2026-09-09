@@ -212,9 +212,8 @@ fun PermissionScreen(
                 text = "Coral",
                 color = Color.Black,
                 fontSize = 72.sp,
-                fontWeight = FontWeight.Normal,
-                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                fontFamily = com.rajatxo.coral.ui.theme.MaziusDisplayFamily
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
             )
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -242,7 +241,7 @@ fun PermissionScreen(
                 GlassPermissionCard(
                     icon = {
                         Icon(
-                            imageVector = CoralIcons.Play,
+                            imageVector = CoralIcons.BellRing,
                             contentDescription = null,
                             tint = Color.Black,
                             modifier = Modifier.size(20.dp)
@@ -260,7 +259,7 @@ fun PermissionScreen(
                 GlassPermissionCard(
                     icon = {
                         Icon(
-                            imageVector = CoralIcons.ListMusic,
+                            imageVector = CoralIcons.FileHeadphone,
                             contentDescription = null,
                             tint = Color.Black,
                             modifier = Modifier.size(20.dp)
@@ -295,6 +294,24 @@ fun PermissionScreen(
                     modifier = Modifier.padding(top = 12.dp)
                 )
             }
+
+            // --- Footer: privacy statement (fills the empty space) ---
+            Spacer(modifier = Modifier.height(40.dp))
+            Text(
+                text = "We respect your privacy.",
+                color = Color.Black.copy(alpha = 0.55f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = "Coral never collects your data — your music stays on your device.",
+                color = Color.Black.copy(alpha = 0.4f),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Normal,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 4.dp, start = 8.dp, end = 8.dp)
+            )
         }
     }
 }
@@ -429,15 +446,25 @@ private fun IosToggle(isOn: Boolean) {
         label = "toggleThumb"
     )
 
-    Box(
-        modifier = Modifier
+    // When ON, the white track gets a black border so it's visible against
+    // the bright frosted glass background. When OFF, no border (dark gray
+    // track is already visible against the frost).
+    val trackModifier = if (isOn) {
+        Modifier
             .width(44.dp)
             .height(24.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(
-                if (isOn) Color.White else Color(0xFF3A3A3A)
-            )
-    ) {
+            .background(Color.White)
+            .border(1.5.dp, Color.Black, RoundedCornerShape(12.dp))
+    } else {
+        Modifier
+            .width(44.dp)
+            .height(24.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF3A3A3A))
+    }
+
+    Box(modifier = trackModifier) {
         // Thumb — uses offset() instead of padding() to actually slide
         Box(
             modifier = Modifier
