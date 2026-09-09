@@ -727,7 +727,7 @@ private fun PlaylistWheel(
             // Third arc around the second (text) arc.
             // Gap between second arc and this third arc = 215dp.
             // ──────────────────────────────────────────────────────────────
-            val thirdArcRadius = textRadius + with(density) { 215.dp.toPx() }
+            val thirdArcRadius = textRadius + with(density) { 200.dp.toPx() }
             drawFadingArc(
                 radius = thirdArcRadius,
                 fullAlpha = 0.35f,
@@ -831,26 +831,24 @@ private fun PlaylistWheel(
                     alpha = alpha
                 )
 
-                // === 6. MEASURE TEXT (then auto-fit if too wide) ===
+                // === 6. MEASURE TEXT — AUTO-FIT TO 200dp (touch the third arc) ===
                 //
-                // Auto-fit: like the SleepTimerCapsule fits its container, the
-                // main playlist text auto-shrinks to fit available width.
-                // We measure at the target size, and if the text would extend
-                // past the right edge of the screen, we scale the font size
-                // down proportionally so it just fits.
+                // Every playlist name is sized so its WIDTH = exactly 200dp.
+                // Short names → bigger font (grow to fill 200dp).
+                // Long names → smaller font (shrink to fit 200dp).
+                // This makes the wheel look like a spinning CD — all "spokes"
+                // are the same length, touching the third arc.
                 //
-                // Available width = (screen width - textStartX - right margin).
-                // Text starts at (ball edge + gap) and extends outward.
-                // ballRadiusPx already defined above (ball marker section).
+                // The text LEFT edge starts at ball + gap (on the second arc).
+                // The text RIGHT edge ends at the third arc (200dp gap).
                 val gapAfterBallPx = with(density) { 6.dp.toPx() }
-                val rightMarginPx = with(density) { 12.dp.toPx() }
+                val targetTextWidthPx = with(density) { 200.dp.toPx() }
 
-                // Max available width for text = from (ball edge + gap) to right screen edge.
-                val textStartX = itemX + ballRadiusPx + gapAfterBallPx
-                val maxTextWidth = (w - rightMarginPx - textStartX).coerceAtLeast(50f)
+                // Base font size (active=42sp, inactive=16sp, interpolated by scale)
+                val baseFontSp = lerp(activeFontSp, inactiveFontSp, (1f - scale).coerceIn(0f, 1f))
 
-                // First measure at target size
-                var fontSp = lerp(activeFontSp, inactiveFontSp, (1f - scale).coerceIn(0f, 1f))
+                // First measure at base font size
+                var fontSp = baseFontSp
                 var textLayout = textMeasurer.measure(
                     text = AnnotatedString(displayText),
                     style = TextStyle(
@@ -869,13 +867,12 @@ private fun PlaylistWheel(
                     )
                 )
 
-                // Auto-fit: if text is wider than available, shrink font size
-                // proportionally so it just fits. This is the "sleep timer
-                // capsule" behavior — short names stay big, long names shrink.
+                // Auto-fit: scale font so text width = 200dp (targetTextWidthPx)
+                // Short names grow, long names shrink. Min 8sp, max 60sp.
                 val measuredWidth = textLayout.size.width.toFloat()
-                if (measuredWidth > maxTextWidth && measuredWidth > 0f) {
-                    val shrinkRatio = maxTextWidth / measuredWidth
-                    fontSp = (fontSp * shrinkRatio).coerceAtLeast(10f)
+                if (measuredWidth > 0f) {
+                    val ratio = targetTextWidthPx / measuredWidth
+                    fontSp = (baseFontSp * ratio).coerceIn(8f, 60f)
                     textLayout = textMeasurer.measure(
                         text = AnnotatedString(displayText),
                         style = TextStyle(
@@ -895,33 +892,22 @@ private fun PlaylistWheel(
                     )
                 }
 
-                // === 7. TEXT PLACEMENT — IN FRONT OF BALL, PERPENDICULAR TO SLOPE ===
+                // === 7. TEXT PLACEMENT — IN FRONT OF BALL, TOUCHING THIRD ARC ===
                 //
-                // Geometry:
-                //   - Ball is at (itemX, itemY) on the second arc (textRadius orbit).
-                //   - "Perpendicular to slope" = radial direction (perpendicular to
-                //     the arc's tangent). Radial direction at angle θ is:
-                //         direction = (cos θ, sin θ)
-                //   - Text rotation = θ (radial). At apex (θ=0°), text is horizontal.
-                //   - Text is placed in FRONT of the ball (outward from pivot),
-                //     offset along the radial direction by:
-                //         offset = ballRadius + gap + textWidth/2
-                //     So the text's left edge starts `ballRadius + gap` past the
-                //     ball, and text extends further outward.
-                //   - Both ball and text share the same radial line, so text is
-                //     "in front of" the ball (perpendicular to slope).
-                //   - A new playlist adds a new ball, and its text is automatically
-                //     placed in front of that new ball at the same offset.
+                // Text LEFT edge = ball + gap (on second arc)
+                // Text RIGHT edge = third arc (200dp from second arc)
+                // Text center = ball + gap + targetTextWidthPx/2 (along radial)
                 //
-                // Math:
-                //   textCenterX = itemX + (ballRadius + gap + textWidth/2) * cos(θ)
-                //   textCenterY = itemY + (ballRadius + gap + textWidth/2) * sin(θ)
+                // Since ALL text is 200dp wide, the text center is always at
+                // a FIXED distance from the ball — creating uniform "spokes"
+                // that look like a CD spinning.
                 val textW = textLayout.size.width.toFloat()
                 val textH = textLayout.size.height.toFloat()
-                // gapAfterBallPx already defined above in the measure section
 
-                // Total distance from ball center to text center, along radial
-                val textOffsetPx = ballRadiusPx + gapAfterBallPx + textW / 2f
+                // Use targetTextWidthPx for positioning (not measured textW)
+                // so all text ends at the same point (third arc) regardless
+                // of minor measurement rounding.
+                val textOffsetPx = ballRadiusPx + gapAfterBallPx + targetTextWidthPx / 2f
                 val textCenterX = itemX + textOffsetPx * cos(itemAngleRad)
                 val textCenterY = itemY + textOffsetPx * sin(itemAngleRad)
 
@@ -1278,6 +1264,8 @@ private fun CreatePlaylistDialog(
     onCreate: (String) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
+    val minChars = 5
+    val isValid = name.trim().length >= minChars
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = CoralColors.SurfaceVariant,
@@ -1289,12 +1277,28 @@ private fun CreatePlaylistDialog(
                 onValueChange = { name = it },
                 placeholder = { Text("Playlist name", color = Color(0xFF888888)) },
                 singleLine = true,
+                isError = name.isNotEmpty() && !isValid,
                 modifier = Modifier.fillMaxWidth()
             )
+            if (name.isNotEmpty() && !isValid) {
+                Text(
+                    text = "At least $minChars characters required.",
+                    color = Color(0xFFFF6B6B),
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
         },
         confirmButton = {
-            TextButton(onClick = { if (name.isNotBlank()) onCreate(name) }) {
-                Text("Create", color = CoralColors.Coral, fontWeight = FontWeight.SemiBold)
+            TextButton(
+                enabled = isValid,
+                onClick = { if (isValid) onCreate(name) }
+            ) {
+                Text(
+                    "Create",
+                    color = if (isValid) CoralColors.Coral else Color(0xFF666666),
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         },
         dismissButton = {
