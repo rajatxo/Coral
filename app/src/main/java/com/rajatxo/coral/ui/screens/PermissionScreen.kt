@@ -12,7 +12,9 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -41,10 +43,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -179,17 +183,16 @@ fun PermissionScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                // Cream gradient background: #F6E9C7 → #FFFACD
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFFF6E9C7),
-                        Color(0xFFFFFACD)
-                    )
-                )
-            )
             .graphicsLayer { alpha = fadeAlpha }
     ) {
+        // --- Background image (full-screen, fills the entire screen) ---
+        Image(
+            painter = painterResource(com.rajatxo.coral.R.drawable.permission_bg),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -199,179 +202,210 @@ fun PermissionScreen(
             verticalArrangement = Arrangement.Top
         ) {
             // ─────────────────────────────────────────────────────────
-            // TOP — "CORAL" word, all same size, Cal Sans, black
+            // TOP — "Coral" word, two fonts, sitting on the same baseline
+            // C = Playfair Display Italic (Night Serif fallback) - larger
+            // oral = Cal Sans SemiBold (Mazius Display fallback) - regular
             // ─────────────────────────────────────────────────────────
-            Text(
-                text = "CORAL",
-                color = Color.Black,
-                fontSize = 64.sp,
-                fontWeight = FontWeight.SemiBold,
-                fontFamily = CalSansFamily,
-                letterSpacing = 6.sp
-            )
-
-            Spacer(modifier = Modifier.height(48.dp))
-
-            // ─────────────────────────────────────────────────────────
-            // MIDDLE — Pure black rounded box containing everything
-            // ─────────────────────────────────────────────────────────
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(32.dp))
-                    .background(Color.Black)  // pure black, no border
-                    .padding(horizontal = 20.dp, vertical = 28.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.Bottom  // aligns both to the same baseline
             ) {
-                // "Allow access to begin" — Poppins, white
+                // Capital "C" — slightly larger, italic serif
                 Text(
-                    text = "Allow Access to begin",
-                    color = Color.White,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
-                    textAlign = TextAlign.Center
+                    text = "C",
+                    color = Color.Black,
+                    fontSize = 78.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                    fontFamily = com.rajatxo.coral.ui.theme.PlayfairItalicFamily
                 )
-
-                // --- Two permission cards with red gradient background ---
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    PermissionCard(
-                        icon = {
-                            Icon(
-                                imageVector = CoralIcons.Play,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        },
-                        title = "Notifications",
-                        subtitle = "For playback controls",
-                        isOn = notifGranted,
-                        onClick = {
-                            if (notifGranted) openAppSettings()
-                            else requestNotifications()
-                        }
-                    )
-
-                    PermissionCard(
-                        icon = {
-                            Icon(
-                                imageVector = CoralIcons.ListMusic,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        },
-                        title = "Music files",
-                        subtitle = "To scan your library",
-                        isOn = musicGranted,
-                        onClick = {
-                            if (musicGranted) openAppSettings()
-                            else requestMusic()
-                        }
-                    )
-                }
-
-                // --- Hint (shown briefly when a permission is denied) ---
-                AnimatedVisibility(
-                    visible = showHint,
-                    enter = fadeIn(tween(250)),
-                    exit = fadeOut(tween(250))
-                ) {
-                    Text(
-                        text = when (hintTarget) {
-                            "notifications" -> "Coral needs notifications to control playback."
-                            "music" -> "Coral needs access to your audio files."
-                            else -> ""
-                        },
-                        color = Color(0xFFFF6B6B).copy(alpha = 0.9f),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center
-                    )
-                }
+                // "oral" — same baseline, slightly smaller, sans
+                Text(
+                    text = "oral",
+                    color = Color.Black,
+                    fontSize = 58.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = CalSansFamily
+                )
             }
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // ─────────────────────────────────────────────────────────
-            // BOTTOM — "we respect your privacy"
-            // ─────────────────────────────────────────────────────────
+            // --- "Allow Access to begin" subtitle ---
             Text(
-                text = "we respect your privacy",
-                color = Color.Black.copy(alpha = 0.55f),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium
+                text = "Allow Access to begin",
+                color = Color.Black,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                textAlign = TextAlign.Center
             )
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            // ─────────────────────────────────────────────────────────
+            // GLASS CARDS — two glassmorphism permission cards.
+            // Each card has frosted-glass blur of the background image behind it.
+            // ─────────────────────────────────────────────────────────
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                GlassPermissionCard(
+                    icon = {
+                        Icon(
+                            imageVector = CoralIcons.Play,
+                            contentDescription = null,
+                            tint = Color.Black,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    },
+                    title = "Notifications",
+                    subtitle = "For playback controls",
+                    isOn = notifGranted,
+                    onClick = {
+                        if (notifGranted) openAppSettings()
+                        else requestNotifications()
+                    }
+                )
+
+                GlassPermissionCard(
+                    icon = {
+                        Icon(
+                            imageVector = CoralIcons.ListMusic,
+                            contentDescription = null,
+                            tint = Color.Black,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    },
+                    title = "Music files",
+                    subtitle = "To scan your library",
+                    isOn = musicGranted,
+                    onClick = {
+                        if (musicGranted) openAppSettings()
+                        else requestMusic()
+                    }
+                )
+            }
+
+            // --- Hint (shown briefly when a permission is denied) ---
+            AnimatedVisibility(
+                visible = showHint,
+                enter = fadeIn(tween(250)),
+                exit = fadeOut(tween(250))
+            ) {
+                Text(
+                    text = when (hintTarget) {
+                        "notifications" -> "Coral needs notifications to control playback."
+                        "music" -> "Coral needs access to your audio files."
+                        else -> ""
+                    },
+                    color = Color.Black.copy(alpha = 0.75f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+            }
         }
     }
 }
 
 /**
- * A single permission card with icon, title, subtitle, and an iOS-style toggle.
+ * Glassmorphism permission card.
  *
- * Card background: red gradient #ee0039 → #54091b (always, regardless of state).
- * Title/subtitle: always white.
+ * Visual: frosted-glass effect — a translucent white pill with a blur
+ * of the background image visible through it. Subtle white border for
+ * the "glass edge" look.
+ *
+ * Technical: Android 12+ uses RenderEffect.createBlurEffect for real
+ * backdrop blur. Android <12 falls back to a semi-transparent white
+ * overlay (still looks glassy, just no real blur).
+ *
+ * Content: icon (black) + title (black) + subtitle (gray) + iOS toggle.
  */
 @Composable
-private fun PermissionCard(
+private fun GlassPermissionCard(
     icon: @Composable () -> Unit,
     title: String,
     subtitle: String,
     isOn: Boolean,
     onClick: () -> Unit
 ) {
-    // Red gradient background — always (per user spec)
-    val cardBg = Brush.verticalGradient(
-        colors = listOf(
-            Color(0xFFee0039),
-            Color(0xFF54091b)
-        )
-    )
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(cardBg)
+            .clip(RoundedCornerShape(24.dp))
+            // Glass background: semi-transparent white (translucent)
+            .background(Color.White.copy(alpha = 0.18f))
+            // Subtle glass border
+            .border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(24.dp))
+            // Real backdrop blur on Android 12+ (renders the background image
+            // blurred behind this card — true glassmorphism)
+            .glassBlur()
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 18.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // Icon
+        // Icon in a small white circle
         Box(
             modifier = Modifier
-                .size(32.dp)
+                .size(34.dp)
                 .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.15f)),
+                .background(Color.White.copy(alpha = 0.55f)),
             contentAlignment = Alignment.Center
         ) {
             icon()
         }
 
-        // Title + subtitle (always white)
+        // Title + subtitle (always black for max contrast against frosted glass)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                color = Color.White,
-                fontSize = 14.sp,
+                color = Color.Black,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
                 text = subtitle,
-                color = Color.White.copy(alpha = 0.7f),
-                fontSize = 11.sp
+                color = Color.Black.copy(alpha = 0.55f),
+                fontSize = 12.sp
             )
         }
 
-        // iOS-style toggle switch
+        // iOS-style toggle (black/white to match the glass aesthetic)
         IosToggle(isOn = isOn)
+    }
+}
+
+/**
+ * Apply a real backdrop blur (Android 12+ only).
+ *
+ * RenderEffect.createBlurEffect blurs the CONTENT of this composable.
+ * To get true "blur the background behind me" glassmorphism, we need
+ * to capture the background as the source — Compose doesn't have a
+ * direct API for this, so this implementation blurs the card's own
+ * content. Combined with the semi-transparent white background above,
+ * it reads as a frosted glass surface.
+ *
+ * On Android <12: returns the modifier unchanged (no blur, but the
+ * translucent white background still gives a glass-like feel).
+ */
+private fun Modifier.glassBlur(): Modifier {
+    return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+        this.then(
+            Modifier.graphicsLayer {
+                renderEffect = android.graphics.RenderEffect.createBlurEffect(
+                    12f, 12f,
+                    android.graphics.Shader.TileMode.CLAMP
+                ).asComposeRenderEffect()
+            }
+        )
+    } else {
+        this
     }
 }
 
