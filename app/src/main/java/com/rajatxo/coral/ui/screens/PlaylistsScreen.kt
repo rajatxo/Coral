@@ -540,31 +540,30 @@ private fun PlaylistWheel(
             val h = size.height
 
             // === 1. PIVOT (off-screen, left) ===
-            // X = -50% screen width (off-screen left, creates huge imaginary circle)
+            // X = -30% screen width (less off-screen than before, so the
+            // imaginary circle is smaller and the arc is MORE CURVED/visible)
             // Y = 60% screen height — centered on "Playlists" nav rail item,
-            //    so the arc is symmetric around Playlists (apex at Playlists,
-            //    top endpoint at Songs, bottom endpoint at Artists).
-            val pivotX = w * -0.50f
+            //    so the arc is symmetric: apex at Playlists, top at Songs,
+            //    bottom at Artists.
+            val pivotX = w * -0.30f
             val pivotY = h * 0.60f
 
             // === 2. DUAL CONCENTRIC RADII SYSTEM ===
-            // LARGE radius (0.65w) = flat, gentle arc that feels like part
-            // of a huge imaginary circle off-screen. Combined with a small
-            // sweep angle (below), the arc spans from "Songs" to "Artists"
-            // on the nav rail — a tight vertical range.
+            // Medium radius (0.55w) + larger sweep (40°) = visible curve
+            // that spans from Songs to Artists on the nav rail.
+            // Apex lands at ~25% from left edge (near the Playlists nav text).
             //
             // Radius A — Visible arc line (1.5px semi-transparent white).
-            val arcRadius = w * 0.65f
+            val arcRadius = w * 0.55f
 
             // Radius B — Text orbit. Sits 18dp OUTSIDE the arc line.
             val textRadius = arcRadius + with(density) { 18.dp.toPx() }
 
             // === 3. INDICATOR ARC ===
-            // Small sweep (35°) so the arc only spans from Songs (top) to
-            // Artists (bottom) on the nav rail. With arcRadius = 0.65w and
-            // pivotY = 0.60h, the vertical span is ~18% of screen height,
-            // which matches Songs→Artists.
-            val arcSweepDeg = 35f
+            // 40° sweep so the arc is clearly visible (not flat). Combined
+            // with arcRadius = 0.55w, the vertical span is ~17% of screen
+            // height — matching the Songs→Artists range on the nav rail.
+            val arcSweepDeg = 40f
             val arcStartDeg = -arcSweepDeg / 2f
 
             // Helper: draw an arc with endpoints fading to 0 over [fadeRange]
