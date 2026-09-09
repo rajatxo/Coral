@@ -991,6 +991,33 @@ private fun PlaylistWheel(
                 // Radial rotation (perpendicular to slope)
                 val radialDeg = itemAngleDeg
 
+                // === GRADIENT TEXT for adjacent items ===
+                // The two items immediately above/below the main playlist name
+                // get a vertical gradient that blends white → accentColor.
+                // This smooths the "sudden drop" from accent to white.
+                //
+                // Top adjacent (fractionalOffset < 0): white (top) → accentColor (bottom)
+                // Bottom adjacent (fractionalOffset > 0): accentColor (top) → white (bottom)
+                // All other items: null (use solid color from TextStyle)
+                val isAdjacent = absOffset >= 0.5f && absOffset < 1.5f
+                val textBrush: Brush? = if (isAdjacent) {
+                    if (fractionalOffset < 0) {
+                        Brush.verticalGradient(
+                            colors = listOf(Color.White, accentColor),
+                            startY = -textH / 2f,
+                            endY = textH / 2f
+                        )
+                    } else {
+                        Brush.verticalGradient(
+                            colors = listOf(accentColor, Color.White),
+                            startY = -textH / 2f,
+                            endY = textH / 2f
+                        )
+                    }
+                } else {
+                    null
+                }
+
                 drawContext.canvas.save()
                 // Translate to text center, rotate radially, draw text centered.
                 drawContext.canvas.translate(textCenterX, textCenterY)
@@ -998,7 +1025,8 @@ private fun PlaylistWheel(
                 drawText(
                     textLayoutResult = textLayout,
                     topLeft = Offset(-textW / 2f, -textH / 2f),
-                    alpha = alpha
+                    alpha = alpha,
+                    brush = textBrush
                 )
                 drawContext.canvas.restore()
             }
