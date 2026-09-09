@@ -254,17 +254,27 @@ fun PlaylistsScreen(
             }
         } else {
             if (useWheel) {
-                PlaylistWheel(
-                    playlists = playlists,
-                    accentColor = accentColor,
-                    onRotationStart = { isRotating = true },
-                    onRotationEnd = { isRotating = false },
-                    onCenterPlaylistChange = { centerPlaylist = it },
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .statusBarsPadding()
                         .padding(top = 110.dp, bottom = 16.dp)
-                )
+                ) {
+                    PlaylistWheel(
+                        playlists = playlists,
+                        accentColor = accentColor,
+                        onRotationStart = { isRotating = true },
+                        onRotationEnd = { isRotating = false },
+                        onCenterPlaylistChange = { centerPlaylist = it },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    // Tag wheel overlay — top-right corner (step 2: static, no interaction yet)
+                    TagWheel(
+                        tags = PlaylistStore.getAllTags(),
+                        accentColor = accentColor,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
@@ -833,6 +843,177 @@ private fun PlaylistWheel(
 /** Simple linear interpolation between two floats. */
 private fun lerp(start: Float, stop: Float, fraction: Float): Float =
     start + (stop - start) * fraction.coerceIn(0f, 1f)
+
+// =============================================================================
+// TAG WHEEL — smaller arc in top-right corner, renders tag balls
+// =============================================================================
+// Step 2: static rendering only (no scrolling/interaction yet).
+//
+// Geometry:
+//   - Pivot: off-screen RIGHT at (x = +125% screen width, y = 25% screen height)
+//   - The visible arc is on the LEFT side of the pivot = the 180° direction
+//   - Arc center (apex) is at ~(90% screen width, 25% screen height) = top-right
+//   - Smaller radius than the playlist wheel (0.35w vs 0.55w)
+//   - Smaller sweep (30° vs 40°)
+//
+// Visual style matches the playlist wheel:
+//   - Same ball size (3dp radius)
+//   - Same text font (Playfair Display Italic)
+//   - Same opacity curve (100% → 70% → 45% → 25% → 7% → 2% → 0%)
+//   - Same arc line (1.5px, 60% white, fading at endpoints)
+//
+// The first ball is always "All" (shows all playlists). Subsequent balls
+// are tag names, sorted alphabetically.
+//
+// Text extends to the LEFT of each ball (radially outward from the
+// right-side pivot, which is leftward on screen).
+// =============================================================================
+
+@Composable
+private fun TagWheel(
+    tags: List<String>,
+    accentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val density = LocalDensity.current
+    val textMeasurer = rememberTextMeasurer()
+
+    // Build the full tag list: "All" at position 0, then sorted tags
+    val tagList = remember(tags) { listOf("All") + tags }
+
+    Canvas(modifier = modifier.fillMaxSize()) {
+        val w = size.width
+        val h = size.height
+
+        // === 1. PIVOT (off-screen, right, upper area) ===
+        val pivotX = w * 1.25f
+        val pivotY = h * 0.25f
+
+        // === 2. RADII ===
+        // Smaller than playlist wheel (0.35w vs 0.55w)
+        val arcRadius = w * 0.35f
+        val textRadius = arcRadius + with(density) { 16.dp.toPx() }
+
+        // === 3. ARC GEOMETRY ===
+        // Arc is centered at 180° (pointing LEFT from the right-side pivot).
+        // startAngle = 180 - sweep/2, sweep = 30°
+        val arcSweepDeg = 30f
+        val arcCenterDeg = 180f
+        val arcStartDeg = arcCenterDeg - arcSweepDeg / 2f
+
+        // --- Draw the fading arc line (same helper pattern as playlist wheel) ---
+        val arcSegments = 30
+        val fadeRange = 0.35f
+        val arcStrokePx = with(density) { 1.5.dp.toPx() }
+        for (i in 0 until arcSegments) {
+            val segStart = i / arcSegments.toFloat()
+            val segEnd = (i + 1) / arcSegments.toFloat()
+            val distFromEndpoint = minOf(segStart, 1f - segStart)
+            val segAlpha = if (distFromEndpoint > fadeRange) {
+                0.6f
+            } else {
+                0.6f * (distFromEndpoint / fadeRange)
+            }
+            if (segAlpha <= 0.01f) continue
+            drawArc(
+                color = Color.White.copy(alpha = segAlpha),
+                startAngle = arcStartDeg + segStart * arcSweepDeg,
+                sweepAngle = (segEnd - segStart) * arcSweepDeg,
+                useCenter = false,
+                topLeft = Offset(pivotX - arcRadius, pivotY - arcRadius),
+                size = androidx.compose.ui.geometry.Size(arcRadius * 2f, arcRadius * 2f),
+                style = Stroke(width = arcStrokePx)
+            )
+        }
+
+        // === 4. TAG BALLS + TEXT ===
+        // Angular spacing between items (same as playlist wheel: 6°)
+        val angleStepDeg = 6f
+        val fontSp = 18f  // smaller than playlist wheel (24sp) — it's the secondary wheel
+        val maxVisible = 4  // show up to 4 items: "All" + 3 tags
+
+        val count = minOf(tagList.size, maxVisible)
+        for (i in 0 until count) {
+            val tagName = tagList[i]
+            // Offset from center: 0 = apex, positive = below (clockwise from 180°)
+            val offset = i.toFloat()
+
+            val absOffset = abs(offset)
+
+            // Angular position: 180° at apex, positive offset goes downward
+            val itemAngleDeg = arcCenterDeg + offset * angleStepDeg
+            val itemAngleRad = (itemAngleDeg * PI / 180f).toFloat()
+
+            // Position on the text orbit (Cartesian from pivot)
+            val itemX = pivotX + textRadius * cos(itemAngleRad)
+            val itemY = pivotY + textRadius * sin(itemAngleRad)
+
+            // Skip if off-screen
+            if (itemX < -200f || itemX > w + 200f) continue
+
+            // === OPACITY (same curve as playlist wheel) ===
+            val alpha = when {
+                absOffset < 0.5f -> 1f
+                absOffset < 1.5f -> lerp(1.00f, 0.70f, (absOffset - 0.5f))
+                absOffset < 2.5f -> lerp(0.70f, 0.45f, (absOffset - 1.5f))
+                absOffset < 3.5f -> lerp(0.45f, 0.25f, (absOffset - 2.5f))
+                else -> lerp(0.25f, 0f, (absOffset - 3.5f).coerceIn(0f, 1f))
+            }.coerceIn(0f, 1f)
+
+            // === BALL ===
+            val ballRadiusPx = with(density) { 3.dp.toPx() }
+            // "All" ball = accent color; tag balls = white
+            val ballColor = if (i == 0) accentColor else Color.White
+            drawCircle(
+                color = ballColor,
+                radius = ballRadiusPx,
+                center = Offset(itemX, itemY),
+                alpha = alpha
+            )
+
+            // === TEXT (positioned to the LEFT of the ball, radially outward) ===
+            // Text center = ball position + (ballRadius + gap + textWidth/2) * direction
+            // direction = (cos θ, sin θ) — for 180° this is (-1, 0) = leftward
+            val gapAfterBallPx = with(density) { 4.dp.toPx() }
+            val textLayout = textMeasurer.measure(
+                text = AnnotatedString(tagName),
+                style = TextStyle(
+                    color = Color.White,
+                    fontSize = fontSp.sp,
+                    fontWeight = FontWeight.Normal,
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                    fontFamily = com.rajatxo.coral.ui.theme.PlayfairItalicFamily
+                ),
+                overflow = TextOverflow.Visible,
+                maxLines = 1,
+                softWrap = false,
+                constraints = androidx.compose.ui.unit.Constraints(
+                    maxWidth = (w * 0.5f).toInt(),
+                    maxHeight = Int.MAX_VALUE
+                )
+            )
+
+            val textW = textLayout.size.width.toFloat()
+            val textH = textLayout.size.height.toFloat()
+            val textOffsetPx = ballRadiusPx + gapAfterBallPx + textW / 2f
+            val textCenterX = itemX + textOffsetPx * cos(itemAngleRad)
+            val textCenterY = itemY + textOffsetPx * sin(itemAngleRad)
+
+            // Radial rotation (same as playlist wheel — text is perpendicular to slope)
+            val radialDeg = itemAngleDeg - 180f  // normalize so apex is horizontal
+
+            drawContext.canvas.save()
+            drawContext.canvas.translate(textCenterX, textCenterY)
+            drawContext.canvas.rotate(radialDeg)
+            drawText(
+                textLayoutResult = textLayout,
+                topLeft = Offset(-textW / 2f, -textH / 2f),
+                alpha = alpha
+            )
+            drawContext.canvas.restore()
+        }
+    }
+}
 
 @Composable
 private fun PlaylistCard(
