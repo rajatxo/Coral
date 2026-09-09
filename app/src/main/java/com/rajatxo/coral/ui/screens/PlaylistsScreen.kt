@@ -853,15 +853,11 @@ private fun PlaylistWheel(
                 // Note: actual fontSp is computed in the auto-fit section below
                 // (may be shrunk to fit available width).
 
-                // Active = UPPERCASE, inactive = Title Case
+                // Active = normal text (first letter capital, rest lowercase)
+                // Inactive = also normal text (same treatment)
                 val isActive = absOffset < 0.5f
-                val displayText = if (isActive) {
-                    playlist.name.uppercase()
-                } else {
-                    // Title Case: lowercase everything, then capitalize first char
-                    playlist.name.lowercase().replaceFirstChar { ch ->
-                        if (ch.isLowerCase()) ch.uppercaseChar().toString() else ch.toString()
-                    }
+                val displayText = playlist.name.replaceFirstChar { ch ->
+                    if (ch.isLowerCase()) ch.uppercaseChar().toString() else ch.toString()
                 }
 
                 // Color: ACTIVE = accent color (default #F4B400, or auto-detected
@@ -871,15 +867,15 @@ private fun PlaylistWheel(
                 // === 5a. FIRST ARC BALL (reverse rotation) ===
                 // Balls on the first arc (arcRadius) rotate in the OPPOSITE
                 // direction. Pully coupling — like two meshed gears.
+                // ALWAYS WHITE — dynamic accent color is only for the second arc.
                 val firstArcFractionalOffset = -fractionalOffset  // NEGATED = opposite
                 val firstArcAngleDeg = firstArcFractionalOffset * angleStepDeg
                 val firstArcAngleRad = (firstArcAngleDeg * PI / 180f).toFloat()
                 val firstArcBallX = pivotX + arcRadius * cos(firstArcAngleRad)
                 val firstArcBallY = pivotY + arcRadius * sin(firstArcAngleRad)
                 val firstArcBallRadiusPx = with(density) { 3.dp.toPx() }
-                val firstArcBallColor = if (isActive) accentColor else Color.White
                 drawCircle(
-                    color = firstArcBallColor,
+                    color = Color.White,  // always white, no accent color
                     radius = firstArcBallRadiusPx,
                     center = Offset(firstArcBallX, firstArcBallY),
                     alpha = alpha
