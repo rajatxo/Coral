@@ -450,12 +450,11 @@ private fun PlaylistWheel(
     }
 
     // --- Geometry constants ---
-    // Angular spacing between adjacent items (degrees). 8° gives ~22 visible
-    // items across a 180° window — enough density without crowding the apex.
-    val angleStepDeg = 8f
+    // Angular spacing between adjacent items (degrees). Reduced from 8° → 6°
+    // so more items fit in the smaller 35° sweep window.
+    val angleStepDeg = 6f
 
     // Pixels of vertical drag required to advance the wheel by ONE item.
-    // Translates finger travel into angular rotation around the pivot.
     val pxPerItem = with(density) { 64.dp.toPx() }
 
     // Scroll offset (in pixels). Each pxPerItem corresponds to angleStepDeg
@@ -540,33 +539,32 @@ private fun PlaylistWheel(
             val w = size.width
             val h = size.height
 
-            // === 1. PIVOT (off-screen, left, vertically centered) ===
-            // Single absolute center point for the entire wheel.
-            // X = -50% screen width, Y = 50% screen height.
+            // === 1. PIVOT (off-screen, left) ===
+            // X = -50% screen width (off-screen left, creates huge imaginary circle)
+            // Y = 60% screen height — centered on "Playlists" nav rail item,
+            //    so the arc is symmetric around Playlists (apex at Playlists,
+            //    top endpoint at Songs, bottom endpoint at Artists).
             val pivotX = w * -0.50f
-            val pivotY = h * 0.50f
+            val pivotY = h * 0.60f
 
-            // === 2. DUAL CONCENTRIC RADII SYSTEM (SMALLER for two-wheel layout) ===
-            // Reduced from 0.65w → 0.45w to leave space on the right side
-            // for the upcoming second (smaller) wheel.
-            // The arc line and text live on two different orbits that share
-            // the SAME off-screen pivot point. This prevents the arc from
-            // cutting through the text.
+            // === 2. DUAL CONCENTRIC RADII SYSTEM ===
+            // LARGE radius (0.65w) = flat, gentle arc that feels like part
+            // of a huge imaginary circle off-screen. Combined with a small
+            // sweep angle (below), the arc spans from "Songs" to "Artists"
+            // on the nav rail — a tight vertical range.
             //
             // Radius A — Visible arc line (1.5px semi-transparent white).
-            val arcRadius = w * 0.45f
+            val arcRadius = w * 0.65f
 
-            // Radius B — Text orbit. Sits 18dp OUTSIDE the arc line (was 30dp)
-            // so text never intersects the visible line. Text anchor is the
-            // LEFT edge of each label, pinned to this radius.
+            // Radius B — Text orbit. Sits 18dp OUTSIDE the arc line.
             val textRadius = arcRadius + with(density) { 18.dp.toPx() }
 
-            // === 3. INDICATOR ARC (single thin white semi-transparent line,
-            //         with endpoints fading to 0 so the arc dissolves into the
-            //         navigation rail text on both ends) ===
-            // Reduced sweep from 100° → 75° so the wheel doesn't extend so
-            // far down the screen.
-            val arcSweepDeg = 75f
+            // === 3. INDICATOR ARC ===
+            // Small sweep (35°) so the arc only spans from Songs (top) to
+            // Artists (bottom) on the nav rail. With arcRadius = 0.65w and
+            // pivotY = 0.60h, the vertical span is ~18% of screen height,
+            // which matches Songs→Artists.
+            val arcSweepDeg = 35f
             val arcStartDeg = -arcSweepDeg / 2f
 
             // Helper: draw an arc with endpoints fading to 0 over [fadeRange]
@@ -625,16 +623,14 @@ private fun PlaylistWheel(
             val rotationItems = scrollOffset.value / pxPerItem
 
             // Playfair Display Italic — premium high-contrast editorial serif.
-            // ALL ITEMS NOW SAME SIZE — user requested this so the wheel
-            // doesn't dominate the screen (leaving room for the upcoming
-            // second wheel on the right). Active item is now distinguished
-            // only by color (accentColor) and opacity (100%), not by size.
-            val activeFontSp = 24f      // was 42
-            val inactiveFontSp = 24f    // was 16, now matches active
+            // ALL ITEMS SAME SIZE — active item distinguished only by color
+            (accentColor) and opacity (100%), not by size.
+            val activeFontSp = 24f
+            val inactiveFontSp = 24f
 
-            // ±37.5° visible window at 8° step = ~5 items each side (was 7).
-            // Smaller window means less vertical space consumed.
-            val visibleSpan = 5
+            // ±17.5° visible window at 6° step = ~3 items each side.
+            // Tighter window matches the smaller arc sweep.
+            val visibleSpan = 3
 
             for (offset in -visibleSpan..visibleSpan) {
                 // Index in playlist array for this slot
