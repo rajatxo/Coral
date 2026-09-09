@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -154,6 +156,9 @@ fun PlaylistsScreen(
             // [New] [All Playlist] [All Tags] [Grid/Wheel toggle]
             // All capsules are the same shape: 32dp height, 16dp rounded
             // corners, pure white background, pure black text.
+            // Each capsule uses width(IntrinsicSize.Max) so its width stays
+            // FIXED even when the text changes (e.g. "Grid" ↔ "Wheel",
+            // or "All Playlist" ↔ playlist name). No shape change on swap.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -164,10 +169,11 @@ fun PlaylistsScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                // 1. "New" capsule (left side)
+                // 1. "New" capsule (left side) — fixed position, never moves
                 Row(
                     modifier = Modifier
                         .height(32.dp)
+                        .width(IntrinsicSize.Max)
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color.White)
                         .clickable(
@@ -193,24 +199,22 @@ fun PlaylistsScreen(
                     )
                 }
 
-                // 2. "All Playlist" capsule (permanent, shows playlist name on rotate)
-                // Text changes to the center playlist name when user rotates
-                // the wheel. After 3 seconds, reverts to "All Playlist".
-                // Clicking when showing a playlist name opens that playlist.
+                // 2. "All Playlist" capsule — fixed position, never moves
+                // Text changes to playlist name on rotate, after 3s reverts.
                 Row(
                     modifier = Modifier
                         .height(32.dp)
+                        .width(IntrinsicSize.Max)
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color.White)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                             onClick = {
-                            // If showing a playlist name (not "All Playlist"), open it
-                            if (playlistPillText != "All Playlist" && centerPlaylist != null) {
-                                centerPlaylist?.let { onPlaylistClick(it) }
+                                if (playlistPillText != "All Playlist" && centerPlaylist != null) {
+                                    centerPlaylist?.let { onPlaylistClick(it) }
+                                }
                             }
-                        }
                         )
                         .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -225,10 +229,11 @@ fun PlaylistsScreen(
                     )
                 }
 
-                // 3. "All Tags" capsule (permanent, just text for now)
+                // 3. "All Tags" capsule — fixed position, never moves
                 Row(
                     modifier = Modifier
                         .height(32.dp)
+                        .width(IntrinsicSize.Max)
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color.White)
                         .padding(horizontal = 12.dp),
@@ -242,10 +247,13 @@ fun PlaylistsScreen(
                     )
                 }
 
-                // 4. Grid/Wheel toggle capsule (right side)
+                // 4. Grid/Wheel toggle capsule — fixed position, never moves
+                // Width is sized to the WIDER of "Grid"/"Wheel" so it
+                // doesn't resize when toggling.
                 Row(
                     modifier = Modifier
                         .height(32.dp)
+                        .width(IntrinsicSize.Max)
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color.White)
                         .clickable(
@@ -256,12 +264,24 @@ fun PlaylistsScreen(
                         .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = if (useWheel) "Grid" else "Wheel",
-                        color = Color.Black,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    // Render BOTH "Grid" and "Wheel" text but make the
+                    // non-active one invisible (alpha=0). This way the
+                    // capsule is always sized to fit the widest of the two,
+                    // and never changes shape when toggling.
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "Wheel",
+                            color = Color.Transparent,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = if (useWheel) "Grid" else "Wheel",
+                            color = Color.Black,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
             }
         }
