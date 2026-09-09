@@ -259,33 +259,15 @@ fun HomeScreen(
                         onExtend = onExtend
                     )
                     CoralTab.Playlists -> {
-                        val playlist = selectedPlaylist
-                        if (playlist != null) {
-                            PlaylistDetailScreen(
-                                playlist = playlist,
-                                allSongs = songs,
-                                currentSongTitle = currentSongTitle,
-                                onBackClick = { selectedPlaylist = null },
-                                onPlayAll = { songList -> onSongClickWithQueue(songList.first(), songList) },
-                                onShuffle = { songList ->
-                                    val shuffled = songList.shuffled()
-                                    if (shuffled.isNotEmpty()) onSongClickWithQueue(shuffled.first(), shuffled)
-                                },
-                                onSongClick = { song, songList -> onSongClickWithQueue(song, songList) },
-                                onAddSongsClick = {
-                                    playlistForPicker = playlist
-                                    showSongPicker = true
-                                }
-                            )
-                        } else {
-                            PlaylistsScreen(
-                                onPlaylistClick = { selectedPlaylist = it },
-                                capsuleVisible = capsuleVisible,
-                                capsuleRemaining = capsuleRemaining,
-                                onExtend = onExtend,
-                                accentColor = capsuleAccentColor
-                            )
-                        }
+                        // Always show PlaylistsScreen. When a playlist is tapped,
+                        // the detail screen appears as a full-screen overlay below.
+                        PlaylistsScreen(
+                            onPlaylistClick = { selectedPlaylist = it },
+                            capsuleVisible = capsuleVisible,
+                            capsuleRemaining = capsuleRemaining,
+                            onExtend = onExtend,
+                            accentColor = capsuleAccentColor
+                        )
                     }
                     CoralTab.Artists -> PlaceholderScreen(
                         tabName = "Artists",
@@ -431,6 +413,32 @@ fun HomeScreen(
                 onSeek = onSeek,
                 onDismiss = onFullPlayerDismiss
             )
+        }
+
+        // Full-screen playlist detail overlay (covers nav rail + everything)
+        AnimatedVisibility(
+            visible = selectedPlaylist != null,
+            enter = slideInVertically { it },
+            exit = slideOutVertically { it }
+        ) {
+            selectedPlaylist?.let { playlist ->
+                PlaylistDetailScreen(
+                    playlist = playlist,
+                    allSongs = songs,
+                    currentSongTitle = currentSongTitle,
+                    onBackClick = { selectedPlaylist = null },
+                    onPlayAll = { songList -> onSongClickWithQueue(songList.first(), songList) },
+                    onShuffle = { songList ->
+                        val shuffled = songList.shuffled()
+                        if (shuffled.isNotEmpty()) onSongClickWithQueue(shuffled.first(), shuffled)
+                    },
+                    onSongClick = { song, songList -> onSongClickWithQueue(song, songList) },
+                    onAddSongsClick = {
+                        playlistForPicker = playlist
+                        showSongPicker = true
+                    }
+                )
+            }
         }
     }
 }
