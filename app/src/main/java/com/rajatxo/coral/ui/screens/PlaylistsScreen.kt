@@ -339,18 +339,22 @@ fun PlaylistsScreen(
 
             Spacer(modifier = Modifier.size(4.dp))
 
-            // === Big Capsule 3 (below Big Capsule 2) — empty for now ===
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(40.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(CoralColors.SurfaceVariant)
-                    .padding(horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                // Empty — placeholder for future content
+            // === Big Capsule 3 (below Big Capsule 2) — wheel mode only ===
+            // Only visible in wheel mode. Hidden in grid mode so it doesn't
+            // cover playlist cards.
+            if (useWheel) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(CoralColors.SurfaceVariant)
+                        .padding(horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    // Empty — placeholder for future content
+                }
             }
         }
 
@@ -398,7 +402,7 @@ fun PlaylistsScreen(
                         .fillMaxSize()
                         .statusBarsPadding(),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        start = 16.dp, end = 16.dp, top = 170.dp, bottom = 16.dp
+                        start = 16.dp, end = 16.dp, top = 130.dp, bottom = 16.dp
                     ),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
