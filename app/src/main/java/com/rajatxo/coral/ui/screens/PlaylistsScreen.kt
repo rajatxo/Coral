@@ -1022,12 +1022,20 @@ private fun PlaylistWheel(
                 // Translate to text center, rotate radially, draw text centered.
                 drawContext.canvas.translate(textCenterX, textCenterY)
                 drawContext.canvas.rotate(radialDeg)
-                drawText(
-                    textLayoutResult = textLayout,
-                    topLeft = Offset(-textW / 2f, -textH / 2f),
-                    alpha = alpha,
-                    brush = textBrush
-                )
+                if (textBrush != null) {
+                    drawText(
+                        textLayoutResult = textLayout,
+                        topLeft = Offset(-textW / 2f, -textH / 2f),
+                        alpha = alpha,
+                        brush = textBrush
+                    )
+                } else {
+                    drawText(
+                        textLayoutResult = textLayout,
+                        topLeft = Offset(-textW / 2f, -textH / 2f),
+                        alpha = alpha
+                    )
+                }
                 drawContext.canvas.restore()
             }
         }
