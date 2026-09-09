@@ -402,7 +402,7 @@ fun PlaylistsScreen(
                         .fillMaxSize()
                         .statusBarsPadding(),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        start = 16.dp, end = 16.dp, top = 130.dp, bottom = 16.dp
+                        start = 16.dp, end = 16.dp, top = 160.dp, bottom = 16.dp
                     ),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
