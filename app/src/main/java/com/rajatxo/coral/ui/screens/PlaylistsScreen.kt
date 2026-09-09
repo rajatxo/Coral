@@ -595,8 +595,69 @@ private fun PlaylistWheel(
     // --- Gestures: rotational drag + physics fling + snap ---
     // NOTE: Wheel is NOT clickable. User opens playlists via the selection
     // capsule that appears below the header capsule.
+    //
+    // TWO drag zones:
+    // 1. LEFT zone (first arc area) — for left-handed users. Dragging here
+    //    rotates the first arc, which in turn rotates the second arc in the
+    //    OPPOSITE direction (pully coupling).
+    // 2. FULL screen — dragging anywhere rotates the second arc normally.
+    //    The first arc automatically follows in the opposite direction.
     Box(
         modifier = modifier
+            // LEFT ZONE drag handler — only fires when touch is on the left side
+            .pointerInput(playlists.size) {
+                val halfScreen = size.width / 2
+                var velocityTracker = VelocityTracker()
+                var isLeftZoneDrag = false
+                detectVerticalDragGestures(
+                    onDragStart = { offset ->
+                        isLeftZoneDrag = offset.x < halfScreen
+                        if (isLeftZoneDrag) {
+                            velocityTracker = VelocityTracker()
+                            onRotationStart()
+                        }
+                    },
+                    onDragEnd = {
+                        if (isLeftZoneDrag) {
+                            val velocity = velocityTracker.calculateVelocity().y
+                            coroutineScope.launch {
+                                scrollOffset.animateDecay(
+                                    initialVelocity = -velocity * 0.35f,  // NEGATED = opposite
+                                    animationSpec = androidx.compose.animation.core.exponentialDecay(
+                                        frictionMultiplier = 0.9f
+                                    )
+                                )
+                                val nearest = (scrollOffset.value / pxPerItem).roundToInt()
+                                scrollOffset.animateTo(
+                                    targetValue = nearest * pxPerItem,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                        stiffness = Spring.StiffnessMedium
+                                    )
+                                )
+                                kotlinx.coroutines.delay(1500L)
+                                onRotationEnd()
+                            }
+                        }
+                        isLeftZoneDrag = false
+                    },
+                    onVerticalDrag = { change, dragAmount ->
+                        if (isLeftZoneDrag) {
+                            coroutineScope.launch {
+                                scrollOffset.snapTo(scrollOffset.value - dragAmount)  // NEGATED = opposite
+                            }
+                            velocityTracker.addPosition(change.uptimeMillis, change.position)
+                            val currentIdx = indexAtOffset(scrollOffset.value)
+                            if (currentIdx != lastSnappedIndex) {
+                                lastSnappedIndex = currentIdx
+                                tickHaptic()
+                            }
+                            change.consume()
+                        }
+                    }
+                )
+            }
+            // FULL SCREEN drag handler — normal rotation (second arc drives first arc)
             .pointerInput(playlists.size) {
                 var velocityTracker = VelocityTracker()
                 detectVerticalDragGestures(
@@ -607,14 +668,12 @@ private fun PlaylistWheel(
                     onDragEnd = {
                         val velocity = velocityTracker.calculateVelocity().y
                         coroutineScope.launch {
-                            // Physics fling: exponential decay
                             scrollOffset.animateDecay(
                                 initialVelocity = velocity * 0.35f,
                                 animationSpec = androidx.compose.animation.core.exponentialDecay(
                                     frictionMultiplier = 0.9f
                                 )
                             )
-                            // Snap to nearest item with spring
                             val nearest = (scrollOffset.value / pxPerItem).roundToInt()
                             scrollOffset.animateTo(
                                 targetValue = nearest * pxPerItem,
@@ -623,7 +682,6 @@ private fun PlaylistWheel(
                                     stiffness = Spring.StiffnessMedium
                                 )
                             )
-                            // Wait 1.5s so user can read the name + click the capsule
                             kotlinx.coroutines.delay(1500L)
                             onRotationEnd()
                         }
@@ -633,8 +691,6 @@ private fun PlaylistWheel(
                             scrollOffset.snapTo(scrollOffset.value + dragAmount)
                         }
                         velocityTracker.addPosition(change.uptimeMillis, change.position)
-
-                        // Haptic tick on every item boundary crossing
                         val currentIdx = indexAtOffset(scrollOffset.value)
                         if (currentIdx != lastSnappedIndex) {
                             lastSnappedIndex = currentIdx
@@ -755,6 +811,25 @@ private fun PlaylistWheel(
                 val itemX = pivotX + textRadius * cos(itemAngleRad)
                 val itemY = pivotY + textRadius * sin(itemAngleRad)
 
+                // === 5a. FIRST ARC BALL (reverse rotation) ===
+                // Balls on the first arc (arcRadius) rotate in the OPPOSITE
+                // direction of the second arc. When second arc scrolls clockwise,
+                // first arc scrolls anticlockwise (and vice versa).
+                // This creates the "pully" coupling — like two meshed gears.
+                val firstArcFractionalOffset = -fractionalOffset  // NEGATED = opposite direction
+                val firstArcAngleDeg = firstArcFractionalOffset * angleStepDeg
+                val firstArcAngleRad = (firstArcAngleDeg * PI / 180f).toFloat()
+                val firstArcBallX = pivotX + arcRadius * cos(firstArcAngleRad)
+                val firstArcBallY = pivotY + arcRadius * sin(firstArcAngleRad)
+                val firstArcBallRadiusPx = with(density) { 3.dp.toPx() }
+                val firstArcBallColor = if (isActive) accentColor else Color.White
+                drawCircle(
+                    color = firstArcBallColor,
+                    radius = firstArcBallRadiusPx,
+                    center = Offset(firstArcBallX, firstArcBallY),
+                    alpha = alpha
+                )
+
                 // Skip if off-screen horizontally
                 if (itemX < -200f || itemX > w + 200f) continue
 
@@ -826,6 +901,10 @@ private fun PlaylistWheel(
                 // - Short names (narrower than 173dp) → stay at natural size
                 //   (no growing to fill the space)
                 //
+                // Font choice:
+                // - ACTIVE (main) → Cal Sans SemiBold (geometric, structured)
+                // - INACTIVE → NyghtSerif Light Italic (elegant, editorial)
+                //
                 // Text LEFT edge starts at ball + gap (on the second arc).
                 // Text RIGHT edge is AT MOST the third arc (185dp from second arc).
                 val gapAfterBallPx = with(density) { 6.dp.toPx() }
@@ -834,6 +913,19 @@ private fun PlaylistWheel(
                 // Base font size (active=42sp, inactive=16sp, interpolated by scale)
                 val baseFontSp = lerp(activeFontSp, inactiveFontSp, (1f - scale).coerceIn(0f, 1f))
 
+                // Font family + weight depends on active/inactive state
+                val textFontFamily = if (isActive) {
+                    com.rajatxo.coral.ui.theme.CalSansFamily
+                } else {
+                    com.rajatxo.coral.ui.theme.NyghtSerifFamily
+                }
+                val textFontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Light
+                val textFontStyle = if (isActive) {
+                    androidx.compose.ui.text.font.FontStyle.Normal
+                } else {
+                    androidx.compose.ui.text.font.FontStyle.Italic
+                }
+
                 // First measure at base font size
                 var fontSp = baseFontSp
                 var textLayout = textMeasurer.measure(
@@ -841,9 +933,9 @@ private fun PlaylistWheel(
                     style = TextStyle(
                         color = textColor,
                         fontSize = fontSp.sp,
-                        fontWeight = FontWeight.Normal,
-                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                        fontFamily = com.rajatxo.coral.ui.theme.PlayfairItalicFamily
+                        fontWeight = textFontWeight,
+                        fontStyle = textFontStyle,
+                        fontFamily = textFontFamily
                     ),
                     overflow = TextOverflow.Visible,
                     maxLines = 1,
@@ -865,9 +957,9 @@ private fun PlaylistWheel(
                         style = TextStyle(
                             color = textColor,
                             fontSize = fontSp.sp,
-                            fontWeight = FontWeight.Normal,
-                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                            fontFamily = com.rajatxo.coral.ui.theme.PlayfairItalicFamily
+                            fontWeight = textFontWeight,
+                            fontStyle = textFontStyle,
+                            fontFamily = textFontFamily
                         ),
                         overflow = TextOverflow.Visible,
                         maxLines = 1,

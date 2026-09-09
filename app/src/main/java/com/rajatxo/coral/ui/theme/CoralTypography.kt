@@ -89,6 +89,7 @@ val CalSansFamily = FontFamily(
  */
 val NyghtSerifFamily = FontFamily(
     Font(R.font.nyght_serif_italic, FontWeight.Normal),
+    Font(R.font.nyght_serif_light_italic, FontWeight.Light),
     Font(R.font.nyght_serif_italic, FontWeight.Medium),
     Font(R.font.nyght_serif_italic, FontWeight.SemiBold),
     Font(R.font.nyght_serif_italic, FontWeight.Bold)
