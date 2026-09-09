@@ -816,19 +816,7 @@ private fun PlaylistWheel(
                 // direction of the second arc. When second arc scrolls clockwise,
                 // first arc scrolls anticlockwise (and vice versa).
                 // This creates the "pully" coupling — like two meshed gears.
-                val firstArcFractionalOffset = -fractionalOffset  // NEGATED = opposite direction
-                val firstArcAngleDeg = firstArcFractionalOffset * angleStepDeg
-                val firstArcAngleRad = (firstArcAngleDeg * PI / 180f).toFloat()
-                val firstArcBallX = pivotX + arcRadius * cos(firstArcAngleRad)
-                val firstArcBallY = pivotY + arcRadius * sin(firstArcAngleRad)
-                val firstArcBallRadiusPx = with(density) { 3.dp.toPx() }
-                val firstArcBallColor = if (isActive) accentColor else Color.White
-                drawCircle(
-                    color = firstArcBallColor,
-                    radius = firstArcBallRadiusPx,
-                    center = Offset(firstArcBallX, firstArcBallY),
-                    alpha = alpha
-                )
+                // (Drawing happens AFTER alpha + isActive are computed below.)
 
                 // Skip if off-screen horizontally
                 if (itemX < -200f || itemX > w + 200f) continue
@@ -879,6 +867,23 @@ private fun PlaylistWheel(
                 // Color: ACTIVE = accent color (default #F4B400, or auto-detected
                 // from currently-playing song's album art); INACTIVE = white.
                 val textColor = if (isActive) accentColor else Color.White
+
+                // === 5a. FIRST ARC BALL (reverse rotation) ===
+                // Balls on the first arc (arcRadius) rotate in the OPPOSITE
+                // direction. Pully coupling — like two meshed gears.
+                val firstArcFractionalOffset = -fractionalOffset  // NEGATED = opposite
+                val firstArcAngleDeg = firstArcFractionalOffset * angleStepDeg
+                val firstArcAngleRad = (firstArcAngleDeg * PI / 180f).toFloat()
+                val firstArcBallX = pivotX + arcRadius * cos(firstArcAngleRad)
+                val firstArcBallY = pivotY + arcRadius * sin(firstArcAngleRad)
+                val firstArcBallRadiusPx = with(density) { 3.dp.toPx() }
+                val firstArcBallColor = if (isActive) accentColor else Color.White
+                drawCircle(
+                    color = firstArcBallColor,
+                    radius = firstArcBallRadiusPx,
+                    center = Offset(firstArcBallX, firstArcBallY),
+                    alpha = alpha
+                )
 
                 // === 5b. BALL MARKER on the second arc (textRadius orbit) ===
                 // One small filled circle per playlist, positioned at the
