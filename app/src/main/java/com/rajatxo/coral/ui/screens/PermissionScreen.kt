@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -201,34 +202,20 @@ fun PermissionScreen(
             verticalArrangement = Arrangement.Top
         ) {
             // ─────────────────────────────────────────────────────────
-            // TOP — "Coral" word, two fonts, sitting on the same baseline
-            // C = NyghtSerif Italic (large, dramatic, sweeping)
-            // oral = Mazius Display ExtraItalic (regular size, pairs with C)
+            // TOP — "Coral" word, single font (Mazius Display ExtraItalic)
+            // All letters same size, italic, black. Sits a little lower
+            // than before — extra top spacing so it breathes.
             // ─────────────────────────────────────────────────────────
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.Bottom  // aligns both to the same baseline
-            ) {
-                // Capital "C" — NyghtSerif, italic, slightly larger
-                Text(
-                    text = "C",
-                    color = Color.Black,
-                    fontSize = 84.sp,
-                    fontWeight = FontWeight.Normal,
-                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                    fontFamily = com.rajatxo.coral.ui.theme.NyghtSerifFamily
-                )
-                // "oral" — Mazius Display ExtraItalic, same baseline
-                Text(
-                    text = "oral",
-                    color = Color.Black,
-                    fontSize = 62.sp,
-                    fontWeight = FontWeight.Normal,
-                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                    fontFamily = com.rajatxo.coral.ui.theme.MaziusDisplayFamily
-                )
-            }
+            Spacer(modifier = Modifier.height(24.dp))  // push CORAL a little lower
+
+            Text(
+                text = "Coral",
+                color = Color.Black,
+                fontSize = 72.sp,
+                fontWeight = FontWeight.Normal,
+                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                fontFamily = com.rajatxo.coral.ui.theme.MaziusDisplayFamily
+            )
 
             Spacer(modifier = Modifier.height(20.dp))
 
@@ -339,9 +326,16 @@ private fun GlassPermissionCard(
     isOn: Boolean,
     onClick: () -> Unit
 ) {
+    // FIXED: use IntrinsicSize.Min on the Box so it measures its children's
+    // minimum height (the content Row) before laying out the overlay layers.
+    // Previous matchParentSize() failed because the Box had no intrinsic
+    // size — its size came from the content row, but matchParentSize()
+    // doesn't contribute to size measurement, so the Box collapsed to
+    // zero height, hiding all the inner layers.
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .height(IntrinsicSize.Min)  // ← FIX: measure children first
             .clip(RoundedCornerShape(24.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -350,17 +344,13 @@ private fun GlassPermissionCard(
             )
     ) {
         // --- Layer 1: Blurred background image (the actual "frost" blur) ---
-        // A copy of the same background image, rendered at the same size as
-        // the card, blurred via RenderEffect. Clipped to the card's rounded
-        // shape so the blur only shows through the card area.
         Image(
             painter = painterResource(com.rajatxo.coral.R.drawable.permission_bg),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier
-                .matchParentSize()
+                .matchParentSize()  // ← works now because IntrinsicSize.Min gives the Box a measurable size
                 .graphicsLayer {
-                    // Real backdrop blur on Android 12+
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
                         renderEffect = android.graphics.RenderEffect.createBlurEffect(
                             20f, 20f,
@@ -378,9 +368,12 @@ private fun GlassPermissionCard(
         )
 
         // --- Layer 3: Content (icon + title + subtitle + toggle) — SHARP ---
+        // This Row is what determines the card's height. The two layers
+        // above use matchParentSize() which now correctly maps to this Row's
+        // measured size (because the Box uses IntrinsicSize.Min).
         Row(
             modifier = Modifier
-                .matchParentSize()
+                .fillMaxWidth()
                 .border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(24.dp))
                 .padding(horizontal = 18.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
