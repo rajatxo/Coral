@@ -218,8 +218,16 @@ fun HomeScreen(
                     .fillMaxHeight()
             ) {
                 // --- Sleep timer capsule state passed to each screen ---
-                val capsuleVisible = sleepTimerState.active && sleepRemainingMs > 0
+                // Capsule is visible when:
+                //   - Timer is active, AND
+                //   - EITHER there's a timed countdown (sleepRemainingMs > 0)
+                //     OR the timer is in 'end of song' mode (sleepRemainingMs
+                //     is 0 because no countdown is running, but a song is
+                //     playing and the timer will fire when the song ends).
+                val capsuleVisible = sleepTimerState.active &&
+                    (sleepRemainingMs > 0 || sleepTimerState.endOfSong)
                 val capsuleRemaining = if (sleepTimerState.endOfSong) {
+                    // For end-of-song mode, show time remaining in current song
                     (miniPlayerDurationMs - miniPlayerPositionMs).coerceAtLeast(0L)
                 } else {
                     sleepRemainingMs
