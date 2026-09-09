@@ -117,6 +117,29 @@ fun HomeScreen(
     var showSleepTimer by remember { mutableStateOf(false) }
     var showFontPicker by remember { mutableStateOf(false) }
 
+    // --- System back button handling ---
+    // When the playlist detail overlay is open, the system back button
+    // should dismiss it (set selectedPlaylist = null) instead of closing
+    // the app. Same for the full player, song picker, and other overlays.
+    androidx.activity.compose.BackHandler(
+        enabled = selectedPlaylist != null || showFullPlayer || showSongPicker ||
+                  showPremium || showEqualizer || showSleepTimer || showFontPicker ||
+                  railMode == com.rajatxo.coral.ui.components.RailMode.Settings
+    ) {
+        when {
+            showFullPlayer -> onFullPlayerDismiss()
+            showSongPicker -> { showSongPicker = false }
+            showPremium -> { showPremium = false }
+            showEqualizer -> { showEqualizer = false }
+            showSleepTimer -> { showSleepTimer = false }
+            showFontPicker -> { showFontPicker = false }
+            selectedPlaylist != null -> { selectedPlaylist = null }
+            railMode == com.rajatxo.coral.ui.components.RailMode.Settings -> {
+                railMode = com.rajatxo.coral.ui.components.RailMode.Main
+            }
+        }
+    }
+
     // --- Mini player position polling ---
     // Polls the playback position every 500ms so the circular progress
     // ring around the album art in the mini player can show song timeline.
