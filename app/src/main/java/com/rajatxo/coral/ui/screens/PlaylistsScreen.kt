@@ -1001,17 +1001,21 @@ private fun PlaylistWheel(
                 // All other items: null (use solid color from TextStyle)
                 val isAdjacent = absOffset >= 0.5f && absOffset < 1.5f
                 val textBrush: Brush? = if (isAdjacent) {
+                    // Gradient coordinates are in the text layout's local space:
+                    // 0 = top of text, textH = bottom of text
                     if (fractionalOffset < 0) {
+                        // Upper item: white at top, accent at bottom
                         Brush.verticalGradient(
                             colors = listOf(Color.White, accentColor),
-                            startY = -textH / 2f,
-                            endY = textH / 2f
+                            startY = 0f,
+                            endY = textH
                         )
                     } else {
+                        // Lower item: accent at top, white at bottom
                         Brush.verticalGradient(
                             colors = listOf(accentColor, Color.White),
-                            startY = -textH / 2f,
-                            endY = textH / 2f
+                            startY = 0f,
+                            endY = textH
                         )
                     }
                 } else {
