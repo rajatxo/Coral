@@ -80,6 +80,36 @@ val CalSansFamily = FontFamily(
 )
 
 /**
+ * NyghtSerif Italic — high-contrast editorial serif used ONLY by the
+ * permission screen for the capital "C" in "Coral". Dramatic, sweeping,
+ * fashion-magazine-style display face.
+ *
+ * Licensed under the SIL Open Font License (OFL) — free for commercial use.
+ * Bundled in res/font/nyght_serif_italic.ttf.
+ */
+val NyghtSerifFamily = FontFamily(
+    Font(R.font.nyght_serif_italic, FontWeight.Normal),
+    Font(R.font.nyght_serif_italic, FontWeight.Medium),
+    Font(R.font.nyght_serif_italic, FontWeight.SemiBold),
+    Font(R.font.nyght_serif_italic, FontWeight.Bold)
+)
+
+/**
+ * Mazius Display ExtraItalic — dramatic italic display face used ONLY by
+ * the permission screen for the "oral" portion of "Coral". Pairs with
+ * NyghtSerif for a two-font single-word treatment.
+ *
+ * Licensed under the SIL Open Font License (OFL) — free for commercial use.
+ * Bundled in res/font/mazius_display_extraitalic.otf.
+ */
+val MaziusDisplayFamily = FontFamily(
+    Font(R.font.mazius_display_extraitalic, FontWeight.Normal),
+    Font(R.font.mazius_display_extraitalic, FontWeight.Medium),
+    Font(R.font.mazius_display_extraitalic, FontWeight.SemiBold),
+    Font(R.font.mazius_display_extraitalic, FontWeight.Bold)
+)
+
+/**
  * Coral's type scale — dynamic, generated from the user's font choice.
  *
  * The user picks a font in Settings → Appearance → Font. [FontManager]

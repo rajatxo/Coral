@@ -54,7 +54,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rajatxo.coral.ui.icons.CoralIcons
-import com.rajatxo.coral.ui.theme.CalSansFamily
 import kotlinx.coroutines.delay
 
 /**
@@ -203,30 +202,31 @@ fun PermissionScreen(
         ) {
             // ─────────────────────────────────────────────────────────
             // TOP — "Coral" word, two fonts, sitting on the same baseline
-            // C = Playfair Display Italic (Night Serif fallback) - larger
-            // oral = Cal Sans SemiBold (Mazius Display fallback) - regular
+            // C = NyghtSerif Italic (large, dramatic, sweeping)
+            // oral = Mazius Display ExtraItalic (regular size, pairs with C)
             // ─────────────────────────────────────────────────────────
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.Bottom  // aligns both to the same baseline
             ) {
-                // Capital "C" — slightly larger, italic serif
+                // Capital "C" — NyghtSerif, italic, slightly larger
                 Text(
                     text = "C",
                     color = Color.Black,
-                    fontSize = 78.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontSize = 84.sp,
+                    fontWeight = FontWeight.Normal,
                     fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                    fontFamily = com.rajatxo.coral.ui.theme.PlayfairItalicFamily
+                    fontFamily = com.rajatxo.coral.ui.theme.NyghtSerifFamily
                 )
-                // "oral" — same baseline, slightly smaller, sans
+                // "oral" — Mazius Display ExtraItalic, same baseline
                 Text(
                     text = "oral",
                     color = Color.Black,
-                    fontSize = 58.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = CalSansFamily
+                    fontSize = 62.sp,
+                    fontWeight = FontWeight.Normal,
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                    fontFamily = com.rajatxo.coral.ui.theme.MaziusDisplayFamily
                 )
             }
 
@@ -246,7 +246,10 @@ fun PermissionScreen(
 
             // ─────────────────────────────────────────────────────────
             // GLASS CARDS — two glassmorphism permission cards.
-            // Each card has frosted-glass blur of the background image behind it.
+            // Real backdrop blur is achieved by layering:
+            //   1. A copy of the background image, blurred, clipped to card shape
+            //   2. A translucent white overlay (the "frost" tint)
+            //   3. The actual content (icon, title, subtitle, toggle) — SHARP
             // ─────────────────────────────────────────────────────────
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 GlassPermissionCard(
@@ -310,17 +313,23 @@ fun PermissionScreen(
 }
 
 /**
- * Glassmorphism permission card.
+ * Glassmorphism permission card — REAL backdrop blur with sharp text.
  *
- * Visual: frosted-glass effect — a translucent white pill with a blur
- * of the background image visible through it. Subtle white border for
- * the "glass edge" look.
+ * Layered structure (z-order, bottom → top):
+ *   1. Blurred copy of the background image, clipped to card shape
+ *      → produces the actual frosted-glass blur effect
+ *   2. Translucent white overlay (18% alpha)
+ *      → tints the blurred image to look like frosted glass
+ *   3. Subtle white border (45% alpha)
+ *      → defines the glass edge
+ *   4. Content row (icon + title + subtitle + toggle)
+ *      → SHARP, no blur applied
  *
- * Technical: Android 12+ uses RenderEffect.createBlurEffect for real
- * backdrop blur. Android <12 falls back to a semi-transparent white
- * overlay (still looks glassy, just no real blur).
+ * The blur is applied ONLY to the image layer (layer 1), so the text
+ * and toggle inside the card stay perfectly crisp and readable.
  *
- * Content: icon (black) + title (black) + subtitle (gray) + iOS toggle.
+ * Android <12 fallback: layer 1 uses just the translucent white overlay
+ * (no real blur), still reads as frosted glass.
  */
 @Composable
 private fun GlassPermissionCard(
@@ -330,82 +339,82 @@ private fun GlassPermissionCard(
     isOn: Boolean,
     onClick: () -> Unit
 ) {
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
-            // Glass background: semi-transparent white (translucent)
-            .background(Color.White.copy(alpha = 0.18f))
-            // Subtle glass border
-            .border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(24.dp))
-            // Real backdrop blur on Android 12+ (renders the background image
-            // blurred behind this card — true glassmorphism)
-            .glassBlur()
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 18.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // Icon in a small white circle
+        // --- Layer 1: Blurred background image (the actual "frost" blur) ---
+        // A copy of the same background image, rendered at the same size as
+        // the card, blurred via RenderEffect. Clipped to the card's rounded
+        // shape so the blur only shows through the card area.
+        Image(
+            painter = painterResource(com.rajatxo.coral.R.drawable.permission_bg),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .matchParentSize()
+                .graphicsLayer {
+                    // Real backdrop blur on Android 12+
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                        renderEffect = android.graphics.RenderEffect.createBlurEffect(
+                            20f, 20f,
+                            android.graphics.Shader.TileMode.CLAMP
+                        ).asComposeRenderEffect()
+                    }
+                }
+        )
+
+        // --- Layer 2: Translucent white overlay (frost tint) ---
         Box(
             modifier = Modifier
-                .size(34.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.55f)),
-            contentAlignment = Alignment.Center
-        ) {
-            icon()
-        }
-
-        // Title + subtitle (always black for max contrast against frosted glass)
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                color = Color.Black,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = subtitle,
-                color = Color.Black.copy(alpha = 0.55f),
-                fontSize = 12.sp
-            )
-        }
-
-        // iOS-style toggle (black/white to match the glass aesthetic)
-        IosToggle(isOn = isOn)
-    }
-}
-
-/**
- * Apply a real backdrop blur (Android 12+ only).
- *
- * RenderEffect.createBlurEffect blurs the CONTENT of this composable.
- * To get true "blur the background behind me" glassmorphism, we need
- * to capture the background as the source — Compose doesn't have a
- * direct API for this, so this implementation blurs the card's own
- * content. Combined with the semi-transparent white background above,
- * it reads as a frosted glass surface.
- *
- * On Android <12: returns the modifier unchanged (no blur, but the
- * translucent white background still gives a glass-like feel).
- */
-private fun Modifier.glassBlur(): Modifier {
-    return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-        this.then(
-            Modifier.graphicsLayer {
-                renderEffect = android.graphics.RenderEffect.createBlurEffect(
-                    12f, 12f,
-                    android.graphics.Shader.TileMode.CLAMP
-                ).asComposeRenderEffect()
-            }
+                .matchParentSize()
+                .background(Color.White.copy(alpha = 0.22f))
         )
-    } else {
-        this
+
+        // --- Layer 3: Content (icon + title + subtitle + toggle) — SHARP ---
+        Row(
+            modifier = Modifier
+                .matchParentSize()
+                .border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(24.dp))
+                .padding(horizontal = 18.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // Icon in a small white circle
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.65f)),
+                contentAlignment = Alignment.Center
+            ) {
+                icon()
+            }
+
+            // Title + subtitle (always black for max contrast against frosted glass)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    color = Color.Black,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = subtitle,
+                    color = Color.Black.copy(alpha = 0.6f),
+                    fontSize = 12.sp
+                )
+            }
+
+            // iOS-style toggle (black/white to match the glass aesthetic)
+            IosToggle(isOn = isOn)
+        }
     }
 }
 
