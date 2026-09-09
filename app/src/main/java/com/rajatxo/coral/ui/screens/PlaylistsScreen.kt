@@ -722,6 +722,18 @@ private fun PlaylistWheel(
                 strokePx = with(density) { 1.0.dp.toPx() }
             )
 
+            // ──────────────────────────────────────────────────────────────
+            // ⚠️ TEMPORARY THIRD ARC — REMOVE LATER
+            // Third arc around the second (text) arc.
+            // Gap between second arc and this third arc = 215dp.
+            // ──────────────────────────────────────────────────────────────
+            val thirdArcRadius = textRadius + with(density) { 215.dp.toPx() }
+            drawFadingArc(
+                radius = thirdArcRadius,
+                fullAlpha = 0.35f,
+                strokePx = with(density) { 1.0.dp.toPx() }
+            )
+
             // === 4. TEXT ITEMS on the outer (invisible) text orbit ===
             // scrollOffset / pxPerItem = how many "items" the wheel has rotated.
             // Scroll DOWN = clockwise (items move DOWN). Scroll UP = anticlockwise (items move UP).
