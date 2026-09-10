@@ -131,23 +131,24 @@ fun PlaylistDetailScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        // --- Layer 1: Cover image fills only TOP ~40% of screen ---
+        // --- Layer 1: Cover image fills ENTIRE screen (sharp, no clip) ---
+        // The image is NOT clipped to 42% — it fills the whole screen.
+        // The gradient below handles the blending.
         if (coverArtUri != null) {
             AsyncImage(
                 model = coverArtUri,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight(0.42f)  // only top 42% of screen
+                modifier = Modifier.fillMaxSize()
             )
         }
 
-        // --- Layer 2: Immersive gradient ---
-        // 0-25%: transparent (cover image fully visible)
-        // 25-42%: blends cover into dominant color
-        // 42-90%: solid dominant color (song list area)
-        // 90-100%: fades to near-black (nav bar area)
+        // --- Layer 2: Seamless immersive gradient ---
+        // No hard lines. The gradient is very long and soft:
+        // 0-30%: fully transparent (cover image visible at top)
+        // 30-55%: gentle blend from transparent → dominant color
+        // 55-85%: solid dominant color (song list readability)
+        // 85-100%: gentle fade to near-black (nav bar)
         val bgBase = dominantColor ?: Color(0xFF1A1A1A)
         Box(
             modifier = Modifier
@@ -156,12 +157,15 @@ fun PlaylistDetailScreen(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
                             0.0f to Color.Transparent,
-                            0.25f to Color.Transparent,
-                            0.35f to bgBase.copy(alpha = 0.4f),
-                            0.42f to bgBase.copy(alpha = 0.85f),
-                            0.50f to bgBase,
-                            0.90f to bgBase,
-                            1.0f to Color.Black.copy(alpha = 0.95f)
+                            0.28f to Color.Transparent,
+                            0.35f to bgBase.copy(alpha = 0.15f),
+                            0.45f to bgBase.copy(alpha = 0.45f),
+                            0.55f to bgBase.copy(alpha = 0.75f),
+                            0.62f to bgBase.copy(alpha = 0.92f),
+                            0.68f to bgBase,
+                            0.88f to bgBase,
+                            0.95f to bgBase.copy(alpha = 0.8f),
+                            1.0f to Color.Black.copy(alpha = 0.92f)
                         )
                     )
                 )
