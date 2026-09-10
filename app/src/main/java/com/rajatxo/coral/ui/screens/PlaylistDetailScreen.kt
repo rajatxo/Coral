@@ -97,7 +97,7 @@ fun PlaylistDetailScreen(
     var showMenu by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         // --- Layer 1: Blurred background ---
         if (backgroundArtUri != null) {
             AsyncImage(
