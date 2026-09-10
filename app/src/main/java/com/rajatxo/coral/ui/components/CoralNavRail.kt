@@ -78,8 +78,9 @@ fun CoralNavRail(
         modifier = modifier
             .width(48.dp)
             .fillMaxHeight()
-            .background(CoralColors.Surface)
-            .padding(start = 4.dp)  // explicit horizontal padding — pushes text slightly right
+            // NO background — transparent so it adopts the page's background color.
+            // This eliminates the hard line between the nav rail and the page.
+            .padding(start = 4.dp)
     ) {
         Column(
             modifier = Modifier
@@ -158,7 +159,9 @@ private fun RailLabel(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val color = if (isSelected) Color.White else CoralColors.TextMuted
+    // Active tab: black text (on white capsule)
+    // Inactive tab: white text (on transparent background)
+    val color = if (isSelected) Color.Black else Color.White
     val weight = if (isSelected) FontWeight.Bold else FontWeight.Bold  // both bold now
 
     // Step 1: measure the text at its natural size (no parent constraints).
@@ -188,9 +191,9 @@ private fun RailLabel(
     val textWidthDp = with(density) { layoutResult.size.width.toDp() }
     val textHeightPx = layoutResult.size.height.toFloat()
 
-    // Step 3: build the slot.
-    // Width = 48dp (rail width). Height = text natural width (so after rotation,
-    // the text fits vertically with zero clipping).
+    // Step 3: build the slot with capsule highlight for active tab.
+    // Active tab: white capsule background + black text
+    // Inactive tab: transparent background + white text
     Box(
         modifier = Modifier
             .width(48.dp)
@@ -207,6 +210,27 @@ private fun RailLabel(
             val canvasHeight = size.height
             val textWidthPx = layoutResult.size.width.toFloat()
             val textHeight = textHeightPx
+
+            // If selected, draw a white capsule BEHIND the text.
+            // The capsule is drawn before rotation, so it appears as a
+            // vertical pill behind the rotated text.
+            if (isSelected) {
+                // Capsule dimensions — slightly larger than the text
+                val capsulePadding = 8.dp.toPx()
+                val capsuleWidth = textHeight + capsulePadding * 2  // height after rotation = width before
+                val capsuleHeight = textWidthPx + capsulePadding * 2  // width after rotation = height before
+                val capsuleX = (canvasWidth - capsuleWidth) / 2f
+                val capsuleY = (canvasHeight - capsuleHeight) / 2f
+
+                drawRoundRect(
+                    color = Color.White,
+                    topLeft = Offset(capsuleX, capsuleY),
+                    size = androidx.compose.ui.geometry.Size(capsuleWidth, capsuleHeight),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(
+                        capsuleWidth / 2f, capsuleWidth / 2f
+                    )
+                )
+            }
 
             // Rotate the canvas -90° around its center, then draw the text
             // centered. After rotation, the text fits perfectly within the

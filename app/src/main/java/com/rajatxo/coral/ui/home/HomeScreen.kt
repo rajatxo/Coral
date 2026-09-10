@@ -110,7 +110,7 @@ fun HomeScreen(
     onFullPlayerDismiss: () -> Unit,
     onSongEnded: () -> Unit
 ) {
-    var selectedTab by remember { mutableStateOf(CoralTab.Songs) }
+    var selectedTab by remember { mutableStateOf(CoralTab.QuickPicks) }
     var railMode by remember { mutableStateOf(com.rajatxo.coral.ui.components.RailMode.Main) }
     var selectedSettingsTab by remember { mutableStateOf<com.rajatxo.coral.ui.components.CoralSettingsTab?>(null) }
     var selectedPlaylist by remember { mutableStateOf<com.rajatxo.coral.data.model.Playlist?>(null) }
