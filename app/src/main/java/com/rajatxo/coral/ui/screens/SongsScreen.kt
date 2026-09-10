@@ -85,7 +85,7 @@ fun SongsScreen(
     //   ~136-170dp: wavy fade (34dp of fade — smaller gap, songs closer to capsule)
     val headerHeight = 170.dp
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().background(CoralColors.Surface)) {
         // --- Layer 1: Song list (scrolls behind the header) ---
         LazyColumn(
             modifier = Modifier.fillMaxSize(),

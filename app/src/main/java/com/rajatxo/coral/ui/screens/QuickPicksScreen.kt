@@ -152,26 +152,6 @@ fun QuickPicksScreen(
             .fillMaxSize()
             .background(animatedBgColor)
     ) {
-        // Back button (top left, no circle background)
-        Box(
-            modifier = Modifier
-                .statusBarsPadding()
-                .padding(start = 4.dp, top = 8.dp)
-                .size(40.dp)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onBackClick
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = com.rajatxo.coral.ui.icons.CoralIcons.ChevronLeft,
-                contentDescription = "Back",
-                tint = Color.White,
-                modifier = Modifier.size(24.dp)
-            )
-        }
 
         // Header (title + toggle)
         Column(
