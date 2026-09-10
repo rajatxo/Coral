@@ -266,9 +266,7 @@ fun HomeScreen(
                 val onExtend: () -> Unit = { sleepTimer.extend(10) }
 
                 when (selectedTab) {
-                    CoralTab.QuickPicks -> PlaceholderScreen(
-                        tabName = "Quick picks",
-                        description = "Your most-played tracks and recently added songs will appear here. Coming soon.",
+                    CoralTab.QuickPicks -> QuickPicksScreen(
                         capsuleVisible = capsuleVisible,
                         capsuleRemaining = capsuleRemaining,
                         onExtend = onExtend
