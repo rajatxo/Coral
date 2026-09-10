@@ -120,6 +120,7 @@ fun HomeScreen(
     var showEqualizer by remember { mutableStateOf(false) }
     var showSleepTimer by remember { mutableStateOf(false) }
     var showFontPicker by remember { mutableStateOf(false) }
+    var showQuickPicksAll by remember { mutableStateOf(false) }
 
     // --- Add to playlist from FullPlayer ---
     // When user taps "Add to playlist" in the FullPlayer 3-dot menu,
@@ -133,6 +134,7 @@ fun HomeScreen(
     androidx.activity.compose.BackHandler(
         enabled = selectedPlaylist != null || showFullPlayer || showSongPicker ||
                   showPremium || showEqualizer || showSleepTimer || showFontPicker ||
+                  showQuickPicksAll ||
                   railMode == com.rajatxo.coral.ui.components.RailMode.Settings
     ) {
         when {
@@ -142,6 +144,7 @@ fun HomeScreen(
             showEqualizer -> { showEqualizer = false }
             showSleepTimer -> { showSleepTimer = false }
             showFontPicker -> { showFontPicker = false }
+            showQuickPicksAll -> { showQuickPicksAll = false }
             selectedPlaylist != null -> { selectedPlaylist = null }
             railMode == com.rajatxo.coral.ui.components.RailMode.Settings -> {
                 railMode = com.rajatxo.coral.ui.components.RailMode.Main
@@ -290,7 +293,8 @@ fun HomeScreen(
                         capsuleRemaining = capsuleRemaining,
                         onExtend = onExtend,
                         onSongClick = onSongClick,
-                        onBgColorChange = { quickPicksBgColor = it }
+                        onBgColorChange = { quickPicksBgColor = it },
+                        onViewAllClick = { showQuickPicksAll = true }
                     )
                     CoralTab.Discover -> PlaceholderScreen(
                         tabName = "Discover",
@@ -440,6 +444,23 @@ fun HomeScreen(
         if (showFontPicker) {
             com.rajatxo.coral.ui.screens.FontPickerScreen(
                 onBackClick = { showFontPicker = false }
+            )
+        }
+
+        // --- Quick Picks Full Screen (slide-up overlay) ---
+        // Triggered by the "VIEW ALL" button on the editorial Quick Picks card.
+        // Slides in from the bottom + fades in, like the reference video's
+        // card-to-detail-page transition. Covers the ENTIRE screen including
+        // the nav rail area (so it acts as a true full-screen page).
+        AnimatedVisibility(
+            visible = showQuickPicksAll,
+            enter = slideInVertically { it } + fadeIn(),
+            exit = slideOutVertically { it } + fadeOut()
+        ) {
+            com.rajatxo.coral.ui.screens.QuickPicksFullScreen(
+                songs = songs,
+                onBackClick = { showQuickPicksAll = false },
+                onSongClick = onSongClick
             )
         }
 
