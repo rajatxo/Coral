@@ -97,7 +97,7 @@ fun PlaylistDetailScreen(
     var showMenu by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A0A))) {
+    Box(modifier = Modifier.fillMaxSize()) {
         // --- Layer 1: Blurred background ---
         if (backgroundArtUri != null) {
             AsyncImage(
@@ -126,43 +126,26 @@ fun PlaylistDetailScreen(
                 )
         )
 
-        // --- Layer 3: Content ---
-        Column(
+        // --- Layer 3: Content (everything scrolls, including top bar) ---
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .navigationBarsPadding()
+                .navigationBarsPadding(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                start = 20.dp, end = 20.dp, top = 8.dp, bottom = 100.dp
+            )
         ) {
-            // Top bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Back button
-                Box(
+            // Top bar (scrolls with content)
+            item {
+                Row(
                     modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.12f))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onBackClick
-                        ),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = CoralIcons.ChevronDown,
-                        contentDescription = "Back",
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-                // 3-dot menu with popup
-                Box {
+                    // Back button
                     Box(
                         modifier = Modifier
                             .size(40.dp)
@@ -171,65 +154,79 @@ fun PlaylistDetailScreen(
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
-                                onClick = { showMenu = true }
+                                onClick = onBackClick
                             ),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = CoralIcons.MoreVertical,
-                            contentDescription = "More",
+                            imageVector = CoralIcons.ChevronDown,
+                            contentDescription = "Back",
                             tint = Color.White,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     }
-
-                    // Dropdown menu — small rounded square
-                    androidx.compose.material3.DropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false },
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color(0xFF1A1A1A))
-                    ) {
-                        // Delete playlist option
-                        Row(
+                    // 3-dot menu with popup
+                    Box {
+                        Box(
                             modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.12f))
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
-                                    onClick = {
-                                        showMenu = false
-                                        showDeleteConfirm = true
-                                    }
-                                )
-                                .padding(horizontal = 20.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    onClick = { showMenu = true }
+                                ),
+                            contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = CoralIcons.Heart,
-                                contentDescription = null,
-                                tint = Color(0xFFFF6B6B),
+                                imageVector = CoralIcons.MoreVertical,
+                                contentDescription = "More",
+                                tint = Color.White,
                                 modifier = Modifier.size(18.dp)
                             )
-                            Text(
-                                text = "Delete playlist",
-                                color = Color(0xFFFF6B6B),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium
-                            )
+                        }
+
+                        // Dropdown menu — small rounded square
+                        androidx.compose.material3.DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false },
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color(0xFF1A1A1A))
+                        ) {
+                            // Delete playlist option
+                            Row(
+                                modifier = Modifier
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = {
+                                            showMenu = false
+                                            showDeleteConfirm = true
+                                        }
+                                    )
+                                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = CoralIcons.Heart,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFF6B6B),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = "Delete playlist",
+                                    color = Color(0xFFFF6B6B),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                         }
                     }
                 }
             }
-
-            // Scrollable content
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                    start = 20.dp, end = 20.dp, top = 8.dp, bottom = 100.dp
-                )
-            ) {
                 // Large cover image (square, rounded, centered)
                 item {
                     Box(
