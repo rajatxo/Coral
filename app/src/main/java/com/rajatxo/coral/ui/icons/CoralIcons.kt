@@ -309,13 +309,97 @@ object CoralIcons {
 
     /** Lucide search icon (magnifying glass, MIT licensed). */
     val Search: ImageVector = stroke("Search") {
-        // Circle (center 11,11, radius 8)
         moveTo(19f, 11f)
         arcTo(8f, 8f, 0f, true, true, 3f, 11f)
         arcTo(8f, 8f, 0f, true, true, 19f, 11f)
-        // Line from circle to handle (bottom-right)
         moveTo(21f, 21f)
         lineTo(16.7f, 16.7f)
+    }
+
+    /** Lucide chevron-left (MIT licensed). Back arrow pointing LEFT. */
+    val ChevronLeft: ImageVector = stroke("ChevronLeft") {
+        moveTo(15f, 18f)
+        lineTo(9f, 12f)
+        lineTo(15f, 6f)
+    }
+
+    /** Lucide ellipsis — three horizontal dots (MIT licensed). */
+    val Ellipsis: ImageVector = stroke("Ellipsis") {
+        // Dot 1 (left)
+        moveTo(5f, 12f)
+        arcTo(1f, 1f, 0f, true, true, 5.001f, 12f)
+        // Dot 2 (center)
+        moveTo(12f, 12f)
+        arcTo(1f, 1f, 0f, true, true, 12.001f, 12f)
+        // Dot 3 (right)
+        moveTo(19f, 12f)
+        arcTo(1f, 1f, 0f, true, true, 19.001f, 12f)
+    }
+
+    /** Lucide shuffle (MIT licensed). Crossing arrows. */
+    val ShuffleLucide: ImageVector = stroke("ShuffleLucide") {
+        // Right arrow top
+        moveTo(18f, 14f)
+        lineTo(22f, 18f)
+        lineTo(18f, 22f)
+        // Right arrow bottom
+        moveTo(18f, 2f)
+        lineTo(22f, 6f)
+        lineTo(18f, 10f)
+        // Top line going right
+        moveTo(2f, 18f)
+        horizontalLineToRelative(1.973f)
+        // Curve to arrows
+        arcToRelative(4f, 4f, 0f, false, false, 3.3f, -1.7f)
+        lineToRelative(5.454f, -8.6f)
+        arcToRelative(4f, 4f, 0f, false, true, 3.3f, -1.7f)
+        horizontalLineTo(22f)
+        // Bottom line
+        moveTo(2f, 6f)
+        horizontalLineToRelative(1.972f)
+        arcToRelative(4f, 4f, 0f, false, true, 3.6f, 2.2f)
+        // Bottom right
+        moveTo(22f, 18f)
+        horizontalLineToRelative(-6.041f)
+        arcToRelative(4f, 4f, 0f, false, true, -3.3f, -1.8f)
+        lineToRelative(-0.359f, -0.45f)
+    }
+
+    /** Lucide play — filled triangle (MIT licensed). */
+    val PlayLucide: ImageVector = filled("PlayLucide") {
+        moveTo(5f, 5f)
+        arcToRelative(2f, 2f, 0f, false, true, 3.008f, -1.728f)
+        lineToRelative(11.997f, 6.998f)
+        arcToRelative(2f, 2f, 0f, false, true, 0.003f, 3.458f)
+        lineToRelative(-12f, 7f)
+        arcToRelative(2f, 2f, 0f, false, true, -3.008f, -1.728f)
+        close()
+    }
+
+    /** Lucide pause — two rounded rectangles (MIT licensed). */
+    val PauseLucide: ImageVector = filled("PauseLucide") {
+        // Right bar
+        moveTo(14f, 3f)
+        horizontalLineToRelative(5f)
+        arcToRelative(1f, 1f, 0f, false, true, 1f, 1f)
+        verticalLineToRelative(16f)
+        arcToRelative(1f, 1f, 0f, false, true, -1f, 1f)
+        horizontalLineToRelative(-5f)
+        arcToRelative(1f, 1f, 0f, false, true, -1f, -1f)
+        verticalLineToRelative(-16f)
+        arcToRelative(1f, 1f, 0f, false, true, 1f, -1f)
+        close()
+        // Left bar
+        moveTo(5f, 3f)
+        horizontalLineToRelative(5f)
+        arcToRelative(1f, 1f, 0f, false, true, 1f, 1f)
+        verticalLineToRelative(16f)
+        arcToRelative(1f, 1f, 0f, false, true, -1f, 1f)
+        horizontalLineToRelative(-5f)
+        arcToRelative(1f, 1f, 0f, false, true, -1f, -1f)
+        verticalLineToRelative(-16f)
+        arcToRelative(1f, 1f, 0f, false, true, 1f, -1f)
+        close()
     }
 
     /**

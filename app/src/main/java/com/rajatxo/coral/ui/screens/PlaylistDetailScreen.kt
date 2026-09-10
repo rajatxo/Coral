@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -119,7 +120,7 @@ fun PlaylistDetailScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        // --- Layer 1: Blurred background ---
+        // --- Layer 1: Blurred background (90% less blur = 5dp) ---
         if (backgroundArtUri != null) {
             AsyncImage(
                 model = backgroundArtUri,
@@ -127,20 +128,23 @@ fun PlaylistDetailScreen(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
-                    .blur(50.dp)
+                    .blur(5.dp)
             )
         }
 
-        // --- Layer 2: Gradient overlay for readability ---
+        // --- Layer 2: Gradient overlay — ends after the play button ---
+        // Gradient covers ~50% of screen (top area: cover + title + buttons)
+        // Below that, solid dark for song list readability.
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
-                            0.0f to Color.Black.copy(alpha = 0.4f),
-                            0.35f to Color.Black.copy(alpha = 0.7f),
-                            0.7f to Color.Black.copy(alpha = 0.9f),
+                            0.0f to Color.Black.copy(alpha = 0.3f),
+                            0.25f to Color.Black.copy(alpha = 0.5f),
+                            0.45f to Color.Black.copy(alpha = 0.75f),
+                            0.55f to Color.Black.copy(alpha = 0.95f),
                             1.0f to Color.Black.copy(alpha = 0.97f)
                         )
                     )
@@ -168,12 +172,10 @@ fun PlaylistDetailScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Back button
+                    // Back button — no circle background, ChevronLeft icon
                     Box(
                         modifier = Modifier
                             .size(40.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.12f))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
@@ -182,19 +184,17 @@ fun PlaylistDetailScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = CoralIcons.ChevronDown,
+                            imageVector = CoralIcons.ChevronLeft,
                             contentDescription = "Back",
                             tint = Color.White,
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
-                    // 3-dot menu with popup
+                    // 3-dot menu — no circle background, Ellipsis icon
                     Box {
                         Box(
                             modifier = Modifier
                                 .size(40.dp)
-                                .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.12f))
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
@@ -203,10 +203,10 @@ fun PlaylistDetailScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = CoralIcons.MoreVertical,
+                                imageVector = CoralIcons.Ellipsis,
                                 contentDescription = "More",
                                 tint = Color.White,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(24.dp)
                             )
                         }
 
@@ -279,7 +279,7 @@ fun PlaylistDetailScreen(
                     }
                 }
             }
-                // Large cover image (proper square, rounded corners, centered)
+                // Large cover image (bigger — 0.72f width)
                 item {
                     Box(
                         modifier = Modifier.fillMaxWidth(),
@@ -287,7 +287,7 @@ fun PlaylistDetailScreen(
                     ) {
                         Box(
                             modifier = Modifier
-                                .fillMaxWidth(0.55f)
+                                .fillMaxWidth(0.72f)
                                 .aspectRatio(1f)
                                 .clip(RoundedCornerShape(24.dp))
                                 .background(CoralColors.SurfaceVariant),
@@ -305,14 +305,14 @@ fun PlaylistDetailScreen(
                                     imageVector = CoralIcons.Music,
                                     contentDescription = null,
                                     tint = Color(0xFF444444),
-                                    modifier = Modifier.size(60.dp)
+                                    modifier = Modifier.size(70.dp)
                                 )
                             }
                         }
                     }
                 }
 
-                // Playlist name + subtitle + date (centered)
+                // Playlist name (Cal Sans) + subtitle/date (Poppins)
                 item {
                     Column(
                         modifier = Modifier
@@ -324,7 +324,8 @@ fun PlaylistDetailScreen(
                             text = livePlaylist.name,
                             color = Color.White,
                             fontSize = 26.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily,
                             textAlign = TextAlign.Center,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
@@ -334,6 +335,7 @@ fun PlaylistDetailScreen(
                             text = "Your Playlist",
                             color = Color.White.copy(alpha = 0.7f),
                             fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
                             textAlign = TextAlign.Center
                         )
                         Spacer(modifier = Modifier.height(2.dp))
@@ -341,12 +343,13 @@ fun PlaylistDetailScreen(
                             text = "Created at $createdText",
                             color = Color.White.copy(alpha = 0.4f),
                             fontSize = 11.sp,
+                            fontWeight = FontWeight.Normal,
                             textAlign = TextAlign.Center
                         )
                     }
                 }
 
-                // Action row: Shuffle | Play | Search
+                // Action row: Shuffle | Play (3D glossy pill) | Search
                 item {
                     Row(
                         modifier = Modifier
@@ -355,7 +358,7 @@ fun PlaylistDetailScreen(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Shuffle (circular grey button)
+                        // Shuffle (circular grey button — new Lucide icon)
                         Box(
                             modifier = Modifier
                                 .size(48.dp)
@@ -370,7 +373,7 @@ fun PlaylistDetailScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = CoralIcons.Shuffle,
+                                imageVector = CoralIcons.ShuffleLucide,
                                 contentDescription = "Shuffle",
                                 tint = Color.White,
                                 modifier = Modifier.size(20.dp)
@@ -379,35 +382,51 @@ fun PlaylistDetailScreen(
 
                         Spacer(modifier = Modifier.width(16.dp))
 
-                        // Play (white pill button)
-                        Row(
+                        // Play — wider 3D glossy pill button
+                        Box(
                             modifier = Modifier
-                                .height(48.dp)
-                                .clip(RoundedCornerShape(24.dp))
+                                .height(52.dp)
+                                .width(140.dp)
+                                .clip(RoundedCornerShape(26.dp))
                                 .background(Color.White)
+                                .drawWithContent {
+                                    drawContent()
+                                    drawRect(
+                                        brush = Brush.verticalGradient(
+                                            colors = listOf(
+                                                Color.White.copy(alpha = 0.5f),
+                                                Color.Transparent,
+                                                Color.Black.copy(alpha = 0.08f)
+                                            )
+                                        ),
+                                        size = size
+                                    )
+                                }
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
                                     enabled = songsInPlaylist.isNotEmpty(),
                                     onClick = { onPlayAll(songsInPlaylist) }
-                                )
-                                .padding(horizontal = 24.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
+                                ),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = CoralIcons.Play,
-                                contentDescription = "Play",
-                                tint = Color.Black,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Play",
-                                color = Color.Black,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = CoralIcons.PlayLucide,
+                                    contentDescription = "Play",
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = "Play",
+                                    color = Color.Black,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
 
                         Spacer(modifier = Modifier.width(16.dp))
