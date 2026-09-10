@@ -127,13 +127,15 @@ fun PlaylistDetailScreen(
         )
 
         // --- Layer 3: Content (everything scrolls, including top bar) ---
+        // No statusBarsPadding/navigationBarsPadding here — the LazyColumn
+        // fills the ENTIRE screen so the blurred background extends behind
+        // both the status bar and the navigation buttons.
+        // Spacing for status bar / nav bar is handled via contentPadding.
         LazyColumn(
             modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding(),
+                .fillMaxSize(),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                start = 20.dp, end = 20.dp, top = 8.dp, bottom = 100.dp
+                start = 20.dp, end = 20.dp, top = 48.dp, bottom = 80.dp
             )
         ) {
             // Top bar (scrolls with content)
