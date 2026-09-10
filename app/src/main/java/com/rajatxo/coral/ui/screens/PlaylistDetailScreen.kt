@@ -90,12 +90,23 @@ fun PlaylistDetailScreen(
     // Cover art: custom cover (from gallery) or first song's album art
     val coverArtUri = livePlaylist.coverUri ?: songsInPlaylist.firstOrNull()?.albumArtUri?.toString()
 
-    // Background = the playlist cover image, blurred
-    val backgroundArtUri = coverArtUri
-
     val dateFormat = remember { SimpleDateFormat("HH:mm – dd MMMM yyyy", Locale.getDefault()) }
     val createdText = remember(livePlaylist.createdAtMs) {
         dateFormat.format(Date(livePlaylist.createdAtMs))
+    }
+
+    // --- Extract dominant color from cover image for immersive background ---
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var dominantColor by remember { mutableStateOf<Color?>(null) }
+    androidx.compose.runtime.LaunchedEffect(coverArtUri) {
+        if (coverArtUri != null) {
+            try {
+                val uri = android.net.Uri.parse(coverArtUri)
+                com.rajatxo.coral.util.extractPalette(context, uri)?.let { palette ->
+                    dominantColor = palette.primary
+                }
+            } catch (_: Exception) { }
+        }
     }
 
     // 3-dot menu popup state
@@ -103,12 +114,10 @@ fun PlaylistDetailScreen(
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     // Image picker for custom playlist cover
-    val context = androidx.compose.ui.platform.LocalContext.current
     val coverPicker = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
-            // Persist the selected image URI
             try {
                 context.contentResolver.takePersistableUriPermission(
                     uri,
@@ -120,32 +129,35 @@ fun PlaylistDetailScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        // --- Layer 1: Blurred background (95% blur = 50dp) ---
-        if (backgroundArtUri != null) {
+        // --- Layer 1: Cover image fills entire screen (sharp, not blurred) ---
+        if (coverArtUri != null) {
             AsyncImage(
-                model = backgroundArtUri,
+                model = coverArtUri,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .blur(50.dp)
+                modifier = Modifier.fillMaxSize()
             )
         }
 
-        // --- Layer 2: Gradient overlay — ends after the play button ---
-        // Gradient covers ~50% of screen (top area: cover + title + buttons)
-        // Below that, solid dark for song list readability.
+        // --- Layer 2: Immersive gradient — cover → dominant color → near-black ---
+        // Top 25%: cover image visible (transparent)
+        // 25-50%: blends into dominant color
+        // 50-90%: solid dominant color (for song list readability)
+        // 90-100%: fades to near-black (for nav bar readability)
+        val bgBase = dominantColor ?: Color(0xFF1A1A1A)
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
-                            0.0f to Color.Black.copy(alpha = 0.3f),
-                            0.25f to Color.Black.copy(alpha = 0.5f),
-                            0.45f to Color.Black.copy(alpha = 0.75f),
-                            0.55f to Color.Black.copy(alpha = 0.95f),
-                            1.0f to Color.Black.copy(alpha = 0.97f)
+                            0.0f to Color.Transparent,
+                            0.20f to Color.Transparent,
+                            0.35f to bgBase.copy(alpha = 0.5f),
+                            0.50f to bgBase.copy(alpha = 0.9f),
+                            0.60f to bgBase,
+                            0.90f to bgBase,
+                            1.0f to Color.Black.copy(alpha = 0.95f)
                         )
                     )
                 )
@@ -279,37 +291,11 @@ fun PlaylistDetailScreen(
                     }
                 }
             }
-                // Large cover image (bigger — 0.72f width)
+                // Cover box removed — cover image is now the full-screen
+                // immersive background. Just add spacing so the title
+                // appears below the cover image area.
                 item {
-                    Box(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(0.72f)
-                                .aspectRatio(1f)
-                                .clip(RoundedCornerShape(24.dp))
-                                .background(CoralColors.SurfaceVariant),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (coverArtUri != null) {
-                                AsyncImage(
-                                    model = coverArtUri,
-                                    contentDescription = "Playlist cover",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = CoralIcons.Music,
-                                    contentDescription = null,
-                                    tint = Color(0xFF444444),
-                                    modifier = Modifier.size(70.dp)
-                                )
-                            }
-                        }
-                    }
+                    Spacer(modifier = Modifier.height(180.dp))
                 }
 
                 // Playlist name (Cal Sans) + subtitle/date (Poppins)
@@ -456,15 +442,15 @@ fun PlaylistDetailScreen(
                     }
                 }
 
-                // Sort bar — proper capsule shape (fully rounded)
+                // Sort bar — narrower, shorter, proper capsule
                 item {
                     Row(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 20.dp)
+                            .fillMaxWidth(0.88f)
+                            .padding(top = 16.dp)
                             .clip(RoundedCornerShape(50))
                             .background(Color.White.copy(alpha = 0.08f))
-                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
