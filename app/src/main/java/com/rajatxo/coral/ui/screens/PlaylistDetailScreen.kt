@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -129,21 +130,23 @@ fun PlaylistDetailScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        // --- Layer 1: Cover image fills entire screen (sharp, not blurred) ---
+        // --- Layer 1: Cover image fills only TOP ~40% of screen ---
         if (coverArtUri != null) {
             AsyncImage(
                 model = coverArtUri,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.42f)  // only top 42% of screen
             )
         }
 
-        // --- Layer 2: Immersive gradient — cover → dominant color → near-black ---
-        // Top 25%: cover image visible (transparent)
-        // 25-50%: blends into dominant color
-        // 50-90%: solid dominant color (for song list readability)
-        // 90-100%: fades to near-black (for nav bar readability)
+        // --- Layer 2: Immersive gradient ---
+        // 0-25%: transparent (cover image fully visible)
+        // 25-42%: blends cover into dominant color
+        // 42-90%: solid dominant color (song list area)
+        // 90-100%: fades to near-black (nav bar area)
         val bgBase = dominantColor ?: Color(0xFF1A1A1A)
         Box(
             modifier = Modifier
@@ -152,10 +155,10 @@ fun PlaylistDetailScreen(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
                             0.0f to Color.Transparent,
-                            0.20f to Color.Transparent,
-                            0.35f to bgBase.copy(alpha = 0.5f),
-                            0.50f to bgBase.copy(alpha = 0.9f),
-                            0.60f to bgBase,
+                            0.25f to Color.Transparent,
+                            0.35f to bgBase.copy(alpha = 0.4f),
+                            0.42f to bgBase.copy(alpha = 0.85f),
+                            0.50f to bgBase,
                             0.90f to bgBase,
                             1.0f to Color.Black.copy(alpha = 0.95f)
                         )
@@ -291,11 +294,10 @@ fun PlaylistDetailScreen(
                     }
                 }
             }
-                // Cover box removed — cover image is now the full-screen
-                // immersive background. Just add spacing so the title
-                // appears below the cover image area.
+                // Cover box removed — cover image is the immersive background
+                // (top 42% of screen). Spacer pushes title below the cover area.
                 item {
-                    Spacer(modifier = Modifier.height(180.dp))
+                    Spacer(modifier = Modifier.height(200.dp))
                 }
 
                 // Playlist name (Cal Sans) + subtitle/date (Poppins)
@@ -442,37 +444,43 @@ fun PlaylistDetailScreen(
                     }
                 }
 
-                // Sort bar — narrower, shorter, proper capsule
+                // Sort bar — small, narrow, centered capsule
                 item {
                     Row(
                         modifier = Modifier
-                            .fillMaxWidth(0.88f)
-                            .padding(top = 16.dp)
-                            .clip(RoundedCornerShape(50))
-                            .background(Color.White.copy(alpha = 0.08f))
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            .fillMaxWidth()
+                            .padding(top = 16.dp),
+                        horizontalArrangement = Arrangement.Center
                     ) {
-                        Text(
-                            text = "Sort by: Custom Order",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        // Song count badge — proper capsule (fully rounded)
-                        Box(
+                        Row(
                             modifier = Modifier
+                                .wrapContentWidth()
                                 .clip(RoundedCornerShape(50))
-                                .background(Color.White.copy(alpha = 0.12f))
-                                .padding(horizontal = 14.dp, vertical = 6.dp)
+                                .background(Color.White.copy(alpha = 0.08f))
+                                .padding(horizontal = 14.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Text(
-                                text = "${songsInPlaylist.size}",
-                                color = Color.White.copy(alpha = 0.7f),
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold
+                                text = "Sort by: Custom Order",
+                                color = Color.White.copy(alpha = 0.8f),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
                             )
+                            // Song count badge — tiny capsule
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(50))
+                                    .background(Color.White.copy(alpha = 0.12f))
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "${songsInPlaylist.size}",
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
                     }
                 }
