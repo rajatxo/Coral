@@ -97,6 +97,23 @@ fun PlaylistDetailScreen(
     var showMenu by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
+    // Image picker for custom playlist cover
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val coverPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            // Persist the selected image URI
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: Exception) { }
+            PlaylistStore.setPlaylistCover(livePlaylist.id, uri.toString())
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         // --- Layer 1: Blurred background ---
         if (backgroundArtUri != null) {
@@ -197,6 +214,35 @@ fun PlaylistDetailScreen(
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(Color(0xFF1A1A1A))
                         ) {
+                            // Playlist cover option
+                            Row(
+                                modifier = Modifier
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = {
+                                            showMenu = false
+                                            coverPicker.launch("image/*")
+                                        }
+                                    )
+                                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = CoralIcons.Music,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = "Playlist cover",
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+
                             // Delete playlist option
                             Row(
                                 modifier = Modifier
@@ -229,31 +275,35 @@ fun PlaylistDetailScreen(
                     }
                 }
             }
-                // Large cover image (square, rounded, centered)
+                // Large cover image (proper square, rounded corners, centered)
                 item {
                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(1f)
-                            .padding(horizontal = 32.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(CoralColors.SurfaceVariant),
+                        modifier = Modifier.fillMaxWidth(),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (coverArtUri != null) {
-                            AsyncImage(
-                                model = coverArtUri,
-                                contentDescription = "Playlist cover",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            Icon(
-                                imageVector = CoralIcons.Music,
-                                contentDescription = null,
-                                tint = Color(0xFF444444),
-                                modifier = Modifier.size(80.dp)
-                            )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(0.55f)
+                                .aspectRatio(1f)
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(CoralColors.SurfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (coverArtUri != null) {
+                                AsyncImage(
+                                    model = coverArtUri,
+                                    contentDescription = "Playlist cover",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = CoralIcons.Music,
+                                    contentDescription = null,
+                                    tint = Color(0xFF444444),
+                                    modifier = Modifier.size(60.dp)
+                                )
+                            }
                         }
                     }
                 }
