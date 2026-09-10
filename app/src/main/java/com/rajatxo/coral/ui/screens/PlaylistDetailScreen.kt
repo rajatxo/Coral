@@ -130,14 +130,46 @@ fun PlaylistDetailScreen(
         }
     }
 
-    // Dominant color from the cover image
-    val bgBase = dominantColor ?: Color(0xFF1A1A1A)
+    // --- Immersive background color ---
+    // Darken the dominant color based on its luminance so white text stays readable.
+    // Lighter artwork → darker background. This is the SimpMusic approach.
+    val immersiveColor = remember(dominantColor) {
+        val base = dominantColor ?: Color(0xFF1A1A1A)
+        val luminance = 0.299f * base.red + 0.587f * base.green + 0.114f * base.blue
+        val darkenFactor = 0.35f + 0.45f * luminance
+        androidx.compose.ui.graphics.lerp(base, Color.Black, darkenFactor)
+    }
 
-    Box(modifier = Modifier.fillMaxSize().background(bgBase)) {
+    // --- Smoothstep scrim brush (full screen, positioned) ---
+    // Creates a gradient with smoothstep easing so the curve is flat at BOTH
+    // ends — no visible "corner" where the blend starts.
+    // Uses color.copy(alpha = 0f) instead of Color.Transparent to avoid the
+    // dirty grey band that Skia creates when interpolating toward black.
+    // 24 steps prevent 8-bit banding.
+    //
+    // The gradient spans the full screen but only ramps from startFraction
+    // to endFraction (the rest is held at the from/to colors by TileMode.Clamp).
+    fun smoothScrimBrush(
+        color: Color,
+        startFraction: Float = 0.15f,
+        endFraction: Float = 0.48f,
+        steps: Int = 24
+    ): Brush {
+        val from = color.copy(alpha = 0f)
+        return Brush.verticalGradient(
+            colorStops = Array(steps + 1) { i ->
+                val t = i / steps.toFloat()
+                val position = startFraction + (endFraction - startFraction) * t
+                val eased = t * t * (3f - 2f * t)  // smoothstep
+                position to androidx.compose.ui.graphics.lerp(from, color, eased)
+            }
+        )
+    }
 
-        // --- Layer 1: Cover image — fixed at top, fills width, ~42% height ---
-        // The cover image is placed at the top. Below it is the dominant color.
-        // The blending happens via a gradient overlay that spans the junction.
+    Box(modifier = Modifier.fillMaxSize().background(immersiveColor)) {
+
+        // --- Layer 1: Cover image at the top (fixed) ---
+        // Fills width, ~42% of screen height. Below it is the immersive color.
         if (coverArtUri != null) {
             AsyncImage(
                 model = coverArtUri,
@@ -149,31 +181,16 @@ fun PlaylistDetailScreen(
             )
         }
 
-        // --- Layer 2: Blend gradient at the junction ---
-        // This gradient sits on top of the image bottom edge + dominant color.
-        // It creates a smooth feather where the cover meets the color.
-        //
-        // The key: the gradient goes from Transparent (top, image visible)
-        // → dominant color (bottom, solid color visible).
-        // It spans 25% to 50% — covering the bottom of the image area
-        // and extending into the solid color area.
+        // --- Layer 2: Full-screen smoothstep scrim ---
+        // This gradient covers the entire screen. The ramp is confined to
+        // 15%-48% (the junction between cover and solid color).
+        // Below 48% it's fully opaque immersive color.
+        // Above 15% it's fully transparent (cover image visible).
+        // The smoothstep curve makes the transition invisible — no hard line.
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0.0f to Color.Transparent,       // top: image fully visible
-                            0.28f to Color.Transparent,      // still image
-                            0.32f to bgBase.copy(alpha = 0.1f),  // blend begins
-                            0.36f to bgBase.copy(alpha = 0.3f),  // getting opaque
-                            0.40f to bgBase.copy(alpha = 0.6f),  // more opaque
-                            0.44f to bgBase.copy(alpha = 0.85f), // almost solid
-                            0.48f to bgBase,                  // fully solid dominant color
-                            1.0f to bgBase                    // stays solid to bottom
-                        )
-                    )
-                )
+                .background(smoothScrimBrush(immersiveColor, 0.15f, 0.48f))
         )
 
         // --- Layer 3: Content (everything scrolls, including top bar) ---
