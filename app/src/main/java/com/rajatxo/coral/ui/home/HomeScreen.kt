@@ -268,9 +268,12 @@ fun HomeScreen(
 
                 when (selectedTab) {
                     CoralTab.QuickPicks -> QuickPicksScreen(
+                        songs = songs,
+                        currentSongId = currentSongId,
                         capsuleVisible = capsuleVisible,
                         capsuleRemaining = capsuleRemaining,
-                        onExtend = onExtend
+                        onExtend = onExtend,
+                        onSongClick = onSongClick
                     )
                     CoralTab.Discover -> PlaceholderScreen(
                         tabName = "Discover",

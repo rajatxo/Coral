@@ -1,5 +1,7 @@
 package com.rajatxo.coral.ui.screens
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -8,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,10 +18,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,51 +31,132 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
+import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.components.CoralColors
-import com.rajatxo.coral.ui.icons.CoralIcons
+import com.rajatxo.coral.util.CoralPalette
+import com.rajatxo.coral.util.extractPalette
+import kotlin.random.Random
 
 /**
- * Quick Picks Screen — shows songs based on either "last played" or
- * "random picks" mode, toggled via a capsule switch.
+ * Quick Picks Screen — horizontal card carousel with dynamic background morphing.
  *
- * Layout:
+ * Two modes (toggle capsule):
+ *   - "Based on last played": shows songs from the same artist/album as last played
+ *   - "Random picks": shows random songs from the library
+ *
+ * UI:
  *   - Big "Quick picks" title (top right, Quirk italic)
  *   - Sleep timer capsule (top left, if active)
  *   - Toggle capsule: "Based on last played" ↔ "Random picks"
- *   - Song list below (empty for now — will be populated based on mode)
+ *   - HorizontalPager: full-screen album art cards with rounded corners + shadow
+ *   - Background dynamically morphs to match the current card's dominant color
+ *   - Swipe left/right to browse songs
+ *   - Tap a card to play that song
  *
- * Toggle behavior:
- *   - Default: "Based on last played" (left side active)
- *   - Tap right side → switches to "Random picks"
- *   - Tap left side → switches back to "Based on last played"
- *   - Active side has white background + black text
- *   - Inactive side has transparent background + white text
+ * @param songs Full song library
+ * @param currentSongId Currently playing song ID (for "based on last played" mode)
+ * @param onSongClick Called when user taps a card
  */
 @Composable
 fun QuickPicksScreen(
+    songs: List<Song>,
+    currentSongId: Long?,
     capsuleVisible: Boolean = false,
     capsuleRemaining: Long = 0L,
-    onExtend: () -> Unit = {}
+    onExtend: () -> Unit = {},
+    onSongClick: (Song) -> Unit = {}
 ) {
-    // Toggle state: false = "Based on last played", true = "Random picks"
+    val context = LocalContext.current
     var isRandomMode by remember { mutableStateOf(false) }
+
+    // --- Song selection logic ---
+    // "Based on last played": songs from the same artist or album as the
+    // currently playing (or last played) song. Falls back to random if no
+    // song is playing.
+    // "Random picks": 15 random songs from the library.
+    val quickPicksSongs = remember(songs, currentSongId, isRandomMode) {
+        if (songs.isEmpty()) return@remember emptyList()
+
+        if (isRandomMode) {
+            // Random mode: pick 15 random songs
+            songs.shuffled().take(15)
+        } else {
+            // Based on last played: find the current song, then get songs
+            // from the same artist or album
+            val currentSong = songs.firstOrNull { it.id == currentSongId }
+            if (currentSong != null) {
+                val sameArtist = songs.filter {
+                    it.artist == currentSong.artist && it.id != currentSong.id
+                }
+                val sameAlbum = songs.filter {
+                    it.album == currentSong.album && it.id != currentSong.id &&
+                    it.id !in sameArtist.map { s -> s.id }
+                }
+                // Start with the current song, then related songs
+                val related = (listOf(currentSong) + sameArtist + sameAlbum).distinct().take(15)
+                if (related.size < 5) {
+                    // Not enough related songs — fill with random
+                    val fillers = songs.filter { it.id !in related.map { s -> s.id } }
+                        .shuffled()
+                        .take(15 - related.size)
+                    (related + fillers).distinct()
+                } else {
+                    related
+                }
+            } else {
+                // No current song — just show random
+                songs.shuffled().take(15)
+            }
+        }
+    }
+
+    // --- Pager state ---
+    val pagerState = rememberPagerState(pageCount = { quickPicksSongs.size })
+
+    // --- Dynamic background color ---
+    // Extracts the dominant color from the current page's album art and
+    // smoothly morphs the background to match it.
+    var currentBgColor by remember { mutableStateOf(Color(0xFF1A1A1A)) }
+    val animatedBgColor by animateColorAsState(
+        targetValue = currentBgColor,
+        animationSpec = tween(durationMillis = 500),
+        label = "bgColor"
+    )
+
+    // Extract palette when the current page changes
+    LaunchedEffect(pagerState.currentPage, quickPicksSongs) {
+        val currentSong = quickPicksSongs.getOrNull(pagerState.currentPage)
+        if (currentSong?.albumArtUri != null) {
+            extractPalette(context, currentSong.albumArtUri)?.let { palette ->
+                currentBgColor = darkenColor(palette.primary)
+            }
+        } else {
+            currentBgColor = Color(0xFF1A1A1A)
+        }
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(CoralColors.Surface)
+            .background(animatedBgColor)
     ) {
+        // Header (title + toggle)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
                 .padding(start = 16.dp, end = 20.dp, top = 16.dp)
         ) {
-            // Header Row: capsule (weight=1f) + title text
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -95,20 +181,16 @@ fun QuickPicksScreen(
 
             Spacer(modifier = Modifier.size(8.dp))
 
-            // --- Toggle capsule ---
-            // Two halves: "Based on last played" (left) | "Random picks" (right)
-            // Active half = white bg + black text
-            // Inactive half = transparent + white text
+            // Toggle capsule
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(40.dp)
                     .clip(RoundedCornerShape(20.dp))
-                    .background(CoralColors.SurfaceVariant)
+                    .background(Color.Black.copy(alpha = 0.3f))
                     .padding(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left: "Based on last played"
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -130,7 +212,6 @@ fun QuickPicksScreen(
                         maxLines = 1
                     )
                 }
-                // Right: "Random picks"
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -155,34 +236,108 @@ fun QuickPicksScreen(
             }
         }
 
-        // Centered placeholder (will be replaced with song list later)
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = 130.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = if (isRandomMode) "🎲" else "🎵",
-                fontSize = 56.sp
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = if (isRandomMode) "Random picks" else "Based on last played",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = if (isRandomMode)
-                    "Random songs from your library will appear here."
-                else
-                    "Songs related to your last played track will appear here.",
-                color = CoralColors.TextMuted,
-                fontSize = 13.sp,
-                modifier = Modifier.padding(horizontal = 32.dp)
-            )
+        // --- HorizontalPager: album art cards ---
+        if (quickPicksSongs.isNotEmpty()) {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = 120.dp, bottom = 100.dp),
+                pageSpacing = 24.dp,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    horizontal = 48.dp
+                )
+            ) { page ->
+                val song = quickPicksSongs[page]
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    // Album art card — white background, rounded corners, shadow
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(320.dp)
+                            .padding(horizontal = 16.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(Color.White)
+                            .shadow(20.dp, RoundedCornerShape(24.dp))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { onSongClick(song) }
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (song.albumArtUri != null) {
+                            AsyncImage(
+                                model = song.albumArtUri,
+                                contentDescription = "Album art for ${song.title}",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Text(
+                                text = "🎵",
+                                fontSize = 64.sp
+                            )
+                        }
+                    }
+
+                    // Song title + artist below the card
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = song.title,
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 24.dp)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = song.artist,
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 24.dp)
+                    )
+                }
+            }
+        } else {
+            // Empty state
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = 200.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(text = "🎵", fontSize = 56.sp)
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "No songs found",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
         }
     }
+}
+
+/**
+ * Darkens a color for use as a background so white text stays readable.
+ * Uses the same luminance-based approach as the playlist detail screen.
+ */
+private fun darkenColor(color: Color): Color {
+    val luminance = 0.299f * color.red + 0.587f * color.green + 0.114f * color.blue
+    val darkenFactor = 0.35f + 0.45f * luminance
+    return androidx.compose.ui.graphics.lerp(color, Color.Black, darkenFactor)
 }
