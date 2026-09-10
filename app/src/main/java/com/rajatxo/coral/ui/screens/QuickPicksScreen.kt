@@ -1,25 +1,25 @@
 package com.rajatxo.coral.ui.screens
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -30,52 +30,43 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.AsyncImage
 import com.rajatxo.coral.domain.model.Song
-import com.rajatxo.coral.ui.components.CoralColors
-import com.rajatxo.coral.util.CoralPalette
+import com.rajatxo.coral.ui.components.VinylHalo
+import com.rajatxo.coral.ui.theme.NyghtSerifFamily
+import com.rajatxo.coral.ui.theme.PlayfairItalicFamily
+import com.rajatxo.coral.ui.theme.QuirkFontFamily
 import com.rajatxo.coral.util.extractPalette
-import kotlin.random.Random
 
 /**
- * Quick Picks Screen — horizontal card carousel with dynamic background morphing.
+ * Quick Picks Screen — Vinyl Halo selector.
  *
- * IMPORTANT — background contract:
+ * Layout:
+ *   Column(fillMaxSize, no bg — parent paints dynamic color):
+ *     Header (statusBarsPadding):
+ *       Row: SleepCapsule (left, weight 1) + "Quick picks" title (right, Quirk italic 34sp)
+ *       Spacer(8dp)
+ *       Toggle capsule: "Based on last played" ↔ "Random picks"
+ *     VinylHalo (weight 1f):
+ *       Spinning vinyl disc (current pick's album art at center label)
+ *       Halo ring of satellites (album art thumbnails around the vinyl)
+ *       Active satellite: scaled + glowing ring + needle line to vinyl edge
+ *     Footer (bottom, above mini player):
+ *       AnimatedContent: Pick title (Playfair Italic 22sp)
+ *       AnimatedContent: Pick artist (NyghtSerif Light Italic 14sp, muted)
+ *       Hint: "Tap the record to play" (small, italic, 35% alpha)
+ *
+ * Background contract:
  *   This screen does NOT paint its own background. The dynamic bg color
- *   (extracted from the current album art) is reported to the parent
- *   (HomeScreen) via `onBgColorChange`. The parent paints the ENTIRE
- *   screen — including the 48dp nav rail area on the left — so the bg
- *   color extends seamlessly under the rail. Otherwise the rail would
- *   show the activity's default black background.
- *
- * Two modes (toggle capsule):
- *   - "Based on last played": shows songs from the same artist/album as last played
- *   - "Random picks": shows random songs from the library
- *
- * UI:
- *   - Big "Quick picks" title (top right, Quirk italic)
- *   - Sleep timer capsule (top left, if active)
- *   - Toggle capsule: "Based on last played" ↔ "Random picks"
- *   - HorizontalPager: full-screen album art cards with rounded corners + shadow
- *   - Background dynamically morphs to match the current card's dominant color
- *   - Swipe left/right to browse songs
- *   - Tap a card to play that song
- *
- * @param songs Full song library
- * @param currentSongId Currently playing song ID (for "based on last played" mode)
- * @param onBgColorChange Reports the target bg color (darkened dominant color
- *        from the current card's album art) to the parent so it can paint the
- *        full screen, including the nav rail area.
- * @param onSongClick Called when user taps a card
+ *   (extracted from current pick's album art) is hoisted to HomeScreen via
+ *   onBgColorChange. The parent paints the entire screen — including the
+ *   48dp nav rail area — so the bg color extends seamlessly under the rail.
  */
 @Composable
 fun QuickPicksScreen(
@@ -91,20 +82,15 @@ fun QuickPicksScreen(
     val context = LocalContext.current
     var isRandomMode by remember { mutableStateOf(false) }
 
-    // --- Song selection logic ---
-    // "Based on last played": songs from the same artist or album as the
-    // currently playing (or last played) song. Falls back to random if no
-    // song is playing.
-    // "Random picks": 15 random songs from the library.
+    // --- Song selection logic (unchanged) ---
+    // "Based on last played": songs from same artist/album as currently playing
+    // "Random picks": 15 random songs
     val quickPicksSongs = remember(songs, currentSongId, isRandomMode) {
         if (songs.isEmpty()) return@remember emptyList()
 
         if (isRandomMode) {
-            // Random mode: pick 15 random songs
             songs.shuffled().take(15)
         } else {
-            // Based on last played: find the current song, then get songs
-            // from the same artist or album
             val currentSong = songs.firstOrNull { it.id == currentSongId }
             if (currentSong != null) {
                 val sameArtist = songs.filter {
@@ -114,10 +100,8 @@ fun QuickPicksScreen(
                     it.album == currentSong.album && it.id != currentSong.id &&
                     it.id !in sameArtist.map { s -> s.id }
                 }
-                // Start with the current song, then related songs
                 val related = (listOf(currentSong) + sameArtist + sameAlbum).distinct().take(15)
                 if (related.size < 5) {
-                    // Not enough related songs — fill with random
                     val fillers = songs.filter { it.id !in related.map { s -> s.id } }
                         .shuffled()
                         .take(15 - related.size)
@@ -126,30 +110,24 @@ fun QuickPicksScreen(
                     related
                 }
             } else {
-                // No current song — just show random
                 songs.shuffled().take(15)
             }
         }
     }
 
-    // --- Pager state ---
-    val pagerState = rememberPagerState(pageCount = { quickPicksSongs.size })
+    // --- Current pick index (replaces pagerState) ---
+    var currentPickIndex by remember { mutableStateOf(0) }
+    LaunchedEffect(quickPicksSongs) {
+        currentPickIndex = 0
+    }
 
-    // --- Dynamic background color ---
-    // Extracts the dominant color from the current page's album art and
-    // reports it to the PARENT (HomeScreen) so it can paint the entire
-    // screen — including the nav rail area — with this color.
-    // The animation (morphing) is owned by the parent via animateColorAsState.
+    // --- Dynamic bg color (hoisted to parent) ---
     var currentBgColor by remember { mutableStateOf(Color(0xFF1A1A1A)) }
-
-    // Report bg color changes to the parent.
     LaunchedEffect(currentBgColor) {
         onBgColorChange(currentBgColor)
     }
-
-    // Extract palette when the current page changes
-    LaunchedEffect(pagerState.currentPage, quickPicksSongs) {
-        val currentSong = quickPicksSongs.getOrNull(pagerState.currentPage)
+    LaunchedEffect(currentPickIndex, quickPicksSongs) {
+        val currentSong = quickPicksSongs.getOrNull(currentPickIndex)
         if (currentSong?.albumArtUri != null) {
             extractPalette(context, currentSong.albumArtUri)?.let { palette ->
                 currentBgColor = darkenColor(palette.primary)
@@ -159,15 +137,15 @@ fun QuickPicksScreen(
         }
     }
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            // NO background here — the parent (HomeScreen) paints the entire
-            // screen with the dynamic color, so it extends seamlessly under
-            // the transparent nav rail.
+            // NO background — parent (HomeScreen) paints the entire screen,
+            // including the nav rail area, with the hoisted dynamic color.
     ) {
-
-        // Header (title + toggle)
+        // ============================================================
+        // HEADER (title + toggle)
+        // ============================================================
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -192,13 +170,13 @@ fun QuickPicksScreen(
                     color = Color.White,
                     fontSize = 34.sp,
                     fontWeight = FontWeight.Bold,
-                    fontFamily = com.rajatxo.coral.ui.theme.QuirkFontFamily
+                    fontFamily = QuirkFontFamily
                 )
             }
 
             Spacer(modifier = Modifier.size(8.dp))
 
-            // Toggle capsule
+            // Toggle capsule: Based on last played ↔ Random picks
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -253,97 +231,100 @@ fun QuickPicksScreen(
             }
         }
 
-        // --- HorizontalPager: album art cards ---
+        // ============================================================
+        // VINYL HALO (fills middle, weight 1f)
+        // ============================================================
         if (quickPicksSongs.isNotEmpty()) {
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = 120.dp, bottom = 100.dp),
-                pageSpacing = 24.dp,
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                    horizontal = 48.dp
-                )
-            ) { page ->
-                val song = quickPicksSongs[page]
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .fillMaxHeight(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    // Album art card — white background, rounded corners, shadow
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(320.dp)
-                            .padding(horizontal = 16.dp)
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(Color.White)
-                            .shadow(20.dp, RoundedCornerShape(24.dp))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = { onSongClick(song) }
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (song.albumArtUri != null) {
-                            AsyncImage(
-                                model = song.albumArtUri,
-                                contentDescription = "Album art for ${song.title}",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            Text(
-                                text = "🎵",
-                                fontSize = 64.sp
-                            )
-                        }
+            VinylHalo(
+                songs = quickPicksSongs,
+                currentPickIndex = currentPickIndex,
+                onPickChange = { currentPickIndex = it },
+                onPlayCurrentPick = {
+                    if (currentPickIndex in quickPicksSongs.indices) {
+                        onSongClick(quickPicksSongs[currentPickIndex])
                     }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            )
 
-                    // Song title + artist below the card
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = song.title,
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 24.dp)
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = song.artist,
-                        color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 14.sp,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 24.dp)
-                    )
-                }
-            }
-        } else {
-            // Empty state
+            // ============================================================
+            // FOOTER (current pick title + artist + hint)
+            // ============================================================
+            val currentPick = quickPicksSongs.getOrNull(currentPickIndex)
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = 200.dp),
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(bottom = 100.dp, start = 24.dp, end = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(text = "🎵", fontSize = 56.sp)
-                Spacer(modifier = Modifier.height(16.dp))
+                // Pick title — Playfair Display Italic, big and elegant
+                AnimatedContent(
+                    targetState = currentPick,
+                    transitionSpec = {
+                        fadeIn(tween(300)) togetherWith fadeOut(tween(300))
+                    },
+                    label = "titleMorph"
+                ) { pick ->
+                    Text(
+                        text = pick?.title ?: "",
+                        color = Color.White,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Medium,
+                        fontFamily = PlayfairItalicFamily,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                // Pick artist — NyghtSerif Light Italic, muted
+                AnimatedContent(
+                    targetState = currentPick,
+                    transitionSpec = {
+                        fadeIn(tween(300)) togetherWith fadeOut(tween(300))
+                    },
+                    label = "artistMorph"
+                ) { pick ->
+                    Text(
+                        text = pick?.artist ?: "",
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 14.sp,
+                        fontFamily = NyghtSerifFamily,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                // Hint text
                 Text(
-                    text = "No songs found",
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold
+                    text = "Tap the record to play",
+                    color = Color.White.copy(alpha = 0.35f),
+                    fontSize = 11.sp
                 )
+            }
+        } else {
+            // --- Empty state ---
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(text = "🎵", fontSize = 56.sp)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "No songs found",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
     }
