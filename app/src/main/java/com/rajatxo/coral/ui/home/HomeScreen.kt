@@ -246,27 +246,22 @@ fun HomeScreen(
                 onBackClick = { railMode = com.rajatxo.coral.ui.components.RailMode.Main }
             )
 
+            // --- Sleep timer capsule state (moved to parent scope so overlays can access) ---
+            val capsuleVisible = sleepTimerState.active &&
+                (sleepRemainingMs > 0 || sleepTimerState.endOfSong)
+            val capsuleRemaining = if (sleepTimerState.endOfSong) {
+                (miniPlayerDurationMs - miniPlayerPositionMs).coerceAtLeast(0L)
+            } else {
+                sleepRemainingMs
+            }
+            val onExtend: () -> Unit = { sleepTimer.extend(10) }
+
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
             ) {
-                // --- Sleep timer capsule state passed to each screen ---
-                // Capsule is visible when:
-                //   - Timer is active, AND
-                //   - EITHER there's a timed countdown (sleepRemainingMs > 0)
-                //     OR the timer is in 'end of song' mode (sleepRemainingMs
-                //     is 0 because no countdown is running, but a song is
-                //     playing and the timer will fire when the song ends).
-                val capsuleVisible = sleepTimerState.active &&
-                    (sleepRemainingMs > 0 || sleepTimerState.endOfSong)
-                val capsuleRemaining = if (sleepTimerState.endOfSong) {
-                    // For end-of-song mode, show time remaining in current song
-                    (miniPlayerDurationMs - miniPlayerPositionMs).coerceAtLeast(0L)
-                } else {
-                    sleepRemainingMs
-                }
-                val onExtend: () -> Unit = { sleepTimer.extend(10) }
+                // Capsule state defined in parent scope above
 
                 when (selectedTab) {
                     CoralTab.QuickPicks -> {
