@@ -10,13 +10,16 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.BlendMode
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.drawscope.Stroke
+import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
 
@@ -141,7 +144,7 @@ fun UnderwaterBackground(
 
         drawRect(
             brush = Brush.verticalGradient(
-                colorStops = listOf(
+                colorStops = arrayOf(
                     0f to gradientColors[0],
                     0.5f to gradientColors[1],
                     1f to gradientColors[2]
