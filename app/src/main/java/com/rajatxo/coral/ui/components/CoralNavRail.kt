@@ -215,10 +215,10 @@ private fun RailLabel(
             // The capsule is drawn before rotation, so it appears as a
             // vertical pill behind the rotated text.
             if (isSelected) {
-                // Capsule dimensions — slightly larger than the text
-                val capsulePadding = 8.dp.toPx()
-                val capsuleWidth = textHeight + capsulePadding * 2  // height after rotation = width before
-                val capsuleHeight = textWidthPx + capsulePadding * 2  // width after rotation = height before
+                // Capsule dimensions — narrow padding
+                val capsulePadding = 4.dp.toPx()
+                val capsuleWidth = textHeight + capsulePadding * 2
+                val capsuleHeight = textWidthPx + capsulePadding * 2
                 val capsuleX = (canvasWidth - capsuleWidth) / 2f
                 val capsuleY = (canvasHeight - capsuleHeight) / 2f
 

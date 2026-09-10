@@ -133,8 +133,7 @@ fun HomeScreen(
     androidx.activity.compose.BackHandler(
         enabled = selectedPlaylist != null || showFullPlayer || showSongPicker ||
                   showPremium || showEqualizer || showSleepTimer || showFontPicker ||
-                  railMode == com.rajatxo.coral.ui.components.RailMode.Settings ||
-                  selectedTab == CoralTab.QuickPicks
+                  railMode == com.rajatxo.coral.ui.components.RailMode.Settings
     ) {
         when {
             showFullPlayer -> onFullPlayerDismiss()
@@ -144,7 +143,6 @@ fun HomeScreen(
             showSleepTimer -> { showSleepTimer = false }
             showFontPicker -> { showFontPicker = false }
             selectedPlaylist != null -> { selectedPlaylist = null }
-            selectedTab == CoralTab.QuickPicks -> { selectedTab = CoralTab.Songs }
             railMode == com.rajatxo.coral.ui.components.RailMode.Settings -> {
                 railMode = com.rajatxo.coral.ui.components.RailMode.Main
             }
@@ -263,9 +261,14 @@ fun HomeScreen(
             ) {
 
                 when (selectedTab) {
-                    CoralTab.QuickPicks -> {
-                        // Quick Picks renders as a full-screen overlay (no nav rail)
-                    }
+                    CoralTab.QuickPicks -> QuickPicksScreen(
+                        songs = songs,
+                        currentSongId = currentSongId,
+                        capsuleVisible = capsuleVisible,
+                        capsuleRemaining = capsuleRemaining,
+                        onExtend = onExtend,
+                        onSongClick = onSongClick
+                    )
                     CoralTab.Discover -> PlaceholderScreen(
                         tabName = "Discover",
                         description = "Random shuffle, hidden gems, and smart recommendations based on your listening. Coming soon.",
@@ -467,23 +470,6 @@ fun HomeScreen(
                     onDeletePlaylist = { selectedPlaylist = null }
                 )
             }
-        }
-
-        // Full-screen Quick Picks overlay (covers nav rail + everything)
-        AnimatedVisibility(
-            visible = selectedTab == CoralTab.QuickPicks,
-            enter = slideInVertically { it },
-            exit = slideOutVertically { it }
-        ) {
-            QuickPicksScreen(
-                songs = songs,
-                currentSongId = currentSongId,
-                capsuleVisible = capsuleVisible,
-                capsuleRemaining = capsuleRemaining,
-                onExtend = onExtend,
-                onSongClick = onSongClick,
-                onBackClick = { selectedTab = CoralTab.Songs }
-            )
         }
 
         // --- Add to playlist dialog (from FullPlayer 3-dot menu) ---
