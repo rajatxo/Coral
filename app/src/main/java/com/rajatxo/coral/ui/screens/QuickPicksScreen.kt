@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -74,7 +75,8 @@ fun QuickPicksScreen(
     capsuleVisible: Boolean = false,
     capsuleRemaining: Long = 0L,
     onExtend: () -> Unit = {},
-    onSongClick: (Song) -> Unit = {}
+    onSongClick: (Song) -> Unit = {},
+    onBackClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var isRandomMode by remember { mutableStateOf(false) }
@@ -150,6 +152,27 @@ fun QuickPicksScreen(
             .fillMaxSize()
             .background(animatedBgColor)
     ) {
+        // Back button (top left, no circle background)
+        Box(
+            modifier = Modifier
+                .statusBarsPadding()
+                .padding(start = 4.dp, top = 8.dp)
+                .size(40.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onBackClick
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = com.rajatxo.coral.ui.icons.CoralIcons.ChevronLeft,
+                contentDescription = "Back",
+                tint = Color.White,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+
         // Header (title + toggle)
         Column(
             modifier = Modifier
