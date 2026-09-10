@@ -117,6 +117,11 @@ fun HomeScreen(
     var showSleepTimer by remember { mutableStateOf(false) }
     var showFontPicker by remember { mutableStateOf(false) }
 
+    // --- Add to playlist from FullPlayer ---
+    // When user taps "Add to playlist" in the FullPlayer 3-dot menu,
+    // this stores the song ID and shows a playlist picker dialog.
+    var songToAddToPlaylist by remember { mutableStateOf<Long?>(null) }
+
     // --- System back button handling ---
     // When the playlist detail overlay is open, the system back button
     // should dismiss it (set selectedPlaylist = null) instead of closing
@@ -434,7 +439,10 @@ fun HomeScreen(
                 onNextClick = onNextClick,
                 onPrevClick = onPrevClick,
                 onSeek = onSeek,
-                onDismiss = onFullPlayerDismiss
+                onDismiss = onFullPlayerDismiss,
+                onAddToPlaylist = { songId ->
+                    songToAddToPlaylist = songId
+                }
             )
         }
 
@@ -463,6 +471,59 @@ fun HomeScreen(
                     onDeletePlaylist = { selectedPlaylist = null }
                 )
             }
+        }
+
+        // --- Add to playlist dialog (from FullPlayer 3-dot menu) ---
+        if (songToAddToPlaylist != null) {
+            val playlistsState by com.rajatxo.coral.data.store.PlaylistStore.playlists.collectAsState()
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { songToAddToPlaylist = null },
+                containerColor = com.rajatxo.coral.ui.components.CoralColors.SurfaceVariant,
+                titleContentColor = Color.White,
+                title = { Text("Add to playlist") },
+                text = {
+                    if (playlistsState.isEmpty()) {
+                        Text("No playlists yet. Create one first.", color = Color(0xFF888888), fontSize = 14.sp)
+                    } else {
+                        androidx.compose.foundation.lazy.LazyColumn {
+                            items(playlistsState) { pl ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            PlaylistStore.addSongToPlaylist(pl.id, songToAddToPlaylist!!)
+                                            songToAddToPlaylist = null
+                                        }
+                                        .padding(vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = com.rajatxo.coral.ui.icons.CoralIcons.ListMusic,
+                                        contentDescription = null,
+                                        tint = Color.White.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        text = pl.name,
+                                        color = Color.White,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    androidx.compose.material3.TextButton(onClick = { songToAddToPlaylist = null }) {
+                        Text("Cancel", color = Color(0xFF888888))
+                    }
+                }
+            )
         }
     }
 }

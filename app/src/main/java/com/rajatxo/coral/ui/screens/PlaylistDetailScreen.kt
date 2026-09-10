@@ -86,8 +86,12 @@ fun PlaylistDetailScreen(
         livePlaylist.songIds.mapNotNull { songMap[it] }
     }
 
-    val backgroundArtUri = songsInPlaylist.firstOrNull()?.albumArtUri?.toString()
+    // Cover art: custom cover (from gallery) or first song's album art
     val coverArtUri = livePlaylist.coverUri ?: songsInPlaylist.firstOrNull()?.albumArtUri?.toString()
+
+    // Background = the playlist cover image, blurred
+    val backgroundArtUri = coverArtUri
+
     val dateFormat = remember { SimpleDateFormat("HH:mm – dd MMMM yyyy", Locale.getDefault()) }
     val createdText = remember(livePlaylist.createdAtMs) {
         dateFormat.format(Date(livePlaylist.createdAtMs))

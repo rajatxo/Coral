@@ -104,7 +104,8 @@ fun FullPlayer(
     onNextClick: () -> Unit,
     onPrevClick: () -> Unit,
     onSeek: (Long) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onAddToPlaylist: (Long) -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -234,20 +235,55 @@ fun FullPlayer(
                     letterSpacing = 1.5.sp
                 )
 
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.10f))
-                        .clickable { /* Phase 5: more options sheet */ },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = CoralIcons.MoreVertical,
-                        contentDescription = "More options",
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
+                // 3-dot menu with dropdown
+                var showMoreMenu by remember { mutableStateOf(false) }
+                Box {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.10f))
+                            .clickable { showMoreMenu = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = CoralIcons.MoreVertical,
+                            contentDescription = "More options",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    androidx.compose.material3.DropdownMenu(
+                        expanded = showMoreMenu,
+                        onDismissRequest = { showMoreMenu = false },
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFF1A1A1A))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .clickable {
+                                    showMoreMenu = false
+                                    songId?.let { onAddToPlaylist(it) }
+                                }
+                                .padding(horizontal = 20.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = CoralIcons.Heart,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Add to playlist",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
                 }
             }
 
