@@ -62,7 +62,7 @@ import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.player.FullPlayer
 import com.rajatxo.coral.ui.screens.PlaylistDetailScreen
 import com.rajatxo.coral.ui.screens.PlaylistsScreen
-import com.rajatxo.coral.ui.screens.PlaceholderScreen
+import com.rajatxo.coral.ui.screens.QuickPicksScreen
 import com.rajatxo.coral.ui.screens.SettingsScreen
 import com.rajatxo.coral.ui.screens.SongPickerScreen
 import com.rajatxo.coral.ui.screens.SongsScreen
