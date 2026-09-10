@@ -130,42 +130,47 @@ fun PlaylistDetailScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        // --- Layer 1: Cover image fills ENTIRE screen (sharp, no clip) ---
-        // The image is NOT clipped to 42% — it fills the whole screen.
-        // The gradient below handles the blending.
+    // Dominant color from the cover image
+    val bgBase = dominantColor ?: Color(0xFF1A1A1A)
+
+    Box(modifier = Modifier.fillMaxSize().background(bgBase)) {
+
+        // --- Layer 1: Cover image — fixed at top, fills width, ~42% height ---
+        // The cover image is placed at the top. Below it is the dominant color.
+        // The blending happens via a gradient overlay that spans the junction.
         if (coverArtUri != null) {
             AsyncImage(
                 model = coverArtUri,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.42f)
             )
         }
 
-        // --- Layer 2: Seamless immersive gradient ---
-        // No hard lines. The gradient is very long and soft:
-        // 0-30%: fully transparent (cover image visible at top)
-        // 30-55%: gentle blend from transparent → dominant color
-        // 55-85%: solid dominant color (song list readability)
-        // 85-100%: gentle fade to near-black (nav bar)
-        val bgBase = dominantColor ?: Color(0xFF1A1A1A)
+        // --- Layer 2: Blend gradient at the junction ---
+        // This gradient sits on top of the image bottom edge + dominant color.
+        // It creates a smooth feather where the cover meets the color.
+        //
+        // The key: the gradient goes from Transparent (top, image visible)
+        // → dominant color (bottom, solid color visible).
+        // It spans 25% to 50% — covering the bottom of the image area
+        // and extending into the solid color area.
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
-                            0.0f to Color.Transparent,
-                            0.28f to Color.Transparent,
-                            0.35f to bgBase.copy(alpha = 0.15f),
-                            0.45f to bgBase.copy(alpha = 0.45f),
-                            0.55f to bgBase.copy(alpha = 0.75f),
-                            0.62f to bgBase.copy(alpha = 0.92f),
-                            0.68f to bgBase,
-                            0.88f to bgBase,
-                            0.95f to bgBase.copy(alpha = 0.8f),
-                            1.0f to Color.Black.copy(alpha = 0.92f)
+                            0.0f to Color.Transparent,       // top: image fully visible
+                            0.28f to Color.Transparent,      // still image
+                            0.32f to bgBase.copy(alpha = 0.1f),  // blend begins
+                            0.36f to bgBase.copy(alpha = 0.3f),  // getting opaque
+                            0.40f to bgBase.copy(alpha = 0.6f),  // more opaque
+                            0.44f to bgBase.copy(alpha = 0.85f), // almost solid
+                            0.48f to bgBase,                  // fully solid dominant color
+                            1.0f to bgBase                    // stays solid to bottom
                         )
                     )
                 )
