@@ -223,28 +223,15 @@ fun HomeScreen(
     }
 
     // --- Dynamic screen background color (hoisted from QuickPicksScreen) ---
-    // QuickPicksScreen reports its target bg color (extracted from album art)
-    // via onBgColorChange. We paint the ENTIRE root Box with this color —
-    // including the 48dp nav rail area on the left — so the dynamic bg
-    // extends seamlessly under the transparent rail. Without this, the rail
-    // area would show the activity's default black background, creating a
-    // hard vertical line between the rail and the page content.
-    //
-    // For non-QuickPicks tabs, we animate back to pure black (CoralColors.Surface)
-    // so the rail area matches the rest of the screen.
+    // NOTE: With the overlay rail pattern (rail floats on top of page content,
+    // transparent), the page now paints its OWN bg across the FULL screen
+    // width — including under the rail. So we no longer need to paint a
+    // root bg color to make the rail area match. Each screen handles its
+    // own bg. The hoisted color state is kept for potential future use but
+    // is no longer painted on the root Box.
     var quickPicksBgColor by remember { mutableStateOf<Color>(Color(0xFF1A1A1A)) }
-    val targetRootBgColor = if (selectedTab == CoralTab.QuickPicks) {
-        quickPicksBgColor
-    } else {
-        CoralColors.Surface  // pure black — matches ViTune style for other tabs
-    }
-    val rootBgColor by androidx.compose.animation.animateColorAsState(
-        targetValue = targetRootBgColor,
-        animationSpec = androidx.compose.animation.core.tween(durationMillis = 500),
-        label = "rootBg"
-    )
 
-    Box(modifier = Modifier.fillMaxSize().background(rootBgColor)) {
+    Box(modifier = Modifier.fillMaxSize()) {
         // --- Sleep timer capsule state (top-level scope, accessible by all overlays) ---
         val capsuleVisible = sleepTimerState.active &&
             (sleepRemainingMs > 0 || sleepTimerState.endOfSong)
@@ -255,35 +242,11 @@ fun HomeScreen(
         }
         val onExtend: () -> Unit = { sleepTimer.extend(10) }
 
-        // Main content + nav rail — fills the whole screen
-        Row(modifier = Modifier.fillMaxSize()) {
-            CoralNavRail(
-                mode = railMode,
-                selectedMainTab = selectedTab,
-                selectedSettingsTab = selectedSettingsTab,
-                onMainTabSelected = {
-                    selectedTab = it
-                    selectedPlaylist = null
-                },
-                onSettingsTabSelected = { tab ->
-                    selectedSettingsTab = tab
-                    when (tab) {
-                        com.rajatxo.coral.ui.components.CoralSettingsTab.Premium -> showPremium = true
-                        com.rajatxo.coral.ui.components.CoralSettingsTab.Appearance -> showFontPicker = true  // opens appearance (font for now)
-                        com.rajatxo.coral.ui.components.CoralSettingsTab.Playback -> showSleepTimer = true
-                        com.rajatxo.coral.ui.components.CoralSettingsTab.About -> showPremium = true
-                    }
-                    // Stay on settings rail until user explicitly goes back
-                },
-                onGearClick = { railMode = com.rajatxo.coral.ui.components.RailMode.Settings },
-                onBackClick = { railMode = com.rajatxo.coral.ui.components.RailMode.Main }
-            )
-
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-            ) {
+        // --- Page content — fills the ENTIRE screen (including under the rail) ---
+        // The nav rail floats ON TOP of this content with a transparent bg,
+        // so album covers and other page content show through behind the
+        // rail text — exactly like how the system nav buttons are transparent.
+        Box(modifier = Modifier.fillMaxSize()) {
 
                 when (selectedTab) {
                     CoralTab.QuickPicks -> QuickPicksScreen(
@@ -346,7 +309,33 @@ fun HomeScreen(
                     )
                 }
             }
-        }
+
+        // --- Nav rail — floats ON TOP of page content, fully transparent ---
+        // The rail has NO background. It floats over the page content so album
+        // covers and other page elements show through behind the rail text —
+        // exactly like how the system nav buttons are transparent over the app.
+        // The rail captures touches in its 48dp strip (for label clicks).
+        CoralNavRail(
+            mode = railMode,
+            selectedMainTab = selectedTab,
+            selectedSettingsTab = selectedSettingsTab,
+            onMainTabSelected = {
+                selectedTab = it
+                selectedPlaylist = null
+            },
+            onSettingsTabSelected = { tab ->
+                selectedSettingsTab = tab
+                when (tab) {
+                    com.rajatxo.coral.ui.components.CoralSettingsTab.Premium -> showPremium = true
+                    com.rajatxo.coral.ui.components.CoralSettingsTab.Appearance -> showFontPicker = true
+                    com.rajatxo.coral.ui.components.CoralSettingsTab.Playback -> showSleepTimer = true
+                    com.rajatxo.coral.ui.components.CoralSettingsTab.About -> showPremium = true
+                }
+            },
+            onGearClick = { railMode = com.rajatxo.coral.ui.components.RailMode.Settings },
+            onBackClick = { railMode = com.rajatxo.coral.ui.components.RailMode.Main },
+            modifier = Modifier.align(Alignment.CenterStart)
+        )
 
         // --- Mini player (bottom, full-width) ---
         AnimatedVisibility(

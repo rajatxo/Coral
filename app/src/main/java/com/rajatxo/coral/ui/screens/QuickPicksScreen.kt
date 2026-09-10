@@ -285,7 +285,7 @@ private fun EditorialPickCard(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 16.dp)
+                .padding(start = 56.dp, end = 24.dp, top = 24.dp, bottom = 16.dp)
                     .navigationBarsPadding()
         ) {
             // Tag pill
