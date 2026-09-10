@@ -259,16 +259,19 @@ private fun SongRow(song: Song, isCurrent: Boolean, onClick: () -> Unit) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = song.title,
-                color = if (isCurrent) CoralColors.Coral else Color.White,
-                fontSize = 15.sp,
+                color = Color.White,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = song.artist,
-                color = CoralColors.TextMuted,
-                fontSize = 13.sp,
+                color = Color.White.copy(alpha = 0.5f),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Normal,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -279,7 +282,7 @@ private fun SongRow(song: Song, isCurrent: Boolean, onClick: () -> Unit) {
         val ss = totalSec % 60
         Text(
             text = "$mm:${String.format("%02d", ss)}",
-            color = CoralColors.TextMuted,
+            color = Color.White.copy(alpha = 0.4f),
             fontSize = 13.sp
         )
     }

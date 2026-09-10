@@ -120,7 +120,7 @@ fun PlaylistDetailScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        // --- Layer 1: Blurred background (90% less blur = 5dp) ---
+        // --- Layer 1: Blurred background (95% blur = 50dp) ---
         if (backgroundArtUri != null) {
             AsyncImage(
                 model = backgroundArtUri,
@@ -128,7 +128,7 @@ fun PlaylistDetailScreen(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
-                    .blur(5.dp)
+                    .blur(50.dp)
             )
         }
 
@@ -168,7 +168,7 @@ fun PlaylistDetailScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(horizontal = 4.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -334,16 +334,18 @@ fun PlaylistDetailScreen(
                         Text(
                             text = "Your Playlist",
                             color = Color.White.copy(alpha = 0.7f),
-                            fontSize = 14.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
                             textAlign = TextAlign.Center
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "Created at $createdText",
                             color = Color.White.copy(alpha = 0.4f),
-                            fontSize = 11.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Normal,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
                             textAlign = TextAlign.Center
                         )
                     }
@@ -382,12 +384,12 @@ fun PlaylistDetailScreen(
 
                         Spacer(modifier = Modifier.width(16.dp))
 
-                        // Play — wider 3D glossy pill button
+                        // Play — narrow glossy pill (wider but not tall)
                         Box(
                             modifier = Modifier
-                                .height(52.dp)
-                                .width(140.dp)
-                                .clip(RoundedCornerShape(26.dp))
+                                .height(40.dp)
+                                .width(130.dp)
+                                .clip(RoundedCornerShape(20.dp))
                                 .background(Color.White)
                                 .drawWithContent {
                                     drawContent()
@@ -454,46 +456,35 @@ fun PlaylistDetailScreen(
                     }
                 }
 
-                // Sort bar pill
+                // Sort bar — proper capsule shape (fully rounded)
                 item {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 20.dp)
-                            .clip(RoundedCornerShape(20.dp))
+                            .clip(RoundedCornerShape(50))
                             .background(Color.White.copy(alpha = 0.08f))
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                            .padding(horizontal = 20.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = "=",
-                                color = Color.White.copy(alpha = 0.6f),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Sort by: Custom Order",
-                                color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                        // Song count badge
+                        Text(
+                            text = "Sort by: Custom Order",
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        // Song count badge — proper capsule (fully rounded)
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color.White.copy(alpha = 0.1f))
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                                .clip(RoundedCornerShape(50))
+                                .background(Color.White.copy(alpha = 0.12f))
+                                .padding(horizontal = 14.dp, vertical = 6.dp)
                         ) {
                             Text(
                                 text = "${songsInPlaylist.size}",
                                 color = Color.White.copy(alpha = 0.7f),
-                                fontSize = 11.sp,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
@@ -617,20 +608,23 @@ private fun PlaylistSongRow(
 
         Spacer(modifier = Modifier.width(12.dp))
 
-        // Title + artist
+        // Title + artist — both Poppins, same size (14sp), white + gray
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = song.title,
-                color = if (isCurrent) CoralColors.Coral else Color.White,
+                color = Color.White,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = song.artist,
                 color = Color.White.copy(alpha = 0.5f),
-                fontSize = 12.sp,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Normal,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
