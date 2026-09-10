@@ -140,20 +140,16 @@ fun PlaylistDetailScreen(
         androidx.compose.ui.graphics.lerp(base, Color.Black, darkenFactor)
     }
 
-    // --- Smoothstep scrim brush (full screen, positioned) ---
-    // Creates a gradient with smoothstep easing so the curve is flat at BOTH
-    // ends — no visible "corner" where the blend starts.
-    // Uses color.copy(alpha = 0f) instead of Color.Transparent to avoid the
-    // dirty grey band that Skia creates when interpolating toward black.
-    // 24 steps prevent 8-bit banding.
-    //
-    // The gradient spans the full screen but only ramps from startFraction
-    // to endFraction (the rest is held at the from/to colors by TileMode.Clamp).
+    // --- Smoothstep scrim brush ---
+    // The gradient must be FULLY OPAQUE by the time it reaches the image's
+    // bottom edge (42% of screen). The ramp goes from 5% to 42%.
+    // Above 5%: transparent (cover visible). At 42%: fully opaque (image
+    // edge completely hidden). Below 42%: solid immersive color.
     fun smoothScrimBrush(
         color: Color,
-        startFraction: Float = 0.15f,
-        endFraction: Float = 0.48f,
-        steps: Int = 24
+        startFraction: Float = 0.05f,
+        endFraction: Float = 0.42f,
+        steps: Int = 32
     ): Brush {
         val from = color.copy(alpha = 0f)
         return Brush.verticalGradient(
@@ -169,7 +165,6 @@ fun PlaylistDetailScreen(
     Box(modifier = Modifier.fillMaxSize().background(immersiveColor)) {
 
         // --- Layer 1: Cover image at the top (fixed) ---
-        // Fills width, ~42% of screen height. Below it is the immersive color.
         if (coverArtUri != null) {
             AsyncImage(
                 model = coverArtUri,
@@ -182,15 +177,13 @@ fun PlaylistDetailScreen(
         }
 
         // --- Layer 2: Full-screen smoothstep scrim ---
-        // This gradient covers the entire screen. The ramp is confined to
-        // 15%-48% (the junction between cover and solid color).
-        // Below 48% it's fully opaque immersive color.
-        // Above 15% it's fully transparent (cover image visible).
-        // The smoothstep curve makes the transition invisible — no hard line.
+        // Ramp: 5% → 42% (covers most of the image, fully opaque at image edge).
+        // The image's bottom edge at 42% is completely hidden under the opaque
+        // gradient. The smoothstep curve ensures no visible transition.
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(smoothScrimBrush(immersiveColor, 0.15f, 0.48f))
+                .background(smoothScrimBrush(immersiveColor, 0.05f, 0.42f, 32))
         )
 
         // --- Layer 3: Content (everything scrolls, including top bar) ---
