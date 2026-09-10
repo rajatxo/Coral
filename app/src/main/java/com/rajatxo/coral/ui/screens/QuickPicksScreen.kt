@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -364,8 +365,12 @@ fun QuickPicksScreen(
                             val layerOpacity = if (isActive) {
                                 1f
                             } else {
-                                val phase = wavePhase + i * 0.4f
-                                (0.55f + 0.18f * sin(phase)).coerceIn(0.4f, 0.78f)
+                                // Use Double math throughout to avoid sin(Float) vs sin(Double)
+                                // overload ambiguity, then convert to Float at the end.
+                                val phase = wavePhase.toDouble() + i * 0.4
+                                (0.55 + 0.18 * sin(phase))
+                                    .coerceIn(0.4, 0.78)
+                                    .toFloat()
                             }
 
                             AbyssalLayerRow(
