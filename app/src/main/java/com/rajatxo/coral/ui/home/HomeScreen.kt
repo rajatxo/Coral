@@ -60,6 +60,7 @@ import com.rajatxo.coral.ui.components.CoralNavRail
 import com.rajatxo.coral.ui.components.CoralTab
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.player.FullPlayer
+import com.rajatxo.coral.ui.screens.PlaceholderScreen
 import com.rajatxo.coral.ui.screens.PlaylistDetailScreen
 import com.rajatxo.coral.ui.screens.PlaylistsScreen
 import com.rajatxo.coral.ui.screens.QuickPicksScreen
