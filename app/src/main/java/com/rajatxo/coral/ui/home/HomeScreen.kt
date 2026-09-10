@@ -222,6 +222,16 @@ fun HomeScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(CoralColors.Surface)) {
+        // --- Sleep timer capsule state (top-level scope, accessible by all overlays) ---
+        val capsuleVisible = sleepTimerState.active &&
+            (sleepRemainingMs > 0 || sleepTimerState.endOfSong)
+        val capsuleRemaining = if (sleepTimerState.endOfSong) {
+            (miniPlayerDurationMs - miniPlayerPositionMs).coerceAtLeast(0L)
+        } else {
+            sleepRemainingMs
+        }
+        val onExtend: () -> Unit = { sleepTimer.extend(10) }
+
         // Main content + nav rail — fills the whole screen
         Row(modifier = Modifier.fillMaxSize()) {
             CoralNavRail(
@@ -246,22 +256,11 @@ fun HomeScreen(
                 onBackClick = { railMode = com.rajatxo.coral.ui.components.RailMode.Main }
             )
 
-            // --- Sleep timer capsule state (moved to parent scope so overlays can access) ---
-            val capsuleVisible = sleepTimerState.active &&
-                (sleepRemainingMs > 0 || sleepTimerState.endOfSong)
-            val capsuleRemaining = if (sleepTimerState.endOfSong) {
-                (miniPlayerDurationMs - miniPlayerPositionMs).coerceAtLeast(0L)
-            } else {
-                sleepRemainingMs
-            }
-            val onExtend: () -> Unit = { sleepTimer.extend(10) }
-
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
             ) {
-                // Capsule state defined in parent scope above
 
                 when (selectedTab) {
                     CoralTab.QuickPicks -> {
