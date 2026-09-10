@@ -460,9 +460,8 @@ fun PlaylistDetailScreen(
                     }
                 }
             }
-        }
 
-        // Delete confirmation dialog
+            // Delete confirmation dialog
         if (showDeleteConfirm) {
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { showDeleteConfirm = false },
