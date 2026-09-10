@@ -219,7 +219,29 @@ fun HomeScreen(
         )?.let { capsuleAccentColor = it.accent }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    // --- Dynamic screen background color (hoisted from QuickPicksScreen) ---
+    // QuickPicksScreen reports its target bg color (extracted from album art)
+    // via onBgColorChange. We paint the ENTIRE root Box with this color —
+    // including the 48dp nav rail area on the left — so the dynamic bg
+    // extends seamlessly under the transparent rail. Without this, the rail
+    // area would show the activity's default black background, creating a
+    // hard vertical line between the rail and the page content.
+    //
+    // For non-QuickPicks tabs, we animate back to pure black (CoralColors.Surface)
+    // so the rail area matches the rest of the screen.
+    var quickPicksBgColor by remember { mutableStateOf<Color>(Color(0xFF1A1A1A)) }
+    val targetRootBgColor = if (selectedTab == CoralTab.QuickPicks) {
+        quickPicksBgColor
+    } else {
+        CoralColors.Surface  // pure black — matches ViTune style for other tabs
+    }
+    val rootBgColor by androidx.compose.animation.animateColorAsState(
+        targetValue = targetRootBgColor,
+        animationSpec = androidx.compose.animation.core.tween(durationMillis = 500),
+        label = "rootBg"
+    )
+
+    Box(modifier = Modifier.fillMaxSize().background(rootBgColor)) {
         // --- Sleep timer capsule state (top-level scope, accessible by all overlays) ---
         val capsuleVisible = sleepTimerState.active &&
             (sleepRemainingMs > 0 || sleepTimerState.endOfSong)
@@ -267,7 +289,8 @@ fun HomeScreen(
                         capsuleVisible = capsuleVisible,
                         capsuleRemaining = capsuleRemaining,
                         onExtend = onExtend,
-                        onSongClick = onSongClick
+                        onSongClick = onSongClick,
+                        onBgColorChange = { quickPicksBgColor = it }
                     )
                     CoralTab.Discover -> PlaceholderScreen(
                         tabName = "Discover",

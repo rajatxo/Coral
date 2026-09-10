@@ -1,7 +1,5 @@
 package com.rajatxo.coral.ui.screens
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -51,6 +49,14 @@ import kotlin.random.Random
 /**
  * Quick Picks Screen — horizontal card carousel with dynamic background morphing.
  *
+ * IMPORTANT — background contract:
+ *   This screen does NOT paint its own background. The dynamic bg color
+ *   (extracted from the current album art) is reported to the parent
+ *   (HomeScreen) via `onBgColorChange`. The parent paints the ENTIRE
+ *   screen — including the 48dp nav rail area on the left — so the bg
+ *   color extends seamlessly under the rail. Otherwise the rail would
+ *   show the activity's default black background.
+ *
  * Two modes (toggle capsule):
  *   - "Based on last played": shows songs from the same artist/album as last played
  *   - "Random picks": shows random songs from the library
@@ -66,6 +72,9 @@ import kotlin.random.Random
  *
  * @param songs Full song library
  * @param currentSongId Currently playing song ID (for "based on last played" mode)
+ * @param onBgColorChange Reports the target bg color (darkened dominant color
+ *        from the current card's album art) to the parent so it can paint the
+ *        full screen, including the nav rail area.
  * @param onSongClick Called when user taps a card
  */
 @Composable
@@ -76,7 +85,8 @@ fun QuickPicksScreen(
     capsuleRemaining: Long = 0L,
     onExtend: () -> Unit = {},
     onSongClick: (Song) -> Unit = {},
-    onBackClick: () -> Unit = {}
+    onBackClick: () -> Unit = {},
+    onBgColorChange: (Color) -> Unit = {}
 ) {
     val context = LocalContext.current
     var isRandomMode by remember { mutableStateOf(false) }
@@ -127,13 +137,15 @@ fun QuickPicksScreen(
 
     // --- Dynamic background color ---
     // Extracts the dominant color from the current page's album art and
-    // smoothly morphs the background to match it.
+    // reports it to the PARENT (HomeScreen) so it can paint the entire
+    // screen — including the nav rail area — with this color.
+    // The animation (morphing) is owned by the parent via animateColorAsState.
     var currentBgColor by remember { mutableStateOf(Color(0xFF1A1A1A)) }
-    val animatedBgColor by animateColorAsState(
-        targetValue = currentBgColor,
-        animationSpec = tween(durationMillis = 500),
-        label = "bgColor"
-    )
+
+    // Report bg color changes to the parent.
+    LaunchedEffect(currentBgColor) {
+        onBgColorChange(currentBgColor)
+    }
 
     // Extract palette when the current page changes
     LaunchedEffect(pagerState.currentPage, quickPicksSongs) {
@@ -150,7 +162,9 @@ fun QuickPicksScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(animatedBgColor)
+            // NO background here — the parent (HomeScreen) paints the entire
+            // screen with the dynamic color, so it extends seamlessly under
+            // the transparent nav rail.
     ) {
 
         // Header (title + toggle)
