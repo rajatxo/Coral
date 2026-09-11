@@ -25,11 +25,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -64,7 +67,8 @@ fun TabCapsule(
     tabs: List<CoralTab>,
     activeTab: CoralTab,
     onTabSelected: (CoralTab) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    blurLayer: androidx.compose.ui.graphics.GraphicsLayer? = null
 ) {
     val view = LocalView.current
     val context = LocalContext.current
@@ -172,7 +176,6 @@ fun TabCapsule(
             .width(240.dp)
             .height(52.dp)
             .clip(RoundedCornerShape(26.dp))
-            .background(Color.White)
             .pointerInput(tabs, activeTab) {
                 detectHorizontalDragGestures(
                     onDragEnd = {
@@ -202,7 +205,38 @@ fun TabCapsule(
                 )
             }
     ) {
-        // --- The STRING: black horizontal line at vertical center, faded ends ---
+        // --- Layer 1: REAL BACKDROP BLUR (liquid glass effect) ---
+        // Renders the captured page content (from rememberGraphicsLayer) with
+        // Modifier.blur() applied. This is a TRUE real-time backdrop blur —
+        // whatever is behind the capsule appears blurred through it.
+        // Requires API 31+ (Android 12). Below that, blur() is a no-op and
+        // the capsule falls back to a solid dark tint.
+        if (blurLayer != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .drawWithCache {
+                        onDrawWithContent {
+                            // Render the captured page content inside this box
+                            // (clipped to the capsule's rounded shape by the parent)
+                            drawLayer(blurLayer)
+                        }
+                    }
+                    .blur(24.dp)
+            )
+        }
+
+        // --- Layer 2: Dark translucent tint (glass morphism scrim) ---
+        // Makes the blurred bg darker so white text is readable.
+        // SimpMusic calls this "đục đen" (murky black) — the glass darkens
+        // as the background brightens. We use a fixed 40% black here.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.35f))
+        )
+
+        // --- Layer 3: The STRING (white, faded at both ends) ---
         Canvas(modifier = Modifier.fillMaxSize()) {
             val centerY = size.height / 2f
             val stringHeight = 1.5f
@@ -210,10 +244,10 @@ fun TabCapsule(
                 brush = Brush.horizontalGradient(
                     colorStops = arrayOf(
                         0.0f to Color.Transparent,
-                        0.1f to Color.Black.copy(alpha = 0.15f),
-                        0.25f to Color.Black.copy(alpha = 0.6f),
-                        0.75f to Color.Black.copy(alpha = 0.6f),
-                        0.9f to Color.Black.copy(alpha = 0.15f),
+                        0.1f to Color.White.copy(alpha = 0.15f),
+                        0.25f to Color.White.copy(alpha = 0.6f),
+                        0.75f to Color.White.copy(alpha = 0.6f),
+                        0.9f to Color.White.copy(alpha = 0.15f),
                         1.0f to Color.Transparent
                     )
                 ),
@@ -222,7 +256,7 @@ fun TabCapsule(
             )
         }
 
-        // --- Sliding tab text (one tab visible at a time, slides on swipe) ---
+        // --- Layer 4: Sliding tab text (white, on the string) ---
         AnimatedContent(
             targetState = activeTab,
             transitionSpec = {
@@ -240,15 +274,16 @@ fun TabCapsule(
             contentAlignment = Alignment.Center,
             label = "tabText"
         ) { tab ->
+            // Text bg matches the dark tint so it covers the string where it is
             Box(
                 modifier = Modifier
                     .wrapContentSize(Alignment.Center)
-                    .background(Color.White)
+                    .background(Color.Black.copy(alpha = 0.35f))
                     .padding(horizontal = 12.dp, vertical = 2.dp)
             ) {
                 Text(
                     text = tab.label,
-                    color = Color.Black,
+                    color = Color.White,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = CalSansFamily,

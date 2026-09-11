@@ -226,10 +226,14 @@ fun HomeScreen(
         }
         val onExtend: () -> Unit = { sleepTimer.extend(10) }
 
+        // --- Capture the page content into a GraphicsLayer for real backdrop blur ---
+        // The TabCapsule renders this same layer (blurred) inside its bounds,
+        // creating a true real-time backdrop blur effect.
+        val (blurCaptureModifier, blurLayer) = com.rajatxo.coral.ui.components.rememberNavBlurLayer()
+
         // Main content — fills the WHOLE screen (no nav rail anymore)
-        // The nav rail is replaced by a rotational tab switcher that slides
-        // in from the left when the user taps the floating menu button.
-        Box(modifier = Modifier.fillMaxSize()) {
+        // Wrapped with blurCaptureModifier so the nav bar can blur this content.
+        Box(modifier = Modifier.fillMaxSize().then(blurCaptureModifier)) {
 
                 when (selectedTab) {
                     CoralTab.QuickPicks -> QuickPicksScreen(
@@ -354,6 +358,7 @@ fun HomeScreen(
                 selectedTab = tab
                 selectedPlaylist = null
             },
+            blurLayer = blurLayer,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
