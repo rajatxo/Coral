@@ -347,7 +347,8 @@ fun HomeScreen(
             onBackClick = { railMode = com.rajatxo.coral.ui.components.RailMode.Main },
             modifier = Modifier.align(Alignment.CenterStart),
             transparentMode = isRailTransparent,
-            blurImageUri = if (isRailTransparent) quickPicksAlbumArt else null
+            blurImageUri = if (isRailTransparent) quickPicksAlbumArt else null,
+            blurBgColor = quickPicksBgColor
         )
 
         // --- Mini player (bottom, full-width) ---

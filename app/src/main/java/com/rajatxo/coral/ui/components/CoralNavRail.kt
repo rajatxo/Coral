@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -77,37 +78,53 @@ fun CoralNavRail(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
     transparentMode: Boolean = false,
-    blurImageUri: android.net.Uri? = null
+    blurImageUri: android.net.Uri? = null,
+    blurBgColor: Color = Color(0xFF0A0E1A)
 ) {
     Box(
         modifier = modifier
             .width(56.dp)
             .fillMaxHeight()
-            // In transparent mode: no solid bg — the blurred image shows through.
+            // In transparent mode: no solid bg — the blurred content shows through.
             // In normal mode: pure black bg (original ViTune style).
             .then(if (!transparentMode) Modifier.background(Color(0xFF000000)) else Modifier)
     ) {
-        // --- Blur layer (transparent mode only) ---
-        // A duplicate of the page's album art, blurred via Modifier.blur().
-        // This creates a REAL frosted-glass backdrop blur effect — the album
-        // art behind the rail appears blurred, not just dimmed.
+        // --- Backdrop blur layer (transparent mode only) ---
+        // This creates a REAL frosted-glass backdrop blur. We duplicate the
+        // FULL page content that's visible behind the rail (album art at top
+        // + bg color filling the rest), clip it to the rail's bounds, and
+        // apply Modifier.blur(). This makes EVERYTHING behind the rail —
+        // not just the album cover — appear blurred.
         if (transparentMode) {
-            if (blurImageUri != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(28.dp)
+            ) {
+                // Layer 1: Fill entire rail with the page's bg color
+                // (this covers the text area below the hero image)
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .blur(28.dp)
-                ) {
+                        .background(blurBgColor)
+                )
+                // Layer 2: Album art at top (matching the hero image position)
+                // The hero image takes ~55% of the screen height at the top.
+                // We render the same image here, clipped to the rail width,
+                // so the blur matches what's actually behind the rail.
+                if (blurImageUri != null) {
                     coil3.compose.AsyncImage(
                         model = blurImageUri,
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .fillMaxHeight(0.55f)
                     )
                 }
             }
-            // Dark gradient overlay (left: dark for text readability → right: transparent)
-            // so rail blends smoothly into the page content
+            // Dark gradient overlay on top of the blur (left: dark for text
+            // readability → right: transparent so rail blends into page)
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -127,7 +144,7 @@ fun CoralNavRail(
         Column(
             modifier = Modifier
                 .fillMaxHeight()
-                .statusBarsPadding()  // aligns gear icon with the "Songs" title vertically
+                .statusBarsPadding()
                 .padding(top = 16.dp, bottom = 16.dp, start = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
