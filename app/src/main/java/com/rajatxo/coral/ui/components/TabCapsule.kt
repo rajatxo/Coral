@@ -32,9 +32,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -75,6 +78,12 @@ fun TabCapsule(
     val view = LocalView.current
     val context = LocalContext.current
     val activeIndex = tabs.indexOf(activeTab).coerceAtLeast(0)
+
+    // Track the capsule's position in root coordinates so we can offset
+    // the blur layer correctly — the captured page layer is at root (0,0),
+    // so we translate it by (-capsuleX, -capsuleY) to show the portion
+    // of the page that's actually BEHIND the capsule.
+    var capsulePosition by remember { mutableStateOf(Offset.Zero) }
 
     // Direction of the last swipe (for slide animation)
     // 1 = forward (next tab, swipe left), -1 = backward (prev tab, swipe right)
@@ -178,6 +187,9 @@ fun TabCapsule(
             .width(240.dp)
             .height(52.dp)
             .clip(RoundedCornerShape(26.dp))
+            .onGloballyPositioned { coords ->
+                capsulePosition = coords.positionInRoot()
+            }
             .pointerInput(tabs, activeTab) {
                 detectHorizontalDragGestures(
                     onDragEnd = {
@@ -208,33 +220,38 @@ fun TabCapsule(
             }
     ) {
         // --- Layer 1: REAL BACKDROP BLUR (liquid glass effect) ---
-        // Two approaches combined for reliability:
-        //  A) blurImageUri (album art) — renders the active song's album art
-        //     blurred inside the capsule. This DEFINITELY shows visible blur
-        //     because the image has real content + colors.
-        //  B) blurLayer (captured page content) — renders the captured page
-        //     as a secondary blur layer. May or may not align perfectly, but
-        //     adds to the glassy texture.
-        if (blurImageUri != null) {
-            // A: Album art blurred — reliable, visible blur
+        // Renders the captured page content, translated by the capsule's
+        // position so the portion BEHIND the capsule shows up (not the
+        // page's top-left corner). This is the key fix — without the
+        // translation, drawLayer draws at (0,0) showing the wrong part.
+        if (blurLayer != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .drawWithCache {
+                        onDrawWithContent {
+                            // Translate the draw context so the part of the page
+                            // BEHIND the capsule aligns with the capsule's (0,0).
+                            // The layer was captured at root (0,0), so we offset
+                            // by the negative of the capsule's position in root.
+                            translate(
+                                left = -capsulePosition.x,
+                                top = -capsulePosition.y
+                            ) {
+                                drawLayer(blurLayer)
+                            }
+                        }
+                    }
+                    .blur(20.dp)
+            )
+        } else if (blurImageUri != null) {
+            // Fallback: album art blurred (if no captured layer)
             coil3.compose.AsyncImage(
                 model = blurImageUri,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
-                    .blur(20.dp)
-            )
-        } else if (blurLayer != null) {
-            // B: Captured page content (fallback)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .drawWithCache {
-                        onDrawWithContent {
-                            drawLayer(blurLayer)
-                        }
-                    }
                     .blur(20.dp)
             )
         }
