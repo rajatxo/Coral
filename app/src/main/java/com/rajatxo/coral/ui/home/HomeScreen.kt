@@ -111,8 +111,7 @@ fun HomeScreen(
     onSongEnded: () -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(CoralTab.QuickPicks) }
-    var railMode by remember { mutableStateOf(com.rajatxo.coral.ui.components.RailMode.Main) }
-    var selectedSettingsTab by remember { mutableStateOf<com.rajatxo.coral.ui.components.CoralSettingsTab?>(null) }
+    var showTabSwitcher by remember { mutableStateOf(false) }
     var selectedPlaylist by remember { mutableStateOf<com.rajatxo.coral.data.model.Playlist?>(null) }
     var showSongPicker by remember { mutableStateOf(false) }
     var playlistForPicker by remember { mutableStateOf<com.rajatxo.coral.data.model.Playlist?>(null) }
@@ -133,7 +132,7 @@ fun HomeScreen(
     androidx.activity.compose.BackHandler(
         enabled = selectedPlaylist != null || showFullPlayer || showSongPicker ||
                   showPremium || showEqualizer || showSleepTimer || showFontPicker ||
-                  railMode == com.rajatxo.coral.ui.components.RailMode.Settings
+                  showTabSwitcher
     ) {
         when {
             showFullPlayer -> onFullPlayerDismiss()
@@ -142,10 +141,8 @@ fun HomeScreen(
             showEqualizer -> { showEqualizer = false }
             showSleepTimer -> { showSleepTimer = false }
             showFontPicker -> { showFontPicker = false }
+            showTabSwitcher -> { showTabSwitcher = false }
             selectedPlaylist != null -> { selectedPlaylist = null }
-            railMode == com.rajatxo.coral.ui.components.RailMode.Settings -> {
-                railMode = com.rajatxo.coral.ui.components.RailMode.Main
-            }
         }
     }
 
@@ -230,35 +227,10 @@ fun HomeScreen(
         }
         val onExtend: () -> Unit = { sleepTimer.extend(10) }
 
-        // Main content + nav rail — fills the whole screen
-        Row(modifier = Modifier.fillMaxSize()) {
-            CoralNavRail(
-                mode = railMode,
-                selectedMainTab = selectedTab,
-                selectedSettingsTab = selectedSettingsTab,
-                onMainTabSelected = {
-                    selectedTab = it
-                    selectedPlaylist = null
-                },
-                onSettingsTabSelected = { tab ->
-                    selectedSettingsTab = tab
-                    when (tab) {
-                        com.rajatxo.coral.ui.components.CoralSettingsTab.Premium -> showPremium = true
-                        com.rajatxo.coral.ui.components.CoralSettingsTab.Appearance -> showFontPicker = true  // opens appearance (font for now)
-                        com.rajatxo.coral.ui.components.CoralSettingsTab.Playback -> showSleepTimer = true
-                        com.rajatxo.coral.ui.components.CoralSettingsTab.About -> showPremium = true
-                    }
-                    // Stay on settings rail until user explicitly goes back
-                },
-                onGearClick = { railMode = com.rajatxo.coral.ui.components.RailMode.Settings },
-                onBackClick = { railMode = com.rajatxo.coral.ui.components.RailMode.Main }
-            )
-
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-            ) {
+        // Main content — fills the WHOLE screen (no nav rail anymore)
+        // The nav rail is replaced by a rotational tab switcher that slides
+        // in from the left when the user taps the floating menu button.
+        Box(modifier = Modifier.fillMaxSize()) {
 
                 when (selectedTab) {
                     CoralTab.QuickPicks -> QuickPicksScreen(
@@ -319,7 +291,6 @@ fun HomeScreen(
                     )
                 }
             }
-        }
 
         // --- Mini player (bottom, full-width) ---
         AnimatedVisibility(
@@ -348,6 +319,47 @@ fun HomeScreen(
         // half of screen → release → stays fixed at that position.
         // Position persists across app restarts via SharedPreferences.
         DraggableSearchFab()
+
+        // --- Floating Menu Button (top-left, opens rotational tab switcher) ---
+        // Replaces the permanent nav rail. Small, subtle, always visible.
+        // Tapping it slides in the RotationalTabSwitcher from the left.
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .statusBarsPadding()
+                .padding(start = 16.dp, top = 16.dp)
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.12f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { showTabSwitcher = true }
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = CoralIcons.Ellipsis,
+                contentDescription = "Open tabs",
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
+        // --- Rotational Tab Switcher (slides in from left) ---
+        // Coral's replacement for the nav rail. A wheel of tab labels
+        // arranged along a vertical arc (same geometry as PlaylistWheel).
+        // Drag vertically to rotate, tap a tab to select it.
+        com.rajatxo.coral.ui.components.RotationalTabSwitcher(
+            visible = showTabSwitcher,
+            tabs = CoralTab.values().toList(),
+            activeTab = selectedTab,
+            onTabSelected = { tab ->
+                selectedTab = tab
+                selectedPlaylist = null
+            },
+            onDismiss = { showTabSwitcher = false }
+        )
 
         // Add bottom padding to the content area when mini player is visible,
         // so the song list doesn't hide behind the mini player. We do this by
