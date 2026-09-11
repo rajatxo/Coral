@@ -442,8 +442,8 @@ private fun ArcCover(
     //   At angle=±1.0: scale=0.5, alpha=0.3
     //   At angle=±1.5: scale=0.35, alpha=0.15
     val absAngle = abs(angle)
-    val scale = (1f - absAngle * 0.5f).coerceIn(0.3f, 1f)
-    val alpha = (1f - absAngle * 0.7f).coerceIn(0.1f, 1f)
+    val coverScale = (1f - absAngle * 0.5f).coerceIn(0.3f, 1f)
+    val coverAlpha = (1f - absAngle * 0.7f).coerceIn(0.1f, 1f)
 
     // Position along the arc (normalized 0..1 of layout size):
     //   x = sin(angle) → 0 at center, ±1 at edges
@@ -459,11 +459,9 @@ private fun ArcCover(
                 // Translate by fraction of this composable's size
                 translationX = xFraction * size.width
                 translationY = yFraction * size.height
-                scaleX = scale
-                scaleY = scale
-                alpha = alpha
-                // Z-order: closer to center should be on top
-                // (handled by render order in parent, but shadow helps too)
+                scaleX = coverScale
+                scaleY = coverScale
+                alpha = coverAlpha
             }
     ) {
         // The album cover — large, square, rounded
