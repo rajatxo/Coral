@@ -111,7 +111,6 @@ fun HomeScreen(
     onSongEnded: () -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(CoralTab.QuickPicks) }
-    var showTabSwitcher by remember { mutableStateOf(false) }
     var selectedPlaylist by remember { mutableStateOf<com.rajatxo.coral.data.model.Playlist?>(null) }
     var showSongPicker by remember { mutableStateOf(false) }
     var playlistForPicker by remember { mutableStateOf<com.rajatxo.coral.data.model.Playlist?>(null) }
@@ -131,8 +130,7 @@ fun HomeScreen(
     // the app. Same for the full player, song picker, and other overlays.
     androidx.activity.compose.BackHandler(
         enabled = selectedPlaylist != null || showFullPlayer || showSongPicker ||
-                  showPremium || showEqualizer || showSleepTimer || showFontPicker ||
-                  showTabSwitcher
+                  showPremium || showEqualizer || showSleepTimer || showFontPicker
     ) {
         when {
             showFullPlayer -> onFullPlayerDismiss()
@@ -141,7 +139,6 @@ fun HomeScreen(
             showEqualizer -> { showEqualizer = false }
             showSleepTimer -> { showSleepTimer = false }
             showFontPicker -> { showFontPicker = false }
-            showTabSwitcher -> { showTabSwitcher = false }
             selectedPlaylist != null -> { selectedPlaylist = null }
         }
     }
@@ -292,12 +289,15 @@ fun HomeScreen(
                 }
             }
 
-        // --- Mini player (bottom, full-width) ---
+        // --- Mini player (bottom, above the tab capsule) ---
         AnimatedVisibility(
             visible = currentSongTitle != null,
             enter = slideInVertically { it } + fadeIn(),
             exit = slideOutVertically { it } + fadeOut(),
-            modifier = Modifier.align(Alignment.BottomCenter)
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 56.dp)  // sit above the tab capsule
         ) {
             MiniPlayer(
                 title = currentSongTitle ?: "",
@@ -314,51 +314,22 @@ fun HomeScreen(
         }
 
         // --- Draggable Floating Search Button ---
-        // Solid white rounded-square with black search icon.
-        // Long-press (3 seconds) → enters drag mode → drag anywhere on right
-        // half of screen → release → stays fixed at that position.
-        // Position persists across app restarts via SharedPreferences.
         DraggableSearchFab()
 
-        // --- Floating Menu Button (top-left, opens rotational tab switcher) ---
-        // Replaces the permanent nav rail. Small, subtle, always visible.
-        // Tapping it slides in the RotationalTabSwitcher from the left.
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .statusBarsPadding()
-                .padding(start = 16.dp, top = 16.dp)
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.12f))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = { showTabSwitcher = true }
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = CoralIcons.Ellipsis,
-                contentDescription = "Open tabs",
-                tint = Color.White,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-
-        // --- Rotational Tab Switcher (slides in from left) ---
-        // Coral's replacement for the nav rail. A wheel of tab labels
-        // arranged along a vertical arc (same geometry as PlaylistWheel).
-        // Drag vertically to rotate, tap a tab to select it.
-        com.rajatxo.coral.ui.components.RotationalTabSwitcher(
-            visible = showTabSwitcher,
+        // --- Tab Capsule (bottom center, below mini player, above system nav) ---
+        // Glossy pill with sliding Cal Sans text on a faded string.
+        // Swipe left/right to change tabs. Haptic on each change.
+        com.rajatxo.coral.ui.components.TabCapsule(
             tabs = CoralTab.values().toList(),
             activeTab = selectedTab,
             onTabSelected = { tab ->
                 selectedTab = tab
                 selectedPlaylist = null
             },
-            onDismiss = { showTabSwitcher = false }
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 8.dp)
         )
 
         // Add bottom padding to the content area when mini player is visible,
