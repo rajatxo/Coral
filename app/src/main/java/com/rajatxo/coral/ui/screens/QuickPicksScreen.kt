@@ -74,7 +74,6 @@ fun QuickPicksScreen(
     onSongClick: (Song) -> Unit = {},
     onBackClick: () -> Unit = {}
 ) {
-    val context = LocalContext.current
     var isRandomMode by remember { mutableStateOf(false) }
 
     // --- Song selection logic ---
