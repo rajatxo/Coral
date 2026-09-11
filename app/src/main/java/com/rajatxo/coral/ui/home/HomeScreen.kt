@@ -58,8 +58,6 @@ import com.rajatxo.coral.data.store.PlaylistStore
 import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.components.CoralNavRail
 import com.rajatxo.coral.ui.components.CoralTab
-import com.rajatxo.coral.ui.components.capturePage
-import com.rajatxo.coral.ui.components.rememberPageCapture
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.player.FullPlayer
 import com.rajatxo.coral.ui.screens.PlaceholderScreen
@@ -122,7 +120,6 @@ fun HomeScreen(
     var showEqualizer by remember { mutableStateOf(false) }
     var showSleepTimer by remember { mutableStateOf(false) }
     var showFontPicker by remember { mutableStateOf(false) }
-    var showQuickPicksAll by remember { mutableStateOf(false) }
 
     // --- Add to playlist from FullPlayer ---
     // When user taps "Add to playlist" in the FullPlayer 3-dot menu,
@@ -136,7 +133,6 @@ fun HomeScreen(
     androidx.activity.compose.BackHandler(
         enabled = selectedPlaylist != null || showFullPlayer || showSongPicker ||
                   showPremium || showEqualizer || showSleepTimer || showFontPicker ||
-                  showQuickPicksAll ||
                   railMode == com.rajatxo.coral.ui.components.RailMode.Settings
     ) {
         when {
@@ -146,7 +142,6 @@ fun HomeScreen(
             showEqualizer -> { showEqualizer = false }
             showSleepTimer -> { showSleepTimer = false }
             showFontPicker -> { showFontPicker = false }
-            showQuickPicksAll -> { showQuickPicksAll = false }
             selectedPlaylist != null -> { selectedPlaylist = null }
             railMode == com.rajatxo.coral.ui.components.RailMode.Settings -> {
                 railMode = com.rajatxo.coral.ui.components.RailMode.Main
@@ -224,35 +219,7 @@ fun HomeScreen(
         )?.let { capsuleAccentColor = it.accent }
     }
 
-    // --- Dynamic screen background color (hoisted from QuickPicksScreen) ---
-    // NOTE: With the overlay rail pattern (rail floats on top of page content,
-    // transparent), the page now paints its OWN bg across the FULL screen
-    // width — including under the rail. So we no longer need to paint a
-    // root bg color to make the rail area match. Each screen handles its
-    // own bg. The hoisted color state is kept for potential future use but
-    // is no longer painted on the root Box.
-    var quickPicksBgColor by remember { mutableStateOf<Color>(Color(0xFF1A1A1A)) }
-
-    // --- Quick Picks album art (kept for future use but no longer used
-    // for the rail blur — the rail now uses a captured GraphicsLayer of
-    // the actual page content for a TRUE backdrop blur).
-    var quickPicksAlbumArt by remember { mutableStateOf<android.net.Uri?>(null) }
-
-    // The rail is in "transparent mode" (with backdrop blur) ONLY on Quick Picks.
-    // On all other tabs, the rail has a pure black bg (original ViTune style).
-    val isRailTransparent = selectedTab == CoralTab.QuickPicks
-
-    // --- GraphicsLayer capture for real backdrop blur ---
-    // The PageCapture holds the page's bg color, which the rail uses for
-    // the blur layer's bottom portion.
-    val pageCapture = com.rajatxo.coral.ui.components.rememberPageCapture()
-
-    // Update the pageCapture's bg color whenever QuickPicks bg changes
-    androidx.compose.runtime.LaunchedEffect(quickPicksBgColor) {
-        pageCapture.bgColor = quickPicksBgColor
-    }
-
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().background(CoralColors.Surface)) {
         // --- Sleep timer capsule state (top-level scope, accessible by all overlays) ---
         val capsuleVisible = sleepTimerState.active &&
             (sleepRemainingMs > 0 || sleepTimerState.endOfSong)
@@ -263,16 +230,35 @@ fun HomeScreen(
         }
         val onExtend: () -> Unit = { sleepTimer.extend(10) }
 
-        // --- Page content — fills the ENTIRE screen (including under the rail) ---
-        // The nav rail floats ON TOP of this content with a transparent bg,
-        // so album covers and other page content show through behind the
-        // rail text — exactly like how the system nav buttons are transparent.
-        // The capturePage modifier captures the drawn output into a Picture
-        // so the rail can render a REAL blurred version of this content.
-        Box(modifier = Modifier
-            .fillMaxSize()
-            .capturePage(pageCapture)
-        ) {
+        // Main content + nav rail — fills the whole screen
+        Row(modifier = Modifier.fillMaxSize()) {
+            CoralNavRail(
+                mode = railMode,
+                selectedMainTab = selectedTab,
+                selectedSettingsTab = selectedSettingsTab,
+                onMainTabSelected = {
+                    selectedTab = it
+                    selectedPlaylist = null
+                },
+                onSettingsTabSelected = { tab ->
+                    selectedSettingsTab = tab
+                    when (tab) {
+                        com.rajatxo.coral.ui.components.CoralSettingsTab.Premium -> showPremium = true
+                        com.rajatxo.coral.ui.components.CoralSettingsTab.Appearance -> showFontPicker = true  // opens appearance (font for now)
+                        com.rajatxo.coral.ui.components.CoralSettingsTab.Playback -> showSleepTimer = true
+                        com.rajatxo.coral.ui.components.CoralSettingsTab.About -> showPremium = true
+                    }
+                    // Stay on settings rail until user explicitly goes back
+                },
+                onGearClick = { railMode = com.rajatxo.coral.ui.components.RailMode.Settings },
+                onBackClick = { railMode = com.rajatxo.coral.ui.components.RailMode.Main }
+            )
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            ) {
 
                 when (selectedTab) {
                     CoralTab.QuickPicks -> QuickPicksScreen(
@@ -281,10 +267,7 @@ fun HomeScreen(
                         capsuleVisible = capsuleVisible,
                         capsuleRemaining = capsuleRemaining,
                         onExtend = onExtend,
-                        onSongClick = onSongClick,
-                        onBgColorChange = { quickPicksBgColor = it },
-                        onViewAllClick = { showQuickPicksAll = true },
-                        onAlbumArtChange = { quickPicksAlbumArt = it }
+                        onSongClick = onSongClick
                     )
                     CoralTab.Discover -> PlaceholderScreen(
                         tabName = "Discover",
@@ -336,36 +319,7 @@ fun HomeScreen(
                     )
                 }
             }
-
-        // --- Nav rail — floats ON TOP of page content, fully transparent ---
-        // The rail has NO background. It floats over the page content so album
-        // covers and other page elements show through behind the rail text —
-        // exactly like how the system nav buttons are transparent over the app.
-        // The rail captures touches in its 48dp strip (for label clicks).
-        CoralNavRail(
-            mode = railMode,
-            selectedMainTab = selectedTab,
-            selectedSettingsTab = selectedSettingsTab,
-            onMainTabSelected = {
-                selectedTab = it
-                selectedPlaylist = null
-            },
-            onSettingsTabSelected = { tab ->
-                selectedSettingsTab = tab
-                when (tab) {
-                    com.rajatxo.coral.ui.components.CoralSettingsTab.Premium -> showPremium = true
-                    com.rajatxo.coral.ui.components.CoralSettingsTab.Appearance -> showFontPicker = true
-                    com.rajatxo.coral.ui.components.CoralSettingsTab.Playback -> showSleepTimer = true
-                    com.rajatxo.coral.ui.components.CoralSettingsTab.About -> showPremium = true
-                }
-            },
-            onGearClick = { railMode = com.rajatxo.coral.ui.components.RailMode.Settings },
-            onBackClick = { railMode = com.rajatxo.coral.ui.components.RailMode.Main },
-            modifier = Modifier.align(Alignment.CenterStart),
-            transparentMode = isRailTransparent,
-            pageCapture = if (isRailTransparent) pageCapture else null,
-            blurImageUri = if (isRailTransparent) quickPicksAlbumArt else null
-        )
+        }
 
         // --- Mini player (bottom, full-width) ---
         AnimatedVisibility(
@@ -463,23 +417,6 @@ fun HomeScreen(
         if (showFontPicker) {
             com.rajatxo.coral.ui.screens.FontPickerScreen(
                 onBackClick = { showFontPicker = false }
-            )
-        }
-
-        // --- Quick Picks Full Screen (slide-up overlay) ---
-        // Triggered by the "VIEW ALL" button on the editorial Quick Picks card.
-        // Slides in from the bottom + fades in, like the reference video's
-        // card-to-detail-page transition. Covers the ENTIRE screen including
-        // the nav rail area (so it acts as a true full-screen page).
-        AnimatedVisibility(
-            visible = showQuickPicksAll,
-            enter = slideInVertically { it } + fadeIn(),
-            exit = slideOutVertically { it } + fadeOut()
-        ) {
-            com.rajatxo.coral.ui.screens.QuickPicksFullScreen(
-                songs = songs,
-                onBackClick = { showQuickPicksAll = false },
-                onSongClick = onSongClick
             )
         }
 

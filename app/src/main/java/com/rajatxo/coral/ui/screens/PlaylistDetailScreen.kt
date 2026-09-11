@@ -1,7 +1,6 @@
 package com.rajatxo.coral.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -246,77 +245,70 @@ fun PlaylistDetailScreen(
                             )
                         }
 
-                        // Glassmorphism popup — REAL backdrop blur
-                        // Captures the screen, blurs it, renders inside the popup.
-                        // Page content behind the popup appears as frosted glass.
-                        com.rajatxo.coral.ui.components.GlassPopup(
-                            visible = showMenu,
-                            onDismiss = { showMenu = false }
+                        // Dropdown menu — small rounded square
+                        androidx.compose.material3.DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false },
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color(0xFF1A1A1A))
                         ) {
-                            Column(
+                            // Playlist cover option
+                            Row(
                                 modifier = Modifier
-                                    .width(220.dp)
-                                    .padding(vertical = 8.dp)
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = {
+                                            showMenu = false
+                                            coverPicker.launch("image/*")
+                                        }
+                                    )
+                                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                // Playlist cover option
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            indication = null,
-                                            onClick = {
-                                                showMenu = false
-                                                coverPicker.launch("image/*")
-                                            }
-                                        )
-                                        .padding(horizontal = 20.dp, vertical = 14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = CoralIcons.Music,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Text(
-                                        text = "Playlist cover",
-                                        color = Color.White,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
+                                Icon(
+                                    imageVector = CoralIcons.Music,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = "Playlist cover",
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
 
-                                // Delete playlist option
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            indication = null,
-                                            onClick = {
-                                                showMenu = false
-                                                showDeleteConfirm = true
-                                            }
-                                        )
-                                        .padding(horizontal = 20.dp, vertical = 14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = CoralIcons.Heart,
-                                        contentDescription = null,
-                                        tint = Color(0xFFFF6B6B),
-                                        modifier = Modifier.size(18.dp)
+                            // Delete playlist option
+                            Row(
+                                modifier = Modifier
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = {
+                                            showMenu = false
+                                            showDeleteConfirm = true
+                                        }
                                     )
-                                    Text(
-                                        text = "Delete playlist",
-                                        color = Color(0xFFFF6B6B),
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
+                                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = CoralIcons.Heart,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFF6B6B),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = "Delete playlist",
+                                    color = Color(0xFFFF6B6B),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
                             }
                         }
                     }

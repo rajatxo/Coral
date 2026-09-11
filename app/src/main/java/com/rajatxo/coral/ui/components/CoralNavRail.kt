@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -22,13 +21,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
@@ -76,74 +72,21 @@ fun CoralNavRail(
     onSettingsTabSelected: (CoralSettingsTab) -> Unit,
     onGearClick: () -> Unit,
     onBackClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    transparentMode: Boolean = false,
-    pageCapture: PageCapture? = null,
-    blurImageUri: android.net.Uri? = null
+    modifier: Modifier = Modifier
 ) {
     Box(
         modifier = modifier
-            .width(56.dp)
+            .width(48.dp)
             .fillMaxHeight()
-            // In transparent mode: no solid bg — the blurred page content shows through.
-            // In normal mode: pure black bg (original ViTune style).
-            .then(if (!transparentMode) Modifier.background(Color(0xFF000000)) else Modifier)
+            // NO background — transparent so it adopts the page's background color.
+            // This eliminates the hard line between the nav rail and the page.
+            .padding(start = 4.dp)
     ) {
-        // --- Backdrop blur layer (transparent mode only) ---
-        // Renders a duplicate of the page content (album art at top + bg color
-        // filling the rest) inside the rail's bounds, then blurs it.
-        // This creates a convincing frosted-glass backdrop blur effect.
-        if (transparentMode) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .blur(32.dp)
-            ) {
-                // Layer 1: Fill entire rail with the page's bg color
-                // (covers the text area below the hero image)
-                if (pageCapture != null) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(pageCapture.bgColor)
-                    )
-                }
-                // Layer 2: Album art at top (matching the hero image position)
-                // The hero image takes ~55% of the screen height at the top.
-                if (blurImageUri != null) {
-                    coil3.compose.AsyncImage(
-                        model = blurImageUri,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .fillMaxHeight(0.55f)
-                    )
-                }
-            }
-            // Dark gradient overlay on top of the blur (left: dark for text
-            // readability → right: transparent so rail blends into page)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.horizontalGradient(
-                            colorStops = arrayOf(
-                                0.0f to Color.Black.copy(alpha = 0.55f),
-                                0.6f to Color.Black.copy(alpha = 0.3f),
-                                1.0f to Color.Transparent
-                            )
-                        )
-                    )
-            )
-        }
-
-        // --- Rail content (gear icon + labels) on top of the blur/bg ---
         Column(
             modifier = Modifier
                 .fillMaxHeight()
-                .statusBarsPadding()
-                .padding(top = 16.dp, bottom = 16.dp, start = 4.dp),
+                .statusBarsPadding()  // aligns gear icon with the "Songs" title vertically
+                .padding(top = 16.dp, bottom = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // ---- Top icon: gear (Main mode) or back arrow (Settings mode) ----
@@ -253,7 +196,7 @@ private fun RailLabel(
     // Inactive tab: transparent background + white text
     Box(
         modifier = Modifier
-            .width(56.dp)
+            .width(48.dp)
             .height(textWidthDp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
