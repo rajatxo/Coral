@@ -254,17 +254,22 @@ fun QuickPicksScreen(
                 }
             }
 
-            // --- Pinterest-style infinite scroll grid (4 cards on screen) ---
-            // Each card is sized to exactly half the available height (minus
-            // spacing) so only 2 rows × 2 cols = 4 cards fit on screen.
+            // --- Clothesline Lanterns grid (4 cards on screen, staggered hang) ---
+            // A horizontal clothesline runs across the top of the grid. Cards
+            // hang from it at varying lengths (staggered like wind chimes).
             if (visibleSongs.isNotEmpty()) {
                 androidx.compose.foundation.layout.BoxWithConstraints(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     val availableHeight = maxHeight
                     // 2 rows + 1 gap (12dp) = availableHeight
-                    // Each card height = (availableHeight - 12dp) / 2
-                    val cardHeight = (availableHeight - 12.dp) / 2
+                    // Each cell height = (availableHeight - 12dp) / 2
+                    // (cell is taller than the card to leave room for the hang string)
+                    val cellHeight = (availableHeight - 12.dp) / 2
+
+                    // Track which card is "popped forward" (tapped). When set,
+                    // that card scales up + brightens, others dim to 50%.
+                    var activeCardId by remember { mutableStateOf<Long?>(null) }
 
                     LazyVerticalGrid(
                         state = gridState,
@@ -279,10 +284,20 @@ fun QuickPicksScreen(
                             val cardIndex = visibleSongs.indexOf(song)
                             PickCard(
                                 song = song,
-                                onClick = { onSongClick(song) },
-                                cardHeight = cardHeight,
+                                onClick = {
+                                    if (activeCardId == song.id) {
+                                        // Already active → play it
+                                        onSongClick(song)
+                                    } else {
+                                        // First tap: pop forward
+                                        activeCardId = song.id
+                                    }
+                                },
+                                cellHeight = cellHeight,
                                 cardIndex = cardIndex,
-                                windPhase = windPhase
+                                windPhase = windPhase,
+                                isActive = activeCardId == song.id,
+                                anyActive = activeCardId != null
                             )
                         }
                     }
@@ -309,24 +324,34 @@ fun QuickPicksScreen(
 }
 
 /**
- * A single Pinterest-style pick card.
+ * A single Clothesline Lantern card.
+ *
+ * Structure:
+ *   Box (cell bounds, fixed height)
+ *     Column (swaying container, rotates around TOP CENTER)
+ *       Canvas (vertical string, length = hangLength)
+ *       Box (the card itself, gradient + border + glossy + content)
  *
  * Visual:
- *   - Vibrant gradient background (album palette primary → secondary → tertiary)
- *     — saturation boosted for vibrant feel
- *   - Album cover (rounded square, centered, with subtle white border)
- *   - Song name below cover (Cal Sans, white, bold)
- *   - Artist name (Poppins, white 70%, regular)
- *   - White border (1dp, 30% alpha)
- *   - Glossy diagonal reflection (top-left → bottom-right streak)
+ *   - Vertical string from top of cell down to the card (length varies per card → staggered)
+ *   - Card hangs at the bottom of the string
+ *   - Wind sway: gentle ±2.5deg rotation, different phase per card
+ *   - Entry animation: card drops from -15deg + swings to settle
+ *   - Pop-forward: when active, scales up 1.08 + full brightness; when another
+ *     card is active, dims to 50% alpha
+ *   - Vibrant gradient bg (boosted album palette)
+ *   - Glossy diagonal reflection
+ *   - White border
  */
 @Composable
 private fun PickCard(
     song: Song,
     onClick: () -> Unit,
-    cardHeight: androidx.compose.ui.unit.Dp,
+    cellHeight: androidx.compose.ui.unit.Dp,
     cardIndex: Int,
-    windPhase: Float
+    windPhase: Float,
+    isActive: Boolean,
+    anyActive: Boolean
 ) {
     val context = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -340,38 +365,54 @@ private fun PickCard(
     }
 
     // --- Entry animation: card "drops" from above + swings to settle ---
-    // Starts at progress=0 (tilted -15deg, translated up) and animates to 1 (settled).
-    // Plays once when the card enters composition (like someone released it).
     val entryProgress = remember { Animatable(0f) }
     LaunchedEffect(song.id) {
         entryProgress.animateTo(
             targetValue = 1f,
             animationSpec = spring(
-                dampingRatio = 0.55f,  // bouncy settle
+                dampingRatio = 0.55f,
                 stiffness = 120f
             )
         )
     }
 
-    // --- Tap response: card swings backward when tapped (like a gust hit it) ---
-    // 0 = resting, 1 = swung back. Animates to 1 then back to 0 on tap.
+    // --- Tap response: card swings backward when tapped ---
     val tapResponse = remember { Animatable(0f) }
 
+    // --- Varying hang length: staggered like wind chimes ---
+    // Pattern: 0, 35, 15, 50, 25, 40, 10, 45 (dp) — repeating every 8 cards.
+    // This creates the "lanterns at varying heights" look.
+    val hangLengths = listOf(0.dp, 35.dp, 15.dp, 50.dp, 25.dp, 40.dp, 10.dp, 45.dp)
+    val hangLength = hangLengths[cardIndex % hangLengths.size]
+
     // --- Compute total rotation ---
-    // Entry: starts at -15deg, settles to 0deg as entryProgress → 1
     val entryRotation = -15f * (1f - entryProgress.value)
-
-    // Wind sway: gentle sine wave, ±2.5deg, each card has a different phase.
-    // Only applies fully once the card has settled (entryProgress → 1).
-    val windOffset = cardIndex * 0.8f  // different phase per card
+    val windOffset = cardIndex * 0.8f
     val swayRotation = (sin(windPhase.toDouble() + windOffset).toFloat() * 2.5f) * entryProgress.value
-
-    // Tap: swings backward up to -8deg
     val tapRotation = -8f * tapResponse.value
 
-    // Slight scale-down on tap for "pushed back" feel
-    val tapScale = 1f - 0.04f * tapResponse.value
+    // --- Pop-forward scale + dim ---
+    // Active: scale up 1.08. Another active (not this): scale 1.0, dim 50%.
+    val popScale = if (isActive) 1.08f else 1f
+    val dimAlpha = when {
+        isActive -> 1f
+        anyActive -> 0.5f
+        else -> 1f
+    }
+    // Smooth the scale + alpha with animateFloatAsState
+    val animatedPopScale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = popScale,
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = 200f),
+        label = "popScale"
+    )
+    val animatedDimAlpha by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = dimAlpha,
+        animationSpec = tween(300),
+        label = "dimAlpha"
+    )
 
+    val tapScale = 1f - 0.04f * tapResponse.value
+    val totalScale = animatedPopScale * tapScale
     val totalRotation = entryRotation + swayRotation + tapRotation
 
     // Gradient colors from boosted palette (fall back to coral brand colors)
@@ -383,22 +424,26 @@ private fun PickCard(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(cardHeight)
+            .height(cellHeight)
+            .graphicsLayer {
+                alpha = animatedDimAlpha
+                scaleX = totalScale
+                scaleY = totalScale
+                transformOrigin = TransformOrigin(0.5f, 0.5f)
+            }
     ) {
         // --- Swaying container: string + card, rotates around TOP CENTER ---
-        // This is the pendulum — pivot is at the top where the string attaches.
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
                     rotationZ = totalRotation
                     transformOrigin = TransformOrigin(0.5f, 0f)  // top center pivot
-                    scaleX = tapScale
-                    scaleY = tapScale
                 }
         ) {
-            // --- The string: thin vertical line above the card ---
-            Canvas(modifier = Modifier.fillMaxWidth().height(10.dp)) {
+            // --- The vertical string: from top of cell down to the card ---
+            // Length varies per card (staggered hang lengths).
+            Canvas(modifier = Modifier.fillMaxWidth().height(hangLength + 8.dp)) {
                 val x = size.width / 2f
                 drawLine(
                     color = Color.White.copy(alpha = 0.2f),
@@ -423,7 +468,11 @@ private fun PickCard(
                             )
                         )
                     )
-                    .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
+                    .border(
+                        1.dp,
+                        if (isActive) Color.White.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.3f),
+                        RoundedCornerShape(20.dp)
+                    )
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
@@ -465,17 +514,17 @@ private fun PickCard(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(16.dp),
+                        .padding(14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
                     // Album cover (rounded square, white-tinted border)
                     Box(
                         modifier = Modifier
-                            .size(100.dp)
-                            .clip(RoundedCornerShape(16.dp))
+                            .size(90.dp)
+                            .clip(RoundedCornerShape(14.dp))
                             .background(Color.Black.copy(alpha = 0.3f))
-                            .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+                            .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
                     ) {
                         if (song.albumArtUri != null) {
                             AsyncImage(
@@ -492,18 +541,18 @@ private fun PickCard(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(text = "🎵", fontSize = 36.sp)
+                                Text(text = "🎵", fontSize = 32.sp)
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     // Song name (Cal Sans, white, semi-bold)
                     Text(
                         text = song.title,
                         color = Color.White,
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         fontFamily = CalSansFamily,
                         textAlign = TextAlign.Center,
@@ -517,7 +566,7 @@ private fun PickCard(
                     Text(
                         text = song.artist,
                         color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Normal,
                         fontFamily = PoppinsFamily,
                         textAlign = TextAlign.Center,
