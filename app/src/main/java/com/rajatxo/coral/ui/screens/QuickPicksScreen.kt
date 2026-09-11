@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -227,22 +226,34 @@ fun QuickPicksScreen(
                 }
             }
 
-            // --- Pinterest-style infinite scroll grid ---
+            // --- Pinterest-style infinite scroll grid (4 cards on screen) ---
+            // Each card is sized to exactly half the available height (minus
+            // spacing) so only 2 rows × 2 cols = 4 cards fit on screen.
             if (visibleSongs.isNotEmpty()) {
-                LazyVerticalGrid(
-                    state = gridState,
-                    columns = GridCells.Fixed(2),
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                androidx.compose.foundation.layout.BoxWithConstraints(
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    items(visibleSongs, key = { it.id.toString() + "-" + visibleSongs.indexOf(it) }) { song ->
-                        PickCard(
-                            song = song,
-                            onClick = { onSongClick(song) }
-                        )
+                    val availableHeight = maxHeight
+                    // 2 rows + 1 gap (12dp) = availableHeight
+                    // Each card height = (availableHeight - 12dp) / 2
+                    val cardHeight = (availableHeight - 12.dp) / 2
+
+                    LazyVerticalGrid(
+                        state = gridState,
+                        columns = GridCells.Fixed(2),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(visibleSongs, key = { it.id.toString() + "-" + visibleSongs.indexOf(it) }) { song ->
+                            PickCard(
+                                song = song,
+                                onClick = { onSongClick(song) },
+                                cardHeight = cardHeight
+                            )
+                        }
                     }
                 }
             } else {
@@ -281,7 +292,8 @@ fun QuickPicksScreen(
 @Composable
 private fun PickCard(
     song: Song,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    cardHeight: androidx.compose.ui.unit.Dp
 ) {
     val context = LocalContext.current
     var palette by remember { mutableStateOf<CoralPalette?>(null) }
@@ -301,7 +313,7 @@ private fun PickCard(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(0.78f)  // taller card — only 4 visible (2x2)
+            .height(cardHeight)  // fixed height so exactly 4 fit on screen
             .clip(RoundedCornerShape(20.dp))
             .background(
                 Brush.verticalGradient(
