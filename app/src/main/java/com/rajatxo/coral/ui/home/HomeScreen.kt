@@ -297,7 +297,7 @@ fun HomeScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(bottom = 56.dp)  // sit above the tab capsule
+                .padding(bottom = 72.dp)  // sit above the tab capsule (52dp + 16dp + 4dp gap)
         ) {
             MiniPlayer(
                 title = currentSongTitle ?: "",
@@ -316,7 +316,7 @@ fun HomeScreen(
         // --- Draggable Floating Search Button ---
         DraggableSearchFab()
 
-        // --- Tab Capsule (bottom center, below mini player, above system nav) ---
+        // --- Tab Capsule (bottom center, above system nav bar) ---
         // Glossy pill with sliding Cal Sans text on a faded string.
         // Swipe left/right to change tabs. Haptic on each change.
         com.rajatxo.coral.ui.components.TabCapsule(
@@ -329,7 +329,7 @@ fun HomeScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(bottom = 8.dp)
+                .padding(bottom = 16.dp)  // enough space above system nav
         )
 
         // Add bottom padding to the content area when mini player is visible,

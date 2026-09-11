@@ -40,24 +40,19 @@ import com.rajatxo.coral.ui.theme.CalSansFamily
 /**
  * Tab Capsule — Coral's centered tab switcher.
  *
- * A glossy pill-shaped capsule at the bottom center of the screen, below
- * the mini player and above the system nav buttons. Inside the capsule:
- * a horizontal "string" (thin line) with faded ends, and the active tab's
- * text sits centered on the string in Cal Sans.
+ * A glossy pill-shaped capsule at the bottom center of the screen. Inside:
+ * a HORIZONTAL STRING (thin line, faded at both ends like the PlaylistWheel
+ * arc) with the active tab's text sitting ON the string in Cal Sans.
+ *
+ * The string is clearly visible — it passes through the capsule horizontally
+ * at the vertical center, and the text sits ON TOP of it (text background
+ * creates a small "gap" in the string where the text is, like the text is
+ * threaded onto the string).
  *
  * Interaction:
- *   - Swipe/drag left → next tab (text slides left, new text enters from right)
- *   - Swipe/drag right → previous tab (text slides right, new text enters from left)
+ *   - Swipe left → next tab (text slides left, new enters from right)
+ *   - Swipe right → previous tab (text slides right, new enters from left)
  *   - Haptic CLOCK_TICK on each tab change
- *   - Only ONE tab text visible at a time (like Reddit's community switcher)
- *
- * Visual:
- *   - Glossy capsule: dark semi-transparent bg + white gradient highlight on top
- *     (glass reflection effect) + subtle white border
- *   - Horizontal string: thin line at vertical center, fades at both ends
- *     (gradient: transparent → white@25% → transparent)
- *   - Text: Cal Sans, 15sp, SemiBold, white, centered on the string
- *   - Slide animation: 250ms tween, smooth
  */
 @Composable
 fun TabCapsule(
@@ -75,10 +70,10 @@ fun TabCapsule(
 
     Box(
         modifier = modifier
-            .width(220.dp)
-            .height(44.dp)
-            .clip(RoundedCornerShape(22.dp))
-            .background(Color.Black.copy(alpha = 0.6f))
+            .width(240.dp)
+            .height(52.dp)  // taller so the string + text both fit clearly
+            .clip(RoundedCornerShape(26.dp))
+            .background(Color.Black.copy(alpha = 0.7f))
             .pointerInput(tabs, activeTab) {
                 detectHorizontalDragGestures(
                     onDragEnd = {
@@ -105,24 +100,32 @@ fun TabCapsule(
                 )
             }
     ) {
-        // --- The string: horizontal line with faded ends ---
+        // --- The STRING: horizontal line at vertical center, faded at both ends ---
+        // Drawn FIRST (bottom layer) so the text sits ON TOP of it.
+        // The string is clearly visible: white at 40% alpha in the center,
+        // fading to transparent at both ends (like the PlaylistWheel arc).
         Canvas(modifier = Modifier.fillMaxSize()) {
             val centerY = size.height / 2f
+            val stringHeight = 1.5f  // slightly thicker so it's visible
             drawRect(
                 brush = Brush.horizontalGradient(
                     colorStops = arrayOf(
                         0.0f to Color.Transparent,
-                        0.15f to Color.White.copy(alpha = 0.25f),
-                        0.85f to Color.White.copy(alpha = 0.25f),
+                        0.1f to Color.White.copy(alpha = 0.1f),
+                        0.25f to Color.White.copy(alpha = 0.4f),
+                        0.75f to Color.White.copy(alpha = 0.4f),
+                        0.9f to Color.White.copy(alpha = 0.1f),
                         1.0f to Color.Transparent
                     )
                 ),
-                topLeft = Offset(0f, centerY - 0.5f),
-                size = Size(size.width, 1f)
+                topLeft = Offset(0f, centerY - stringHeight / 2f),
+                size = Size(size.width, stringHeight)
             )
         }
 
-        // --- Sliding tab text ---
+        // --- Sliding tab text (sits ON TOP of the string) ---
+        // The text has a small horizontal padding so it "breaks" the string
+        // visually — like the text is threaded onto the string.
         AnimatedContent(
             targetState = activeTab,
             transitionSpec = {
@@ -138,30 +141,37 @@ fun TabCapsule(
             contentAlignment = Alignment.Center,
             label = "tabText"
         ) { tab ->
-            Text(
-                text = tab.label,
-                color = Color.White,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                fontFamily = CalSansFamily,
-                maxLines = 1,
-                overflow = TextOverflow.Visible,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
+            // Text with a small dark bg behind it so the string appears
+            // to "break" where the text is (threaded effect)
+            Box(
+                modifier = Modifier
+                    .background(Color.Black.copy(alpha = 0.7f))
+                    .padding(horizontal = 14.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = tab.label,
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = CalSansFamily,
+                    maxLines = 1,
+                    overflow = TextOverflow.Visible
+                )
+            }
         }
 
-        // --- Glossy overlay: white gradient on top half ---
+        // --- Glossy overlay: white gradient on top half (glass reflection) ---
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .clip(RoundedCornerShape(22.dp))
+                .clip(RoundedCornerShape(26.dp))
                 .background(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
-                            0f to Color.White.copy(alpha = 0.12f),
-                            0.5f to Color.White.copy(alpha = 0.03f),
+                            0f to Color.White.copy(alpha = 0.15f),
+                            0.5f to Color.White.copy(alpha = 0.04f),
                             0.5f to Color.Transparent,
-                            1f to Color.Black.copy(alpha = 0.1f)
+                            1f to Color.Black.copy(alpha = 0.15f)
                         )
                     )
                 )
