@@ -226,19 +226,8 @@ fun HomeScreen(
         }
         val onExtend: () -> Unit = { sleepTimer.extend(10) }
 
-        // --- Liquid Glass backdrop (same approach as SimpMusic) ---
-        // A LayerBackdrop is created here (the parent), and shared between:
-        //   - The page content Box (applies Modifier.layerBackdrop(backdrop))
-        //   - The TabCapsule (applies Modifier.drawBackdrop(backdrop, blur))
-        // This creates a TRUE real-time backdrop blur — the nav bar samples
-        // the page content behind it and blurs it via AGSL shaders.
-        val glassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop {
-            drawContent()
-        }
-
         // Main content — fills the WHOLE screen (no nav rail anymore)
-        // Wrapped with layerBackdrop so the nav bar can sample + blur this content.
-        Box(modifier = Modifier.fillMaxSize().then(com.kyant.backdrop.backdrops.layerBackdrop(glassBackdrop))) {
+        Box(modifier = Modifier.fillMaxSize()) {
 
                 when (selectedTab) {
                     CoralTab.QuickPicks -> QuickPicksScreen(
@@ -363,11 +352,11 @@ fun HomeScreen(
                 selectedTab = tab
                 selectedPlaylist = null
             },
-            backdrop = glassBackdrop,
+            blurImageUri = currentSongArt,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(bottom = 27.dp)  // center ~85dp from bottom
+                .padding(bottom = 27.dp)
         )
 
         // Add bottom padding to the content area when mini player is visible,
