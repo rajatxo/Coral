@@ -27,7 +27,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.GraphicsLayer
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
@@ -79,7 +78,7 @@ fun CoralNavRail(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
     transparentMode: Boolean = false,
-    capturedPageLayer: GraphicsLayer? = null
+    pageCapture: PageCapture? = null
 ) {
     Box(
         modifier = modifier
@@ -91,15 +90,15 @@ fun CoralNavRail(
     ) {
         // --- Backdrop blur layer (transparent mode only) ---
         // This creates a REAL frosted-glass backdrop blur. We render the
-        // ACTUAL page content (captured as a GraphicsLayer) inside the rail's
-        // bounds and apply Modifier.blur() to it. This makes EVERYTHING behind
-        // the rail — album art, text, buttons, the whole page — appear blurred.
-        // This is a TRUE backdrop blur, not a duplicate or approximation.
-        if (transparentMode && capturedPageLayer != null) {
+        // ACTUAL page content (captured as a Picture during the page's draw
+        // phase) inside the rail's bounds and apply Modifier.blur() to it.
+        // This makes EVERYTHING behind the rail — album art, text, buttons,
+        // the whole page — appear blurred.
+        if (transparentMode && pageCapture != null) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .blurBackground(capturedPageLayer, 28.dp)
+                    .blurBackground(pageCapture, 28.dp)
             )
             // Dark gradient overlay on top of the blur (left: dark for text
             // readability → right: transparent so rail blends into page)

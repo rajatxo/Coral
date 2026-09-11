@@ -242,11 +242,11 @@ fun HomeScreen(
 
     // --- GraphicsLayer capture for real backdrop blur ---
     // We wrap the page content in a Box that captures its drawn output into
-    // a GraphicsLayer. The rail renders this SAME layer (blurred) inside its
+    // a Picture. The rail renders this SAME picture (blurred) inside its
     // bounds — so the rail shows a real blurred version of whatever the page
     // is actually drawing behind the rail (album art, text, buttons, etc.).
     // This is a TRUE backdrop blur, not a duplicate or approximation.
-    val (pageCaptureModifier, pageGraphicsLayer) = com.rajatxo.coral.ui.components.rememberGraphicsLayerCapture()
+    val pageCapture = com.rajatxo.coral.ui.components.rememberPageCapture()
 
     Box(modifier = Modifier.fillMaxSize()) {
         // --- Sleep timer capsule state (top-level scope, accessible by all overlays) ---
@@ -263,9 +263,12 @@ fun HomeScreen(
         // The nav rail floats ON TOP of this content with a transparent bg,
         // so album covers and other page content show through behind the
         // rail text — exactly like how the system nav buttons are transparent.
-        // The pageCaptureModifier captures the drawn output into a GraphicsLayer
+        // The capturePage modifier captures the drawn output into a Picture
         // so the rail can render a REAL blurred version of this content.
-        Box(modifier = Modifier.fillMaxSize().then(pageCaptureModifier)) {
+        Box(modifier = Modifier
+            .fillMaxSize()
+            .capturePage(pageCapture)
+        ) {
 
                 when (selectedTab) {
                     CoralTab.QuickPicks -> QuickPicksScreen(
@@ -356,7 +359,7 @@ fun HomeScreen(
             onBackClick = { railMode = com.rajatxo.coral.ui.components.RailMode.Main },
             modifier = Modifier.align(Alignment.CenterStart),
             transparentMode = isRailTransparent,
-            capturedPageLayer = if (isRailTransparent) pageGraphicsLayer else null
+            pageCapture = if (isRailTransparent) pageCapture else null
         )
 
         // --- Mini player (bottom, full-width) ---
