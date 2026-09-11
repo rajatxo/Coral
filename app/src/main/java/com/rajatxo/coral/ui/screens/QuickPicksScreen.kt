@@ -1,7 +1,5 @@
 package com.rajatxo.coral.ui.screens
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -35,7 +33,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -44,12 +41,11 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.components.CoralColors
-import com.rajatxo.coral.util.CoralPalette
-import com.rajatxo.coral.util.extractPalette
-import kotlin.random.Random
 
 /**
- * Quick Picks Screen — horizontal card carousel with dynamic background morphing.
+ * Quick Picks Screen — horizontal card carousel with toggle capsule.
+ *
+ * Background: pure black (AMOLED-friendly). No dynamic color morphing.
  *
  * Two modes (toggle capsule):
  *   - "Based on last played": shows songs from the same artist/album as last played
@@ -125,32 +121,13 @@ fun QuickPicksScreen(
     // --- Pager state ---
     val pagerState = rememberPagerState(pageCount = { quickPicksSongs.size })
 
-    // --- Dynamic background color ---
-    // Extracts the dominant color from the current page's album art and
-    // smoothly morphs the background to match it.
-    var currentBgColor by remember { mutableStateOf(Color(0xFF1A1A1A)) }
-    val animatedBgColor by animateColorAsState(
-        targetValue = currentBgColor,
-        animationSpec = tween(durationMillis = 500),
-        label = "bgColor"
-    )
-
-    // Extract palette when the current page changes
-    LaunchedEffect(pagerState.currentPage, quickPicksSongs) {
-        val currentSong = quickPicksSongs.getOrNull(pagerState.currentPage)
-        if (currentSong?.albumArtUri != null) {
-            extractPalette(context, currentSong.albumArtUri)?.let { palette ->
-                currentBgColor = darkenColor(palette.primary)
-            }
-        } else {
-            currentBgColor = Color(0xFF1A1A1A)
-        }
-    }
+    // --- Background: pure black (AMOLED-friendly) ---
+    // No dynamic color morphing — user wants a consistent black bg.
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(animatedBgColor)
+            .background(Color.Black)
     ) {
         // Back button (top left, no circle background)
         Box(
@@ -353,14 +330,4 @@ fun QuickPicksScreen(
             }
         }
     }
-}
-
-/**
- * Darkens a color for use as a background so white text stays readable.
- * Uses the same luminance-based approach as the playlist detail screen.
- */
-private fun darkenColor(color: Color): Color {
-    val luminance = 0.299f * color.red + 0.587f * color.green + 0.114f * color.blue
-    val darkenFactor = 0.35f + 0.45f * luminance
-    return androidx.compose.ui.graphics.lerp(color, Color.Black, darkenFactor)
 }
