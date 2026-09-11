@@ -231,15 +231,22 @@ fun HomeScreen(
     // is no longer painted on the root Box.
     var quickPicksBgColor by remember { mutableStateOf<Color>(Color(0xFF1A1A1A)) }
 
-    // --- Quick Picks album art (for the rail's blur layer) ---
-    // When Quick Picks is active, the current pick's album art is rendered
-    // (blurred) behind the nav rail. This gives the real "frosted glass"
-    // backdrop blur effect — the album art behind the rail looks blurred.
+    // --- Quick Picks album art (kept for future use but no longer used
+    // for the rail blur — the rail now uses a captured GraphicsLayer of
+    // the actual page content for a TRUE backdrop blur).
     var quickPicksAlbumArt by remember { mutableStateOf<android.net.Uri?>(null) }
 
-    // The rail is in "transparent mode" (with blur) ONLY on Quick Picks.
+    // The rail is in "transparent mode" (with backdrop blur) ONLY on Quick Picks.
     // On all other tabs, the rail has a pure black bg (original ViTune style).
     val isRailTransparent = selectedTab == CoralTab.QuickPicks
+
+    // --- GraphicsLayer capture for real backdrop blur ---
+    // We wrap the page content in a Box that captures its drawn output into
+    // a GraphicsLayer. The rail renders this SAME layer (blurred) inside its
+    // bounds — so the rail shows a real blurred version of whatever the page
+    // is actually drawing behind the rail (album art, text, buttons, etc.).
+    // This is a TRUE backdrop blur, not a duplicate or approximation.
+    val (pageCaptureModifier, pageGraphicsLayer) = com.rajatxo.coral.ui.components.rememberGraphicsLayerCapture()
 
     Box(modifier = Modifier.fillMaxSize()) {
         // --- Sleep timer capsule state (top-level scope, accessible by all overlays) ---
@@ -256,7 +263,9 @@ fun HomeScreen(
         // The nav rail floats ON TOP of this content with a transparent bg,
         // so album covers and other page content show through behind the
         // rail text — exactly like how the system nav buttons are transparent.
-        Box(modifier = Modifier.fillMaxSize()) {
+        // The pageCaptureModifier captures the drawn output into a GraphicsLayer
+        // so the rail can render a REAL blurred version of this content.
+        Box(modifier = Modifier.fillMaxSize().then(pageCaptureModifier)) {
 
                 when (selectedTab) {
                     CoralTab.QuickPicks -> QuickPicksScreen(
@@ -347,8 +356,7 @@ fun HomeScreen(
             onBackClick = { railMode = com.rajatxo.coral.ui.components.RailMode.Main },
             modifier = Modifier.align(Alignment.CenterStart),
             transparentMode = isRailTransparent,
-            blurImageUri = if (isRailTransparent) quickPicksAlbumArt else null,
-            blurBgColor = quickPicksBgColor
+            capturedPageLayer = if (isRailTransparent) pageGraphicsLayer else null
         )
 
         // --- Mini player (bottom, full-width) ---
