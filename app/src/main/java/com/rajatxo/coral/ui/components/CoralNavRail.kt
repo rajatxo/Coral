@@ -74,38 +74,55 @@ fun CoralNavRail(
     onSettingsTabSelected: (CoralSettingsTab) -> Unit,
     onGearClick: () -> Unit,
     onBackClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    transparentMode: Boolean = false,
+    blurImageUri: android.net.Uri? = null
 ) {
     Box(
         modifier = modifier
             .width(56.dp)
             .fillMaxHeight()
-            // NO solid background — transparent so page bg shows through.
-            // The blur overlay below creates the "frosted glass" effect.
+            // In transparent mode: no solid bg — the blurred image shows through.
+            // In normal mode: pure black bg (original ViTune style).
+            .then(if (!transparentMode) Modifier.background(Color(0xFF000000)) else Modifier)
     ) {
-        // --- Blur overlay: simulates frosted glass / backdrop blur ---
-        // A horizontal gradient from semi-transparent black (left) to fully
-        // transparent (right), with Modifier.blur() applied to soften it.
-        // This creates a "blur fade" effect: strongest on the left edge,
-        // fading to nothing at the right edge — so the rail blends
-        // smoothly into the page content.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.horizontalGradient(
-                        colorStops = arrayOf(
-                            0.0f to Color.Black.copy(alpha = 0.65f),
-                            0.5f to Color.Black.copy(alpha = 0.35f),
-                            0.85f to Color.Black.copy(alpha = 0.1f),
-                            1.0f to Color.Transparent
+        // --- Blur layer (transparent mode only) ---
+        // A duplicate of the page's album art, blurred via Modifier.blur().
+        // This creates a REAL frosted-glass backdrop blur effect — the album
+        // art behind the rail appears blurred, not just dimmed.
+        if (transparentMode) {
+            if (blurImageUri != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .blur(28.dp)
+                ) {
+                    coil3.compose.AsyncImage(
+                        model = blurImageUri,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+            // Dark gradient overlay (left: dark for text readability → right: transparent)
+            // so rail blends smoothly into the page content
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.horizontalGradient(
+                            colorStops = arrayOf(
+                                0.0f to Color.Black.copy(alpha = 0.55f),
+                                0.6f to Color.Black.copy(alpha = 0.3f),
+                                1.0f to Color.Transparent
+                            )
                         )
                     )
-                )
-                .blur(24.dp)
-        )
+            )
+        }
 
-        // --- Rail content (gear icon + labels) on top of the blur ---
+        // --- Rail content (gear icon + labels) on top of the blur/bg ---
         Column(
             modifier = Modifier
                 .fillMaxHeight()

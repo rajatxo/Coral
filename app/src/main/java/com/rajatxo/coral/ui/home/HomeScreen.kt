@@ -231,6 +231,16 @@ fun HomeScreen(
     // is no longer painted on the root Box.
     var quickPicksBgColor by remember { mutableStateOf<Color>(Color(0xFF1A1A1A)) }
 
+    // --- Quick Picks album art (for the rail's blur layer) ---
+    // When Quick Picks is active, the current pick's album art is rendered
+    // (blurred) behind the nav rail. This gives the real "frosted glass"
+    // backdrop blur effect — the album art behind the rail looks blurred.
+    var quickPicksAlbumArt by remember { mutableStateOf<android.net.Uri?>(null) }
+
+    // The rail is in "transparent mode" (with blur) ONLY on Quick Picks.
+    // On all other tabs, the rail has a pure black bg (original ViTune style).
+    val isRailTransparent = selectedTab == CoralTab.QuickPicks
+
     Box(modifier = Modifier.fillMaxSize()) {
         // --- Sleep timer capsule state (top-level scope, accessible by all overlays) ---
         val capsuleVisible = sleepTimerState.active &&
@@ -257,7 +267,8 @@ fun HomeScreen(
                         onExtend = onExtend,
                         onSongClick = onSongClick,
                         onBgColorChange = { quickPicksBgColor = it },
-                        onViewAllClick = { showQuickPicksAll = true }
+                        onViewAllClick = { showQuickPicksAll = true },
+                        onAlbumArtChange = { quickPicksAlbumArt = it }
                     )
                     CoralTab.Discover -> PlaceholderScreen(
                         tabName = "Discover",
@@ -334,7 +345,9 @@ fun HomeScreen(
             },
             onGearClick = { railMode = com.rajatxo.coral.ui.components.RailMode.Settings },
             onBackClick = { railMode = com.rajatxo.coral.ui.components.RailMode.Main },
-            modifier = Modifier.align(Alignment.CenterStart)
+            modifier = Modifier.align(Alignment.CenterStart),
+            transparentMode = isRailTransparent,
+            blurImageUri = if (isRailTransparent) quickPicksAlbumArt else null
         )
 
         // --- Mini player (bottom, full-width) ---

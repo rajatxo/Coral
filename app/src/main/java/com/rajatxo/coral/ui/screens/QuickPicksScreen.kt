@@ -97,7 +97,8 @@ fun QuickPicksScreen(
     onSongClick: (Song) -> Unit = {},
     onBackClick: () -> Unit = {},
     onBgColorChange: (Color) -> Unit = {},
-    onViewAllClick: () -> Unit = {}
+    onViewAllClick: () -> Unit = {},
+    onAlbumArtChange: (android.net.Uri?) -> Unit = {}
 ) {
     val context = LocalContext.current
     var isRandomMode by remember { mutableStateOf(false) }
@@ -142,6 +143,8 @@ fun QuickPicksScreen(
     LaunchedEffect(currentBgColor) { onBgColorChange(currentBgColor) }
     LaunchedEffect(currentPage, limitedPicks) {
         val song = limitedPicks.getOrNull(currentPage)
+        // Report the current pick's album art to parent (for the rail's blur layer)
+        onAlbumArtChange(song?.albumArtUri)
         if (song?.albumArtUri != null) {
             extractPalette(context, song.albumArtUri)?.let { palette ->
                 // Blend album color with deep navy for editorial mood
@@ -229,7 +232,10 @@ private fun EditorialPickCard(
                 .fillMaxWidth()
                 .fillMaxHeight(0.55f)  // takes 55% of card height
                 .statusBarsPadding()
-                .padding(start = 56.dp)  // shift right so hero doesn't go under the rail
+                // NO start padding — hero image goes full-width, UNDER the nav rail.
+                // This is the whole point of Quick Picks being "full screen":
+                // the album art extends behind the rail so the rail's blur
+                // has something real to blur.
                 .clip(DiagonalCutShape)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },

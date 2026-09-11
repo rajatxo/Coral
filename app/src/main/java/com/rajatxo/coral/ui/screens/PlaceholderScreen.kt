@@ -56,7 +56,7 @@ fun PlaceholderScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(start = 64.dp, end = 20.dp, top = 16.dp)
+                .padding(start = 16.dp, end = 20.dp, top = 16.dp)
         ) {
             // Header Row: capsule (weight=1f) + title text
             Row(
