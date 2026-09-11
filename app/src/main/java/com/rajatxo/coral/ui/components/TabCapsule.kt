@@ -68,7 +68,7 @@ fun TabCapsule(
     activeTab: CoralTab,
     onTabSelected: (CoralTab) -> Unit,
     modifier: Modifier = Modifier,
-    blurLayer: androidx.compose.ui.graphics.GraphicsLayer? = null
+    blurLayer: androidx.compose.ui.graphics.layer.GraphicsLayer? = null
 ) {
     val view = LocalView.current
     val context = LocalContext.current
