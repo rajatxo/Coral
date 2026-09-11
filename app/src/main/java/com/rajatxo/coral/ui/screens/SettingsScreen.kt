@@ -52,6 +52,7 @@ import com.rajatxo.coral.ui.icons.CoralIcons
 @androidx.compose.foundation.ExperimentalFoundationApi
 @Composable
 fun SettingsScreen(
+    onBackClick: () -> Unit,
     onOpenPremium: () -> Unit,
     onOpenEqualizer: () -> Unit,
     onOpenSleepTimer: () -> Unit,
@@ -70,7 +71,7 @@ fun SettingsScreen(
             .verticalScroll(rememberScrollState())
             .padding(bottom = 24.dp)
     ) {
-        // Big title at top-RIGHT (ViTune style)
+        // Big title at top-RIGHT (ViTune style) + back button at top-LEFT
         Box(
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -85,6 +86,29 @@ fun SettingsScreen(
                     .statusBarsPadding()
                     .padding(end = 20.dp, top = 16.dp)
             )
+            // Back button (top-left, chevron down)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .statusBarsPadding()
+                    .padding(start = 16.dp, top = 16.dp)
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.White.copy(alpha = 0.08f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onBackClick
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = CoralIcons.ChevronDown,
+                    contentDescription = "Back",
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
         }
 
         // Premium section — always at the top so the user knows about it

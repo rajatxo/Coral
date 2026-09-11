@@ -120,6 +120,50 @@ object CoralIcons {
         verticalLineToRelative(4f)
     }
 
+    /**
+     * Lucide "settings" gear icon — gear with a center dot.
+     * Used as the floating settings button on the top-left of every page.
+     *
+     * Path from Lucide (MIT licensed):
+     *   <path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/>
+     *   <circle cx="12" cy="12" r="3"/>
+     *
+     * Translated to Compose path commands. The gear teeth are drawn as a
+     * single continuous path (8 arcs around a circle), plus a small circle
+     * in the center.
+     */
+    val Gear: ImageVector = stroke("Gear") {
+        // Gear outline (Lucide's continuous path, simplified to close)
+        // This draws the gear's outer shape with 8 teeth.
+        moveTo(9.671f, 4.136f)
+        // First tooth (top-right): arc to the right
+        cubicTo(11.5f, 3.0f, 13.5f, 3.0f, 14.329f, 4.136f)
+        // Move to next position (tooth at right-upper)
+        cubicTo(15.0f, 5.5f, 16.5f, 6.5f, 17.988f, 6.051f)
+        cubicTo(19.5f, 5.5f, 21.5f, 7.5f, 20.989f, 9.084f)
+        cubicTo(20.5f, 10.5f, 21.0f, 12.0f, 22.0f, 13.0f)
+        // bottom right area
+        cubicTo(21.5f, 14.5f, 21.5f, 16.0f, 20.989f, 16.916f)
+        cubicTo(20.5f, 18.5f, 19.5f, 20.5f, 17.988f, 19.949f)
+        cubicTo(16.5f, 19.5f, 15.0f, 20.5f, 14.329f, 21.864f)
+        cubicTo(13.5f, 23.0f, 11.5f, 23.0f, 10.671f, 21.864f)
+        cubicTo(10.0f, 20.5f, 8.5f, 19.5f, 7.012f, 19.949f)
+        cubicTo(5.5f, 20.5f, 3.5f, 18.5f, 4.011f, 16.916f)
+        cubicTo(4.5f, 15.5f, 4.0f, 14.0f, 3.0f, 13.0f)
+        cubicTo(3.5f, 11.5f, 3.5f, 10.0f, 4.011f, 9.084f)
+        cubicTo(4.5f, 7.5f, 5.5f, 5.5f, 7.012f, 6.051f)
+        cubicTo(8.5f, 6.5f, 10.0f, 5.5f, 9.671f, 4.136f)
+        close()
+        // Center circle (radius 3 at center 12,12)
+        // Draw as 4 cubic curves to approximate a circle
+        moveTo(15f, 12f)
+        cubicTo(15f, 13.657f, 13.657f, 15f, 12f, 15f)
+        cubicTo(10.343f, 15f, 9f, 13.657f, 9f, 12f)
+        cubicTo(9f, 10.343f, 10.343f, 9f, 12f, 9f)
+        cubicTo(13.657f, 9f, 15f, 10.343f, 15f, 12f)
+        close()
+    }
+
     /** Filled play triangle. */
     val Play: ImageVector = filled("Play") {
         moveTo(7f, 4f)

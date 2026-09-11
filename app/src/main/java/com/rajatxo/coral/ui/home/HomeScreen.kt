@@ -115,6 +115,7 @@ fun HomeScreen(
     var showSongPicker by remember { mutableStateOf(false) }
     var playlistForPicker by remember { mutableStateOf<com.rajatxo.coral.data.model.Playlist?>(null) }
     var showPremium by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
     var showEqualizer by remember { mutableStateOf(false) }
     var showSleepTimer by remember { mutableStateOf(false) }
     var showFontPicker by remember { mutableStateOf(false) }
@@ -130,12 +131,13 @@ fun HomeScreen(
     // the app. Same for the full player, song picker, and other overlays.
     androidx.activity.compose.BackHandler(
         enabled = selectedPlaylist != null || showFullPlayer || showSongPicker ||
-                  showPremium || showEqualizer || showSleepTimer || showFontPicker
+                  showPremium || showSettings || showEqualizer || showSleepTimer || showFontPicker
     ) {
         when {
             showFullPlayer -> onFullPlayerDismiss()
             showSongPicker -> { showSongPicker = false }
             showPremium -> { showPremium = false }
+            showSettings -> { showSettings = false }
             showEqualizer -> { showEqualizer = false }
             showSleepTimer -> { showSleepTimer = false }
             showFontPicker -> { showFontPicker = false }
@@ -316,6 +318,32 @@ fun HomeScreen(
         // --- Draggable Floating Search Button ---
         DraggableSearchFab()
 
+        // --- Floating Settings Button (top-left, on every page) ---
+        // Lucide "settings" gear icon in a small white-tinted circle.
+        // Tapping it opens the SettingsScreen as a full-screen overlay.
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .statusBarsPadding()
+                .padding(start = 16.dp, top = 16.dp)
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.12f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { showSettings = true }
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = CoralIcons.Gear,
+                contentDescription = "Settings",
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
         // --- Tab Capsule (nav bar — Coral's tab switcher) ---
         // Glossy white pill with black string + black text. Center is ~85dp
         // from the bottom of the screen (above the system navigation buttons).
@@ -400,6 +428,29 @@ fun HomeScreen(
         if (showFontPicker) {
             com.rajatxo.coral.ui.screens.FontPickerScreen(
                 onBackClick = { showFontPicker = false }
+            )
+        }
+
+        // --- Settings screen (full-screen overlay, opened by gear button) ---
+        if (showSettings) {
+            com.rajatxo.coral.ui.screens.SettingsScreen(
+                onBackClick = { showSettings = false },
+                onOpenPremium = {
+                    showSettings = false
+                    showPremium = true
+                },
+                onOpenEqualizer = {
+                    showSettings = false
+                    showEqualizer = true
+                },
+                onOpenSleepTimer = {
+                    showSettings = false
+                    showSleepTimer = true
+                },
+                onOpenFontPicker = {
+                    showSettings = false
+                    showFontPicker = true
+                }
             )
         }
 
