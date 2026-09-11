@@ -18,6 +18,11 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Set up Android SDK 37
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-37'
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
