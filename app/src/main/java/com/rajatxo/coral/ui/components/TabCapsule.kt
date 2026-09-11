@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -125,6 +126,9 @@ fun TabCapsule(
         }
 
         // --- Sliding tab text (sits ON TOP of the string, covering it) ---
+        // The text Box only takes the width of the text (wrapContent), so the
+        // string is visible on both sides. AnimatedContent's contentAlignment
+        // centers the text both horizontally and vertically.
         AnimatedContent(
             targetState = activeTab,
             transitionSpec = {
@@ -140,16 +144,19 @@ fun TabCapsule(
             contentAlignment = Alignment.Center,
             label = "tabText"
         ) { tab ->
-            // Text with white bg behind it so it covers the string where it is
+            // wrapContentSize ensures the Box only takes the text's width,
+            // NOT the full parent width. Without this, the Box expands to
+            // fill the AnimatedContent, covering the whole string.
             Box(
                 modifier = Modifier
+                    .wrapContentSize(Alignment.Center)
                     .background(Color.White)
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .padding(horizontal = 12.dp, vertical = 2.dp)
             ) {
                 Text(
                     text = tab.label,
                     color = Color.Black,
-                    fontSize = 17.sp,  // bigger
+                    fontSize = 17.sp,
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = CalSansFamily,
                     maxLines = 1,
