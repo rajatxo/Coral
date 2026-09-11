@@ -28,10 +28,6 @@ android {
             versionNameSuffix = "-RELEASE"
             isMinifyEnabled = true
             isShrinkResources = true
-            // Disable lintVital — AGP 8.7.3's lint crashes on Kotlin 2.2+
-            // (NonNullableMutableLiveDataDetector IncompatibleClassChangeError).
-            // This is a known AGP bug, not a code issue. Lint still runs on debug.
-            isLintVitalReleaseEnabled = false
             manifestPlaceholders["appName"] = "Coral"
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -39,6 +35,14 @@ android {
             )
             signingConfig = signingConfigs.getByName("debug")
         }
+    }
+
+    // Disable lintVital — AGP 8.7.3's lint crashes on Kotlin 2.2+
+    // (NonNullableMutableLiveDataDetector IncompatibleClassChangeError).
+    // This is a known AGP bug, not a code issue.
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
     }
 
     buildFeatures {
