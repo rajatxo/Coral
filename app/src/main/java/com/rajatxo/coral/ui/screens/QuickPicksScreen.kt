@@ -229,6 +229,7 @@ private fun EditorialPickCard(
                 .fillMaxWidth()
                 .fillMaxHeight(0.55f)  // takes 55% of card height
                 .statusBarsPadding()
+                .padding(start = 56.dp)  // shift right so hero doesn't go under the rail
                 .clip(DiagonalCutShape)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },

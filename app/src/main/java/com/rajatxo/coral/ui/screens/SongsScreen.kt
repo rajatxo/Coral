@@ -179,7 +179,7 @@ fun SongsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .padding(start = 16.dp, end = 20.dp, top = 16.dp)
+                    .padding(start = 64.dp, end = 20.dp, top = 16.dp)
             ) {
                 // Header Row: capsule (weight=1f) + title text
                 Row(
@@ -228,7 +228,7 @@ private fun SongRow(song: Song, isCurrent: Boolean, onClick: () -> Unit) {
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .background(if (isCurrent) CoralColors.SurfaceVariant else Color.Transparent)
-            .padding(horizontal = 20.dp, vertical = 8.dp),
+            .padding(start = 56.dp, end = 20.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(

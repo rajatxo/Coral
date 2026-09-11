@@ -21,8 +21,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalDensity
@@ -76,17 +78,39 @@ fun CoralNavRail(
 ) {
     Box(
         modifier = modifier
-            .width(48.dp)
+            .width(56.dp)
             .fillMaxHeight()
-            // NO background — transparent so it adopts the page's background color.
-            // This eliminates the hard line between the nav rail and the page.
-            .padding(start = 4.dp)
+            // NO solid background — transparent so page bg shows through.
+            // The blur overlay below creates the "frosted glass" effect.
     ) {
+        // --- Blur overlay: simulates frosted glass / backdrop blur ---
+        // A horizontal gradient from semi-transparent black (left) to fully
+        // transparent (right), with Modifier.blur() applied to soften it.
+        // This creates a "blur fade" effect: strongest on the left edge,
+        // fading to nothing at the right edge — so the rail blends
+        // smoothly into the page content.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.horizontalGradient(
+                        colorStops = arrayOf(
+                            0.0f to Color.Black.copy(alpha = 0.65f),
+                            0.5f to Color.Black.copy(alpha = 0.35f),
+                            0.85f to Color.Black.copy(alpha = 0.1f),
+                            1.0f to Color.Transparent
+                        )
+                    )
+                )
+                .blur(24.dp)
+        )
+
+        // --- Rail content (gear icon + labels) on top of the blur ---
         Column(
             modifier = Modifier
                 .fillMaxHeight()
                 .statusBarsPadding()  // aligns gear icon with the "Songs" title vertically
-                .padding(top = 16.dp, bottom = 16.dp),
+                .padding(top = 16.dp, bottom = 16.dp, start = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // ---- Top icon: gear (Main mode) or back arrow (Settings mode) ----
@@ -196,7 +220,7 @@ private fun RailLabel(
     // Inactive tab: transparent background + white text
     Box(
         modifier = Modifier
-            .width(48.dp)
+            .width(56.dp)
             .height(textWidthDp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },

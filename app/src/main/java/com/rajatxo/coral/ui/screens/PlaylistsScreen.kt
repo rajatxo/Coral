@@ -124,7 +124,7 @@ fun PlaylistsScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(start = 16.dp, end = 20.dp, top = 16.dp)
+                .padding(start = 64.dp, end = 20.dp, top = 16.dp)
                 .zIndex(1f)
         ) {
             // Header Row: capsule (weight=1f) + title text
@@ -393,7 +393,7 @@ fun PlaylistsScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .statusBarsPadding()
-                        .padding(top = 170.dp, bottom = 16.dp)
+                        .padding(start = 48.dp, top = 170.dp, bottom = 16.dp)
                 )
             } else {
                 LazyVerticalGrid(
@@ -402,7 +402,7 @@ fun PlaylistsScreen(
                         .fillMaxSize()
                         .statusBarsPadding(),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        start = 16.dp, end = 16.dp, top = 160.dp, bottom = 16.dp
+                        start = 56.dp, end = 16.dp, top = 160.dp, bottom = 16.dp
                     ),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -1359,7 +1359,7 @@ private fun SelectionCapsule(
                     onClick()
                 }
             )
-            .padding(horizontal = 20.dp, vertical = 8.dp)
+            .padding(start = 56.dp, end = 20.dp, vertical = 8.dp)
     ) {
         // Smooth animated transition when playlist name changes.
         // New name slides in from the right while old name slides out to the left,
