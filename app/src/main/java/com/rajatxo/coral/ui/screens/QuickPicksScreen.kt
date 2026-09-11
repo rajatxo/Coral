@@ -1,5 +1,14 @@
 package com.rajatxo.coral.ui.screens
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -36,6 +45,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -54,6 +65,8 @@ import com.rajatxo.coral.ui.theme.QuirkFontFamily
 import com.rajatxo.coral.util.CoralPalette
 import com.rajatxo.coral.util.extractPalette
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
+import kotlin.math.sin
 
 /**
  * Quick Picks Screen — Pinterest-style infinite scroll masonry grid.
@@ -118,6 +131,21 @@ fun QuickPicksScreen(
     // re-shuffled). This creates the Pinterest-style infinite scroll.
     val visibleSongs = remember(baseSongs) { mutableStateListOf<Song>().apply { addAll(baseSongs) } }
     val gridState = rememberLazyGridState()
+
+    // --- Wind phase: drives the gentle sway of all cards ---
+    // A single infinite transition provides a phase value 0 → 2π over 5 seconds.
+    // Each card computes its own rotation as sin(phase + cardIndex * offset),
+    // so every card sways at a slightly different phase — organic, not synced.
+    val windTransition = rememberInfiniteTransition(label = "wind")
+    val windPhase by windTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = (2.0 * Math.PI).toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 5000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "windPhase"
+    )
 
     // Detect when user is near the end of the list, then append more songs
     LaunchedEffect(baseSongs) {
@@ -248,10 +276,13 @@ fun QuickPicksScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(visibleSongs, key = { it.id.toString() + "-" + visibleSongs.indexOf(it) }) { song ->
+                            val cardIndex = visibleSongs.indexOf(song)
                             PickCard(
                                 song = song,
                                 onClick = { onSongClick(song) },
-                                cardHeight = cardHeight
+                                cardHeight = cardHeight,
+                                cardIndex = cardIndex,
+                                windPhase = windPhase
                             )
                         }
                     }
@@ -293,9 +324,12 @@ fun QuickPicksScreen(
 private fun PickCard(
     song: Song,
     onClick: () -> Unit,
-    cardHeight: androidx.compose.ui.unit.Dp
+    cardHeight: androidx.compose.ui.unit.Dp,
+    cardIndex: Int,
+    windPhase: Float
 ) {
     val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     var palette by remember { mutableStateOf<CoralPalette?>(null) }
 
     // Extract palette from album art for the vibrant gradient bg
@@ -305,114 +339,193 @@ private fun PickCard(
         }
     }
 
+    // --- Entry animation: card "drops" from above + swings to settle ---
+    // Starts at progress=0 (tilted -15deg, translated up) and animates to 1 (settled).
+    // Plays once when the card enters composition (like someone released it).
+    val entryProgress = remember { Animatable(0f) }
+    LaunchedEffect(song.id) {
+        entryProgress.animateTo(
+            targetValue = 1f,
+            animationSpec = spring(
+                dampingRatio = 0.55f,  // bouncy settle
+                stiffness = 120f
+            )
+        )
+    }
+
+    // --- Tap response: card swings backward when tapped (like a gust hit it) ---
+    // 0 = resting, 1 = swung back. Animates to 1 then back to 0 on tap.
+    val tapResponse = remember { Animatable(0f) }
+
+    // --- Compute total rotation ---
+    // Entry: starts at -15deg, settles to 0deg as entryProgress → 1
+    val entryRotation = -15f * (1f - entryProgress.value)
+
+    // Wind sway: gentle sine wave, ±2.5deg, each card has a different phase.
+    // Only applies fully once the card has settled (entryProgress → 1).
+    val windOffset = cardIndex * 0.8f  // different phase per card
+    val swayRotation = (sin(windPhase.toDouble() + windOffset).toFloat() * 2.5f) * entryProgress.value
+
+    // Tap: swings backward up to -8deg
+    val tapRotation = -8f * tapResponse.value
+
+    // Slight scale-down on tap for "pushed back" feel
+    val tapScale = 1f - 0.04f * tapResponse.value
+
+    val totalRotation = entryRotation + swayRotation + tapRotation
+
     // Gradient colors from boosted palette (fall back to coral brand colors)
     val gradientStart = palette?.primary ?: Color(0xFFFF6B6B)
     val gradientMid = palette?.secondary ?: Color(0xFFFF8E53)
     val gradientEnd = palette?.tertiary ?: Color(0xFF1A1A1A)
 
+    // Outer Box = cell bounds (does NOT rotate — just holds the swaying content)
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(cardHeight)  // fixed height so exactly 4 fit on screen
-            .clip(RoundedCornerShape(20.dp))
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        gradientStart,
-                        gradientMid,
-                        gradientEnd
-                    )
-                )
-            )
-            .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
+            .height(cardHeight)
     ) {
-        // --- Glossy diagonal reflection (3D effect) ---
-        // A semi-transparent white diagonal streak from top-left to mid-right.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(
-                            Color.White.copy(alpha = 0.25f),
-                            Color.White.copy(alpha = 0.1f),
-                            Color.Transparent,
-                            Color.Transparent
-                        ),
-                        start = Offset(0f, 0f),
-                        end = Offset(1000f, 600f)
-                    )
-                )
-        )
-
-        // --- Card content ---
+        // --- Swaying container: string + card, rotates around TOP CENTER ---
+        // This is the pendulum — pivot is at the top where the string attaches.
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            // Album cover (rounded square, white-tinted border)
-            Box(
-                modifier = Modifier
-                    .size(110.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.Black.copy(alpha = 0.3f))
-                    .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
-            ) {
-                if (song.albumArtUri != null) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(song.albumArtUri)
-                            .crossfade(300)
-                            .build(),
-                        contentDescription = "Album art for ${song.title}",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = "🎵", fontSize = 36.sp)
-                    }
+                .graphicsLayer {
+                    rotationZ = totalRotation
+                    transformOrigin = TransformOrigin(0.5f, 0f)  // top center pivot
+                    scaleX = tapScale
+                    scaleY = tapScale
                 }
+        ) {
+            // --- The string: thin vertical line above the card ---
+            Canvas(modifier = Modifier.fillMaxWidth().height(10.dp)) {
+                val x = size.width / 2f
+                drawLine(
+                    color = Color.White.copy(alpha = 0.2f),
+                    start = Offset(x, 0f),
+                    end = Offset(x, size.height),
+                    strokeWidth = 1.dp.toPx()
+                )
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            // --- The card itself ---
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                gradientStart,
+                                gradientMid,
+                                gradientEnd
+                            )
+                        )
+                    )
+                    .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {
+                            // Trigger the wind-back tap animation, then call onClick
+                            scope.launch {
+                                tapResponse.animateTo(
+                                    targetValue = 1f,
+                                    animationSpec = spring(dampingRatio = 0.4f, stiffness = 300f)
+                                )
+                                tapResponse.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = spring(dampingRatio = 0.5f, stiffness = 150f)
+                                )
+                            }
+                            onClick()
+                        }
+                    )
+            ) {
+                // --- Glossy diagonal reflection (3D effect) ---
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = 0.25f),
+                                    Color.White.copy(alpha = 0.1f),
+                                    Color.Transparent,
+                                    Color.Transparent
+                                ),
+                                start = Offset(0f, 0f),
+                                end = Offset(1000f, 600f)
+                            )
+                        )
+                )
 
-            // Song name (Cal Sans, white, semi-bold)
-            Text(
-                text = song.title,
-                color = Color.White,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                fontFamily = CalSansFamily,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+                // --- Card content ---
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    // Album cover (rounded square, white-tinted border)
+                    Box(
+                        modifier = Modifier
+                            .size(100.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.Black.copy(alpha = 0.3f))
+                            .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+                    ) {
+                        if (song.albumArtUri != null) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(context)
+                                    .data(song.albumArtUri)
+                                    .crossfade(300)
+                                    .build(),
+                                contentDescription = "Album art for ${song.title}",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(text = "🎵", fontSize = 36.sp)
+                            }
+                        }
+                    }
 
-            Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-            // Artist name (Poppins, white 70%, regular)
-            Text(
-                text = song.artist,
-                color = Color.White.copy(alpha = 0.7f),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Normal,
-                fontFamily = PoppinsFamily,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+                    // Song name (Cal Sans, white, semi-bold)
+                    Text(
+                        text = song.title,
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = CalSansFamily,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Artist name (Poppins, white 70%, regular)
+                    Text(
+                        text = song.artist,
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Normal,
+                        fontFamily = PoppinsFamily,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
         }
     }
 }
