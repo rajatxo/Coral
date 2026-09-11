@@ -38,21 +38,24 @@ import androidx.compose.ui.unit.sp
 import com.rajatxo.coral.ui.theme.CalSansFamily
 
 /**
- * Tab Capsule — Coral's centered tab switcher.
+ * Tab Capsule (nav bar) — Coral's centered tab switcher.
  *
- * A glossy pill-shaped capsule at the bottom center of the screen. Inside:
- * a HORIZONTAL STRING (thin line, faded at both ends like the PlaylistWheel
- * arc) with the active tab's text sitting ON the string in Cal Sans.
- *
- * The string is clearly visible — it passes through the capsule horizontally
- * at the vertical center, and the text sits ON TOP of it (text background
- * creates a small "gap" in the string where the text is, like the text is
- * threaded onto the string).
+ * A pure white glossy pill at the bottom center of the screen. Inside:
+ * a BLACK horizontal string at the vertical center, faded at both ends.
+ * The active tab's text sits ON the string (black, Cal Sans, slightly
+ * bigger), covering the string where it passes through.
  *
  * Interaction:
  *   - Swipe left → next tab (text slides left, new enters from right)
  *   - Swipe right → previous tab (text slides right, new enters from left)
  *   - Haptic CLOCK_TICK on each tab change
+ *
+ * Visual:
+ *   - Capsule bg: pure white (Color.White)
+ *   - String: black, horizontal, faded at both ends (gradient:
+ *     transparent → black@60% → black@60% → transparent)
+ *   - Text: black, Cal Sans, 17sp SemiBold, centered on the string
+ *   - String drawn FIRST (bottom layer), text ON TOP (covers the string)
  */
 @Composable
 fun TabCapsule(
@@ -71,9 +74,9 @@ fun TabCapsule(
     Box(
         modifier = modifier
             .width(240.dp)
-            .height(52.dp)  // taller so the string + text both fit clearly
+            .height(52.dp)
             .clip(RoundedCornerShape(26.dp))
-            .background(Color.Black.copy(alpha = 0.7f))
+            .background(Color.White)  // pure white
             .pointerInput(tabs, activeTab) {
                 detectHorizontalDragGestures(
                     onDragEnd = {
@@ -100,21 +103,19 @@ fun TabCapsule(
                 )
             }
     ) {
-        // --- The STRING: horizontal line at vertical center, faded at both ends ---
-        // Drawn FIRST (bottom layer) so the text sits ON TOP of it.
-        // The string is clearly visible: white at 40% alpha in the center,
-        // fading to transparent at both ends (like the PlaylistWheel arc).
+        // --- The STRING: black horizontal line at vertical center, faded ends ---
+        // Drawn FIRST so the text sits ON TOP of it (covering it).
         Canvas(modifier = Modifier.fillMaxSize()) {
             val centerY = size.height / 2f
-            val stringHeight = 1.5f  // slightly thicker so it's visible
+            val stringHeight = 1.5f
             drawRect(
                 brush = Brush.horizontalGradient(
                     colorStops = arrayOf(
                         0.0f to Color.Transparent,
-                        0.1f to Color.White.copy(alpha = 0.1f),
-                        0.25f to Color.White.copy(alpha = 0.4f),
-                        0.75f to Color.White.copy(alpha = 0.4f),
-                        0.9f to Color.White.copy(alpha = 0.1f),
+                        0.1f to Color.Black.copy(alpha = 0.15f),
+                        0.25f to Color.Black.copy(alpha = 0.6f),
+                        0.75f to Color.Black.copy(alpha = 0.6f),
+                        0.9f to Color.Black.copy(alpha = 0.15f),
                         1.0f to Color.Transparent
                     )
                 ),
@@ -123,9 +124,7 @@ fun TabCapsule(
             )
         }
 
-        // --- Sliding tab text (sits ON TOP of the string) ---
-        // The text has a small horizontal padding so it "breaks" the string
-        // visually — like the text is threaded onto the string.
+        // --- Sliding tab text (sits ON TOP of the string, covering it) ---
         AnimatedContent(
             targetState = activeTab,
             transitionSpec = {
@@ -141,17 +140,16 @@ fun TabCapsule(
             contentAlignment = Alignment.Center,
             label = "tabText"
         ) { tab ->
-            // Text with a small dark bg behind it so the string appears
-            // to "break" where the text is (threaded effect)
+            // Text with white bg behind it so it covers the string where it is
             Box(
                 modifier = Modifier
-                    .background(Color.Black.copy(alpha = 0.7f))
-                    .padding(horizontal = 14.dp, vertical = 4.dp)
+                    .background(Color.White)
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
             ) {
                 Text(
                     text = tab.label,
-                    color = Color.White,
-                    fontSize = 15.sp,
+                    color = Color.Black,
+                    fontSize = 17.sp,  // bigger
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = CalSansFamily,
                     maxLines = 1,
@@ -159,22 +157,5 @@ fun TabCapsule(
                 )
             }
         }
-
-        // --- Glossy overlay: white gradient on top half (glass reflection) ---
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .clip(RoundedCornerShape(26.dp))
-                .background(
-                    Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0f to Color.White.copy(alpha = 0.15f),
-                            0.5f to Color.White.copy(alpha = 0.04f),
-                            0.5f to Color.Transparent,
-                            1f to Color.Black.copy(alpha = 0.15f)
-                        )
-                    )
-                )
-        )
     }
 }

@@ -316,9 +316,9 @@ fun HomeScreen(
         // --- Draggable Floating Search Button ---
         DraggableSearchFab()
 
-        // --- Tab Capsule (bottom center, above system nav bar) ---
-        // Glossy pill with sliding Cal Sans text on a faded string.
-        // Swipe left/right to change tabs. Haptic on each change.
+        // --- Tab Capsule (nav bar — Coral's tab switcher) ---
+        // Glossy white pill with black string + black text. Center is ~85dp
+        // from the bottom of the screen (above the system navigation buttons).
         com.rajatxo.coral.ui.components.TabCapsule(
             tabs = CoralTab.values().toList(),
             activeTab = selectedTab,
@@ -329,7 +329,7 @@ fun HomeScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(bottom = 16.dp)  // enough space above system nav
+                .padding(bottom = 27.dp)  // center ~85dp from bottom
         )
 
         // Add bottom padding to the content area when mini player is visible,
