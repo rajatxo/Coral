@@ -246,78 +246,77 @@ fun PlaylistDetailScreen(
                             )
                         }
 
-                        // Dropdown menu — glassmorphism style (frosted glass)
-                        // The popup renders a blurred semi-transparent white layer
-                        // that creates a convincing frosted-glass effect.
-                        androidx.compose.material3.DropdownMenu(
-                            expanded = showMenu,
-                            onDismissRequest = { showMenu = false },
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(16.dp))
-                                // Glassmorphism: semi-transparent white bg + blur
-                                // The blur softens the white, making it look like
-                                // frosted glass catching the page colors behind it.
-                                .background(Color.White.copy(alpha = 0.08f))
-                                .blur(20.dp)
-                                // Subtle white border for the "shiny glass" edge
-                                .border(0.5.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+                        // Glassmorphism popup — REAL backdrop blur
+                        // Captures the screen, blurs it, renders inside the popup.
+                        // Page content behind the popup appears as frosted glass.
+                        com.rajatxo.coral.ui.components.GlassPopup(
+                            visible = showMenu,
+                            onDismiss = { showMenu = false }
                         ) {
-                            // Playlist cover option
-                            Row(
+                            Column(
                                 modifier = Modifier
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                        onClick = {
-                                            showMenu = false
-                                            coverPicker.launch("image/*")
-                                        }
-                                    )
-                                    .padding(horizontal = 20.dp, vertical = 14.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    .width(220.dp)
+                                    .padding(vertical = 8.dp)
                             ) {
-                                Icon(
-                                    imageVector = CoralIcons.Music,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Text(
-                                    text = "Playlist cover",
-                                    color = Color.White,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
+                                // Playlist cover option
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null,
+                                            onClick = {
+                                                showMenu = false
+                                                coverPicker.launch("image/*")
+                                            }
+                                        )
+                                        .padding(horizontal = 20.dp, vertical = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = CoralIcons.Music,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = "Playlist cover",
+                                        color = Color.White,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
 
-                            // Delete playlist option
-                            Row(
-                                modifier = Modifier
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                        onClick = {
-                                            showMenu = false
-                                            showDeleteConfirm = true
-                                        }
+                                // Delete playlist option
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null,
+                                            onClick = {
+                                                showMenu = false
+                                                showDeleteConfirm = true
+                                            }
+                                        )
+                                        .padding(horizontal = 20.dp, vertical = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = CoralIcons.Heart,
+                                        contentDescription = null,
+                                        tint = Color(0xFFFF6B6B),
+                                        modifier = Modifier.size(18.dp)
                                     )
-                                    .padding(horizontal = 20.dp, vertical = 14.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Icon(
-                                    imageVector = CoralIcons.Heart,
-                                    contentDescription = null,
-                                    tint = Color(0xFFFF6B6B),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Text(
-                                    text = "Delete playlist",
-                                    color = Color(0xFFFF6B6B),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
+                                    Text(
+                                        text = "Delete playlist",
+                                        color = Color(0xFFFF6B6B),
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
                             }
                         }
                     }
