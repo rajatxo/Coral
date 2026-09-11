@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rajatxo.coral.data.premium.PremiumManager
+import com.rajatxo.coral.data.prefs.SoundHapticsManager
 import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.icons.CoralIcons
 
@@ -58,6 +59,9 @@ fun SettingsScreen(
 ) {
     val isPremium by PremiumManager.isPremium.collectAsState()
     val currentFont by com.rajatxo.coral.data.prefs.FontManager.currentFont.collectAsState()
+    val hapticsEnabled by SoundHapticsManager.hapticsEnabled.collectAsState()
+    val soundsEnabled by SoundHapticsManager.soundsEnabled.collectAsState()
+    val soundVolume by SoundHapticsManager.soundVolume.collectAsState()
     var versionTapCount by remember { mutableIntStateOf(0) }
 
     Column(
@@ -139,6 +143,36 @@ fun SettingsScreen(
                 value = currentFont.displayName,
                 onClick = onOpenFontPicker
             )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // --- Sound and Haptics ---
+        // Controls for haptic feedback + sound effects app-wide.
+        // Rules: both off → nothing; only haptics → haptics only;
+        // only sounds → sounds only at the chosen volume; both → both fire.
+        SettingsSection(title = "Sound and Haptics") {
+            ToggleRow(
+                icon = CoralIcons.Music,
+                title = "Haptics",
+                subtitle = "Vibration feedback across the app",
+                checked = hapticsEnabled,
+                onCheckedChange = { SoundHapticsManager.setHapticsEnabled(it) }
+            )
+            ToggleRow(
+                icon = CoralIcons.Music,
+                title = "Sounds",
+                subtitle = "Tick sound on swipe, scroll, and tab change",
+                checked = soundsEnabled,
+                onCheckedChange = { SoundHapticsManager.setSoundsEnabled(it) }
+            )
+            // Volume slider — only shows when sounds are enabled
+            if (soundsEnabled) {
+                VolumeSliderRow(
+                    volume = soundVolume,
+                    onVolumeChange = { SoundHapticsManager.setSoundVolume(it) }
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -340,6 +374,116 @@ private fun SettingsRow(
             text = value,
             color = Color(0xFFB0B0B0),
             fontSize = 13.sp
+        )
+    }
+}
+
+/**
+ * A settings row with a toggle switch instead of a value text.
+ * Used for haptics + sounds toggles.
+ */
+@Composable
+private fun ToggleRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = { onCheckedChange(!checked) }
+            )
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(CoralColors.SurfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Color(0xFFFF6B6B),
+                modifier = Modifier.size(16.dp)
+            )
+        }
+        Spacer(modifier = Modifier.size(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = subtitle,
+                color = Color(0xFFB0B0B0),
+                fontSize = 12.sp
+            )
+        }
+        androidx.compose.material3.Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = androidx.compose.material3.SwitchDefaults.colors(
+                checkedThumbColor = Color.White,
+                checkedTrackColor = Color(0xFFFF6B6B),
+                uncheckedThumbColor = Color(0xFF888888),
+                uncheckedTrackColor = Color(0xFF333333)
+            )
+        )
+    }
+}
+
+/**
+ * A volume slider row — only shown when sounds are enabled.
+ * Slider goes 0..100, value shown to the right.
+ */
+@Composable
+private fun VolumeSliderRow(
+    volume: Int,
+    onVolumeChange: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Volume",
+                color = Color.White,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = "$volume%",
+                color = Color(0xFFFF6B6B),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+        Spacer(modifier = Modifier.size(8.dp))
+        androidx.compose.material3.Slider(
+            value = volume.toFloat(),
+            onValueChange = { onVolumeChange(it.toInt()) },
+            valueRange = 0f..100f,
+            colors = androidx.compose.material3.SliderDefaults.colors(
+                thumbColor = Color(0xFFFF6B6B),
+                activeTrackColor = Color(0xFFFF6B6B),
+                inactiveTrackColor = Color(0xFF333333)
+            )
         )
     }
 }

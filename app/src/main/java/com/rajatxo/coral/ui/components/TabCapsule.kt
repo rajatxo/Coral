@@ -114,45 +114,53 @@ fun TabCapsule(
 
     /**
      * Fire haptic + sound TOGETHER (synced), once per tab change.
-     * Matches PlaylistWheel's tickHaptic approach.
+     * Respects the user's SoundHapticsManager preferences:
+     *   - Haptic only fires if hapticsEnabled = true
+     *   - Sound only fires if soundsEnabled = true
+     *   - Sound plays at the user's chosen volume (0..100 → 0..1)
      */
     fun tickHaptic() {
-        // 1. Haptic via View.performHapticFeedback (FLAG_IGNORE_VIEW_SETTING
-        //    so it fires even if the user disabled haptics in settings)
-        var hapticPerformed = false
-        try {
-            hapticPerformed = view.performHapticFeedback(
-                HapticFeedbackConstants.VIRTUAL_KEY,
-                HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING or
-                HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
-            )
-        } catch (_: Exception) { }
+        val hapticsOn = com.rajatxo.coral.data.prefs.SoundHapticsManager.hapticsEnabled.value
+        val soundsOn = com.rajatxo.coral.data.prefs.SoundHapticsManager.soundsEnabled.value
+        val volume = com.rajatxo.coral.data.prefs.SoundHapticsManager.soundVolume.value / 100f
 
-        // 2. Vibrator fallback (some OEMs return false from performHapticFeedback)
-        if (!hapticPerformed) {
+        // 1. Haptic (only if enabled)
+        if (hapticsOn) {
+            var hapticPerformed = false
             try {
-                val v = vibrator
-                if (v != null) {
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                        v.vibrate(
-                            android.os.VibrationEffect.createPredefined(
-                                android.os.VibrationEffect.EFFECT_CLICK
-                            )
-                        )
-                    } else {
-                        @Suppress("DEPRECATION")
-                        v.vibrate(30)
-                    }
-                }
+                hapticPerformed = view.performHapticFeedback(
+                    HapticFeedbackConstants.VIRTUAL_KEY,
+                    HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING or
+                    HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+                )
             } catch (_: Exception) { }
+
+            // Vibrator fallback (some OEMs return false from performHapticFeedback)
+            if (!hapticPerformed) {
+                try {
+                    val v = vibrator
+                    if (v != null) {
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                            v.vibrate(
+                                android.os.VibrationEffect.createPredefined(
+                                    android.os.VibrationEffect.EFFECT_CLICK
+                                )
+                            )
+                        } else {
+                            @Suppress("DEPRECATION")
+                            v.vibrate(30)
+                        }
+                    }
+                } catch (_: Exception) { }
+            }
         }
 
-        // 3. Sound (fires right after haptic, so they're synced)
-        if (soundLoaded) {
+        // 2. Sound (only if enabled, fires right after haptic so they're synced)
+        if (soundsOn && soundLoaded) {
             try {
                 soundPool.play(
                     tickSoundId,
-                    0.6f, 0.6f,  // left + right volume
+                    volume, volume,  // left + right volume (from user pref)
                     1, 0, 1f
                 )
             } catch (_: Exception) { }
