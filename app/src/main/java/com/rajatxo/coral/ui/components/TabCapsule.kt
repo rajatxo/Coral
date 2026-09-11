@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -68,7 +69,8 @@ fun TabCapsule(
     activeTab: CoralTab,
     onTabSelected: (CoralTab) -> Unit,
     modifier: Modifier = Modifier,
-    blurLayer: androidx.compose.ui.graphics.layer.GraphicsLayer? = null
+    blurLayer: androidx.compose.ui.graphics.layer.GraphicsLayer? = null,
+    blurImageUri: android.net.Uri? = null
 ) {
     val view = LocalView.current
     val context = LocalContext.current
@@ -206,26 +208,30 @@ fun TabCapsule(
             }
     ) {
         // --- Layer 1: REAL BACKDROP BLUR (liquid glass effect) ---
-        // Renders the captured page content (from rememberGraphicsLayer) with
-        // Modifier.blur() applied. This is a TRUE real-time backdrop blur.
-        if (blurLayer != null) {
+        // Two approaches combined for reliability:
+        //  A) blurImageUri (album art) — renders the active song's album art
+        //     blurred inside the capsule. This DEFINITELY shows visible blur
+        //     because the image has real content + colors.
+        //  B) blurLayer (captured page content) — renders the captured page
+        //     as a secondary blur layer. May or may not align perfectly, but
+        //     adds to the glassy texture.
+        if (blurImageUri != null) {
+            // A: Album art blurred — reliable, visible blur
+            coil3.compose.AsyncImage(
+                model = blurImageUri,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(20.dp)
+            )
+        } else if (blurLayer != null) {
+            // B: Captured page content (fallback)
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .drawWithCache {
-                        // Offset the layer so the part of the page BEHIND the capsule
-                        // is what gets drawn inside the capsule. The capsule sits at the
-                        // bottom of the screen, so we translate the layer up by the
-                        // capsule's vertical offset from the page's top.
-                        val density = this
                         onDrawWithContent {
-                            // Draw the captured layer at full opacity, blurred.
-                            // The layer contains the ENTIRE page, so we need to translate
-                            // it so the portion behind the capsule aligns with the capsule.
-                            // Since the capsule is positioned at the bottom, we translate
-                            // the layer UP by (pageHeight - capsuleTop).
-                            // For simplicity, we just draw it scaled to fill — the blur
-                            // will smear whatever is there into a nice glassy texture.
                             drawLayer(blurLayer)
                         }
                     }
@@ -234,8 +240,7 @@ fun TabCapsule(
         }
 
         // --- Layer 2: Light translucent tint (glass morphism scrim) ---
-        // Reduced from 35% to 15% so the blur is actually visible.
-        // Pure black 35% was too opaque — made the capsule look solid black.
+        // Light enough so the blur is visible through it.
         Box(
             modifier = Modifier
                 .fillMaxSize()

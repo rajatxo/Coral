@@ -468,7 +468,7 @@ private fun ArcCover(
         Box(
             modifier = Modifier
                 .align(Alignment.Center)
-                .size(if (isActive) 220.dp else 180.dp)  // active is bigger
+                .size(if (isActive) 180.dp else 140.dp)  // smaller so cards fit on screen
                 .clip(RoundedCornerShape(20.dp))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },

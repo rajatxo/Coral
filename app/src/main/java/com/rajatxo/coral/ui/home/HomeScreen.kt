@@ -359,6 +359,7 @@ fun HomeScreen(
                 selectedPlaylist = null
             },
             blurLayer = blurLayer,
+            blurImageUri = currentSongArt,  // active song's album art for visible blur
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
