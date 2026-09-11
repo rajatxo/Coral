@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.rajatxo.coral"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.rajatxo.coral"
@@ -70,4 +70,6 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+    // Liquid glass backdrop blur — same library SimpMusic uses
+    implementation("io.github.kyant0:backdrop:2.0.0")
 }
