@@ -1359,7 +1359,7 @@ private fun SelectionCapsule(
                     onClick()
                 }
             )
-            .padding(start = 56.dp, end = 20.dp, vertical = 8.dp)
+            .padding(start = 56.dp, end = 20.dp, top = 8.dp, bottom = 8.dp)
     ) {
         // Smooth animated transition when playlist name changes.
         // New name slides in from the right while old name slides out to the left,
