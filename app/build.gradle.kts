@@ -70,8 +70,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
-    // Liquid glass backdrop blur — same library SimpMusic uses (older version
-    // that targets compileSdk 35, not 37. SimpMusic uses 2.0.0 which needs
-    // SDK 37 + AGP 9.x, but 1.0.6 has the same API and works with our setup.)
-    implementation("io.github.kyant0:backdrop:1.0.6")
+    // Liquid glass backdrop blur — same library SimpMusic uses
+    // Version 1.0.0 has minCompileSdk=1 (works with compileSdk 35)
+    // Later versions (1.0.6, 2.0.0) require SDK 36/37 + AGP 9.x
+    implementation("io.github.kyant0:backdrop:1.0.0")
 }
