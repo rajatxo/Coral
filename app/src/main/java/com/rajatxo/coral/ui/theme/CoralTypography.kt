@@ -80,6 +80,21 @@ val CalSansFamily = FontFamily(
 )
 
 /**
+ * Poppins — versatile geometric sans-serif. Used by Quick Picks card
+ * artist name (Regular + SemiBold).
+ *
+ * Licensed under the SIL Open Font License (OFL) — free for commercial use.
+ * Bundled in res/font/poppins_*.ttf
+ */
+val PoppinsFamily = FontFamily(
+    Font(R.font.poppins_regular, FontWeight.Normal),
+    Font(R.font.poppins_light, FontWeight.Light),
+    Font(R.font.poppins_medium, FontWeight.Medium),
+    Font(R.font.poppins_semibold, FontWeight.SemiBold),
+    Font(R.font.poppins_bold, FontWeight.Bold)
+)
+
+/**
  * NyghtSerif Italic — high-contrast editorial serif used ONLY by the
  * permission screen for the capital "C" in "Coral". Dramatic, sweeping,
  * fashion-magazine-style display face.

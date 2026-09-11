@@ -85,17 +85,50 @@ suspend fun extractPalette(context: Context, artUri: Uri?): CoralPalette? {
             val darkVibrant = palette.darkVibrantSwatch?.rgb ?: dominant
             val darkMuted = palette.darkMutedSwatch?.rgb ?: darkVibrant ?: dominant
             val vibrant = palette.vibrantSwatch?.rgb ?: palette.lightVibrantSwatch?.rgb ?: dominant
+            val lightVibrant = palette.lightVibrantSwatch?.rgb ?: vibrant ?: dominant
 
             if (dominant == null) return@withContext null
 
+            // Boost saturation for vibrant gradient cards.
+            // The palette's primary (dominant) can be muddy/muted — we want the
+            // cards to feel ALIVE with color. So we boost the saturation of
+            // the dominant + vibrant + lightVibrant colors.
             CoralPalette(
-                primary = Color(dominant),
-                secondary = Color(darkVibrant ?: dominant),
-                tertiary = Color(darkMuted ?: dominant),
-                accent = Color(vibrant ?: dominant)
+                primary = boostSaturation(Color(dominant), 1.6f),
+                secondary = boostSaturation(Color(lightVibrant ?: dominant), 1.5f),
+                tertiary = Color(darkVibrant ?: dominant),
+                accent = boostSaturation(Color(vibrant ?: dominant), 1.5f)
             )
         } catch (_: Exception) {
             null
         }
     }
+}
+
+/**
+ * Boosts the saturation of a [Color] by the given factor (1.0 = no change,
+ * 1.5 = 50% more saturated, 2.0 = double saturation).
+ *
+ * Used by Quick Picks gradient cards to make the album art's palette
+ * colors feel more vibrant — the default dominant color is often muddy
+ * or muted, which makes for dull gradients.
+ *
+ * Convert to HSV, scale S, keep H and V unchanged, convert back.
+ */
+private fun boostSaturation(color: Color, factor: Float): Color {
+    val hsv = FloatArray(3)
+    android.graphics.Color.RGBToHSV(
+        (color.red * 255).toInt(),
+        (color.green * 255).toInt(),
+        (color.blue * 255).toInt(),
+        hsv
+    )
+    hsv[1] = (hsv[1] * factor).coerceIn(0f, 1f)
+    val rgb = android.graphics.Color.HSVToColor(hsv)
+    return Color(
+        red = ((rgb shr 16) and 0xFF) / 255f,
+        green = ((rgb shr 8) and 0xFF) / 255f,
+        blue = (rgb and 0xFF) / 255f,
+        alpha = color.alpha
+    )
 }
