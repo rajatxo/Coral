@@ -226,14 +226,19 @@ fun HomeScreen(
         }
         val onExtend: () -> Unit = { sleepTimer.extend(10) }
 
-        // --- Capture the page content into a GraphicsLayer for real backdrop blur ---
-        // The TabCapsule renders this same layer (blurred) inside its bounds,
-        // creating a true real-time backdrop blur effect.
-        val (blurCaptureModifier, blurLayer) = com.rajatxo.coral.ui.components.rememberNavBlurLayer()
+        // --- Liquid Glass backdrop (same approach as SimpMusic) ---
+        // A LayerBackdrop is created here (the parent), and shared between:
+        //   - The page content Box (applies Modifier.layerBackdrop(backdrop))
+        //   - The TabCapsule (applies Modifier.drawBackdrop(backdrop, blur))
+        // This creates a TRUE real-time backdrop blur — the nav bar samples
+        // the page content behind it and blurs it via AGSL shaders.
+        val glassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop {
+            drawContent()
+        }
 
         // Main content — fills the WHOLE screen (no nav rail anymore)
-        // Wrapped with blurCaptureModifier so the nav bar can blur this content.
-        Box(modifier = Modifier.fillMaxSize().then(blurCaptureModifier)) {
+        // Wrapped with layerBackdrop so the nav bar can sample + blur this content.
+        Box(modifier = Modifier.fillMaxSize().then(com.kyant.backdrop.backdrops.layerBackdrop(glassBackdrop))) {
 
                 when (selectedTab) {
                     CoralTab.QuickPicks -> QuickPicksScreen(
@@ -358,8 +363,7 @@ fun HomeScreen(
                 selectedTab = tab
                 selectedPlaylist = null
             },
-            blurLayer = blurLayer,
-            blurImageUri = currentSongArt,  // active song's album art for visible blur
+            backdrop = glassBackdrop,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()

@@ -21,51 +21,49 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.colorControls
+import com.kyant.backdrop.effects.vibrancy
+import com.rajatxo.coral.data.prefs.SoundHapticsManager
 import com.rajatxo.coral.ui.theme.CalSansFamily
 
 /**
- * Tab Capsule (nav bar) — Coral's centered tab switcher.
+ * Tab Capsule (nav bar) — Coral's centered tab switcher with REAL liquid glass.
  *
- * A pure white glossy pill at the bottom center of the screen. Inside:
- * a BLACK horizontal string at the vertical center, faded at both ends.
- * The active tab's text sits ON the string (black, Cal Sans, 17sp).
+ * Uses Kyant's backdrop library (same as SimpMusic) for TRUE real-time
+ * backdrop blur. The page content is marked as the backdrop source via
+ * Modifier.layerBackdrop() in HomeScreen. This capsule samples that content
+ * and applies AGSL-based blur via drawBackdrop + effects { blur() }.
  *
- * INTERACTION (discrete swipe + infinite wrap):
- *   - One swipe = one tab change (discrete, not continuous scroll)
+ * The blur is REAL — whatever is behind the capsule on screen gets blurred
+ * in real-time. Album art colors, text, etc. bleed through the glass.
+ *
+ * Interaction:
  *   - Swipe left → next tab (text slides left, new enters from right)
  *   - Swipe right → previous tab (text slides right, new enters from left)
- *   - INFINITE wrap: Quick picks → ... → Folders → Quick picks → ...
- *     (loops forever, never hits an edge)
  *   - Haptic + sound fire TOGETHER, once per swipe (synced)
+ *   - Infinite wrap (Quick picks → ... → Folders → Quick picks)
  *
- * Visual:
- *   - Capsule bg: pure white (Color.White)
- *   - String: black, horizontal, faded at both ends
- *   - Text: black, Cal Sans, 17sp SemiBold, centered on the string
+ * @param backdrop The LayerBackdrop shared with the page content (created in HomeScreen)
  */
 @Composable
 fun TabCapsule(
@@ -73,27 +71,15 @@ fun TabCapsule(
     activeTab: CoralTab,
     onTabSelected: (CoralTab) -> Unit,
     modifier: Modifier = Modifier,
-    blurLayer: androidx.compose.ui.graphics.layer.GraphicsLayer? = null,
-    blurImageUri: android.net.Uri? = null
+    backdrop: LayerBackdrop? = null
 ) {
     val view = LocalView.current
     val context = LocalContext.current
     val activeIndex = tabs.indexOf(activeTab).coerceAtLeast(0)
 
-    // Track the capsule's position in root coordinates so we can offset
-    // the blur layer correctly — the captured page layer is at root (0,0),
-    // so we translate it by (-capsuleX, -capsuleY) to show the portion
-    // of the page that's actually BEHIND the capsule.
-    var capsulePosition by remember { mutableStateOf(Offset.Zero) }
-
-    // Direction of the last swipe (for slide animation)
-    // 1 = forward (next tab, swipe left), -1 = backward (prev tab, swipe right)
     var slideDirection by remember { mutableIntStateOf(1) }
-
-    // Drag accumulator: builds up as user drags, fires one tab change when
-    // threshold is reached, then resets. One swipe = one tab.
     var dragAccumulator by remember { mutableFloatStateOf(0f) }
-    val dragThreshold = 60f  // px needed to trigger one tab change
+    val dragThreshold = 60f
 
     // --- Vibrator fallback (same as PlaylistWheel) ---
     val vibrator = remember {
@@ -128,19 +114,12 @@ fun TabCapsule(
         soundPool.load(context, com.rajatxo.coral.R.raw.wheel_tick, 1)
     }
 
-    /**
-     * Fire haptic + sound TOGETHER (synced), once per tab change.
-     * Respects the user's SoundHapticsManager preferences:
-     *   - Haptic only fires if hapticsEnabled = true
-     *   - Sound only fires if soundsEnabled = true
-     *   - Sound plays at the user's chosen volume (0..100 → 0..1)
-     */
+    /** Fire haptic + sound TOGETHER (synced), once per tab change. */
     fun tickHaptic() {
-        val hapticsOn = com.rajatxo.coral.data.prefs.SoundHapticsManager.hapticsEnabled.value
-        val soundsOn = com.rajatxo.coral.data.prefs.SoundHapticsManager.soundsEnabled.value
-        val volume = com.rajatxo.coral.data.prefs.SoundHapticsManager.soundVolume.value / 100f
+        val hapticsOn = SoundHapticsManager.hapticsEnabled.value
+        val soundsOn = SoundHapticsManager.soundsEnabled.value
+        val volume = SoundHapticsManager.soundVolume.value / 100f
 
-        // 1. Haptic (only if enabled)
         if (hapticsOn) {
             var hapticPerformed = false
             try {
@@ -151,7 +130,6 @@ fun TabCapsule(
                 )
             } catch (_: Exception) { }
 
-            // Vibrator fallback (some OEMs return false from performHapticFeedback)
             if (!hapticPerformed) {
                 try {
                     val v = vibrator
@@ -171,26 +149,54 @@ fun TabCapsule(
             }
         }
 
-        // 2. Sound (only if enabled, fires right after haptic so they're synced)
         if (soundsOn && soundLoaded) {
             try {
                 soundPool.play(
                     tickSoundId,
-                    volume, volume,  // left + right volume (from user pref)
+                    volume, volume,
                     1, 0, 1f
                 )
             } catch (_: Exception) { }
         }
     }
 
-    Box(
-        modifier = modifier
+    // --- Build the modifier chain ---
+    // If we have a backdrop, apply drawBackdrop with blur effect (REAL liquid glass)
+    // If no backdrop (shouldn't happen), fall back to a dark translucent tint
+    val capsuleShape: Shape = RoundedCornerShape(26.dp)
+
+    val glassModifier = if (backdrop != null) {
+        modifier
             .width(240.dp)
             .height(52.dp)
-            .clip(RoundedCornerShape(26.dp))
-            .onGloballyPositioned { coords ->
-                capsulePosition = coords.positionInRoot()
-            }
+            .clip(capsuleShape)
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { capsuleShape },
+                effects = {
+                    vibrancy()
+                    colorControls(
+                        brightness = 0.05f,
+                        contrast = 1f,
+                        saturation = 1.5f
+                    )
+                    blur(12f.dp.toPx())  // AGSL-based real-time backdrop blur
+                },
+                onDrawSurface = {
+                    // Dark scrim for text readability (SimpMusic's "đục đen" approach)
+                    drawRect(Color.Black.copy(alpha = 0.25f))
+                }
+            )
+    } else {
+        modifier
+            .width(240.dp)
+            .height(52.dp)
+            .clip(capsuleShape)
+            .background(Color.Black.copy(alpha = 0.5f))
+    }
+
+    Box(
+        modifier = glassModifier
             .pointerInput(tabs, activeTab) {
                 detectHorizontalDragGestures(
                     onDragEnd = {
@@ -198,74 +204,36 @@ fun TabCapsule(
                     },
                     onHorizontalDrag = { _, dragAmount ->
                         dragAccumulator += dragAmount
-                        // Drag left (negative) → next tab (forward)
                         if (dragAccumulator < -dragThreshold) {
-                            slideDirection = 1
-                            // Infinite wrap: next index modulo tabs.size
-                            val nextIndex = (activeIndex + 1) % tabs.size
-                            onTabSelected(tabs[nextIndex])
-                            tickHaptic()  // haptic + sound synced together
+                            if (activeIndex < tabs.size - 1) {
+                                slideDirection = 1
+                                onTabSelected(tabs[activeIndex + 1])
+                                tickHaptic()
+                            } else {
+                                // Infinite wrap: from last tab to first
+                                slideDirection = 1
+                                onTabSelected(tabs[0])
+                                tickHaptic()
+                            }
                             dragAccumulator = 0f
-                        }
-                        // Drag right (positive) → previous tab (backward)
-                        else if (dragAccumulator > dragThreshold) {
-                            slideDirection = -1
-                            // Infinite wrap: prev index modulo tabs.size (handle negative)
-                            val prevIndex = if (activeIndex - 1 < 0) tabs.size - 1 else activeIndex - 1
-                            onTabSelected(tabs[prevIndex])
-                            tickHaptic()  // haptic + sound synced together
+                        } else if (dragAccumulator > dragThreshold) {
+                            if (activeIndex > 0) {
+                                slideDirection = -1
+                                onTabSelected(tabs[activeIndex - 1])
+                                tickHaptic()
+                            } else {
+                                // Infinite wrap: from first tab to last
+                                slideDirection = -1
+                                onTabSelected(tabs[tabs.size - 1])
+                                tickHaptic()
+                            }
                             dragAccumulator = 0f
                         }
                     }
                 )
             }
     ) {
-        // --- Layer 1: REAL BACKDROP BLUR (liquid glass effect) ---
-        // Renders the captured page content, translated by the capsule's
-        // position so the portion BEHIND the capsule shows up (not the
-        // page's top-left corner). This is the key fix — without the
-        // translation, drawLayer draws at (0,0) showing the wrong part.
-        if (blurLayer != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .drawWithCache {
-                        onDrawWithContent {
-                            // Translate the draw context so the part of the page
-                            // BEHIND the capsule aligns with the capsule's (0,0).
-                            // The layer was captured at root (0,0), so we offset
-                            // by the negative of the capsule's position in root.
-                            translate(
-                                left = -capsulePosition.x,
-                                top = -capsulePosition.y
-                            ) {
-                                drawLayer(blurLayer)
-                            }
-                        }
-                    }
-                    .blur(20.dp)
-            )
-        } else if (blurImageUri != null) {
-            // Fallback: album art blurred (if no captured layer)
-            coil3.compose.AsyncImage(
-                model = blurImageUri,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .blur(20.dp)
-            )
-        }
-
-        // --- Layer 2: Light translucent tint (glass morphism scrim) ---
-        // Light enough so the blur is visible through it.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.15f))
-        )
-
-        // --- Layer 3: The STRING (white, faded at both ends) ---
+        // --- The STRING: white horizontal line at vertical center, faded ends ---
         Canvas(modifier = Modifier.fillMaxSize()) {
             val centerY = size.height / 2f
             val stringHeight = 1.5f
@@ -285,16 +253,14 @@ fun TabCapsule(
             )
         }
 
-        // --- Layer 4: Sliding tab text (white, on the string) ---
+        // --- Sliding tab text (white, on the string) ---
         AnimatedContent(
             targetState = activeTab,
             transitionSpec = {
                 if (slideDirection == 1) {
-                    // Forward: old slides left, new enters from right
                     slideInHorizontally(animationSpec = tween(250)) { fullWidth -> fullWidth } togetherWith
                         slideOutHorizontally(animationSpec = tween(250)) { fullWidth -> -fullWidth }
                 } else {
-                    // Backward: old slides right, new enters from left
                     slideInHorizontally(animationSpec = tween(250)) { fullWidth -> -fullWidth } togetherWith
                         slideOutHorizontally(animationSpec = tween(250)) { fullWidth -> fullWidth }
                 }
@@ -303,11 +269,10 @@ fun TabCapsule(
             contentAlignment = Alignment.Center,
             label = "tabText"
         ) { tab ->
-            // Text bg matches the dark tint so it covers the string where it is
             Box(
                 modifier = Modifier
                     .wrapContentSize(Alignment.Center)
-                    .background(Color.Black.copy(alpha = 0.35f))
+                    .background(Color.Transparent)  // let the blur show through
                     .padding(horizontal = 12.dp, vertical = 2.dp)
             ) {
                 Text(
