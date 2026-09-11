@@ -55,6 +55,7 @@ import androidx.media3.session.MediaController
 import coil3.compose.AsyncImage
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.data.store.PlaylistStore
+import com.kyant.backdrop.backdrops.layerBackdrop
 import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.components.CoralNavRail
 import com.rajatxo.coral.ui.components.CoralTab
@@ -239,9 +240,7 @@ fun HomeScreen(
 
         // Main content — fills the WHOLE screen (no nav rail anymore)
         // Wrapped with layerBackdrop so the nav bar can sample + blur this.
-        Box(modifier = Modifier.fillMaxSize().then(
-            com.kyant.backdrop.backdrops.layerBackdrop(glassBackdrop)
-        )) {
+        Box(modifier = Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
 
                 when (selectedTab) {
                     CoralTab.QuickPicks -> QuickPicksScreen(
