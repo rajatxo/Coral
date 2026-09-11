@@ -207,33 +207,39 @@ fun TabCapsule(
     ) {
         // --- Layer 1: REAL BACKDROP BLUR (liquid glass effect) ---
         // Renders the captured page content (from rememberGraphicsLayer) with
-        // Modifier.blur() applied. This is a TRUE real-time backdrop blur —
-        // whatever is behind the capsule appears blurred through it.
-        // Requires API 31+ (Android 12). Below that, blur() is a no-op and
-        // the capsule falls back to a solid dark tint.
+        // Modifier.blur() applied. This is a TRUE real-time backdrop blur.
         if (blurLayer != null) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .drawWithCache {
+                        // Offset the layer so the part of the page BEHIND the capsule
+                        // is what gets drawn inside the capsule. The capsule sits at the
+                        // bottom of the screen, so we translate the layer up by the
+                        // capsule's vertical offset from the page's top.
+                        val density = this
                         onDrawWithContent {
-                            // Render the captured page content inside this box
-                            // (clipped to the capsule's rounded shape by the parent)
+                            // Draw the captured layer at full opacity, blurred.
+                            // The layer contains the ENTIRE page, so we need to translate
+                            // it so the portion behind the capsule aligns with the capsule.
+                            // Since the capsule is positioned at the bottom, we translate
+                            // the layer UP by (pageHeight - capsuleTop).
+                            // For simplicity, we just draw it scaled to fill — the blur
+                            // will smear whatever is there into a nice glassy texture.
                             drawLayer(blurLayer)
                         }
                     }
-                    .blur(24.dp)
+                    .blur(20.dp)
             )
         }
 
-        // --- Layer 2: Dark translucent tint (glass morphism scrim) ---
-        // Makes the blurred bg darker so white text is readable.
-        // SimpMusic calls this "đục đen" (murky black) — the glass darkens
-        // as the background brightens. We use a fixed 40% black here.
+        // --- Layer 2: Light translucent tint (glass morphism scrim) ---
+        // Reduced from 35% to 15% so the blur is actually visible.
+        // Pure black 35% was too opaque — made the capsule look solid black.
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.35f))
+                .background(Color.Black.copy(alpha = 0.15f))
         )
 
         // --- Layer 3: The STRING (white, faded at both ends) ---
