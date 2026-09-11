@@ -78,7 +78,8 @@ fun CoralNavRail(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
     transparentMode: Boolean = false,
-    pageCapture: PageCapture? = null
+    pageCapture: PageCapture? = null,
+    blurImageUri: android.net.Uri? = null
 ) {
     Box(
         modifier = modifier
@@ -89,17 +90,37 @@ fun CoralNavRail(
             .then(if (!transparentMode) Modifier.background(Color(0xFF000000)) else Modifier)
     ) {
         // --- Backdrop blur layer (transparent mode only) ---
-        // This creates a REAL frosted-glass backdrop blur. We render the
-        // ACTUAL page content (captured as a Picture during the page's draw
-        // phase) inside the rail's bounds and apply Modifier.blur() to it.
-        // This makes EVERYTHING behind the rail — album art, text, buttons,
-        // the whole page — appear blurred.
-        if (transparentMode && pageCapture != null) {
+        // Renders a duplicate of the page content (album art at top + bg color
+        // filling the rest) inside the rail's bounds, then blurs it.
+        // This creates a convincing frosted-glass backdrop blur effect.
+        if (transparentMode) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .blurBackground(pageCapture, 28.dp)
-            )
+                    .blur(32.dp)
+            ) {
+                // Layer 1: Fill entire rail with the page's bg color
+                // (covers the text area below the hero image)
+                if (pageCapture != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(pageCapture.bgColor)
+                    )
+                }
+                // Layer 2: Album art at top (matching the hero image position)
+                // The hero image takes ~55% of the screen height at the top.
+                if (blurImageUri != null) {
+                    coil3.compose.AsyncImage(
+                        model = blurImageUri,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .fillMaxHeight(0.55f)
+                    )
+                }
+            }
             // Dark gradient overlay on top of the blur (left: dark for text
             // readability → right: transparent so rail blends into page)
             Box(

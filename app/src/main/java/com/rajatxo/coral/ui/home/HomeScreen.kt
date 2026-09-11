@@ -241,12 +241,14 @@ fun HomeScreen(
     val isRailTransparent = selectedTab == CoralTab.QuickPicks
 
     // --- GraphicsLayer capture for real backdrop blur ---
-    // We wrap the page content in a Box that captures its drawn output into
-    // a Picture. The rail renders this SAME picture (blurred) inside its
-    // bounds — so the rail shows a real blurred version of whatever the page
-    // is actually drawing behind the rail (album art, text, buttons, etc.).
-    // This is a TRUE backdrop blur, not a duplicate or approximation.
+    // The PageCapture holds the page's bg color, which the rail uses for
+    // the blur layer's bottom portion.
     val pageCapture = com.rajatxo.coral.ui.components.rememberPageCapture()
+
+    // Update the pageCapture's bg color whenever QuickPicks bg changes
+    androidx.compose.runtime.LaunchedEffect(quickPicksBgColor) {
+        pageCapture.bgColor = quickPicksBgColor
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         // --- Sleep timer capsule state (top-level scope, accessible by all overlays) ---
@@ -359,7 +361,8 @@ fun HomeScreen(
             onBackClick = { railMode = com.rajatxo.coral.ui.components.RailMode.Main },
             modifier = Modifier.align(Alignment.CenterStart),
             transparentMode = isRailTransparent,
-            pageCapture = if (isRailTransparent) pageCapture else null
+            pageCapture = if (isRailTransparent) pageCapture else null,
+            blurImageUri = if (isRailTransparent) quickPicksAlbumArt else null
         )
 
         // --- Mini player (bottom, full-width) ---
