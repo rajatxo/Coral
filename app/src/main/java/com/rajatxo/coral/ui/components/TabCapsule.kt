@@ -66,18 +66,60 @@ fun TabCapsule(
     modifier: Modifier = Modifier
 ) {
     val view = LocalView.current
+    val context = androidx.compose.ui.platform.LocalContext.current
     val activeIndex = tabs.indexOf(activeTab).coerceAtLeast(0)
 
     var slideDirection by remember { mutableIntStateOf(1) }
     var dragAccumulator by remember { mutableFloatStateOf(0f) }
     val dragThreshold = 60f
 
+    // --- Sound effect (same as PlaylistWheel) ---
+    // Kenney UI Audio pack — wheel_tick.wav. Short, crisp, mechanical tick.
+    // Loaded via SoundPool (low latency). Plays on every tab change,
+    // paired with the haptic tick.
+    val soundPool = remember {
+        android.media.SoundPool.Builder()
+            .setMaxStreams(2)
+            .setAudioAttributes(
+                android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            .build()
+    }
+    var soundLoaded by remember { androidx.compose.runtime.mutableStateOf(false) }
+    val tickSoundId = remember {
+        soundPool.setOnLoadCompleteListener { _, _, status ->
+            if (status == 0) soundLoaded = true
+        }
+        soundPool.load(context, com.rajatxo.coral.R.raw.wheel_tick, 1)
+    }
+
+    /** Play the tick sound + haptic on tab change. */
+    fun playTick() {
+        // Haptic
+        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+        // Sound
+        if (soundLoaded) {
+            try {
+                soundPool.play(
+                    tickSoundId,
+                    0.6f, 0.6f,  // left + right volume
+                    1,           // priority
+                    0,           // loop (0 = no loop)
+                    1f           // playback rate
+                )
+            } catch (_: Exception) { }
+        }
+    }
+
     Box(
         modifier = modifier
             .width(240.dp)
             .height(52.dp)
             .clip(RoundedCornerShape(26.dp))
-            .background(Color.White)  // pure white
+            .background(Color.White)
             .pointerInput(tabs, activeTab) {
                 detectHorizontalDragGestures(
                     onDragEnd = {
@@ -89,14 +131,14 @@ fun TabCapsule(
                             if (activeIndex < tabs.size - 1) {
                                 slideDirection = 1
                                 onTabSelected(tabs[activeIndex + 1])
-                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                playTick()
                             }
                             dragAccumulator = 0f
                         } else if (dragAccumulator > dragThreshold) {
                             if (activeIndex > 0) {
                                 slideDirection = -1
                                 onTabSelected(tabs[activeIndex - 1])
-                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                playTick()
                             }
                             dragAccumulator = 0f
                         }
