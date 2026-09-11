@@ -1,6 +1,7 @@
 package com.rajatxo.coral.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -245,13 +246,21 @@ fun PlaylistDetailScreen(
                             )
                         }
 
-                        // Dropdown menu — small rounded square
+                        // Dropdown menu — glassmorphism style (frosted glass)
+                        // The popup renders a blurred semi-transparent white layer
+                        // that creates a convincing frosted-glass effect.
                         androidx.compose.material3.DropdownMenu(
                             expanded = showMenu,
                             onDismissRequest = { showMenu = false },
                             modifier = Modifier
                                 .clip(RoundedCornerShape(16.dp))
-                                .background(Color(0xFF1A1A1A))
+                                // Glassmorphism: semi-transparent white bg + blur
+                                // The blur softens the white, making it look like
+                                // frosted glass catching the page colors behind it.
+                                .background(Color.White.copy(alpha = 0.08f))
+                                .blur(20.dp)
+                                // Subtle white border for the "shiny glass" edge
+                                .border(0.5.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
                         ) {
                             // Playlist cover option
                             Row(
