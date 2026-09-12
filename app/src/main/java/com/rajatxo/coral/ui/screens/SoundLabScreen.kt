@@ -147,7 +147,29 @@ fun SoundLabScreen() {
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 1.5.sp,
-                modifier = Modifier.padding(start = 20.dp, bottom = 16.dp)
+                modifier = Modifier.padding(start = 20.dp, bottom = 8.dp)
+            )
+
+            // --- Toggle switches (at TOP so they're not covered by mini player) ---
+            ToggleRow(
+                title = "Studio Master Clarity",
+                subtitle = "8-band DSP clarity chain (subsonic → air)",
+                checked = studioClarityEnabled,
+                onCheckedChange = {
+                    studioClarityEnabled = it
+                    SoundHapticsManager.setStudioClarity(it)
+                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                }
+            )
+
+            ToggleRow(
+                title = "Auto Spatial Rotate",
+                subtitle = "Orbit the sound source automatically",
+                checked = autoRotateEnabled,
+                onCheckedChange = {
+                    autoRotateEnabled = it
+                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                }
             )
 
             // --- Dot-matrix sphere + head + orb (fills center) ---
@@ -204,32 +226,8 @@ fun SoundLabScreen() {
                 color = Color.White.copy(alpha = 0.4f),
                 fontSize = 12.sp,
                 fontFamily = FontFamily.Monospace,
-                modifier = Modifier.padding(start = 24.dp, bottom = 16.dp)
+                modifier = Modifier.padding(start = 24.dp, bottom = 120.dp)
             )
-
-            // --- Toggle switches ---
-            ToggleRow(
-                title = "Studio Master Clarity",
-                subtitle = "8-band DSP clarity chain (subsonic → air)",
-                checked = studioClarityEnabled,
-                onCheckedChange = {
-                    studioClarityEnabled = it
-                    SoundHapticsManager.setStudioClarity(it)
-                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                }
-            )
-
-            ToggleRow(
-                title = "Auto Spatial Rotate",
-                subtitle = "Orbit the sound source automatically",
-                checked = autoRotateEnabled,
-                onCheckedChange = {
-                    autoRotateEnabled = it
-                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                }
-            )
-
-            Spacer(modifier = Modifier.height(120.dp))  // space for nav bar
         }
     }
 }
