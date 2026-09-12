@@ -162,7 +162,15 @@ fun FullPlayer(
             }
 
             Box(modifier = Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-                Canvas(modifier = Modifier.size(100.dp).pointerInput(Unit) { detectDragGestures(onDragEnd = {}, onDrag = { change, dragAmount -> change.consume(); if (dragAmount.x > 30f) { spinWheel(-1); onPrevClick() } else if (dragAmount.x < -30f) { spinWheel(1); onNextClick() } } }) }) {
+                Canvas(modifier = Modifier.size(100.dp), contentDescription = null, onDraw = {
+                    val cx = size.width / 2f; val cy = size.height / 2f; val r = minOf(size.width, size.height) / 2f - 4f
+                    drawCircle(Color.White.copy(alpha = 0.15f), r, Offset(cx, cy), style = Stroke(width = 2.dp.toPx()))
+                    rotate(wheelRotation.value) {
+                        drawCircle(Color(0xFFFF6B6B), 6.dp.toPx(), Offset(cx, cy - r))
+                        drawCircle(Color(0xFFFF6B6B).copy(alpha = 0.3f), 10.dp.toPx(), Offset(cx, cy - r))
+                    }
+                    drawCircle(Color.White.copy(alpha = 0.3f), 3.dp.toPx(), Offset(cx, cy))
+                }.pointerInput(Unit) { detectDragGestures(onDragEnd = {}, onDrag = { change, dragAmount -> change.consume(); if (dragAmount.x > 30f) { spinWheel(-1); onPrevClick() } else if (dragAmount.x < -30f) { spinWheel(1); onNextClick() } } }) }) {
                     val cx = size.width / 2f; val cy = size.height / 2f; val r = minOf(size.width, size.height) / 2f - 4f
                     drawCircle(Color.White.copy(alpha = 0.15f), r, Offset(cx, cy), style = Stroke(width = 2.dp.toPx()))
                     rotate(wheelRotation.value) {
