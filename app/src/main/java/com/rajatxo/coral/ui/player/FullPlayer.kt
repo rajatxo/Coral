@@ -177,7 +177,7 @@ fun FullPlayer(
             }
 
             val progress = if (durationMs > 0) (currentPositionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
-            Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).height(20.dp).pointerInput(durationMs) { detectDragGestures(onDragEnd = {}, onDrag = { change, _ -> if (durationMs > 0) { onSeek(((change.position.x / size.width).coerceIn(0f, 1f) * durationMs).toLong()) } } }) }) {
+            Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).height(20.dp).pointerInput(durationMs) { detectDragGestures(onDragEnd = {}, onDrag = { change, _ -> if (durationMs > 0) { onSeek(((change.position.x / 1000f).coerceIn(0f, 1f) * durationMs).toLong()) } } }) }) {
                 Box(modifier = Modifier.fillMaxWidth().height(2.dp).clip(RoundedCornerShape(1.dp)).align(Alignment.CenterStart).background(Color.White.copy(alpha = 0.15f)))
                 Box(modifier = Modifier.fillMaxWidth(progress).height(2.dp).clip(RoundedCornerShape(1.dp)).align(Alignment.CenterStart).background(Color(0xFFFF6B6B)))
             }
