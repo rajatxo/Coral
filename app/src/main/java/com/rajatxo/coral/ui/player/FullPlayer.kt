@@ -150,19 +150,19 @@ fun FullPlayer(
                         Row(modifier = Modifier.clickable { showMoreMenu = false; songId?.let { onAddToPlaylist(it) } }.padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(imageVector = CoralIcons.Heart, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.size(12.dp))
-                            Text("Add to playlist", Color.White, 14.sp, fontWeight = FontWeight.Medium)
+                            Text(text = "Add to playlist", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                         }
                     }
                 }
             }
 
             Column(modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 24.dp), verticalArrangement = Arrangement.Bottom, horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(title, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Medium, fontFamily = PlayfairItalicFamily, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.padding(bottom = 20.dp))
-                Text(artist, color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp, fontFamily = NyghtSerifFamily, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.padding(bottom = 8.dp))
+                Text(text = title, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Medium, fontFamily = PlayfairItalicFamily, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.padding(bottom = 20.dp))
+                Text(text = artist, color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp, fontFamily = NyghtSerifFamily, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.padding(bottom = 8.dp))
             }
 
             Box(modifier = Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-                Canvas(modifier = Modifier.size(100.dp).pointerInput(Unit) { detectDragGestures(onDragEnd = {}, onHorizontalDrag = { c, d -> c.consume(); if (d > 30f) { spinWheel(-1); onPrevClick() } else if (d < -30f) { spinWheel(1); onNextClick() } } }) }) {
+                Canvas(modifier = Modifier.size(100.dp).pointerInput(Unit) { detectDragGestures(onDragEnd = {}, onDrag = { change, dragAmount -> change.consume(); if (dragAmount.x > 30f) { spinWheel(-1); onPrevClick() } else if (dragAmount.x < -30f) { spinWheel(1); onNextClick() } } }) }) {
                     val cx = size.width / 2f; val cy = size.height / 2f; val r = minOf(size.width, size.height) / 2f - 4f
                     drawCircle(Color.White.copy(alpha = 0.15f), r, Offset(cx, cy), style = Stroke(width = 2.dp.toPx()))
                     rotate(wheelRotation.value) {
@@ -174,13 +174,13 @@ fun FullPlayer(
             }
 
             val progress = if (durationMs > 0) (currentPositionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
-            Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).height(20.dp).pointerInput(durationMs) { detectDragGestures(onDragEnd = {}, onHorizontalDrag = { c, _ -> if (durationMs > 0) { onSeek(((c.position.x / size.width).coerceIn(0f, 1f) * durationMs).toLong()) } } }) }) {
+            Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).height(20.dp).pointerInput(durationMs) { detectDragGestures(onDragEnd = {}, onDrag = { change, _ -> if (durationMs > 0) { onSeek(((change.position.x / size.width).coerceIn(0f, 1f) * durationMs).toLong()) } } }) }) {
                 Box(modifier = Modifier.fillMaxWidth().height(2.dp).clip(RoundedCornerShape(1.dp)).align(Alignment.CenterStart).background(Color.White.copy(alpha = 0.15f)))
                 Box(modifier = Modifier.fillMaxWidth(progress).height(2.dp).clip(RoundedCornerShape(1.dp)).align(Alignment.CenterStart).background(Color(0xFFFF6B6B)))
             }
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(formatTime(currentPositionMs), Color.White.copy(alpha = 0.4f), 11.sp)
-                Text(formatTime(durationMs), Color.White.copy(alpha = 0.4f), 11.sp)
+                Text(text = formatTime(currentPositionMs), color = Color.White.copy(alpha = 0.4f), fontSize = 11.sp)
+                Text(text = formatTime(durationMs), color = Color.White.copy(alpha = 0.4f), fontSize = 11.sp)
             }
 
             Spacer(modifier = Modifier.height(12.dp))
