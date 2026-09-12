@@ -305,101 +305,68 @@ private fun SoundOrbAndHead(
     orbZ: Float,
     modifier: Modifier = Modifier
 ) {
-    Canvas(modifier = modifier) {
-        val centerX = size.width / 2f
-        val centerY = size.height / 2f
-
-        // --- 3D Head silhouette (simplified, metallic gray) ---
-        // Draw a simple head shape: circle for head + rounded shoulders
-        val headRadius = minOf(size.width, size.height) * 0.08f
-
-        // Shoulders (trapezoid)
-        val shoulderPath = androidx.compose.ui.graphics.Path().apply {
-            moveTo(centerX - headRadius * 2.5f, size.height * 0.85f)
-            lineTo(centerX - headRadius * 1.5f, centerY + headRadius * 1.2f)
-            lineTo(centerX + headRadius * 1.5f, centerY + headRadius * 1.2f)
-            lineTo(centerX + headRadius * 2.5f, size.height * 0.85f)
-            close()
-        }
-        drawPath(
-            path = shoulderPath,
-            color = Color(0xFF2A2A2E)
+    Box(modifier = modifier) {
+        // --- 3D Head image (from drawable, with transparent bg + bottom fade) ---
+        androidx.compose.foundation.Image(
+            painter = androidx.compose.ui.res.painterResource(
+                com.rajatxo.coral.R.drawable.head_3d
+            ),
+            contentDescription = "3D head model",
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxSize()
         )
 
-        // Head (circle)
-        drawCircle(
-            color = Color(0xFF3A3A3E),
-            radius = headRadius,
-            center = Offset(centerX, centerY)
-        )
+        // --- Sound-source orb + glow + connection line (on Canvas) ---
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val centerX = size.width / 2f
+            val centerY = size.height / 2f
+            val headRadius = minOf(size.width, size.height) * 0.08f
 
-        // Headphones (two dark circles on sides of head)
-        drawCircle(
-            color = Color(0xFF1A1A1E),
-            radius = headRadius * 0.4f,
-            center = Offset(centerX - headRadius * 0.9f, centerY)
-        )
-        drawCircle(
-            color = Color(0xFF1A1A1E),
-            radius = headRadius * 0.4f,
-            center = Offset(centerX + headRadius * 0.9f, centerY)
-        )
+            // --- Sound-source orb (coral, glowing) ---
+            val orbRadius = headRadius * 0.6f * (1f + orbZ * 0.5f)
+            val orbCenterX = centerX + orbX * minOf(size.width, size.height) * 0.25f
+            val orbCenterY = centerY + orbY * minOf(size.width, size.height) * 0.25f
+            val orbAlpha = (0.5f + (orbZ + 1f) * 0.25f).coerceIn(0.3f, 1f)
 
-        // Headband (arc over head)
-        drawArc(
-            color = Color(0xFF1A1A1E),
-            startAngle = 180f,
-            sweepAngle = 180f,
-            useCenter = false,
-            topLeft = Offset(centerX - headRadius, centerY - headRadius),
-            size = androidx.compose.ui.geometry.Size(headRadius * 2, headRadius * 2),
-            style = Stroke(width = headRadius * 0.3f)
-        )
-
-        // --- Sound-source orb (coral, glowing) ---
-        // Position based on X/Y/Z (normalized -1..1)
-        val orbRadius = headRadius * 0.6f * (1f + orbZ * 0.5f)  // bigger when closer
-        val orbCenterX = centerX + orbX * minOf(size.width, size.height) * 0.25f
-        val orbCenterY = centerY + orbY * minOf(size.width, size.height) * 0.25f
-        val orbAlpha = (0.5f + (orbZ + 1f) * 0.25f).coerceIn(0.3f, 1f)
-
-        // Glow (radial gradient behind orb)
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(
-                    Color(0xFFFF6B6B).copy(alpha = orbAlpha * 0.6f),
-                    Color(0xFFFF6B6B).copy(alpha = orbAlpha * 0.2f),
-                    Color.Transparent
+            // Glow (radial gradient behind orb)
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color(0xFFFF6B6B).copy(alpha = orbAlpha * 0.6f),
+                        Color(0xFFFF6B6B).copy(alpha = orbAlpha * 0.2f),
+                        Color.Transparent
+                    ),
+                    center = Offset(orbCenterX, orbCenterY),
+                    radius = orbRadius * 3f
                 ),
                 center = Offset(orbCenterX, orbCenterY),
                 radius = orbRadius * 3f
-            ),
-            center = Offset(orbCenterX, orbCenterY),
-            radius = orbRadius * 3f
-        )
+            )
 
-        // Orb itself
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(
-                    Color(0xFFFF8E8E),
-                    Color(0xFFFF6B6B),
-                    Color(0xFFE04545)
+            // Orb itself
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color(0xFFFF8E8E),
+                        Color(0xFFFF6B6B),
+                        Color(0xFFE04545)
+                    ),
+                    center = Offset(orbCenterX - orbRadius * 0.3f, orbCenterY - orbRadius * 0.3f),
+                    radius = orbRadius
                 ),
-                center = Offset(orbCenterX - orbRadius * 0.3f, orbCenterY - orbRadius * 0.3f),
+                center = Offset(orbCenterX, orbCenterY),
                 radius = orbRadius
-            ),
-            center = Offset(orbCenterX, orbCenterY),
-            radius = orbRadius
-        )
+            )
 
-        // Connection line from orb to head center (shows spatial relationship)
-        drawLine(
-            color = Color(0xFFFF6B6B).copy(alpha = 0.2f),
-            start = Offset(orbCenterX, orbCenterY),
-            end = Offset(centerX, centerY),
-            strokeWidth = 1f
-        )
+            // Connection line from orb to head center
+            drawLine(
+                color = Color(0xFFFF6B6B).copy(alpha = 0.2f),
+                start = Offset(orbCenterX, orbCenterY),
+                end = Offset(centerX, centerY),
+                strokeWidth = 1f
+            )
+        }
     }
 }
 
