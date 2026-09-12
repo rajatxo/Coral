@@ -36,17 +36,27 @@ class StudioClarityProcessor : androidx.media3.common.audio.AudioProcessor {
     private var inputChannels = 0
     private var configured = false
 
-    // The 8 biquad filters (created on configure)
+    // The 6 clarity biquad filters (created on configure)
     private var filters: List<Biquad> = emptyList()
+
+    // Coral Reef advanced filters (created on configure)
+    private var exciterFilter: Biquad? = null   // 6kHz highpass for harmonic exciter
+    private var monoBassFilter: Biquad? = null  // 130Hz highpass for mono-bass
 
     // Stereo width + makeup gain
     private val stereoWidth = 1.22
     private val makeupGain = 1.04
 
-    // Limiter state
+    // Coral Reef constants (from LastWave)
+    private val exciterAmount = 0.18  // 18% mix of harmonic sheen
+    private val wetDryMix = 0.5       // 50% wet, 50% dry blend
+
+    // Limiter state (envelope-based, from LastWave)
     private val ceiling = 0.944060876  // -0.5 dBFS
     private val kneeThreshold = 0.841395141  // -1.5 dBFS
+    private val limiterEngageThreshold = 1.25  // engage limiter above this
     private var limiterGain = 1.0
+    private var limiterRelease = 0.0  // computed on configure
 
     // Buffer for output
     private var outputBuffer: ByteBuffer = ByteBuffer.allocate(0)
@@ -64,12 +74,19 @@ class StudioClarityProcessor : androidx.media3.common.audio.AudioProcessor {
         val sr = inputAudioFormat.sampleRate.toDouble()
         filters = listOf(
             Biquad(sr, Biquad.Type.HIGH_PASS, 24.0, 0.707),
-            Biquad(sr, Biquad.Type.PEAKING, 72.0, 0.80, 5.0),      // boosted from 3.2 → 5.0
-            Biquad(sr, Biquad.Type.PEAKING, 280.0, 0.90, -4.5),    // boosted from -3.0 → -4.5
-            Biquad(sr, Biquad.Type.PEAKING, 750.0, 0.85, -2.0),   // boosted from -1.4 → -2.0
-            Biquad(sr, Biquad.Type.PEAKING, 3400.0, 0.85, 5.5),    // boosted from 3.8 → 5.5
-            Biquad(sr, Biquad.Type.HIGH_SHELF, 10500.0, 0.85, 6.5)  // boosted from 4.8 → 6.5
+            Biquad(sr, Biquad.Type.PEAKING, 72.0, 0.80, 5.0),
+            Biquad(sr, Biquad.Type.PEAKING, 280.0, 0.90, -4.5),
+            Biquad(sr, Biquad.Type.PEAKING, 750.0, 0.85, -2.0),
+            Biquad(sr, Biquad.Type.PEAKING, 3400.0, 0.85, 5.5),
+            Biquad(sr, Biquad.Type.HIGH_SHELF, 10500.0, 0.85, 6.5)
         )
+
+        // Coral Reef advanced filters
+        exciterFilter = Biquad(sr, Biquad.Type.HIGH_PASS, 6000.0, 0.707)
+        monoBassFilter = Biquad(sr, Biquad.Type.HIGH_PASS, 130.0, 0.707)
+
+        // Limiter release (150ms time constant, from LastWave)
+        limiterRelease = 1.0 - Math.exp(-1.0 / (sr * 0.150))
 
         return inputAudioFormat
     }
@@ -82,10 +99,10 @@ class StudioClarityProcessor : androidx.media3.common.audio.AudioProcessor {
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
-        // Check the toggle on EVERY buffer — if it's off, pass through
-        // unchanged (bit-perfect). If on, run the full 8-band DSP chain.
         val clarityOn = SoundHapticsManager.studioClarityEnabled.value
-        if (!clarityOn) {
+        val reefOn = SoundHapticsManager.coralReefEnabled.value
+
+        if (!clarityOn && !reefOn) {
             outputBuffer = inputBuffer
             return
         }
@@ -98,44 +115,116 @@ class StudioClarityProcessor : androidx.media3.common.audio.AudioProcessor {
 
         val isStereo = inputChannels >= 2
 
-        // Process samples: 16-bit PCM, interleaved L/R
         while (inputBuffer.remaining() >= 4) {
             val sampleL = inputBuffer.short.toFloat() / 32768f
             val sampleR = if (isStereo) inputBuffer.short.toFloat() / 32768f else sampleL
-            // Also consume R if mono (shouldn't happen, but safe)
             if (!isStereo && inputBuffer.remaining() >= 2) {
-                inputBuffer.short  // skip
+                inputBuffer.short
             }
 
-            var l = sampleL.toDouble()
-            var r = sampleR.toDouble()
+            // Save dry signal for wet/dry blend
+            val dryL = sampleL.toDouble()
+            val dryR = sampleR.toDouble()
 
-            // Apply 6 biquad filters in sequence
-            for (filter in filters) {
-                l = filter.processL(l)
-                r = filter.processR(r)
+            var l = dryL
+            var r = dryR
+
+            // === STUDIO MASTER CLARITY (6 biquad filters) ===
+            if (clarityOn || reefOn) {
+                for (filter in filters) {
+                    l = filter.processL(l)
+                    r = filter.processR(r)
+                }
             }
 
-            // 7. Stereo width (M/S processing)
-            val mid = (l + r) * 0.5
-            val side = (r - l) * 0.5 * stereoWidth
-            l = mid - side
-            r = mid + side
+            // === CORAL REEF advanced stages ===
+            if (reefOn) {
+                // 1. Harmonic Air Exciter (tape-style sheen)
+                // Extract highs above 6kHz, apply cubic waveshaping, mix back at 18%
+                val exciterL = exciterFilter?.processL(dryL) ?: 0.0
+                val exciterR = exciterFilter?.processR(dryR) ?: exciterL
+                val excitedL = exciterL - (exciterL * exciterL * exciterL * 0.25)
+                val excitedR = exciterR - (exciterR * exciterR * exciterR * 0.25)
+                l += excitedL * exciterAmount
+                r += excitedR * exciterAmount
 
-            // 8. Makeup gain
+                // 2. Mono-Bass (anti-blur): pass side through 130Hz highpass
+                // Bass stays centered mono, no stereo blur in low end
+                if (isStereo) {
+                    val mid = (l + r) * 0.5
+                    val rawSide = (l - r) * 0.5
+                    val sideHigh = monoBassFilter?.processL(rawSide) ?: rawSide
+                    val wideSide = sideHigh * stereoWidth
+                    l = mid + wideSide
+                    r = mid - wideSide
+                }
+            } else if (clarityOn) {
+                // Studio Clarity only: simple stereo width (no mono-bass)
+                val mid = (l + r) * 0.5
+                val side = (r - l) * 0.5 * stereoWidth
+                l = mid - side
+                r = mid + side
+            }
+
+            // Makeup gain
             l *= makeupGain
             r *= makeupGain
 
-            // Soft-knee limiter (prevents clipping from the boosts)
-            l = limit(l)
-            r = limit(r)
+            // === Coral Reef: Wet/Dry blend ===
+            // output = dry + (wet - dry) * mix
+            // This sounds more natural than 100% wet
+            if (reefOn) {
+                l = dryL + (l - dryL) * wetDryMix
+                r = dryR + (r - dryR) * wetDryMix
+            }
 
-            // Convert back to 16-bit PCM
+            // === Coral Reef: tanh soft saturation (analog warmth) ===
+            // LastWave uses tanh for smooth saturation, not linear knee
+            if (reefOn) {
+                l = softSaturate(l)
+                r = softSaturate(r)
+            } else {
+                l = limit(l)
+                r = limit(r)
+            }
+
+            // === Envelope limiter (from LastWave) ===
+            // Tracks peak envelope, releases smoothly over 150ms
+            val peak = maxOf(kotlin.math.abs(l), kotlin.math.abs(r))
+            val requiredGain = if (peak > limiterEngageThreshold) {
+                limiterEngageThreshold / peak
+            } else {
+                1.0
+            }
+            if (requiredGain < limiterGain) {
+                limiterGain = requiredGain  // instant attack
+            } else {
+                limiterGain += (1.0 - limiterGain) * limiterRelease  // smooth release
+                if (1.0 - limiterGain < 0.00001) limiterGain = 1.0
+            }
+            l *= limiterGain
+            r *= limiterGain
+
+            // Final clamp
+            l = l.coerceIn(-ceiling, ceiling)
+            r = r.coerceIn(-ceiling, ceiling)
+
             outputBuffer.putShort(clampToShort(l))
             outputBuffer.putShort(clampToShort(r))
         }
 
         outputBuffer.flip()
+    }
+
+    /** tanh soft saturation — smooth analog-style compression. */
+    private fun softSaturate(x: Double): Double {
+        val absX = kotlin.math.abs(x)
+        if (absX <= kneeThreshold) return x
+        val range = ceiling - kneeThreshold
+        val excess = absX - kneeThreshold
+        val ratio = kotlin.math.tanh(excess / range)
+        val saturated = kneeThreshold + range * ratio
+        return if (x >= 0) saturated else -saturated
     }
 
     /** Soft-knee limiter: linear below threshold, compressed above. */

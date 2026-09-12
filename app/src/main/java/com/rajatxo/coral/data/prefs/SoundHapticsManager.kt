@@ -28,6 +28,7 @@ object SoundHapticsManager {
     private const val KEY_SOUNDS = "sounds_enabled"
     private const val KEY_VOLUME = "sound_volume"
     private const val KEY_STUDIO_CLARITY = "studio_clarity_enabled"
+    private const val KEY_CORAL_REEF = "coral_reef_enabled"
 
     private const val DEFAULT_VOLUME = 60  // 0..100
 
@@ -48,6 +49,7 @@ object SoundHapticsManager {
         _soundsEnabled.value = prefs.getBoolean(KEY_SOUNDS, true)
         _soundVolume.value = prefs.getInt(KEY_VOLUME, DEFAULT_VOLUME)
         _studioClarityEnabled.value = prefs.getBoolean(KEY_STUDIO_CLARITY, false)
+        _coralReefEnabled.value = prefs.getBoolean(KEY_CORAL_REEF, false)
     }
 
     fun setHapticsEnabled(enabled: Boolean) {
@@ -73,5 +75,14 @@ object SoundHapticsManager {
     fun setStudioClarity(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_STUDIO_CLARITY, enabled).apply()
         _studioClarityEnabled.value = enabled
+    }
+
+    // --- Coral Reef (advanced DSP: exciter + mono-bass + wet/dry + tanh) ---
+    private val _coralReefEnabled = MutableStateFlow(false)
+    val coralReefEnabled: StateFlow<Boolean> = _coralReefEnabled.asStateFlow()
+
+    fun setCoralReef(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_CORAL_REEF, enabled).apply()
+        _coralReefEnabled.value = enabled
     }
 }

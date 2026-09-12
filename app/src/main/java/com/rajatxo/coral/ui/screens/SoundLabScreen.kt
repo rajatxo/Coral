@@ -89,6 +89,7 @@ fun SoundLabScreen() {
 
     // Toggle states
     var studioClarityEnabled by remember { mutableStateOf(false) }
+    var coralReefEnabled by remember { mutableStateOf(false) }
     var autoRotateEnabled by remember { mutableStateOf(false) }
 
     // --- Auto rotation animation ---
@@ -158,6 +159,17 @@ fun SoundLabScreen() {
                 onCheckedChange = {
                     studioClarityEnabled = it
                     SoundHapticsManager.setStudioClarity(it)
+                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                }
+            )
+
+            ToggleRow(
+                title = "Coral Reef",
+                subtitle = "Harmonic exciter + mono-bass + tanh saturation",
+                checked = coralReefEnabled,
+                onCheckedChange = {
+                    coralReefEnabled = it
+                    SoundHapticsManager.setCoralReef(it)
                     view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                 }
             )
