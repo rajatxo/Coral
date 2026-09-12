@@ -168,7 +168,12 @@ class StudioClarityProcessor : androidx.media3.common.audio.AudioProcessor {
     }
 
     override fun flush() {
-        outputBuffer.clear()
+        // CRITICAL: return an EMPTY buffer, not a cleared one.
+        // outputBuffer.clear() sets position=0, limit=capacity → looks full
+        // of zeros → audio pipeline plays silence.
+        // Instead, allocate a 0-capacity buffer so getOutput() returns nothing
+        // until the next queueInput() fills it with real processed data.
+        outputBuffer = ByteBuffer.allocate(0)
         filters.forEach { it.reset() }
         limiterGain = 1.0
     }
