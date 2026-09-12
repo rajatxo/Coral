@@ -162,7 +162,10 @@ fun FullPlayer(
             }
 
             Box(modifier = Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-                Canvas(modifier = Modifier.size(100.dp), contentDescription = "wheel", onDraw = {
+                androidx.compose.foundation.Canvas(
+                    modifier = Modifier.size(100.dp),
+                    contentDescription = "wheel"
+                ) {
                     val cx = size.width / 2f; val cy = size.height / 2f; val r = minOf(size.width, size.height) / 2f - 4f
                     drawCircle(Color.White.copy(alpha = 0.15f), r, Offset(cx, cy), style = Stroke(width = 2.dp.toPx()))
                     rotate(wheelRotation.value) {
