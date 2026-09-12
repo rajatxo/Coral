@@ -1,0 +1,82 @@
+Here is the analysis for each frame:
+
+**Frame 1 (Home Screen)**
+*   **Play/Pause Button:** N/A (Not visible)
+*   **Is a song playing?** No
+*   **Animation Glitch:** N/A
+*   **Song Counter Proximity:** N/A
+
+**Frame 2 (App Splash)**
+*   **Play/Pause Button:** N/A (Not visible)
+*   **Is a song playing?** No
+*   **Animation Glitch:** N/A
+*   **Song Counter Proximity:** N/A
+
+**Frame 3 (Playlist List)**
+*   **Play/Pause Button:** N/A (Not visible)
+*   **Is a song playing?** No
+*   **Animation Glitch:** N/A
+*   **Song Counter Proximity:** N/A
+
+**Frame 4 (Playlist Detail - Initial Load)**
+*   **Play/Pause Button:** Shows **"Pause"** (Two vertical bars).
+*   **Is a song playing?** **No.** There is no mini-player at the bottom, and the song list shows static durations (2:51, 3:26) with no progress indicators.
+    *   *Bug Confirmation:* The button incorrectly defaults to "Pause" state upon opening the playlist.
+*   **Animation Glitch:** No.
+*   **Song Counter Proximity:** The "493" capsule is immediately adjacent to the "Sort by: Custom Order" text.
+
+**Frame 5 (First Tap - State Change)**
+*   **Play/Pause Button:** Still shows **"Pause"**, but a white circular touch ripple is visible over it.
+*   **Is a song playing?** **No.** The screen layout is identical to Frame 4; no music has started.
+    *   *Bug Confirmation:* This is the "dead" tap. The user taps "Pause", and the app interprets this as a command to stop (or does nothing because nothing is playing), switching the internal state to 'Stopped/Idle', but the visual state hasn't updated yet.
+*   **Animation Glitch:** No.
+*   **Song Counter Proximity:** Same as above.
+
+**Frame 6 (Visual Update)**
+*   **Play/Pause Button:** Now shows **"Play"** (Triangle icon).
+*   **Is a song playing?** **No.**
+    *   *Bug Confirmation:* The button finally updates to reflect the actual state (Idle), but no music played. The user now has to tap again.
+*   **Animation Glitch:** No.
+*   **Song Counter Proximity:** Same as above.
+
+**Frame 7 (Second Tap - Playback Starts)**
+*   **Play/Pause Button:** Has switched back to **"Pause"**.
+*   **Is a song playing?** **Yes.** A mini-player has appeared at the bottom showing "dhruv - double take.m..." with a progress bar/dot.
+    *   *Confirmation:* Music only starts on this second interaction.
+*   **Animation Glitch:** No.
+*   **Song Counter Proximity:** Same as above.
+
+**Frame 8 (Playing)**
+*   **Play/Pause Button:** Shows **"Pause"**.
+*   **Is a song playing?** **Yes.** Mini-player is present.
+*   **Animation Glitch:** A small white dot (part of the mini-player animation or scrubber) is visible on the left of the mini-player art.
+*   **Song Counter Proximity:** Same as above.
+
+**Frame 9 (Playing)**
+*   **Play/Pause Button:** Shows **"Pause"**.
+*   **Is a song playing?** **Yes.**
+*   **Animation Glitch:** No.
+*   **Song Counter Proximity:** Same as above.
+
+**Frame 10 (Navigated Back)**
+*   **Play/Pause Button:** N/A (Not visible).
+*   **Is a song playing?** **Yes.** (Inferred from context, though the main list view doesn't show the mini-player clearly here, or it's hidden).
+*   **Animation Glitch:** No.
+*   **Song Counter Proximity:** N/A
+
+**Frame 11 (Transition Animation)**
+*   **Play/Pause Button:** Shows **"Pause"** (Visible in the background layer during transition).
+*   **Is a song playing?** Yes (Background implies playback continues).
+*   **Animation Glitch:** **Yes.** There are distinct black bars sliding vertically on the left and right edges of the screen (likely a page transition clipping/rendering glitch).
+*   **Song Counter Proximity:** Visible in background; proximity is standard.
+
+**Frame 12 (Re-opened Playlist)**
+*   **Play/Pause Button:** Shows **"Pause"**.
+*   **Is a song playing?** **Yes.** (Consistent with the button state this time, assuming music continued from Frame 10).
+*   **Animation Glitch:** No.
+*   **Song Counter Proximity:** Same as above.
+
+### Summary of the Bug
+The issue is a **State Desynchronization on Initialization**.
+1.  **Wrong Default State:** When opening the playlist (Frame 4), the UI initializes with `isPlaying = true` (showing "Pause") even though the audio engine is idle.
+2.  **The "Double Tap" Requirement:** The first tap (Frame 5) acts as a "corrective toggle"—it tells the system "Pause," which aligns the internal state to `false` (Idle). The UI then updates to show "Play" (Frame 6). The user must tap a second time (Frame 7) to actually trigger the `play()` command.
