@@ -64,24 +64,28 @@ class StudioClarityProcessor : androidx.media3.common.audio.AudioProcessor {
         val sr = inputAudioFormat.sampleRate.toDouble()
         filters = listOf(
             Biquad(sr, Biquad.Type.HIGH_PASS, 24.0, 0.707),
-            Biquad(sr, Biquad.Type.PEAKING, 72.0, 0.80, 3.2),
-            Biquad(sr, Biquad.Type.PEAKING, 280.0, 0.90, -3.0),
-            Biquad(sr, Biquad.Type.PEAKING, 750.0, 0.85, -1.4),
-            Biquad(sr, Biquad.Type.PEAKING, 3400.0, 0.85, 3.8),
-            Biquad(sr, Biquad.Type.HIGH_SHELF, 10500.0, 0.85, 4.8)
+            Biquad(sr, Biquad.Type.PEAKING, 72.0, 0.80, 5.0),      // boosted from 3.2 → 5.0
+            Biquad(sr, Biquad.Type.PEAKING, 280.0, 0.90, -4.5),    // boosted from -3.0 → -4.5
+            Biquad(sr, Biquad.Type.PEAKING, 750.0, 0.85, -2.0),   // boosted from -1.4 → -2.0
+            Biquad(sr, Biquad.Type.PEAKING, 3400.0, 0.85, 5.5),    // boosted from 3.8 → 5.5
+            Biquad(sr, Biquad.Type.HIGH_SHELF, 10500.0, 0.85, 6.5)  // boosted from 4.8 → 6.5
         )
 
         return inputAudioFormat
     }
 
     override fun isActive(): Boolean {
-        active = SoundHapticsManager.studioClarityEnabled.value && configured
-        return active
+        // ALWAYS return true — we check the toggle INSIDE queueInput() on every
+        // buffer. This ensures the processor is always in the audio pipeline,
+        // and the toggle takes effect immediately (no need to skip songs).
+        return configured
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
-        if (!active) {
-            // Pass through if not active
+        // Check the toggle on EVERY buffer — if it's off, pass through
+        // unchanged (bit-perfect). If on, run the full 8-band DSP chain.
+        val clarityOn = SoundHapticsManager.studioClarityEnabled.value
+        if (!clarityOn) {
             outputBuffer = inputBuffer
             return
         }
