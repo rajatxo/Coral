@@ -441,10 +441,10 @@ fun FullPlayer(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        if (isPlaying) CoralIcons.Pause else CoralIcons.Play,
-                        if (isPlaying) "Pause" else "Play",
-                        Color.White,
-                        Modifier.size(28.dp)
+                        imageVector = if (isPlaying) CoralIcons.Pause else CoralIcons.Play,
+                        contentDescription = if (isPlaying) "Pause" else "Play",
+                        tint = Color.White,
+                        modifier = Modifier.size(28.dp)
                     )
                 }
 
@@ -488,10 +488,10 @@ fun FullPlayer(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        if (isFavorite) CoralIcons.HeartFilled else CoralIcons.Heart,
-                        if (isFavorite) "Unfavorite" else "Favorite",
-                        if (isFavorite) palette.accent else Color.White,
-                        Modifier.size(22.dp)
+                        imageVector = if (isFavorite) CoralIcons.HeartFilled else CoralIcons.Heart,
+                        contentDescription = if (isFavorite) "Unfavorite" else "Favorite",
+                        tint = if (isFavorite) palette.accent else Color.White,
+                        modifier = Modifier.size(22.dp)
                     )
                 }
 
@@ -547,10 +547,10 @@ fun FullPlayer(
                         }
                 )
                 Icon(
-                    CoralIcons.HeartFilled,
-                    null,
-                    Color.White.copy(alpha = heartPopScale * 0.9f),
-                    Modifier.size(96.dp).scale(heartPopScale)
+                    imageVector = CoralIcons.HeartFilled,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = heartPopScale * 0.9f),
+                    modifier = Modifier.size(96.dp).scale(heartPopScale)
                 )
             }
         }
