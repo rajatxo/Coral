@@ -414,7 +414,7 @@ fun FullPlayer(
                 },
                 onVolumeChange = { vol ->
                     currentVolume = vol
-                    try { mediaController?.volume = (vol * 1f).toInt() } catch (_: Exception) { }
+                    try { mediaController?.volume = (vol * 100f).toInt() } catch (_: Exception) { }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -575,8 +575,8 @@ private fun TheDial(
                         }
                         dragAccumulator = 0f
                     },
-                    onHorizontalDrag = { change, dragAmount ->
-                        dragAccumulator += dragAmount
+                    onDrag = { change, dragAmount ->
+                        dragAccumulator += dragAmount.x
                         change.consume()
                     }
                 )
@@ -585,14 +585,13 @@ private fun TheDial(
                 // Tap center = play/pause
                 detectTapGestures(
                     onTap = { offset ->
-                        // Check if tap is near the center (within 40dp radius)
                         val centerX = size.width / 2f
                         val centerY = size.height / 2f
                         val dist = sqrt(
                             (offset.x - centerX) * (offset.x - centerX) +
                             (offset.y - centerY) * (offset.y - centerY)
                         )
-                        val touchRadius = with(androidx.compose.ui.platform.LocalDensity.current) { 40.dp.toPx() }
+                        val touchRadius = 80f  // px, approx 40dp on most devices
                         if (dist < touchRadius) {
                             onPlayPauseClick()
                         }
