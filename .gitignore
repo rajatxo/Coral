@@ -4,3 +4,6 @@ build/
 local.properties
 .gradle/
 app/build/
+gradle/
+gradlew
+gradlew.bat
