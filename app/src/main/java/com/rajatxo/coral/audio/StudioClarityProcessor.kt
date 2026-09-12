@@ -92,7 +92,7 @@ class StudioClarityProcessor : androidx.media3.common.audio.AudioProcessor {
         }
         outputBuffer.clear()
 
-        val isStereo = inputAudioFormat.channelCount >= 2
+        val isStereo = inputChannels >= 2
 
         // Process samples: 16-bit PCM, interleaved L/R
         while (inputBuffer.remaining() >= 4) {

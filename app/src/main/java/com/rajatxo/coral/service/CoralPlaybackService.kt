@@ -30,7 +30,7 @@ class CoralPlaybackService : MediaSessionService() {
         // buffer — when the toggle is on, the 8-band DSP chain runs. When off,
         // audio passes through unchanged.
         val player = ExoPlayer.Builder(this)
-            .setAudioEffects(clarityProcessor)
+            .setAudioProcessors(arrayOf(clarityProcessor))
             .build()
 
         val intent = Intent(this, MainActivity::class.java)
