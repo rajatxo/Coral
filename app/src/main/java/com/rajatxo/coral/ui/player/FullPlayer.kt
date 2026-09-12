@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -50,7 +49,9 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.IntOffset
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.offset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -138,7 +139,9 @@ fun FullPlayer(
             }
         }
         context.contentResolver.registerContentObserver(
-            Settings.System.getUriFor("volume_music_speaker"), true, observer
+            Settings.System.getUriFor("volume_music_speaker") ?: Settings.System.CONTENT_URI,
+            true,
+            observer
         )
         onDispose { context.contentResolver.unregisterContentObserver(observer) }
     }
@@ -438,7 +441,12 @@ fun FullPlayer(
                             .clip(CircleShape)
                             .background(Color.White)
                             .align(Alignment.CenterStart)
-                            .offset(x = (progress * seekbarWidthPx - 6.dp.toPx()).coerceAtLeast(0f))
+                            .offset {
+                                IntOffset(
+                                    (progress * seekbarWidthPx - 6.dp.toPx()).coerceAtLeast(0f).toInt(),
+                                    0
+                                )
+                            }
                     )
                 }
 
@@ -591,7 +599,12 @@ fun FullPlayer(
                                 .clip(CircleShape)
                                 .background(Color.White)
                                 .align(Alignment.CenterStart)
-                                .offset(x = (volume * volumeBarWidthPx - 5.dp.toPx()).coerceAtLeast(0f))
+                                .offset {
+                                    IntOffset(
+                                        (volume * volumeBarWidthPx - 5.dp.toPx()).coerceAtLeast(0f).toInt(),
+                                        0
+                                    )
+                                }
                         )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
