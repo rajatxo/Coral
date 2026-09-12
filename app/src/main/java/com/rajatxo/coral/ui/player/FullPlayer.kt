@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -46,16 +47,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.IntOffset
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.layout.offset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.session.MediaController
@@ -296,7 +295,6 @@ fun FullPlayer(
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            shadow = shadow()
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
@@ -306,7 +304,6 @@ fun FullPlayer(
                             fontWeight = FontWeight.Normal,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            shadow = shadow()
                         )
                     }
                     // Heart toggle
@@ -382,7 +379,6 @@ fun FullPlayer(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
-                        shadow = shadow()
                     )
                     Image(
                         imageVector = CoralIcons.ChevronRight,
@@ -459,13 +455,11 @@ fun FullPlayer(
                         text = formatTime(currentPositionMs),
                         color = Color.White.copy(alpha = 0.55f),
                         fontSize = 11.sp,
-                        shadow = shadow()
                     )
                     Text(
                         text = "-" + formatTime((durationMs - currentPositionMs).coerceAtLeast(0L)),
                         color = Color.White.copy(alpha = 0.55f),
                         fontSize = 11.sp,
-                        shadow = shadow()
                     )
                 }
 
@@ -718,13 +712,6 @@ fun FullPlayer(
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────
-
-/** Soft shadow for text on top of album art — keeps titles readable on busy art. */
-private fun shadow(blur: Float = 4f) = Shadow(
-    color = Color.Black.copy(alpha = 0.6f),
-    blurRadius = blur,
-    offset = androidx.compose.ui.geometry.Offset(1f, 1f)
-)
 
 /** m:ss formatter — used for both elapsed and remaining times. */
 private fun formatTime(ms: Long): String {
