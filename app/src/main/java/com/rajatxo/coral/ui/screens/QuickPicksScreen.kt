@@ -102,7 +102,6 @@ fun QuickPicksScreen(
 
     val scrollOffset = remember { Animatable(0f) }
     var lastActiveIndex by remember { mutableStateOf(0) }
-    var velocityTracker by remember { mutableStateOf(VelocityTracker()) }
 
     val totalSongs = quickPicksSongs.size
     val activeIndex = scrollOffset.value.toInt().coerceIn(0, (totalSongs - 1).coerceAtLeast(0))
@@ -306,7 +305,7 @@ fun QuickPicksScreen(
 @Composable
 private fun CoverFlowArc(
     songs: List<Song>,
-    scrollOffset: Animatable<Float>,
+    scrollOffset: Animatable<Float, *>,
     onPlayClick: (Song) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -315,6 +314,7 @@ private fun CoverFlowArc(
 
     val totalSongs = songs.size
     val currentOffset = scrollOffset.value
+    var velocityTracker by remember { mutableStateOf(VelocityTracker()) }
 
     Box(
         modifier = modifier
