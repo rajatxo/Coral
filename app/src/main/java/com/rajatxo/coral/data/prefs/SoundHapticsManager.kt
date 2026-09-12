@@ -27,6 +27,7 @@ object SoundHapticsManager {
     private const val KEY_HAPTICS = "haptics_enabled"
     private const val KEY_SOUNDS = "sounds_enabled"
     private const val KEY_VOLUME = "sound_volume"
+    private const val KEY_STUDIO_CLARITY = "studio_clarity_enabled"
 
     private const val DEFAULT_VOLUME = 60  // 0..100
 
@@ -46,6 +47,7 @@ object SoundHapticsManager {
         _hapticsEnabled.value = prefs.getBoolean(KEY_HAPTICS, true)
         _soundsEnabled.value = prefs.getBoolean(KEY_SOUNDS, true)
         _soundVolume.value = prefs.getInt(KEY_VOLUME, DEFAULT_VOLUME)
+        _studioClarityEnabled.value = prefs.getBoolean(KEY_STUDIO_CLARITY, false)
     }
 
     fun setHapticsEnabled(enabled: Boolean) {
@@ -62,5 +64,14 @@ object SoundHapticsManager {
         val clamped = volume.coerceIn(0, 100)
         prefs.edit().putInt(KEY_VOLUME, clamped).apply()
         _soundVolume.value = clamped
+    }
+
+    // --- Studio Master Clarity (8-band DSP chain) ---
+    private val _studioClarityEnabled = MutableStateFlow(false)
+    val studioClarityEnabled: StateFlow<Boolean> = _studioClarityEnabled.asStateFlow()
+
+    fun setStudioClarity(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_STUDIO_CLARITY, enabled).apply()
+        _studioClarityEnabled.value = enabled
     }
 }

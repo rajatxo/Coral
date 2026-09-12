@@ -293,13 +293,7 @@ fun HomeScreen(
                         capsuleRemaining = capsuleRemaining,
                         onExtend = onExtend
                     )
-                    CoralTab.Folders -> PlaceholderScreen(
-                        tabName = "Folders",
-                        description = "Browse your music by folder. Coming soon.",
-                        capsuleVisible = capsuleVisible,
-                        capsuleRemaining = capsuleRemaining,
-                        onExtend = onExtend
-                    )
+                    CoralTab.SoundLab -> com.rajatxo.coral.ui.screens.SoundLabScreen()
                 }
             }
 
