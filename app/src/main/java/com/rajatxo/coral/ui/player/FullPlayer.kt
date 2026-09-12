@@ -160,7 +160,7 @@ fun FullPlayer(
     }
 
     // ---------- Lyrics ----------
-    var showLyrics by remember { mutableStateOf(false) })
+    var showLyrics by remember { mutableStateOf(false) }
 
     // ---------- Layout ----------
     Box(modifier = Modifier.fillMaxSize().background(immersiveColor)) {
