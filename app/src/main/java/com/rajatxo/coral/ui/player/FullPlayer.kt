@@ -414,7 +414,7 @@ fun FullPlayer(
                 },
                 onVolumeChange = { vol ->
                     currentVolume = vol
-                    try { mediaController?.volume = (vol * 100f).toInt() } catch (_: Exception) { }
+                    try { mediaController?.volume = vol } catch (_: Exception) { }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
