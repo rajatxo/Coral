@@ -245,8 +245,9 @@ fun SoundLabScreen() {
 }
 
 /**
- * Dot-matrix sphere — a wireframe globe of white dots.
+ * Dot-matrix sphere — a denser wireframe globe of white dots.
  * Rotates slowly. Dots on the "front" are brighter, "back" dots dimmer.
+ * Coral triangles at cardinal points (Top, Bottom, Left, Right).
  */
 @Composable
 private fun SoundSphere(
@@ -256,11 +257,11 @@ private fun SoundSphere(
     Canvas(modifier = modifier) {
         val centerX = size.width / 2f
         val centerY = size.height / 2f
-        val radius = minOf(size.width, size.height) * 0.32f
+        val radius = minOf(size.width, size.height) * 0.34f
 
-        // Dot grid parameters
-        val latSteps = 12  // latitude rings
-        val lonSteps = 16  // dots per ring
+        // Denser grid for a more 3D-looking sphere
+        val latSteps = 16  // was 12
+        val lonSteps = 24  // was 16
 
         for (lat in 0 until latSteps) {
             val latAngle = (lat.toFloat() / (latSteps - 1)) * Math.PI.toFloat() - (Math.PI / 2).toFloat()
@@ -272,9 +273,9 @@ private fun SoundSphere(
                 val x = centerX + ringRadius * cos(lonAngle)
                 val z = sin(lonAngle)  // -1 (back) to 1 (front)
 
-                // Dots on the front hemisphere are brighter
-                val alpha = ((z + 1f) / 2f * 0.5f + 0.05f).coerceIn(0.02f, 0.55f)
-                val dotRadius = 1.5f + (z + 1f) * 1f  // front dots bigger
+                // Dots on the front hemisphere are brighter + bigger
+                val alpha = ((z + 1f) / 2f * 0.55f + 0.03f).coerceIn(0.02f, 0.58f)
+                val dotRadius = 1.2f + (z + 1f) * 1.2f
 
                 drawCircle(
                     color = Color.White.copy(alpha = alpha),
@@ -284,13 +285,50 @@ private fun SoundSphere(
             }
         }
 
-        // Outer ring (equator outline, very faint)
+        // Outer ring (equator outline)
         drawCircle(
-            color = Color.White.copy(alpha = 0.08f),
+            color = Color.White.copy(alpha = 0.06f),
             radius = radius,
             center = Offset(centerX, centerY),
             style = Stroke(width = 1f)
         )
+
+        // --- Coral directional triangles at cardinal points ---
+        val triSize = 8f
+        val triColor = Color(0xFFFF6B6B).copy(alpha = 0.7f)
+        val triPath = androidx.compose.ui.graphics.Path()
+
+        // Top triangle (pointing up)
+        triPath.reset()
+        triPath.moveTo(centerX, centerY - radius - triSize)
+        triPath.lineTo(centerX - triSize * 0.6f, centerY - radius - triSize * 2)
+        triPath.lineTo(centerX + triSize * 0.6f, centerY - radius - triSize * 2)
+        triPath.close()
+        drawPath(triPath, triColor)
+
+        // Bottom triangle (pointing down)
+        triPath.reset()
+        triPath.moveTo(centerX, centerY + radius + triSize)
+        triPath.lineTo(centerX - triSize * 0.6f, centerY + radius + triSize * 2)
+        triPath.lineTo(centerX + triSize * 0.6f, centerY + radius + triSize * 2)
+        triPath.close()
+        drawPath(triPath, triColor)
+
+        // Left triangle (pointing left)
+        triPath.reset()
+        triPath.moveTo(centerX - radius - triSize, centerY)
+        triPath.lineTo(centerX - radius - triSize * 2, centerY - triSize * 0.6f)
+        triPath.lineTo(centerX - radius - triSize * 2, centerY + triSize * 0.6f)
+        triPath.close()
+        drawPath(triPath, triColor)
+
+        // Right triangle (pointing right)
+        triPath.reset()
+        triPath.moveTo(centerX + radius + triSize, centerY)
+        triPath.lineTo(centerX + radius + triSize * 2, centerY - triSize * 0.6f)
+        triPath.lineTo(centerX + radius + triSize * 2, centerY + triSize * 0.6f)
+        triPath.close()
+        drawPath(triPath, triColor)
     }
 }
 
@@ -306,12 +344,13 @@ private fun SoundOrbAndHead(
     modifier: Modifier = Modifier
 ) {
     Box(modifier = modifier) {
-        // --- 3D Head image (from drawable, with transparent bg + bottom fade) ---
+        // --- 3D Head image (original, darkened + faded, no pixel removal) ---
         androidx.compose.foundation.Image(
             painter = androidx.compose.ui.res.painterResource(
                 com.rajatxo.coral.R.drawable.head_3d
             ),
             contentDescription = "3D head model",
+            contentScale = ContentScale.Fit,
             modifier = Modifier
                 .align(Alignment.Center)
                 .fillMaxSize()
@@ -321,12 +360,12 @@ private fun SoundOrbAndHead(
         Canvas(modifier = Modifier.fillMaxSize()) {
             val centerX = size.width / 2f
             val centerY = size.height / 2f
-            val headRadius = minOf(size.width, size.height) * 0.08f
+            val headRadius = minOf(size.width, size.height) * 0.06f
 
             // --- Sound-source orb (coral, glowing) ---
-            val orbRadius = headRadius * 0.6f * (1f + orbZ * 0.5f)
-            val orbCenterX = centerX + orbX * minOf(size.width, size.height) * 0.25f
-            val orbCenterY = centerY + orbY * minOf(size.width, size.height) * 0.25f
+            val orbRadius = headRadius * 0.8f * (1f + orbZ * 0.5f)
+            val orbCenterX = centerX + orbX * minOf(size.width, size.height) * 0.22f
+            val orbCenterY = centerY + orbY * minOf(size.width, size.height) * 0.22f
             val orbAlpha = (0.5f + (orbZ + 1f) * 0.25f).coerceIn(0.3f, 1f)
 
             // Glow (radial gradient behind orb)
@@ -338,10 +377,10 @@ private fun SoundOrbAndHead(
                         Color.Transparent
                     ),
                     center = Offset(orbCenterX, orbCenterY),
-                    radius = orbRadius * 3f
+                    radius = orbRadius * 3.5f
                 ),
                 center = Offset(orbCenterX, orbCenterY),
-                radius = orbRadius * 3f
+                radius = orbRadius * 3.5f
             )
 
             // Orb itself
@@ -361,10 +400,10 @@ private fun SoundOrbAndHead(
 
             // Connection line from orb to head center
             drawLine(
-                color = Color(0xFFFF6B6B).copy(alpha = 0.2f),
+                color = Color(0xFFFF6B6B).copy(alpha = 0.25f),
                 start = Offset(orbCenterX, orbCenterY),
                 end = Offset(centerX, centerY),
-                strokeWidth = 1f
+                strokeWidth = 1.5f
             )
         }
     }
