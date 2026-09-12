@@ -15,6 +15,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class CoralPlaybackService : MediaSessionService() {
 
     private var mediaSession: MediaSession? = null
@@ -26,16 +27,10 @@ class CoralPlaybackService : MediaSessionService() {
         super.onCreate()
 
         // Build the ExoPlayer with the Studio Clarity audio processor.
-        // Media3 1.5.1: Create a DefaultAudioSink with the processor,
-        // then set it on DefaultRenderersFactory via setAudioSink().
-        val audioSink = androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(this)
+        // @UnstableApi: ExoPlayer.Builder.setAudioProcessors is experimental.
+        val player = ExoPlayer.Builder(this)
             .setAudioProcessors(arrayOf(clarityProcessor))
             .build()
-
-        val renderersFactory = androidx.media3.exoplayer.DefaultRenderersFactory(this)
-            .setAudioSink(audioSink)
-
-        val player = ExoPlayer.Builder(this, renderersFactory).build()
 
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
