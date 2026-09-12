@@ -7,6 +7,8 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.view.HapticFeedbackConstants
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -44,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -62,25 +65,27 @@ import coil3.compose.AsyncImage
 import com.rajatxo.coral.data.store.PlaylistStore
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.lyrics.LyricsSheet
+import com.rajatxo.coral.util.CoralPalette
+import com.rajatxo.coral.util.extractPalette
 import kotlinx.coroutines.delay
 
 /**
- * Immersive full-player screen — full-bleed album art with a soft bottom
- * scrim that all the controls sit on top of. No pulley, no wheel, no arc.
+ * Immersive player — BitChord-style.
  *
  * Layout (top → bottom):
- *   1.  Album art fills the entire viewport (centre-crop, slight zoom).
- *   2.  Vertical gradient overlay: transparent (top 45 %) → opaque black (bottom).
- *   3.  Top header: chevron-down · NOW PLAYING · more-vertical.
- *   4.  Spacer pushes everything else to the bottom third.
- *   5.  Bottom column:
- *         - song title  +  heart  +  more  (row)
- *         - artist name
- *         - lyrics strip (♪ …  ›)  — tap to open full lyrics
- *         - seek bar (track + thumb) with times either side
- *         - transport: prev · play/pause · next  (icons only, no backgrounds)
- *         - volume: speaker-low · slider · speaker-high
- *         - shuffle · repeat-1 · repeat-∞ · queue   (bottom utility row)
+ *   1.  Opaque black base (nothing shows through).
+ *   2.  Vertical gradient using the album art's dominant colors
+ *       (extracted via Palette). NOT the album art itself — just its colors.
+ *   3.  Soft dark overlay at the bottom for text legibility.
+ *   4.  Top header: chevron-down · NOW PLAYING · more-vertical.
+ *   5.  Square album art — full width, 10dp rounded corners, big drop shadow.
+ *   6.  Song title  +  heart  +  queue  (row).
+ *   7.  Artist name.
+ *   8.  Lyrics strip (♪ … ›) — tap to open full lyrics.
+ *   9.  Seek bar with times either side.
+ *  10.  Transport: prev · play/pause · next.
+ *  11.  Volume slider: speaker-low · track · speaker-high.
+ *  12.  Bottom utility: shuffle · repeat-1 · repeat-∞ · queue.
  */
 @Composable
 fun FullPlayer(
@@ -101,6 +106,15 @@ fun FullPlayer(
     val context = LocalContext.current
     val view = LocalView.current
 
+    // ─── Palette (extracted from album art) ───────────────────────────
+    var palette by remember { mutableStateOf(CoralPalette.Default) }
+    LaunchedEffect(albumArtUri) { extractPalette(context, albumArtUri)?.let { palette = it } }
+
+    // Smooth crossfade when colors change on song switch (no grey flash).
+    val animatedTopColor    by animateColorAsState(palette.primary,   tween(600), label = "top")
+    val animatedMidColor   by animateColorAsState(palette.secondary,  tween(600), label = "mid")
+    val animatedBottomColor by animateColorAsState(palette.tertiary,  tween(600), label = "bottom")
+
     // ─── Playback position polling ────────────────────────────────────
     var currentPositionMs by remember { mutableStateOf(0L) }
     var durationMs by remember { mutableStateOf(0L) }
@@ -116,19 +130,25 @@ fun FullPlayer(
         }
     }
 
-    // ─── Favorites + lyrics sheet state ───────────────────────────────
+    // ─── Favorites + lyrics sheet + more menu ────────────────────────
     val favorites by PlaylistStore.favorites.collectAsState()
     val isFavorite = songId != null && songId in favorites.songIds
     var showLyrics by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
+    var showHeartPop by remember { mutableStateOf(false) }
+    LaunchedEffect(showHeartPop) {
+        if (showHeartPop) { delay(800); showHeartPop = false }
+    }
 
     // ─── System volume (so the volume slider reflects hardware keys) ─
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
     val maxVolume = remember { audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC) }
-    var volume by remember { mutableFloatStateOf(
-        if (maxVolume > 0) audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / maxVolume
-        else 0f
-    ) }
+    var volume by remember {
+        mutableFloatStateOf(
+            if (maxVolume > 0) audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / maxVolume
+            else 0f
+        )
+    }
     DisposableEffect(Unit) {
         val observer = object : android.database.ContentObserver(Handler(Looper.getMainLooper())) {
             override fun onChange(selfChange: Boolean) {
@@ -145,47 +165,42 @@ fun FullPlayer(
         onDispose { context.contentResolver.unregisterContentObserver(observer) }
     }
 
+    // ─── Root Box: black base + gradient ─────────────────────────────
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
 
-        // (1) Full-bleed album art, slightly zoomed so it fills every corner
-        if (albumArtUri != null) {
-            AsyncImage(
-                model = albumArtUri,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(Unit) {
-                        detectTapGestures(
-                            onDoubleTap = {
-                                if (songId != null) {
-                                    PlaylistStore.toggleFavorite(songId)
-                                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                                }
-                            }
-                        )
-                    }
-            )
-        }
-
-        // (2) Soft scrim — transparent at the top, opaque black at the bottom
+        // (1) Vibrant vertical gradient from album art colors
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
-                    brush = Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0.00f to Color.Black.copy(alpha = 0.10f),
-                            0.45f to Color.Black.copy(alpha = 0.20f),
-                            0.70f to Color.Black.copy(alpha = 0.55f),
-                            0.90f to Color.Black.copy(alpha = 0.85f),
-                            1.00f to Color.Black.copy(alpha = 0.95f)
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            animatedTopColor,
+                            animatedMidColor,
+                            animatedBottomColor
                         )
                     )
                 )
         )
 
-        // (3) Column with everything else
+        // (2) Soft dark overlay at the bottom for text legibility
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.00f to Color.Black.copy(alpha = 0.00f),
+                            0.50f to Color.Black.copy(alpha = 0.00f),
+                            0.70f to Color.Black.copy(alpha = 0.20f),
+                            0.85f to Color.Black.copy(alpha = 0.45f),
+                            1.00f to Color.Black.copy(alpha = 0.70f)
+                        )
+                    )
+                )
+        )
+
+        // (3) Main content column — bottom-aligned, statusBarsPadding at top
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -272,8 +287,53 @@ fun FullPlayer(
                 }
             }
 
-            // ── Push everything else to the bottom third ───────────────
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.weight(0.6f))
+
+            // ── Square album art with rounded corners + big shadow ────
+            // BitChord pattern: full width, ~320dp tall, 10dp corners.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .height(320.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .shadow(20.dp, RoundedCornerShape(10.dp))
+                    .background(animatedMidColor)
+                    .pointerInput(albumArtUri) {
+                        detectTapGestures(
+                            onDoubleTap = {
+                                if (songId != null) {
+                                    PlaylistStore.toggleFavorite(songId)
+                                    showHeartPop = true
+                                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                }
+                            }
+                        )
+                    }
+            ) {
+                AsyncImage(
+                    model = albumArtUri,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(10.dp))
+                )
+                if (showHeartPop) {
+                    Image(
+                        imageVector = CoralIcons.HeartFilled,
+                        contentDescription = null,
+                        colorFilter = ColorFilter.tint(
+                            if (isFavorite) palette.accent else Color.White
+                        ),
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .size(80.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.weight(0.4f))
 
             // ── Bottom controls column ────────────────────────────────
             Column(
@@ -282,7 +342,7 @@ fun FullPlayer(
                     .padding(horizontal = 24.dp)
             ) {
 
-                // (a) Song title  +  heart  +  more ────────────────────
+                // (a) Song title + heart + queue ─────────────────────
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -291,22 +351,21 @@ fun FullPlayer(
                         Text(
                             text = title,
                             color = Color.White,
-                            fontSize = 24.sp,
+                            fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = artist,
                             color = Color.White.copy(alpha = 0.7f),
-                            fontSize = 16.sp,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.Normal,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
-                    // Heart toggle
                     Box(
                         modifier = Modifier
                             .size(44.dp)
@@ -326,12 +385,11 @@ fun FullPlayer(
                         Icon(
                             imageVector = if (isFavorite) CoralIcons.HeartFilled else CoralIcons.Heart,
                             contentDescription = "Favorite",
-                            tint = if (isFavorite) Color(0xFFFF6B6B) else Color.White,
+                            tint = if (isFavorite) palette.accent else Color.White,
                             modifier = Modifier.size(20.dp)
                         )
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    // Queue / more
                     Box(
                         modifier = Modifier
                             .size(44.dp)
@@ -352,7 +410,7 @@ fun FullPlayer(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // (b) Lyrics strip — tap to open full lyrics ──────────
                 Row(
@@ -363,7 +421,7 @@ fun FullPlayer(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
                         ) { showLyrics = true }
-                        .padding(vertical = 6.dp)
+                        .padding(vertical = 4.dp)
                 ) {
                     Image(
                         imageVector = CoralIcons.Music,
@@ -378,7 +436,7 @@ fun FullPlayer(
                         fontSize = 14.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f)
                     )
                     Image(
                         imageVector = CoralIcons.ChevronRight,
@@ -412,7 +470,6 @@ fun FullPlayer(
                             )
                         }
                 ) {
-                    // Track
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -421,7 +478,6 @@ fun FullPlayer(
                             .align(Alignment.CenterStart)
                             .background(Color.White.copy(alpha = 0.25f))
                     )
-                    // Filled portion
                     Box(
                         modifier = Modifier
                             .fillMaxWidth(progress)
@@ -430,7 +486,6 @@ fun FullPlayer(
                             .align(Alignment.CenterStart)
                             .background(Color.White)
                     )
-                    // Thumb (sits at the end of the filled portion)
                     Box(
                         modifier = Modifier
                             .size(12.dp)
@@ -446,7 +501,6 @@ fun FullPlayer(
                     )
                 }
 
-                // Times
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -454,12 +508,12 @@ fun FullPlayer(
                     Text(
                         text = formatTime(currentPositionMs),
                         color = Color.White.copy(alpha = 0.55f),
-                        fontSize = 11.sp,
+                        fontSize = 11.sp
                     )
                     Text(
                         text = "-" + formatTime((durationMs - currentPositionMs).coerceAtLeast(0L)),
                         color = Color.White.copy(alpha = 0.55f),
-                        fontSize = 11.sp,
+                        fontSize = 11.sp
                     )
                 }
 
@@ -548,7 +602,6 @@ fun FullPlayer(
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(12.dp))
-                    // Track + fill
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -572,11 +625,11 @@ fun FullPlayer(
                     ) {
                         Box(
                             modifier = Modifier
-                            .fillMaxWidth()
-                            .height(3.dp)
-                            .clip(RoundedCornerShape(1.5.dp))
-                            .align(Alignment.CenterStart)
-                            .background(Color.White.copy(alpha = 0.20f))
+                                .fillMaxWidth()
+                                .height(3.dp)
+                                .clip(RoundedCornerShape(1.5.dp))
+                                .align(Alignment.CenterStart)
+                                .background(Color.White.copy(alpha = 0.20f))
                         )
                         Box(
                             modifier = Modifier
@@ -586,7 +639,6 @@ fun FullPlayer(
                                 .align(Alignment.CenterStart)
                                 .background(Color.White.copy(alpha = 0.75f))
                         )
-                        // Thumb
                         Box(
                             modifier = Modifier
                                 .size(10.dp)
@@ -635,7 +687,6 @@ fun FullPlayer(
                             modifier = Modifier.size(20.dp)
                         )
                     }
-                    // Repeat-1 pill — circle with "1" inside
                     Box(
                         modifier = Modifier
                             .size(48.dp)
@@ -647,14 +698,8 @@ fun FullPlayer(
                             ) { view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            "1",
-                            color = Color.White,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Text("1", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     }
-                    // Repeat-∞ pill — circle with ∞ inside
                     Box(
                         modifier = Modifier
                             .size(48.dp)
@@ -666,12 +711,7 @@ fun FullPlayer(
                             ) { view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            "∞",
-                            color = Color.White,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Normal
-                        )
+                        Text("∞", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Normal)
                     }
                     Box(
                         modifier = Modifier
@@ -718,5 +758,3 @@ private fun formatTime(ms: Long): String {
     val s = ms / 1000
     return "%d:%02d".format(s / 60, s % 60)
 }
-
-
