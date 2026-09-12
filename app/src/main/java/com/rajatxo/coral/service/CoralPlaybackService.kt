@@ -1,8 +1,11 @@
 package com.rajatxo.coral.service
 
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.rajatxo.coral.MainActivity
@@ -26,11 +29,24 @@ class CoralPlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
 
-        // Build the ExoPlayer with the Studio Clarity audio processor.
-        // @UnstableApi: ExoPlayer.Builder.setAudioProcessors is experimental.
-        val player = ExoPlayer.Builder(this)
-            .setAudioProcessors(arrayOf(clarityProcessor))
-            .build()
+        // Build ExoPlayer with a custom RenderersFactory that injects the
+        // Studio Clarity audio processor into the audio sink.
+        // (Same approach as LastWave — override buildAudioSink)
+        val renderersFactory = object : DefaultRenderersFactory(this) {
+            override fun buildAudioSink(
+                context: Context,
+                enableFloatOutput: Boolean,
+                enableAudioTrackPlaybackParams: Boolean
+            ): androidx.media3.exoplayer.audio.AudioSink {
+                return DefaultAudioSink.Builder(context)
+                    .setEnableFloatOutput(enableFloatOutput)
+                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                    .setAudioProcessors(arrayOf(clarityProcessor))
+                    .build()
+            }
+        }
+
+        val player = ExoPlayer.Builder(this, renderersFactory).build()
 
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
