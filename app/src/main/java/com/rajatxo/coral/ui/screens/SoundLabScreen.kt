@@ -139,7 +139,7 @@ fun SoundLabScreen() {
                     tint = Color.White.copy(alpha = 0.5f),
                     modifier = Modifier.size(24.dp)
                 )
-            )
+            }
 
             Text(
                 text = "3D Audio Controller",
