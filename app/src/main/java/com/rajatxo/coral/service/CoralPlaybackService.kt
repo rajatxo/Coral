@@ -6,14 +6,32 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.rajatxo.coral.MainActivity
+import com.rajatxo.coral.audio.StudioClarityProcessor
+import com.rajatxo.coral.data.prefs.SoundHapticsManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 
 class CoralPlaybackService : MediaSessionService() {
 
     private var mediaSession: MediaSession? = null
+    private val clarityProcessor = StudioClarityProcessor()
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var clarityObserver: Job? = null
 
     override fun onCreate() {
         super.onCreate()
-        val player = ExoPlayer.Builder(this).build()
+
+        // Build the ExoPlayer with the Studio Clarity audio processor attached.
+        // The processor checks SoundHapticsManager.studioClarityEnabled on every
+        // buffer — when the toggle is on, the 8-band DSP chain runs. When off,
+        // audio passes through unchanged.
+        val player = ExoPlayer.Builder(this)
+            .setAudioEffects(clarityProcessor)
+            .build()
 
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
@@ -24,6 +42,15 @@ class CoralPlaybackService : MediaSessionService() {
         mediaSession = MediaSession.Builder(this, player)
             .setSessionActivity(pendingIntent)
             .build()
+
+        // Observe the studio clarity toggle — when it changes, the processor
+        // automatically picks it up on the next audio buffer (via isActive()).
+        // No need to reconfigure the player — just flush the processor.
+        clarityObserver = serviceScope.launch {
+            SoundHapticsManager.studioClarityEnabled.collect { enabled ->
+                clarityProcessor.flush()
+            }
+        }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
@@ -38,6 +65,7 @@ class CoralPlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        clarityObserver?.cancel()
         mediaSession?.player?.release()
         mediaSession?.release()
         super.onDestroy()
