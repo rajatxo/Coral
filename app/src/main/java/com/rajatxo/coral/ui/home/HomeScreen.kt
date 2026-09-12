@@ -1166,6 +1166,9 @@ private fun DraggableTabCapsule(
                             while (true) {
                                 val down = awaitFirstDown()
                                 isLongPressActivated = false
+                                // Track initial touch position to detect swipe vs hold
+                                val initialX = down.position.x
+                                val initialY = down.position.y
 
                                 countdownJob?.cancel()
                                 countdownJob = scope.launch {
@@ -1202,8 +1205,17 @@ private fun DraggableTabCapsule(
                                         break
                                     }
 
+                                    // Cancel countdown if finger moved (it's a swipe, not a hold)
+                                    if (!isDragging && !isLongPressActivated) {
+                                        val movedX = kotlin.math.abs(change.position.x - initialX)
+                                        val movedY = kotlin.math.abs(change.position.y - initialY)
+                                        if (movedX > 20f || movedY > 20f) {
+                                            countdownJob?.cancel()
+                                            showBubble = false
+                                        }
+                                    }
+
                                     if (isDragging) {
-                                        // Follow finger — update both X and Y
                                         val newX = (currentXpx + change.position.x - capsuleWidth / 2f + capsuleWidth / 2f)
                                             .coerceIn(capsuleWidth / 2f, screenSize.width - capsuleWidth / 2f)
                                         val newY = (currentYpx + change.position.y - capsuleHeight / 2f + capsuleHeight / 2f)
