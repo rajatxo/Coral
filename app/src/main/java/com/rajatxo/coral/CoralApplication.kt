@@ -17,6 +17,7 @@ class CoralApplication : Application() {
         // from the very first frame (no flash of system font).
         FontManager.init(this)
         com.rajatxo.coral.data.prefs.SearchFabPosition.init(this)
+        com.rajatxo.coral.data.prefs.TabCapsulePosition.init(this)
         com.rajatxo.coral.data.prefs.SoundHapticsManager.init(this)
         com.rajatxo.coral.data.premium.SleepTimer.init(this) {
             // onComplete callback — we can't call MediaController directly

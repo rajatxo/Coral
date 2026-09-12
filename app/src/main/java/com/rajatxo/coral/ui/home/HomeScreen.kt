@@ -355,21 +355,17 @@ fun HomeScreen(
             )
         }
 
-        // --- Tab Capsule (nav bar — Coral's tab switcher) ---
-        // Glossy white pill with black string + black text. Center is ~85dp
-        // from the bottom of the screen (above the system navigation buttons).
-        com.rajatxo.coral.ui.components.TabCapsule(
+        // --- Draggable Tab Capsule (nav bar — long-press to drag anywhere) ---
+        // Same pattern as the search FAB: hold for 3 seconds → enter drag mode
+        // → drag anywhere on screen → release to pin. Position persists.
+        DraggableTabCapsule(
             tabs = CoralTab.values().toList(),
             activeTab = selectedTab,
             onTabSelected = { tab ->
                 selectedTab = tab
                 selectedPlaylist = null
             },
-            backdrop = glassBackdrop,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(bottom = 27.dp)
+            backdrop = glassBackdrop
         )
 
         // Add bottom padding to the content area when mini player is visible,
@@ -1014,6 +1010,219 @@ private fun DraggableSearchFab() {
                     contentDescription = "Search",
                     tint = Color.Black,
                     modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+    }
+}
+
+// =============================================================================
+// DraggableTabCapsule
+// =============================================================================
+// Same drag pattern as DraggableSearchFab:
+//   1. Hold for 3 seconds → countdown bubble (3→2→1) → enter drag mode
+//   2. In drag mode: capsule follows finger anywhere on screen
+//   3. Release → capsule pins at current position, saved to SharedPreferences
+//   4. Position restored on app restart
+//
+// When NOT in drag mode: capsule handles horizontal swipes for tab switching
+// (the TabCapsule's own pointerInput handles that).
+//
+// The capsule can be placed ANYWHERE on screen — left, right, top, bottom.
+// Both X and Y are saved as fractions of screen size.
+// =============================================================================
+
+@Composable
+private fun DraggableTabCapsule(
+    tabs: List<CoralTab>,
+    activeTab: CoralTab,
+    onTabSelected: (CoralTab) -> Unit,
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop?
+) {
+    val savedPosition by com.rajatxo.coral.data.prefs.TabCapsulePosition.position.collectAsState()
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val scope = rememberCoroutineScope()
+
+    var screenSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+    var currentXpx by remember { mutableStateOf(0f) }
+    var currentYpx by remember { mutableStateOf(0f) }
+    var isDragging by remember { mutableStateOf(false) }
+    var isLongPressActivated by remember { mutableStateOf(false) }
+    var countdownJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+
+    var showBubble by remember { mutableStateOf(false) }
+    var countdownNumber by remember { mutableStateOf(3) }
+
+    val bubbleScale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (showBubble) 1f else 0f,
+        animationSpec = androidx.compose.animation.core.spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+        ),
+        label = "bubbleScale"
+    )
+    val bubbleAlpha by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (showBubble) 1f else 0f,
+        animationSpec = androidx.compose.animation.core.tween(250),
+        label = "bubbleAlpha"
+    )
+
+    val capsuleScale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (isDragging) 1.1f else 1f,
+        animationSpec = androidx.compose.animation.core.spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+        ),
+        label = "capsuleScale"
+    )
+
+    val capsuleWidth = with(density) { 240.dp.toPx() }
+    val capsuleHeight = with(density) { 52.dp.toPx() }
+
+    androidx.compose.runtime.LaunchedEffect(savedPosition, screenSize) {
+        if (screenSize.width > 0 && screenSize.height > 0) {
+            currentXpx = savedPosition.first * screenSize.width
+            currentYpx = savedPosition.second * screenSize.height
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .onSizeChanged { screenSize = it }
+    ) {
+        if (screenSize.width > 0 && screenSize.height > 0) {
+
+            // --- Countdown speech bubble (above the capsule) ---
+            if (bubbleAlpha > 0.01f) {
+                Box(
+                    modifier = Modifier
+                        .offset {
+                            androidx.compose.ui.unit.IntOffset(
+                                (currentXpx - with(density) { 60.dp.toPx() }).toInt(),
+                                (currentYpx - capsuleHeight - with(density) { 50.dp.toPx() }).toInt()
+                            )
+                        }
+                        .graphicsLayer {
+                            scaleX = bubbleScale
+                            scaleY = bubbleScale
+                            alpha = bubbleAlpha
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color(0xFF1A1A1A))
+                            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "Hold to move in",
+                                color = Color.White.copy(alpha = 0.8f),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(26.dp)
+                                    .clip(RoundedCornerShape(13.dp))
+                                    .background(Color.White),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = countdownNumber.toString(),
+                                    color = Color.Black,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // --- The capsule (positioned via offset, draggable) ---
+            Box(
+                modifier = Modifier
+                    .offset {
+                        androidx.compose.ui.unit.IntOffset(
+                            (currentXpx - capsuleWidth / 2f).toInt()
+                                .coerceIn(0, (screenSize.width - capsuleWidth).toInt()),
+                            (currentYpx - capsuleHeight / 2f).toInt()
+                                .coerceIn(0, (screenSize.height - capsuleHeight).toInt())
+                        )
+                    }
+                    .graphicsLayer {
+                        scaleX = capsuleScale
+                        scaleY = capsuleScale
+                    }
+                    .pointerInput(tabs, activeTab) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val down = awaitFirstDown()
+                                isLongPressActivated = false
+
+                                countdownJob?.cancel()
+                                countdownJob = scope.launch {
+                                    delay(2000L)
+                                    showBubble = true
+                                    countdownNumber = 3
+                                    delay(1000L)
+                                    countdownNumber = 2
+                                    delay(1000L)
+                                    countdownNumber = 1
+                                    delay(1000L)
+                                    showBubble = false
+                                    isLongPressActivated = true
+                                    isDragging = true
+                                }
+
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.firstOrNull() ?: break
+
+                                    if (!change.pressed) {
+                                        if (isLongPressActivated) {
+                                            val newXFraction = (currentXpx / screenSize.width)
+                                                .coerceIn(0.05f, 0.95f)
+                                            val newYFraction = (currentYpx / screenSize.height)
+                                                .coerceIn(0.05f, 0.95f)
+                                            com.rajatxo.coral.data.prefs.TabCapsulePosition
+                                                .setPosition(newXFraction, newYFraction)
+                                        }
+                                        isDragging = false
+                                        isLongPressActivated = false
+                                        showBubble = false
+                                        countdownJob?.cancel()
+                                        break
+                                    }
+
+                                    if (isDragging) {
+                                        // Follow finger — update both X and Y
+                                        val newX = (currentXpx + change.position.x - capsuleWidth / 2f + capsuleWidth / 2f)
+                                            .coerceIn(capsuleWidth / 2f, screenSize.width - capsuleWidth / 2f)
+                                        val newY = (currentYpx + change.position.y - capsuleHeight / 2f + capsuleHeight / 2f)
+                                            .coerceIn(capsuleHeight / 2f, screenSize.height - capsuleHeight / 2f)
+                                        currentXpx = newX
+                                        currentYpx = newY
+                                        change.consume()
+                                    }
+                                }
+                            }
+                        }
+                    }
+            ) {
+                com.rajatxo.coral.ui.components.TabCapsule(
+                    tabs = tabs,
+                    activeTab = activeTab,
+                    onTabSelected = onTabSelected,
+                    backdrop = backdrop,
+                    modifier = Modifier
                 )
             }
         }
