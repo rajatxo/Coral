@@ -295,8 +295,8 @@ fun FullPlayer(
                                 .padding(horizontal = 20.dp, vertical = 14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(CoralIcons.Heart, null, Color.White, Modifier.size(18.dp))
-                            Text("Add to playlist", Color.White, 14.sp, FontWeight.Medium)
+                            Icon(imageVector = CoralIcons.Heart, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Text(text = "Add to playlist", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                         }
                     }
                 }
@@ -425,7 +425,7 @@ fun FullPlayer(
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(CoralIcons.SkipPrev, "Previous", Color.White, Modifier.size(32.dp))
+                    Icon(imageVector = CoralIcons.SkipPrev, contentDescription = "Previous", tint = Color.White, modifier = Modifier.size(32.dp))
                 }
 
                 // Play / Pause
@@ -459,7 +459,7 @@ fun FullPlayer(
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(CoralIcons.SkipNext, "Next", Color.White, Modifier.size(32.dp))
+                    Icon(imageVector = CoralIcons.SkipNext, contentDescription = "Next", tint = Color.White, modifier = Modifier.size(32.dp))
                 }
             }
 
@@ -504,7 +504,7 @@ fun FullPlayer(
                         .clickable { showLyrics = true },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(CoralIcons.Queue, "Lyrics", Color.White, Modifier.size(22.dp))
+                    Icon(imageVector = CoralIcons.Queue, contentDescription = "Lyrics", tint = Color.White, modifier = Modifier.size(22.dp))
                 }
 
                 // Shuffle
@@ -518,7 +518,7 @@ fun FullPlayer(
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(CoralIcons.Shuffle, "Shuffle", Color.White.copy(alpha = 0.7f), Modifier.size(22.dp))
+                    Icon(imageVector = CoralIcons.Shuffle, contentDescription = "Shuffle", tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(22.dp))
                 }
             }
 
