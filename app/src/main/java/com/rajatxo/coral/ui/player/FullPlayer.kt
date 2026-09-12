@@ -2,18 +2,18 @@ package com.rajatxo.coral.ui.player
 
 import android.net.Uri
 import android.view.HapticFeedbackConstants
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -32,14 +31,17 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -60,29 +62,8 @@ import com.rajatxo.coral.ui.theme.PlayfairItalicFamily
 import com.rajatxo.coral.util.CoralPalette
 import com.rajatxo.coral.util.extractPalette
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
-/**
- * FullPlayer — BitChord cover + Immersive gradient blend.
- *
- * WHAT THIS COMBINES:
- *
- * FROM BITCHORD (cover treatment):
- *   - Album art is NOT full-screen. It's a moderate size (~75% of screen width)
- *   - Quality stays high (not stretched)
- *   - Cover sits in the upper portion, centered, with rounded corners
- *
- * FROM IMMERSIVE (background color):
- *   - The background is a SOLID color derived from the album art's palette
- *   - Uses HSL color science (ported from ArchiveTune's deriveArtworkSurfaceColor)
- *   - The cover's bottom edge blends smoothly into the background via gradient
- *   - The color is darkened/saturated to look premium (not muddy like BitChord)
- *
- * RESULT:
- *   - Cover: moderate size, high quality, sits on top
- *   - Background: immersive color from the album art
- *   - Blend: smooth gradient from cover bottom → immersive color
- *   - No full-screen art stretching, no muddy colors
- */
 @Composable
 fun FullPlayer(
     mediaController: MediaController?,
@@ -101,538 +82,128 @@ fun FullPlayer(
 ) {
     val context = LocalContext.current
     val view = LocalView.current
+    val scope = rememberCoroutineScope()
 
-    // ---------- Palette extraction ----------
     var palette by remember { mutableStateOf(CoralPalette.Default) }
-    LaunchedEffect(albumArtUri) {
-        extractPalette(context, albumArtUri)?.let { palette = it }
-    }
+    LaunchedEffect(albumArtUri) { extractPalette(context, albumArtUri)?.let { palette = it } }
 
-    // ---------- Immersive surface color (ArchiveTune approach) ----------
-    // Uses HSL color science to derive a premium-looking dark color
-    // from the album art's dominant color.
     val immersiveColor = remember(palette) {
-        deriveArtworkSurfaceColor(
-            sourceColor = palette.primary,
-            darkLightness = 0.16f,
-            darkSaturationRange = 0.32f..0.54f
-        )
+        val hsl = FloatArray(3)
+        androidx.core.graphics.ColorUtils.colorToHSL(palette.primary.toArgb(), hsl)
+        hsl[2] = 0.16f
+        hsl[1] = if (hsl[1] < 0.06f) 0f else hsl[1].coerceIn(0.32f, 0.54f)
+        Color(androidx.core.graphics.ColorUtils.HSLToColor(hsl))
     }
 
-    // ---------- Position polling ----------
     var currentPositionMs by remember { mutableStateOf(0L) }
     var durationMs by remember { mutableStateOf(0L) }
-    var isSeeking by remember { mutableStateOf(false) }
-    var seekPosition by remember { mutableStateOf(0f) }
     LaunchedEffect(mediaController, isPlaying) {
         while (true) {
-            try {
-                mediaController?.let { controller ->
-                    currentPositionMs = controller.currentPosition.coerceAtLeast(0L)
-                    durationMs = controller.duration.coerceAtLeast(0L)
-                }
-            } catch (_: Exception) { }
+            try { mediaController?.let { currentPositionMs = it.currentPosition.coerceAtLeast(0L); durationMs = it.duration.coerceAtLeast(0L) } } catch (_: Exception) { }
             delay(if (isPlaying) 200L else 1000L)
         }
     }
 
-    val effectiveProgress = if (isSeeking) {
-        seekPosition
-    } else if (durationMs > 0) {
-        (currentPositionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
-    } else 0f
-
-    // ---------- Favorite ----------
     val favorites by PlaylistStore.favorites.collectAsState()
     val isFavorite = songId != null && songId in favorites.songIds
-    var showHeartPop by remember { mutableStateOf(false) }
-    val heartPopScale by animateFloatAsState(
-        targetValue = if (showHeartPop) 1f else 0f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
-        label = "heartPop"
-    )
-    LaunchedEffect(songId) { showHeartPop = false }
-    LaunchedEffect(showHeartPop) {
-        if (showHeartPop) { delay(600); showHeartPop = false }
-    }
-
-    // ---------- Lyrics ----------
     var showLyrics by remember { mutableStateOf(false) }
 
-    // ---------- Layout ----------
-    Box(modifier = Modifier.fillMaxSize().background(immersiveColor)) {
+    val wheelRotation = remember { Animatable(0f) }
+    fun spinWheel(direction: Int) {
+        scope.launch {
+            wheelRotation.animateTo(wheelRotation.value + direction * 120f, spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium))
+            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+        }
+    }
 
-        // Layer 1: Blurred album art backdrop (very subtle, fills bg)
+    Box(modifier = Modifier.fillMaxSize().background(immersiveColor)) {
         if (albumArtUri != null) {
-            AsyncImage(
-                model = albumArtUri,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        alpha = 0.15f
-                        scaleX = 1.2f
-                        scaleY = 1.2f
-                    }
-            )
+            AsyncImage(model = albumArtUri, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         }
 
-        // Layer 2: Solid immersive color overlay (covers the blurred bg
-        // except where the cover art sits — the cover is drawn on top)
-        // This makes the bg a clean immersive color, not a blurred image.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(immersiveColor.copy(alpha = 0.92f))
-        )
-
-        // Layer 3: Content
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-        ) {
-            // ---- Top bar ----
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.12f))
-                        .clickable(onClick = onDismiss),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = CoralIcons.ChevronDown,
-                        contentDescription = "Collapse",
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
-                    )
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val w = size.width; val h = size.height; val arcY = h * 0.58f
+            val bumpCount = 7; val bumpRadius = w / (bumpCount * 2f)
+            val p = Path().apply {
+                moveTo(0f, h); lineTo(0f, arcY)
+                for (i in 0 until bumpCount) {
+                    val cx = bumpRadius + i * bumpRadius * 2f
+                    arcTo(androidx.compose.ui.geometry.Rect(cx - bumpRadius, arcY - bumpRadius, cx + bumpRadius, arcY + bumpRadius), 0f, 180f, false)
                 }
+                lineTo(w, h); close()
+            }
+            drawPath(p, immersiveColor)
+        }
 
-                Text(
-                    text = "NOW PLAYING",
-                    color = Color.White.copy(alpha = 0.5f),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.5.sp
-                )
-
+        Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.12f)).clickable(onClick = onDismiss), contentAlignment = Alignment.Center) {
+                    Icon(imageVector = CoralIcons.ChevronDown, contentDescription = "Collapse", tint = Color.White, modifier = Modifier.size(22.dp))
+                }
+                Text("NOW PLAYING", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp)
                 var showMoreMenu by remember { mutableStateOf(false) }
                 Box {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.12f))
-                            .clickable { showMoreMenu = true },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = CoralIcons.MoreVertical,
-                            contentDescription = "More",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
+                    Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.12f)).clickable { showMoreMenu = true }, contentAlignment = Alignment.Center) {
+                        Icon(imageVector = CoralIcons.MoreVertical, contentDescription = "More", tint = Color.White, modifier = Modifier.size(18.dp))
                     }
-                    androidx.compose.material3.DropdownMenu(
-                        expanded = showMoreMenu,
-                        onDismissRequest = { showMoreMenu = false },
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color(0xFF1A1A1A))
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .clickable {
-                                    showMoreMenu = false
-                                    songId?.let { onAddToPlaylist(it) }
-                                }
-                                .padding(horizontal = 20.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = CoralIcons.Heart,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = "Add to playlist",
-                                color = Color.White,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium
-                            )
+                    androidx.compose.material3.DropdownMenu(expanded = showMoreMenu, onDismissRequest = { showMoreMenu = false }, modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(Color(0xFF1A1A1A))) {
+                        Row(modifier = Modifier.clickable { showMoreMenu = false; songId?.let { onAddToPlaylist(it) } }.padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(imageVector = CoralIcons.Heart, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.size(12.dp))
+                            Text("Add to playlist", Color.White, 14.sp, fontWeight = FontWeight.Medium)
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Column(modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 24.dp), verticalArrangement = Arrangement.Bottom, horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(title, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Medium, fontFamily = PlayfairItalicFamily, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.padding(bottom = 20.dp))
+                Text(artist, color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp, fontFamily = NyghtSerifFamily, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.padding(bottom = 8.dp))
+            }
 
-            // ---- Album art (BitChord size — NOT full screen) ----
-            // ~75% of screen width, centered, high quality, rounded corners
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 48.dp)
-                    .aspectRatio(1f)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xFF1A1A1A))
-                    .pointerInput(title) {
-                        detectTapGestures(
-                            onDoubleTap = {
-                                if (songId != null) {
-                                    val nowFav = PlaylistStore.toggleFavorite(songId)
-                                    if (nowFav) showHeartPop = true
-                                }
-                            }
-                        )
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                if (albumArtUri != null) {
-                    AsyncImage(
-                        model = albumArtUri,
-                        contentDescription = "Album art for $title",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Icon(
-                        imageVector = CoralIcons.Music,
-                        contentDescription = null,
-                        tint = Color(0xFF444444),
-                        modifier = Modifier.size(64.dp)
-                    )
-                }
-
-                // Heart pop
-                if (heartPopScale > 0.01f) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = CoralIcons.HeartFilled,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = heartPopScale * 0.9f),
-                            modifier = Modifier
-                                .size(80.dp)
-                                .scale(heartPopScale)
-                        )
+            Box(modifier = Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
+                Canvas(modifier = Modifier.size(100.dp).pointerInput(Unit) { detectDragGestures(onDragEnd = {}, onHorizontalDrag = { c, d -> c.consume(); if (d > 30f) { spinWheel(-1); onPrevClick() } else if (d < -30f) { spinWheel(1); onNextClick() } } }) }) {
+                    val cx = size.width / 2f; val cy = size.height / 2f; val r = minOf(size.width, size.height) / 2f - 4f
+                    drawCircle(Color.White.copy(alpha = 0.15f), r, Offset(cx, cy), style = Stroke(width = 2.dp.toPx()))
+                    rotate(wheelRotation.value) {
+                        drawCircle(Color(0xFFFF6B6B), 6.dp.toPx(), Offset(cx, cy - r))
+                        drawCircle(Color(0xFFFF6B6B).copy(alpha = 0.3f), 10.dp.toPx(), Offset(cx, cy - r))
                     }
+                    drawCircle(Color.White.copy(alpha = 0.3f), 3.dp.toPx(), Offset(cx, cy))
                 }
             }
 
-            // ---- Gradient blend (cover bottom → immersive color) ----
-            // A small gradient that transitions from the cover area to the
-            // immersive background, so there's no hard edge.
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(32.dp)
-                    .background(
-                        Brush.verticalGradient(
-                            0f to immersiveColor.copy(alpha = 0f),
-                            1f to immersiveColor.copy(alpha = 1f)
-                        )
-                    )
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // ---- Title + Artist ----
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = title,
-                    color = Color.White,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Medium,
-                    fontFamily = PlayfairItalicFamily,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = artist,
-                    color = Color.White.copy(alpha = 0.6f),
-                    fontSize = 14.sp,
-                    fontFamily = NyghtSerifFamily,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center
-                )
+            val progress = if (durationMs > 0) (currentPositionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
+            Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).height(20.dp).pointerInput(durationMs) { detectDragGestures(onDragEnd = {}, onHorizontalDrag = { c, _ -> if (durationMs > 0) { onSeek(((c.position.x / size.width).coerceIn(0f, 1f) * durationMs).toLong()) } } }) }) {
+                Box(modifier = Modifier.fillMaxWidth().height(2.dp).clip(RoundedCornerShape(1.dp)).align(Alignment.CenterStart).background(Color.White.copy(alpha = 0.15f)))
+                Box(modifier = Modifier.fillMaxWidth(progress).height(2.dp).clip(RoundedCornerShape(1.dp)).align(Alignment.CenterStart).background(Color(0xFFFF6B6B)))
             }
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            // ---- Progress bar ----
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .height(24.dp)
-                    .pointerInput(durationMs) {
-                        detectTapGestures(
-                            onTap = { offset ->
-                                if (durationMs > 0) {
-                                    val fraction = (offset.x / size.width).coerceIn(0f, 1f)
-                                    onSeek((fraction * durationMs).toLong())
-                                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                                }
-                            }
-                        )
-                    }
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(3.dp)
-                        .align(Alignment.CenterStart)
-                        .clip(RoundedCornerShape(1.5.dp))
-                        .background(Color.White.copy(alpha = 0.15f))
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(effectiveProgress)
-                        .height(3.dp)
-                        .align(Alignment.CenterStart)
-                        .clip(RoundedCornerShape(1.5.dp))
-                        .background(Color(0xFFFF6B6B))
-                )
-                Box(
-                    modifier = Modifier
-                        .size(12.dp)
-                        .align(Alignment.CenterStart)
-                        .graphicsLayer {
-                            translationX = effectiveProgress * (size.width - 12.dp.toPx())
-                        }
-                        .clip(CircleShape)
-                        .background(Color(0xFFFF6B6B))
-                )
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = formatTime(if (isSeeking) (seekPosition * durationMs).toLong() else currentPositionMs),
-                    color = Color.White.copy(alpha = 0.4f),
-                    fontSize = 11.sp
-                )
-                Text(
-                    text = formatTime(durationMs),
-                    color = Color.White.copy(alpha = 0.4f),
-                    fontSize = 11.sp
-                )
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(formatTime(currentPositionMs), Color.White.copy(alpha = 0.4f), 11.sp)
+                Text(formatTime(durationMs), Color.White.copy(alpha = 0.4f), 11.sp)
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // ---- Transport controls ----
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .clickable {
-                            onPrevClick()
-                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = CoralIcons.SkipPrev,
-                        contentDescription = "Previous",
-                        tint = Color.White,
-                        modifier = Modifier.size(32.dp)
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFFF6B6B))
-                        .clickable {
-                            onPlayPauseClick()
-                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = if (isPlaying) CoralIcons.Pause else CoralIcons.Play,
-                        contentDescription = if (isPlaying) "Pause" else "Play",
-                        tint = Color.White,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .clickable {
-                            onNextClick()
-                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = CoralIcons.SkipNext,
-                        contentDescription = "Next",
-                        tint = Color.White,
-                        modifier = Modifier.size(32.dp)
-                    )
-                }
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.size(48.dp).clip(CircleShape).clickable { spinWheel(-1); onPrevClick() }, contentAlignment = Alignment.Center) { Icon(imageVector = CoralIcons.SkipPrev, contentDescription = "Previous", tint = Color.White, modifier = Modifier.size(32.dp)) }
+                Box(modifier = Modifier.size(64.dp).clip(CircleShape).background(Color(0xFFFF6B6B)).clickable { onPlayPauseClick(); view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) }, contentAlignment = Alignment.Center) { Icon(imageVector = if (isPlaying) CoralIcons.Pause else CoralIcons.Play, contentDescription = "Play/Pause", tint = Color.White, modifier = Modifier.size(28.dp)) }
+                Box(modifier = Modifier.size(48.dp).clip(CircleShape).clickable { spinWheel(1); onNextClick() }, contentAlignment = Alignment.Center) { Icon(imageVector = CoralIcons.SkipNext, contentDescription = "Next", tint = Color.White, modifier = Modifier.size(32.dp)) }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // ---- Bottom row ----
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.08f))
-                        .clickable {
-                            if (songId != null) {
-                                PlaylistStore.toggleFavorite(songId)
-                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                            }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = if (isFavorite) CoralIcons.HeartFilled else CoralIcons.Heart,
-                        contentDescription = if (isFavorite) "Unfavorite" else "Favorite",
-                        tint = if (isFavorite) palette.accent else Color.White,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.08f))
-                        .clickable { showLyrics = true },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = CoralIcons.Queue,
-                        contentDescription = "Lyrics",
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.08f))
-                        .clickable {
-                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = CoralIcons.Shuffle,
-                        contentDescription = "Shuffle",
-                        tint = Color.White.copy(alpha = 0.7f),
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 48.dp, vertical = 8.dp).height(44.dp).clip(RoundedCornerShape(22.dp)).background(Color.White.copy(alpha = 0.08f)), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.size(36.dp).clip(CircleShape).clickable { view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) }, contentAlignment = Alignment.Center) { Icon(imageVector = CoralIcons.Shuffle, contentDescription = "Shuffle", tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(20.dp)) }
+                Box(modifier = Modifier.size(36.dp).clip(CircleShape).clickable { showLyrics = true }, contentAlignment = Alignment.Center) { Icon(imageVector = CoralIcons.Queue, contentDescription = "Lyrics", tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(20.dp)) }
+                Box(modifier = Modifier.size(36.dp).clip(CircleShape).clickable { if (songId != null) { PlaylistStore.toggleFavorite(songId); view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) } }, contentAlignment = Alignment.Center) { Icon(imageVector = if (isFavorite) CoralIcons.HeartFilled else CoralIcons.Heart, contentDescription = "Favorite", tint = if (isFavorite) palette.accent else Color.White.copy(alpha = 0.7f), modifier = Modifier.size(20.dp)) }
             }
         }
 
-        // ---- Lyrics sheet ----
         if (showLyrics) {
-            LyricsSheet(
-                trackName = title,
-                artistName = artist,
-                albumName = albumName,
-                durationMs = durationMs,
-                currentPositionMs = currentPositionMs,
-                isPlaying = isPlaying,
-                onDismiss = { showLyrics = false },
-                onSeek = onSeek
-            )
+            LyricsSheet(trackName = title, artistName = artist, albumName = albumName, durationMs = durationMs, currentPositionMs = currentPositionMs, isPlaying = isPlaying, onDismiss = { showLyrics = false }, onSeek = onSeek)
         }
     }
 }
 
-/**
- * Derives a premium-looking dark surface color from the album art's
- * dominant color. Uses HSL color science (ported from ArchiveTune's
- * deriveArtworkSurfaceColor).
- *
- * This produces colors that are:
- *   - Dark (lightness ~0.16, good for white text)
- *   - Saturated (0.32-0.54 saturation range — not muddy gray)
- *   - Hue-preserving (keeps the album's color character)
- *
- * @param sourceColor The dominant color from the album art
- * @param darkLightness Target lightness for dark mode (0.0 = black, 1.0 = white)
- * @param darkSaturationRange Clamp saturation to this range (prevents neon/muddy)
- */
-private fun deriveArtworkSurfaceColor(
-    sourceColor: Color,
-    darkLightness: Float = 0.16f,
-    darkSaturationRange: ClosedFloatingPointRange<Float> = 0.32f..0.54f,
-    monochromeSaturationThreshold: Float = 0.06f
-): Color {
-    val hsl = FloatArray(3)
-    androidx.core.graphics.ColorUtils.colorToHSL(sourceColor.toArgb(), hsl)
-    val isMonochrome = hsl[1] < monochromeSaturationThreshold
-    hsl[2] = darkLightness
-    hsl[1] = if (isMonochrome) {
-        0f
-    } else {
-        hsl[1].coerceIn(darkSaturationRange.start, darkSaturationRange.endInclusive)
-    }
-    return Color(androidx.core.graphics.ColorUtils.HSLToColor(hsl))
-}
-
-private fun formatTime(ms: Long): String {
-    val totalSec = ms / 1000
-    val min = totalSec / 60
-    val sec = totalSec % 60
-    return "%d:%02d".format(min, sec)
-}
+private fun formatTime(ms: Long): String { val s = ms / 1000; return "%d:%02d".format(s / 60, s % 60) }
