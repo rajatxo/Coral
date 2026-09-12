@@ -1050,6 +1050,18 @@ private fun DraggableTabCapsule(
     var isLongPressActivated by remember { mutableStateOf(false) }
     var countdownJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
+    // --- Grid overlay state (scientist graph paper, for alignment) ---
+    var showGrid by remember { mutableStateOf(false) }
+    val gridAlpha by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (showGrid) 1f else 0f,
+        animationSpec = androidx.compose.animation.core.tween(400),
+        label = "gridAlpha"
+    )
+
+    // --- Last touch position (for delta-based smooth dragging) ---
+    var lastTouchX by remember { mutableStateOf(0f) }
+    var lastTouchY by remember { mutableStateOf(0f) }
+
     var showBubble by remember { mutableStateOf(false) }
     var countdownNumber by remember { mutableStateOf(3) }
 
@@ -1092,6 +1104,66 @@ private fun DraggableTabCapsule(
             .onSizeChanged { screenSize = it }
     ) {
         if (screenSize.width > 0 && screenSize.height > 0) {
+
+            // --- Scientist grid overlay (fades in during drag mode) ---
+            // Graph-paper style grid for precise alignment. Fades in when
+            // drag mode starts, fades out when capsule is placed.
+            if (gridAlpha > 0.01f) {
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { alpha = gridAlpha }
+                ) {
+                    val gridSpacing = 40f  // px between grid lines
+                    val gridColor = Color.White.copy(alpha = 0.08f)
+                    val majorColor = Color.White.copy(alpha = 0.15f)
+                    val majorEvery = 4  // every 4th line is brighter
+
+                    // Vertical lines
+                    var x = 0f
+                    var i = 0
+                    while (x <= size.width) {
+                        drawLine(
+                            color = if (i % majorEvery == 0) majorColor else gridColor,
+                            start = Offset(x, 0f),
+                            end = Offset(x, size.height),
+                            strokeWidth = if (i % majorEvery == 0) 1.5f else 0.8f
+                        )
+                        x += gridSpacing
+                        i++
+                    }
+
+                    // Horizontal lines
+                    var y = 0f
+                    i = 0
+                    while (y <= size.height) {
+                        drawLine(
+                            color = if (i % majorEvery == 0) majorColor else gridColor,
+                            start = Offset(0f, y),
+                            end = Offset(size.width, y),
+                            strokeWidth = if (i % majorEvery == 0) 1.5f else 0.8f
+                        )
+                        y += gridSpacing
+                        i++
+                    }
+
+                    // Center crosshair (brighter, for alignment reference)
+                    val cx = size.width / 2f
+                    val cy = size.height / 2f
+                    drawLine(
+                        color = Color(0xFFFF6B6B).copy(alpha = 0.3f),
+                        start = Offset(cx - 30f, cy),
+                        end = Offset(cx + 30f, cy),
+                        strokeWidth = 2f
+                    )
+                    drawLine(
+                        color = Color(0xFFFF6B6B).copy(alpha = 0.3f),
+                        start = Offset(cx, cy - 30f),
+                        end = Offset(cx, cy + 30f),
+                        strokeWidth = 2f
+                    )
+                }
+            }
 
             // --- Countdown speech bubble (above the capsule) ---
             if (bubbleAlpha > 0.01f) {
@@ -1166,9 +1238,10 @@ private fun DraggableTabCapsule(
                             while (true) {
                                 val down = awaitFirstDown()
                                 isLongPressActivated = false
-                                // Track initial touch position to detect swipe vs hold
                                 val initialX = down.position.x
                                 val initialY = down.position.y
+                                lastTouchX = down.position.x
+                                lastTouchY = down.position.y
 
                                 countdownJob?.cancel()
                                 countdownJob = scope.launch {
@@ -1183,6 +1256,11 @@ private fun DraggableTabCapsule(
                                     showBubble = false
                                     isLongPressActivated = true
                                     isDragging = true
+                                    // Show scientist grid when drag mode starts
+                                    showGrid = true
+                                    // Record current touch position as baseline for delta tracking
+                                    lastTouchX = down.position.x
+                                    lastTouchY = down.position.y
                                 }
 
                                 while (true) {
@@ -1201,11 +1279,12 @@ private fun DraggableTabCapsule(
                                         isDragging = false
                                         isLongPressActivated = false
                                         showBubble = false
+                                        showGrid = false  // hide grid when released
                                         countdownJob?.cancel()
                                         break
                                     }
 
-                                    // Cancel countdown if finger moved (it's a swipe, not a hold)
+                                    // Cancel countdown if finger moved (swipe, not hold)
                                     if (!isDragging && !isLongPressActivated) {
                                         val movedX = kotlin.math.abs(change.position.x - initialX)
                                         val movedY = kotlin.math.abs(change.position.y - initialY)
@@ -1215,13 +1294,19 @@ private fun DraggableTabCapsule(
                                         }
                                     }
 
+                                    // SMOOTH DRAGGING via delta tracking:
+                                    // Calculate how much the finger moved SINCE LAST FRAME,
+                                    // then move the capsule by the same delta. This prevents
+                                    // the jump on drag start (because the first delta is ~0).
                                     if (isDragging) {
-                                        val newX = (currentXpx + change.position.x - capsuleWidth / 2f + capsuleWidth / 2f)
+                                        val deltaX = change.position.x - lastTouchX
+                                        val deltaY = change.position.y - lastTouchY
+                                        currentXpx = (currentXpx + deltaX)
                                             .coerceIn(capsuleWidth / 2f, screenSize.width - capsuleWidth / 2f)
-                                        val newY = (currentYpx + change.position.y - capsuleHeight / 2f + capsuleHeight / 2f)
+                                        currentYpx = (currentYpx + deltaY)
                                             .coerceIn(capsuleHeight / 2f, screenSize.height - capsuleHeight / 2f)
-                                        currentXpx = newX
-                                        currentYpx = newY
+                                        lastTouchX = change.position.x
+                                        lastTouchY = change.position.y
                                         change.consume()
                                     }
                                 }
