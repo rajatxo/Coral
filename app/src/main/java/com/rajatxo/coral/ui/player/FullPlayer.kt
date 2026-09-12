@@ -165,40 +165,65 @@ fun FullPlayer(
         onDispose { context.contentResolver.unregisterContentObserver(observer) }
     }
 
-    // ─── Root Box: black base + gradient ─────────────────────────────
+    // ─── Root Box: black base + full-bleed album art ────────────────
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
 
-        // (1) Vibrant vertical gradient from album art colors
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            animatedTopColor,
-                            animatedMidColor,
-                            animatedBottomColor
+        // (1) Full-bleed album art fills the entire viewport
+        if (albumArtUri != null) {
+            AsyncImage(
+                model = albumArtUri,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(albumArtUri) {
+                        detectTapGestures(
+                            onDoubleTap = {
+                                if (songId != null) {
+                                    PlaylistStore.toggleFavorite(songId)
+                                    showHeartPop = true
+                                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                }
+                            }
                         )
-                    )
-                )
-        )
+                    }
+            )
+        }
 
-        // (2) Soft dark overlay at the bottom for text legibility
+        // (2) Dark gradient overlay — transparent at top, opaque at bottom
+        // for text legibility over the album art
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
-                            0.00f to Color.Black.copy(alpha = 0.00f),
-                            0.50f to Color.Black.copy(alpha = 0.00f),
-                            0.70f to Color.Black.copy(alpha = 0.20f),
-                            0.85f to Color.Black.copy(alpha = 0.45f),
-                            1.00f to Color.Black.copy(alpha = 0.70f)
+                            0.00f to Color.Black.copy(alpha = 0.15f),
+                            0.40f to Color.Black.copy(alpha = 0.20f),
+                            0.65f to Color.Black.copy(alpha = 0.50f),
+                            0.85f to Color.Black.copy(alpha = 0.85f),
+                            1.00f to Color.Black.copy(alpha = 0.95f)
                         )
                     )
                 )
         )
+
+        // (3) Heart pop overlay (double-tap to favorite)
+        if (showHeartPop) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    imageVector = CoralIcons.HeartFilled,
+                    contentDescription = null,
+                    colorFilter = ColorFilter.tint(
+                        if (isFavorite) palette.accent else Color.White
+                    ),
+                    modifier = Modifier.size(80.dp)
+                )
+            }
+        }
 
         // (3) Main content column — bottom-aligned, statusBarsPadding at top
         Column(
@@ -287,53 +312,7 @@ fun FullPlayer(
                 }
             }
 
-            Spacer(modifier = Modifier.weight(0.6f))
-
-            // ── Square album art with rounded corners + big shadow ────
-            // BitChord pattern: full width, ~320dp tall, 10dp corners.
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .height(320.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .shadow(20.dp, RoundedCornerShape(10.dp))
-                    .background(animatedMidColor)
-                    .pointerInput(albumArtUri) {
-                        detectTapGestures(
-                            onDoubleTap = {
-                                if (songId != null) {
-                                    PlaylistStore.toggleFavorite(songId)
-                                    showHeartPop = true
-                                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                                }
-                            }
-                        )
-                    }
-            ) {
-                AsyncImage(
-                    model = albumArtUri,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(RoundedCornerShape(10.dp))
-                )
-                if (showHeartPop) {
-                    Image(
-                        imageVector = CoralIcons.HeartFilled,
-                        contentDescription = null,
-                        colorFilter = ColorFilter.tint(
-                            if (isFavorite) palette.accent else Color.White
-                        ),
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .size(80.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.weight(0.4f))
+            Spacer(modifier = Modifier.weight(1f))
 
             // ── Bottom controls column ────────────────────────────────
             Column(
