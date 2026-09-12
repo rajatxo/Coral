@@ -26,9 +26,14 @@ class CoralPlaybackService : MediaSessionService() {
         super.onCreate()
 
         // Build the ExoPlayer with the Studio Clarity audio processor.
-        // Media3 1.5.1: DefaultRenderersFactory has setAudioProcessors().
-        val renderersFactory = androidx.media3.exoplayer.DefaultRenderersFactory(this)
+        // Media3 1.5.1: Create a DefaultAudioSink with the processor,
+        // then set it on DefaultRenderersFactory via setAudioSink().
+        val audioSink = androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(this)
             .setAudioProcessors(arrayOf(clarityProcessor))
+            .build()
+
+        val renderersFactory = androidx.media3.exoplayer.DefaultRenderersFactory(this)
+            .setAudioSink(audioSink)
 
         val player = ExoPlayer.Builder(this, renderersFactory).build()
 
