@@ -2,6 +2,7 @@ package com.rajatxo.coral.service
 
 import android.app.PendingIntent
 import android.content.Intent
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -26,12 +27,12 @@ class CoralPlaybackService : MediaSessionService() {
         super.onCreate()
 
         // Build the ExoPlayer with the Studio Clarity audio processor attached.
-        // The processor checks SoundHapticsManager.studioClarityEnabled on every
-        // buffer — when the toggle is on, the 8-band DSP chain runs. When off,
-        // audio passes through unchanged.
-        val player = ExoPlayer.Builder(this)
+        // DefaultRenderersFactory.setAudioProcessors() injects the processor
+        // into the audio rendering pipeline.
+        val renderersFactory = DefaultRenderersFactory(this)
             .setAudioProcessors(arrayOf(clarityProcessor))
-            .build()
+
+        val player = ExoPlayer.Builder(this, renderersFactory).build()
 
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
