@@ -35,6 +35,13 @@ class Biquad(
     private val b1: Double
     private val b2: Double
 
+    // Normalized coefficients (b/a0)
+    private val _b0n: Double
+    private val _b1n: Double
+    private val _b2n: Double
+    private val _a1n: Double
+    private val _a2n: Double
+
     // State (per channel — we support stereo)
     private var x1L = 0.0; private var x2L = 0.0
     private var y1L = 0.0; private var y2L = 0.0
@@ -85,12 +92,6 @@ class Biquad(
         _a1n = a1 / a0
         _a2n = a2 / a0
     }
-
-    private val _b0n: Double
-    private val _b1n: Double
-    private val _b2n: Double
-    private val _a1n: Double
-    private val _a2n: Double
 
     /** Process one sample (left channel). */
     fun processL(x: Double): Double {

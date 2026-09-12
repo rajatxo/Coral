@@ -1,8 +1,6 @@
 package com.rajatxo.coral.audio
 
 import android.util.Log
-import androidx.media3.common.audio.AudioProcessor
-import androidx.media3.common.audio.AudioProcessor.AudioFormat
 import androidx.media3.common.C
 import com.rajatxo.coral.data.prefs.SoundHapticsManager
 import java.nio.ByteBuffer
@@ -31,11 +29,12 @@ import kotlin.math.min
  * The processor works on 16-bit PCM stereo (Media3's default format).
  * It's enabled/disabled via SoundHapticsManager.studioClarityEnabled.
  */
-class StudioClarityProcessor : AudioProcessor {
+class StudioClarityProcessor : androidx.media3.common.audio.AudioProcessor {
 
     private var active = false
-    private var inputAudioFormat: AudioFormat = AudioFormat.EMPTY
-    private var outputAudioFormat: AudioFormat = AudioFormat.EMPTY
+    private var inputSampleRate = 0
+    private var inputChannels = 0
+    private var configured = false
 
     // The 8 biquad filters (created on configure)
     private var filters: List<Biquad> = emptyList()
@@ -53,30 +52,30 @@ class StudioClarityProcessor : AudioProcessor {
     private var outputBuffer: ByteBuffer = ByteBuffer.allocate(0)
     private var pendingInput: ByteBuffer = ByteBuffer.allocate(0)
 
-    override fun configure(inputAudioFormat: AudioFormat): AudioFormat {
+    override fun configure(inputAudioFormat: androidx.media3.common.audio.AudioProcessor.AudioFormat): androidx.media3.common.audio.AudioProcessor.AudioFormat {
         if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT) {
-            throw AudioProcessor.UnhandledAudioFormatException(inputAudioFormat)
+            throw androidx.media3.common.audio.AudioProcessor.UnhandledAudioFormatException(inputAudioFormat)
         }
-        this.inputAudioFormat = inputAudioFormat
+        this.inputSampleRate = inputAudioFormat.sampleRate
+        this.inputChannels = inputAudioFormat.channelCount
+        this.configured = true
 
         // Create the 8-band biquad chain at the input sample rate
         val sr = inputAudioFormat.sampleRate.toDouble()
         filters = listOf(
-            Biquad(sr, Biquad.Type.HIGH_PASS, 24.0, 0.707),       // 1. Subsonic
-            Biquad(sr, Biquad.Type.PEAKING, 72.0, 0.80, 3.2),     // 2. Bass foundation
-            Biquad(sr, Biquad.Type.PEAKING, 280.0, 0.90, -3.0),   // 3. Anti-mud
-            Biquad(sr, Biquad.Type.PEAKING, 750.0, 0.85, -1.4),   // 4. Boxiness
-            Biquad(sr, Biquad.Type.PEAKING, 3400.0, 0.85, 3.8),   // 5. Vocal presence
-            Biquad(sr, Biquad.Type.HIGH_SHELF, 10500.0, 0.85, 4.8) // 6. Air shelf
+            Biquad(sr, Biquad.Type.HIGH_PASS, 24.0, 0.707),
+            Biquad(sr, Biquad.Type.PEAKING, 72.0, 0.80, 3.2),
+            Biquad(sr, Biquad.Type.PEAKING, 280.0, 0.90, -3.0),
+            Biquad(sr, Biquad.Type.PEAKING, 750.0, 0.85, -1.4),
+            Biquad(sr, Biquad.Type.PEAKING, 3400.0, 0.85, 3.8),
+            Biquad(sr, Biquad.Type.HIGH_SHELF, 10500.0, 0.85, 4.8)
         )
 
-        outputAudioFormat = inputAudioFormat
-        return outputAudioFormat
+        return inputAudioFormat
     }
 
     override fun isActive(): Boolean {
-        active = SoundHapticsManager.studioClarityEnabled.value &&
-                inputAudioFormat != AudioFormat.EMPTY
+        active = SoundHapticsManager.studioClarityEnabled.value && configured
         return active
     }
 
@@ -172,8 +171,9 @@ class StudioClarityProcessor : AudioProcessor {
 
     override fun reset() {
         active = false
-        inputAudioFormat = AudioFormat.EMPTY
-        outputAudioFormat = AudioFormat.EMPTY
+        configured = false
+        inputSampleRate = 0
+        inputChannels = 0
         filters = emptyList()
         outputBuffer = ByteBuffer.allocate(0)
     }
