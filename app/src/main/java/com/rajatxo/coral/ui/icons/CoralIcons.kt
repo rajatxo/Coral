@@ -507,4 +507,44 @@ object CoralIcons {
         arcToRelative(2f, 2f, 0f, false, false, 2f, -2f)
         verticalLineToRelative(-3f)
     }
+
+    /** Speaker with one small wave — low volume. */
+    val VolumeLow: ImageVector = stroke("VolumeLow") {
+        // Speaker body (trapezoid pointing right)
+        moveTo(11f, 5f)
+        lineTo(6f, 9f)
+        horizontalLineTo(2f)
+        verticalLineToRelative(6f)
+        horizontalLineToRelative(4f)
+        lineToRelative(5f, 4f)
+        close()
+        // One small wave arc
+        moveTo(15.5f, 9.5f)
+        arcToRelative(2.5f, 2.5f, 0f, false, true, 0f, 5f)
+    }
+
+    /** Speaker with two sound waves — high volume. */
+    val VolumeHigh: ImageVector = stroke("VolumeHigh") {
+        // Speaker body (trapezoid pointing right)
+        moveTo(11f, 5f)
+        lineTo(6f, 9f)
+        horizontalLineTo(2f)
+        verticalLineToRelative(6f)
+        horizontalLineToRelative(4f)
+        lineToRelative(5f, 4f)
+        close()
+        // Inner wave
+        moveTo(15.5f, 8.5f)
+        arcToRelative(5f, 5f, 0f, false, true, 0f, 7f)
+        // Outer wave
+        moveTo(19f, 5f)
+        arcToRelative(9f, 9f, 0f, false, true, 0f, 14f)
+    }
+
+    /** Right-pointing chevron — for tappable rows that navigate forward. */
+    val ChevronRight: ImageVector = stroke("ChevronRight") {
+        moveTo(9f, 6f)
+        lineToRelative(6f, 6f)
+        lineToRelative(-6f, 6f)
+    }
 }
