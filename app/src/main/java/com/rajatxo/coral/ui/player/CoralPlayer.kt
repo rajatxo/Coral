@@ -639,16 +639,6 @@ fun CoralPlayer(
                     findActiveLineIndex(lyricData!!.lines, currentPositionMs)
                 } else -1
 
-                // "Lyrics" header (same size + font as artist name)
-                Text(
-                    text = "Lyrics",
-                    color = Color.White.copy(alpha = 0.95f),
-                    fontSize = 16.sp,
-                    fontFamily = CalSansFamily,
-                    fontWeight = FontWeight.Normal
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-
                 // 3-line synced lyrics preview
                 if (lyricData != null && lyricData!!.synced && activeLineIndex >= 0) {
                     val lines = lyricData!!.lines
@@ -683,9 +673,26 @@ fun CoralPlayer(
                     }
                 } else {
                     Text(
-                        text = "Sync lyrics from LrcLib",
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 14.sp
+                        text = albumName ?: "No album info",
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontSize = 14.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = if (durationMs > 0) "Duration: " + formatTime(durationMs) else "",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "Tap to search LrcLib",
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontSize = 14.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
@@ -760,7 +767,7 @@ fun CoralPlayer(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Small glass capsule
+                    // Small glass capsule — sleep timer
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -775,10 +782,21 @@ fun CoralPlayer(
                                     blur(12f.dp.toPx())
                                 },
                                 onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
-                            ),
+                            )
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = androidx.compose.material3.ripple(bounded = false)
+                            ) { },
                         contentAlignment = Alignment.Center
-                    ) { }
-                    // Big glass capsule
+                    ) {
+                        Icon(
+                            imageVector = CoralIcons.Timer,
+                            contentDescription = "Sleep timer",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    // Big glass capsule — play/pause + swipe L/R for next/prev
                     Box(
                         modifier = Modifier
                             .weight(2f)
@@ -793,9 +811,60 @@ fun CoralPlayer(
                                     blur(12f.dp.toPx())
                                 },
                                 onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
-                            ),
+                            )
+                            .pointerInput(Unit) {
+                                detectHorizontalDragGestures(
+                                    onDragEnd = { dragAccumulator = 0f },
+                                    onHorizontalDrag = { _, dragAmount ->
+                                        dragAccumulator += dragAmount
+                                        if (dragAccumulator < -dragThreshold) {
+                                            onNextClick()
+                                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                            dragAccumulator = 0f
+                                        } else if (dragAccumulator > dragThreshold) {
+                                            onPrevClick()
+                                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                            dragAccumulator = 0f
+                                        }
+                                    }
+                                )
+                            }
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = androidx.compose.material3.ripple(bounded = false)
+                            ) {
+                                onPlayPauseClick()
+                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                            },
                         contentAlignment = Alignment.Center
-                    ) { }
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = CoralIcons.ChevronsLeft,
+                                contentDescription = "Swipe left for previous",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (isPlaying) "Pause" else "Play",
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontFamily = CalSansFamily,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Icon(
+                                imageVector = CoralIcons.ChevronsRight,
+                                contentDescription = "Swipe right for next",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -819,79 +888,6 @@ fun CoralPlayer(
                     contentAlignment = Alignment.Center
                 ) { }
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Transport: Rewind | play/pause circle | FastForward ──────
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Previous — Rewind icon
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = androidx.compose.material3.ripple(bounded = false)
-                            ) {
-                                onPrevClick()
-                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = CoralIcons.Rewind,
-                            contentDescription = "Previous",
-                            tint = Color.White,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                    // Play/pause circle (white, centered)
-                    Box(
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clip(CircleShape)
-                            .background(Color.White)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = androidx.compose.material3.ripple(bounded = false)
-                            ) {
-                                onPlayPauseClick()
-                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = if (isPlaying) CoralIcons.PauseLucide else CoralIcons.PlayLucide,
-                            contentDescription = "Play/Pause",
-                            tint = Color.Black,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                    // Next — FastForward icon
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = androidx.compose.material3.ripple(bounded = false)
-                            ) {
-                                onNextClick()
-                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = CoralIcons.FastForward,
-                            contentDescription = "Next",
-                            tint = Color.White,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                }
             }
 
 

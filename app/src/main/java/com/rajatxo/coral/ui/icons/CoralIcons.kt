@@ -648,4 +648,45 @@ object CoralIcons {
         lineTo(8.59f, 10.49f)
     }
 
+
+    val ChevronsRight: ImageVector = stroke("ChevronsRight") {
+        moveTo(6f, 17f)
+        lineToRelative(5f, -5f)
+        lineToRelative(-5f, -5f)
+        moveTo(13f, 17f)
+        lineToRelative(5f, -5f)
+        lineToRelative(-5f, -5f)
+    }
+
+    val ChevronsLeft: ImageVector = stroke("ChevronsLeft") {
+        moveTo(11f, 17f)
+        lineToRelative(-5f, -5f)
+        lineToRelative(5f, -5f)
+        moveTo(18f, 17f)
+        lineToRelative(-5f, -5f)
+        lineToRelative(5f, -5f)
+    }
+
+    val Timer: ImageVector = stroke("Timer") {
+        moveTo(10f, 2f)
+        lineTo(14f, 2f)
+        moveTo(12f, 14f)
+        lineTo(15f, 11f)
+        moveTo(20f, 14f)
+        arcTo(8f, 8f, 0f, true, true, 4f, 14f)
+        arcTo(8f, 8f, 0f, true, true, 20f, 14f)
+    }
+
+    val TimerOff: ImageVector = stroke("TimerOff") {
+        moveTo(10f, 2f)
+        lineTo(14f, 2f)
+        moveTo(2f, 2f)
+        lineTo(22f, 22f)
+        moveTo(12f, 12f)
+        lineTo(12f, 10f)
+        moveTo(20f, 14f)
+        arcTo(8f, 8f, 0f, true, true, 4f, 14f)
+        arcTo(8f, 8f, 0f, true, true, 20f, 14f)
+    }
+
 }
