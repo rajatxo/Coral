@@ -195,6 +195,7 @@ fun CoralPlayer(
     val animatedTopColor    by animateColorAsState(palette.primary,   tween(600), label = "top")
     val animatedMidColor   by animateColorAsState(palette.secondary,  tween(600), label = "mid")
     val animatedBottomColor by animateColorAsState(palette.tertiary,  tween(600), label = "bottom")
+    val animatedAccentColor by animateColorAsState(palette.accent,    tween(600), label = "accent")
 
     // ─── Playback position polling ────────────────────────────────────
     var currentPositionMs by remember { mutableStateOf(0L) }
@@ -503,19 +504,115 @@ fun CoralPlayer(
                 .padding(horizontal = 24.dp)
         ) {
 
-                // Song title (left-aligned, bold) ────────────────────────
-                Text(
-                    text = title,
-                    color = Color.White,
-                    fontSize = 24.sp,
-                    fontFamily = CalSansFamily,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = TextStyle(shadow = textShadow)
-                )
+                // Song title + glass capsule (side by side) ─────────────
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = title,
+                        color = Color.White,
+                        fontSize = 24.sp,
+                        fontFamily = CalSansFamily,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = TextStyle(shadow = textShadow),
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    // Glass morphism capsule — favorite / share / menu
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .drawBackdrop(
+                                backdrop = glassBackdrop,
+                                shape = { RoundedCornerShape(20.dp) },
+                                effects = {
+                                    vibrancy()
+                                    colorControls(
+                                        brightness = 0.05f,
+                                        contrast = 1f,
+                                        saturation = 1.5f
+                                    )
+                                    blur(12f.dp.toPx())
+                                },
+                                onDrawSurface = {
+                                    drawRect(Color.Black.copy(alpha = 0.25f))
+                                }
+                            )
+                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            // Favorite — HeartPlus (not favorited) / HeartMinus (favorited)
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = androidx.compose.material3.ripple(bounded = false)
+                                    ) {
+                                        if (songId != null) {
+                                            PlaylistStore.toggleFavorite(songId)
+                                            tickHaptic()
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (isFavorite) CoralIcons.HeartMinus else CoralIcons.HeartPlus,
+                                    contentDescription = "Favorite",
+                                    tint = if (isFavorite) animatedAccentColor else Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            // Share
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = androidx.compose.material3.ripple(bounded = false)
+                                    ) { },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = CoralIcons.Share2,
+                                    contentDescription = "Share",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            // Menu (more)
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = androidx.compose.material3.ripple(bounded = false)
+                                    ) {
+                                        songId?.let { onAddToPlaylist(it) }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = CoralIcons.Ellipsis,
+                                    contentDescription = "More",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.height(6.dp))
-                // Artist name (left-aligned) ─────────────────────────────
+                // Artist name (left-aligned, 95% white, no shadow)
                 Text(
                     text = artist,
                     color = Color.White.copy(alpha = 0.95f),
@@ -523,8 +620,7 @@ fun CoralPlayer(
                     fontFamily = CalSansFamily,
                     fontWeight = FontWeight.Normal,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = TextStyle(shadow = textShadow)
+                    overflow = TextOverflow.Ellipsis
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -645,7 +741,7 @@ fun CoralPlayer(
                                 indication = androidx.compose.material3.ripple(bounded = false)
                             ) {
                                 onPrevClick()
-                                tickHaptic()
+                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -688,7 +784,7 @@ fun CoralPlayer(
                                 indication = androidx.compose.material3.ripple(bounded = false)
                             ) {
                                 onNextClick()
-                                tickHaptic()
+                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                             },
                         contentAlignment = Alignment.Center
                     ) {
