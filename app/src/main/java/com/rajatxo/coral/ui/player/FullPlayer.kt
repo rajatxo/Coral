@@ -368,23 +368,6 @@ fun FullPlayer(
                 .statusBarsPadding()
                 .navigationBarsPadding()
         ) {
-            // ── Top header ────────────────────────────────────────────
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "NOW PLAYING",
-                    color = Color.White.copy(alpha = 0.55f),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.5.sp
-                )
-            }
-
             Spacer(modifier = Modifier.weight(1f))
 
             // ── Bottom controls column ────────────────────────────────
@@ -403,7 +386,7 @@ fun FullPlayer(
                         Text(
                             text = title,
                             color = Color.White,
-                            fontSize = 22.sp,
+                            fontSize = 34.sp,
                             fontFamily = CalSansFamily,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
@@ -413,37 +396,13 @@ fun FullPlayer(
                         Text(
                             text = artist,
                             color = Color.White.copy(alpha = 0.7f),
-                            fontSize = 15.sp,
+                            fontSize = 20.sp,
                             fontFamily = CalSansFamily,
                             fontWeight = FontWeight.Normal,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.15f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = androidx.compose.material3.ripple(bounded = false)
-                            ) {
-                                if (songId != null) {
-                                    PlaylistStore.toggleFavorite(songId)
-                                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                                }
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = if (isFavorite) CoralIcons.HeartFilled else CoralIcons.Heart,
-                            contentDescription = "Favorite",
-                            tint = if (isFavorite) palette.accent else Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
                     Box {
                         Box(
                             modifier = Modifier
@@ -457,8 +416,8 @@ fun FullPlayer(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = CoralIcons.Queue,
-                                contentDescription = "Queue",
+                                imageVector = CoralIcons.Ellipsis,
+                                contentDescription = "More",
                                 tint = Color.White,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -520,7 +479,8 @@ fun FullPlayer(
                     Text(
                         text = if (albumName.isNullOrBlank()) "Tap for lyrics" else albumName!!,
                         color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 14.sp,
+                        fontSize = 18.sp,
+                        fontFamily = CalSansFamily,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
@@ -672,81 +632,6 @@ fun FullPlayer(
                             modifier = Modifier.size(36.dp)
                         )
                     }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // (e) Volume slider ─ speaker-low · track · speaker-high
-                var volumeBarWidthPx by remember { mutableFloatStateOf(1f) }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = CoralIcons.VolumeLow,
-                        contentDescription = "Volume low",
-                        tint = Color.White.copy(alpha = 0.6f),
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(20.dp)
-                            .onSizeChanged { volumeBarWidthPx = it.width.toFloat() }
-                            .pointerInput(maxVolume) {
-                                detectDragGestures(
-                                    onDragEnd = {},
-                                    onDrag = { change, _ ->
-                                        if (maxVolume > 0 && volumeBarWidthPx > 0) {
-                                            val frac = (change.position.x / volumeBarWidthPx).coerceIn(0f, 1f)
-                                            val newVol = (frac * maxVolume).toInt().coerceIn(0, maxVolume)
-                                            audioManager.setStreamVolume(
-                                                AudioManager.STREAM_MUSIC, newVol, 0
-                                            )
-                                            volume = frac
-                                        }
-                                    }
-                                )
-                            }
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(3.dp)
-                                .clip(RoundedCornerShape(1.5.dp))
-                                .align(Alignment.CenterStart)
-                                .background(Color.White.copy(alpha = 0.20f))
-                        )
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(volume)
-                                .height(3.dp)
-                                .clip(RoundedCornerShape(1.5.dp))
-                                .align(Alignment.CenterStart)
-                                .background(Color.White.copy(alpha = 0.75f))
-                        )
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(Color.White)
-                                .align(Alignment.CenterStart)
-                                .offset {
-                                    IntOffset(
-                                        (volume * volumeBarWidthPx - 5.dp.toPx()).coerceAtLeast(0f).toInt(),
-                                        0
-                                    )
-                                }
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Icon(
-                        imageVector = CoralIcons.VolumeHigh,
-                        contentDescription = "Volume high",
-                        tint = Color.White.copy(alpha = 0.6f),
-                        modifier = Modifier.size(20.dp)
-                    )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
