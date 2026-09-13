@@ -460,7 +460,7 @@ fun CoralPlayer(
                 .statusBarsPadding()
                 .navigationBarsPadding()
         ) {
-            Spacer(modifier = Modifier.weight(0.45f))
+            Spacer(modifier = Modifier.weight(0.5f))
 
             // ── 3-segment cover indicator ──────────────────────────────
             // Just below the blending point. Three horizontal segments:
@@ -473,7 +473,7 @@ fun CoralPlayer(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
+                    .padding(horizontal = 60.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 // Segment 1: Original cover
@@ -505,7 +505,7 @@ fun CoralPlayer(
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
             // ── Content column (left-aligned, below the indicator) ─────
             Column(
@@ -715,7 +715,7 @@ fun CoralPlayer(
                 }
             }
 
-            Spacer(modifier = Modifier.weight(0.55f))
+            Spacer(modifier = Modifier.weight(0.5f))
         }
 
         if (showLyrics) {
