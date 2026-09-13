@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rajatxo.coral.data.premium.PremiumManager
+import com.rajatxo.coral.data.prefs.PlayerStyleManager
 import com.rajatxo.coral.data.prefs.SoundHapticsManager
 import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.icons.CoralIcons
@@ -63,11 +64,13 @@ fun SettingsScreen(
     val hapticsEnabled by SoundHapticsManager.hapticsEnabled.collectAsState()
     val soundsEnabled by SoundHapticsManager.soundsEnabled.collectAsState()
     val soundVolume by SoundHapticsManager.soundVolume.collectAsState()
+    val playerStyle by PlayerStyleManager.playerStyle.collectAsState()
     var versionTapCount by remember { mutableIntStateOf(0) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(Color.Black)
             .verticalScroll(rememberScrollState())
             .padding(bottom = 24.dp)
     ) {
@@ -166,6 +169,22 @@ fun SettingsScreen(
                 subtitle = "Used everywhere in Coral",
                 value = currentFont.displayName,
                 onClick = onOpenFontPicker
+            )
+            // Player Design Style — toggle between Coral (immersive blurred
+            // bg) and Profile (dating-app style with vertical pill + chips)
+            SettingsRow(
+                icon = CoralIcons.Music,
+                title = "Player Design Style",
+                subtitle = "Choose your player layout",
+                value = playerStyle,
+                onClick = {
+                    PlayerStyleManager.setPlayerStyle(
+                        if (playerStyle == PlayerStyleManager.CORAL)
+                            PlayerStyleManager.PROFILE
+                        else
+                            PlayerStyleManager.CORAL
+                    )
+                }
             )
         }
 

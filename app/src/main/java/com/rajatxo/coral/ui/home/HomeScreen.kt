@@ -458,28 +458,52 @@ fun HomeScreen(
         }
 
         // Full-screen now-playing screen
+        // Conditionally renders CoralPlayer (immersive blurred-bg style)
+        // or FullPlayer (dating-app profile style) based on the user's
+        // Player Design Style preference in Settings → Appearance.
+        val playerStyle by com.rajatxo.coral.data.prefs.PlayerStyleManager.playerStyle.collectAsState()
         AnimatedVisibility(
             visible = showFullPlayer,
             enter = slideInVertically { it },
             exit = slideOutVertically { it }
         ) {
-            FullPlayer(
-                mediaController = mediaController,
-                songId = currentSongId,
-                title = currentSongTitle ?: "",
-                artist = currentSongArtist ?: "",
-                albumName = currentSongAlbum,
-                albumArtUri = currentSongArt,
-                isPlaying = isPlaying,
-                onPlayPauseClick = onPlayPauseClick,
-                onNextClick = onNextClick,
-                onPrevClick = onPrevClick,
-                onSeek = onSeek,
-                onDismiss = onFullPlayerDismiss,
-                onAddToPlaylist = { songId ->
-                    songToAddToPlaylist = songId
-                }
-            )
+            if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.CORAL) {
+                com.rajatxo.coral.ui.player.CoralPlayer(
+                    mediaController = mediaController,
+                    songId = currentSongId,
+                    title = currentSongTitle ?: "",
+                    artist = currentSongArtist ?: "",
+                    albumName = currentSongAlbum,
+                    albumArtUri = currentSongArt,
+                    isPlaying = isPlaying,
+                    onPlayPauseClick = onPlayPauseClick,
+                    onNextClick = onNextClick,
+                    onPrevClick = onPrevClick,
+                    onSeek = onSeek,
+                    onDismiss = onFullPlayerDismiss,
+                    onAddToPlaylist = { songId ->
+                        songToAddToPlaylist = songId
+                    }
+                )
+            } else {
+                FullPlayer(
+                    mediaController = mediaController,
+                    songId = currentSongId,
+                    title = currentSongTitle ?: "",
+                    artist = currentSongArtist ?: "",
+                    albumName = currentSongAlbum,
+                    albumArtUri = currentSongArt,
+                    isPlaying = isPlaying,
+                    onPlayPauseClick = onPlayPauseClick,
+                    onNextClick = onNextClick,
+                    onPrevClick = onPrevClick,
+                    onSeek = onSeek,
+                    onDismiss = onFullPlayerDismiss,
+                    onAddToPlaylist = { songId ->
+                        songToAddToPlaylist = songId
+                    }
+                )
+            }
         }
 
         // Full-screen playlist detail overlay (covers nav rail + everything)
