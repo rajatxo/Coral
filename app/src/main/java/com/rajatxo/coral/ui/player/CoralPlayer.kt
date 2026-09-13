@@ -220,6 +220,19 @@ fun CoralPlayer(
         if (showHeartPop) { delay(800); showHeartPop = false }
     }
 
+    // ─── Seek bar state (buttery smooth, no thumb, thickens on drag) ──
+    var isDragging by remember { mutableStateOf(false) }
+    val trackHeight by animateDpAsState(
+        targetValue = if (isDragging) 10.dp else 4.dp,
+        animationSpec = tween(200),
+        label = "trackHeight"
+    )
+    var dragFraction by remember { mutableStateOf<Float?>(null) }
+    val progress = if (durationMs > 0)
+        (currentPositionMs.toFloat() / durationMs).coerceIn(0f, 1f)
+    else 0f
+    val displayProgress = dragFraction ?: progress
+
     // ─── System volume (so the volume slider reflects hardware keys) ─
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
     val maxVolume = remember { audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC) }
@@ -447,105 +460,124 @@ fun CoralPlayer(
                 .statusBarsPadding()
                 .navigationBarsPadding()
         ) {
-            Spacer(modifier = Modifier.weight(0.75f))
+            Spacer(modifier = Modifier.weight(0.45f))
 
-            // ── Bottom controls column ────────────────────────────────
+            // ── 3-segment cover indicator ──────────────────────────────
+            // Just below the blending point. Three horizontal segments:
+            //   1. Original album cover (default, active)
+            //   2. Custom image (user can select their own)
+            //   3. Animated album art video
+            // Active segment is white, inactive are white 20%. Tappable
+            // to switch cover mode (functionality added later).
+            var coverMode by remember { mutableStateOf(0) }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // Segment 1: Original cover
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(1.5.dp))
+                        .background(if (coverMode == 0) Color.White else Color.White.copy(alpha = 0.2f))
+                        .clickable { coverMode = 0 }
+                )
+                // Segment 2: Custom image
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(1.5.dp))
+                        .background(if (coverMode == 1) Color.White else Color.White.copy(alpha = 0.2f))
+                        .clickable { coverMode = 1 }
+                )
+                // Segment 3: Animated video
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(1.5.dp))
+                        .background(if (coverMode == 2) Color.White else Color.White.copy(alpha = 0.2f))
+                        .clickable { coverMode = 2 }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ── Content column (left-aligned, below the indicator) ─────
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp)
             ) {
-
-                // (a) Song title + artist (centered) ───────────────────
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = title,
-                        color = Color.White,
-                        fontSize = 28.sp,
-                        fontFamily = CalSansFamily,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        textAlign = TextAlign.Center,
-                        style = TextStyle(shadow = textShadow),
-                        modifier = Modifier.basicMarquee()
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = artist,
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 18.sp,
-                        fontFamily = CalSansFamily,
-                        fontWeight = FontWeight.Normal,
-                        maxLines = 1,
-                        textAlign = TextAlign.Center,
-                        overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(shadow = textShadow),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // (b) Lyrics strip — tap to open full lyrics ──────────
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { showLyrics = true }
-                        .padding(vertical = 4.dp)
-                ) {
-                    Image(
-                        imageVector = CoralIcons.Music,
-                        contentDescription = null,
-                        colorFilter = ColorFilter.tint(Color.White.copy(alpha = 0.6f)),
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (albumName.isNullOrBlank()) "Tap for lyrics" else albumName!!,
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 18.sp,
-                        fontFamily = CalSansFamily,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(shadow = textShadow),
-                        modifier = Modifier.weight(1f)
-                    )
-                    Image(
-                        imageVector = CoralIcons.ChevronRight,
-                        contentDescription = null,
-                        colorFilter = ColorFilter.tint(Color.White.copy(alpha = 0.6f)),
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
+                // Song title (left-aligned, bold) ────────────────────────
+                Text(
+                    text = title,
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontFamily = CalSansFamily,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(shadow = textShadow)
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                // Artist name (left-aligned) ─────────────────────────────
+                Text(
+                    text = artist,
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 16.sp,
+                    fontFamily = CalSansFamily,
+                    fontWeight = FontWeight.Normal,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(shadow = textShadow)
+                )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // (c) Seek bar ─────────────────────────────────────────
-                val progress = if (durationMs > 0)
-                    (currentPositionMs.toFloat() / durationMs).coerceIn(0f, 1f)
-                else 0f
+                // Album name (with music icon, tappable → lyrics) ───────
+                if (albumName != null) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { showLyrics = true }
+                    ) {
+                        Image(
+                            imageVector = CoralIcons.Music,
+                            contentDescription = null,
+                            colorFilter = ColorFilter.tint(Color.White.copy(alpha = 0.5f)),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = albumName,
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 13.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = TextStyle(shadow = textShadow)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Image(
+                            imageVector = CoralIcons.ChevronRight,
+                            contentDescription = null,
+                            colorFilter = ColorFilter.tint(Color.White.copy(alpha = 0.5f)),
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Seek bar (buttery smooth, no thumb, thickens on drag) ──
                 var seekbarWidthPx by remember { mutableFloatStateOf(1f) }
-                // Drag state — when holding/dragging the timeline, the track
-                // gets thicker (6dp → 12dp). Animates back to 6dp on release.
-                var isDragging by remember { mutableStateOf(false) }
-                val trackHeight by animateDpAsState(
-                    targetValue = if (isDragging) 12.dp else 6.dp,
-                    animationSpec = tween(200),
-                    label = "trackHeight"
-                )
-                // BUTTERY SMOOTH SCRUBBING: during drag, the visual uses
-                // dragFraction (local state, immediate — no media-seek lag).
-                // onSeek is only called on drag END (one seek, not per-frame).
-                // This eliminates the lag from per-frame media seeks.
-                var dragFraction by remember { mutableStateOf<Float?>(null) }
-                val displayProgress = dragFraction ?: progress
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -557,16 +589,11 @@ fun CoralPlayer(
                                 onDragEnd = {
                                     isDragging = false
                                     dragFraction?.let { frac ->
-                                        if (durationMs > 0) {
-                                            onSeek((frac * durationMs).toLong())
-                                        }
+                                        if (durationMs > 0) onSeek((frac * durationMs).toLong())
                                     }
                                     dragFraction = null
                                 },
-                                onDragCancel = {
-                                    isDragging = false
-                                    dragFraction = null
-                                },
+                                onDragCancel = { isDragging = false; dragFraction = null },
                                 onDrag = { change, _ ->
                                     if (durationMs > 0 && seekbarWidthPx > 0) {
                                         val frac = (change.position.x / seekbarWidthPx).coerceIn(0f, 1f)
@@ -582,7 +609,7 @@ fun CoralPlayer(
                             .height(trackHeight)
                             .clip(RoundedCornerShape(trackHeight / 2))
                             .align(Alignment.CenterStart)
-                            .background(Color.White.copy(alpha = 0.25f))
+                            .background(Color.White.copy(alpha = 0.2f))
                     )
                     Box(
                         modifier = Modifier
@@ -594,43 +621,44 @@ fun CoralPlayer(
                     )
                 }
 
+                // Time labels ────────────────────────────────────────────
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
                         text = formatTime((displayProgress * durationMs).toLong()),
-                        color = Color.White.copy(alpha = 0.55f),
+                        color = Color.White.copy(alpha = 0.5f),
                         fontSize = 11.sp,
                         style = TextStyle(shadow = textShadow)
                     )
                     Text(
                         text = "-" + formatTime(((1f - displayProgress) * durationMs).toLong()),
-                        color = Color.White.copy(alpha = 0.55f),
+                        color = Color.White.copy(alpha = 0.5f),
                         fontSize = 11.sp,
                         style = TextStyle(shadow = textShadow)
                     )
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                // (d) Transport — Rewind (prev) · glossy capsule (play/pause) · FastForward (next)
+                // Transport: Rewind | play/pause circle | FastForward ──────
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Previous — Rewind icon (two left-pointing triangles)
+                    // Previous — Rewind icon
                     Box(
                         modifier = Modifier
-                            .size(56.dp)
+                            .size(48.dp)
                             .clip(CircleShape)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = androidx.compose.material3.ripple(bounded = false)
                             ) {
                                 onPrevClick()
-                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                tickHaptic()
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -638,62 +666,42 @@ fun CoralPlayer(
                             imageVector = CoralIcons.Rewind,
                             contentDescription = "Previous",
                             tint = Color.White,
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(28.dp)
                         )
                     }
-                    // Glossy capsule — play/pause icon + text
-                    // White pill with subtle vertical gradient (glossy effect).
-                    // Inside: filled Play/PauseLucide icon + "Play"/"Pause" text.
+                    // Play/pause circle (white, centered)
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(50.dp))
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color.White,
-                                        Color.White.copy(alpha = 0.85f)
-                                    )
-                                )
-                            )
+                            .size(56.dp)
+                            .clip(CircleShape)
+                            .background(Color.White)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = androidx.compose.material3.ripple(bounded = false)
                             ) {
                                 onPlayPauseClick()
                                 view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                            }
-                            .padding(horizontal = 28.dp, vertical = 14.dp)
+                            },
+                        contentAlignment = Alignment.Center
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = if (isPlaying) CoralIcons.PauseLucide else CoralIcons.PlayLucide,
-                                contentDescription = if (isPlaying) "Pause" else "Play",
-                                tint = Color.Black,
-                                modifier = Modifier.size(22.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = if (isPlaying) "Pause" else "Play",
-                                color = Color.Black,
-                                fontSize = 18.sp,
-                                fontFamily = CalSansFamily,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
+                        Icon(
+                            imageVector = if (isPlaying) CoralIcons.PauseLucide else CoralIcons.PlayLucide,
+                            contentDescription = "Play/Pause",
+                            tint = Color.Black,
+                            modifier = Modifier.size(24.dp)
+                        )
                     }
-                    // Next — FastForward icon (two right-pointing triangles)
+                    // Next — FastForward icon
                     Box(
                         modifier = Modifier
-                            .size(56.dp)
+                            .size(48.dp)
                             .clip(CircleShape)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = androidx.compose.material3.ripple(bounded = false)
                             ) {
                                 onNextClick()
-                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                tickHaptic()
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -701,89 +709,13 @@ fun CoralPlayer(
                             imageVector = CoralIcons.FastForward,
                             contentDescription = "Next",
                             tint = Color.White,
-                            modifier = Modifier.size(36.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                // Glass capsule — liquid glass with swipe L/R to change songs.
-                // Uses kyant backdrop library (same as TabCapsule nav bar) for
-                // REAL real-time backdrop blur. Samples the album cover behind
-                // it and applies AGSL blur. Swipe L -> next, R -> prev, with
-                // haptics + tick sound.
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp)
-                        .padding(horizontal = 24.dp)
-                        .clip(RoundedCornerShape(28.dp))
-                        .drawBackdrop(
-                            backdrop = glassBackdrop,
-                            shape = { RoundedCornerShape(28.dp) },
-                            effects = {
-                                vibrancy()
-                                colorControls(
-                                    brightness = 0.05f,
-                                    contrast = 1f,
-                                    saturation = 1.5f
-                                )
-                                blur(12f.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(Color.Black.copy(alpha = 0.25f))
-                            }
-                        )
-                        .pointerInput(Unit) {
-                            detectHorizontalDragGestures(
-                                onDragEnd = { dragAccumulator = 0f },
-                                onHorizontalDrag = { _, dragAmount ->
-                                    dragAccumulator += dragAmount
-                                    if (dragAccumulator < -dragThreshold) {
-                                        onNextClick()
-                                        tickHaptic()
-                                        dragAccumulator = 0f
-                                    } else if (dragAccumulator > dragThreshold) {
-                                        onPrevClick()
-                                        tickHaptic()
-                                        dragAccumulator = 0f
-                                    }
-                                }
-                            )
-                        }
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = CoralIcons.ChevronLeft,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.5f),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Swipe",
-                            color = Color.White.copy(alpha = 0.7f),
-                            fontSize = 14.sp,
-                            fontFamily = CalSansFamily,
-                            style = TextStyle(shadow = textShadow)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Icon(
-                            imageVector = CoralIcons.ChevronRight,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.5f),
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(28.dp)
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.weight(0.25f))
+            Spacer(modifier = Modifier.weight(0.55f))
         }
 
         if (showLyrics) {
