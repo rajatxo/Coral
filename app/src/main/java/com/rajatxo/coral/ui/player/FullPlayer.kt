@@ -46,11 +46,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -121,7 +120,6 @@ fun FullPlayer(
     val animatedTopColor    by animateColorAsState(palette.primary,   tween(600), label = "top")
     val animatedMidColor   by animateColorAsState(palette.secondary,  tween(600), label = "mid")
     val animatedBottomColor by animateColorAsState(palette.tertiary,  tween(600), label = "bottom")
-    val animatedAccentColor by animateColorAsState(palette.accent,    tween(600), label = "accent")
 
     // ─── Playback position polling ────────────────────────────────────
     var currentPositionMs by remember { mutableStateOf(0L) }
@@ -173,119 +171,83 @@ fun FullPlayer(
         onDispose { context.contentResolver.unregisterContentObserver(observer) }
     }
 
-    // ─── Root Box: mesh gradient bg + sharp square art at top ───
-    // Apple Music-style: 4 radial gradient overlays at the screen's
-    // corners using the album's palette colors, blended on top of a
-    // base vertical gradient. Colors are boosted 2-2.5x saturation in
-    // PaletteExtractor for extra vibrancy. Sharp album art sits at top
-    // with an alpha mask that fades to transparent at the bottom,
-    // revealing the mesh gradient below.
+    // ─── Root Box: 100% blurred album cover bg + sharp art moved down ───
+    // Layout:
+    //   (1) BLURRED album cover (100% blur = 96dp radius) fills entire
+    //       screen as the background. RenderEffect on Android 12+.
+    //   (2) SHARP album art in a SQUARE container (aspectRatio 1f)
+    //       anchored TopCenter + offset 24dp down (creates a gap at
+    //       the top where the status bar sits on the blurred bg, not on
+    //       the sharp art). Has alpha masks at BOTH top (64dp fade) AND
+    //       bottom (140dp fade) using graphicsLayer + Offscreen +
+    //       drawWithContent + DstIn. Result: sharp in the middle, fading
+    //       to transparent at both edges — smoothly revealing the blurred
+    //       bg above (status bar area) and below (controls area).
     Box(modifier = Modifier.fillMaxSize().background(animatedBottomColor)) {
 
-        // (1) MESH GRADIENT background — base vertical gradient + 4 radial
-        //     gradient overlays at the screen's corners. Each radial
-        //     overlay uses a different palette color, blending smoothly
-        //     with the others. Uses drawBehind to draw all layers in one
-        //     DrawScope pass (efficient — no separate Box per overlay).
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .drawBehind {
-                    val w = size.width
-                    val h = size.height
-                    val r = maxOf(w, h) * 1.2f  // large radius for broad blending
+        // (1) Blurred album cover — fills entire screen as the background.
+        //     96dp blur radius = ~100% blur (very heavy, image becomes a
+        //     smooth color wash with subtle variations). Modifier.blur
+        //     uses RenderEffect on Android 12+ (hardware-accelerated).
+        if (albumArtUri != null) {
+            AsyncImage(
+                model = albumArtUri,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(96.dp)
+            )
+        }
 
-                    // Base layer: vertical gradient (primary → secondary → tertiary)
-                    drawRect(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                animatedTopColor,
-                                animatedMidColor,
-                                animatedBottomColor
-                            )
-                        )
-                    )
-
-                    // Overlay 1: top-left radial, primary (dominant color)
-                    drawRect(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                animatedTopColor.copy(alpha = 0.7f),
-                                Color.Transparent
-                            ),
-                            center = Offset(0f, 0f),
-                            radius = r
-                        )
-                    )
-
-                    // Overlay 2: top-right radial, accent (vibrant)
-                    drawRect(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                animatedAccentColor.copy(alpha = 0.55f),
-                                Color.Transparent
-                            ),
-                            center = Offset(w, 0f),
-                            radius = r
-                        )
-                    )
-
-                    // Overlay 3: bottom-left radial, secondary (lightVibrant)
-                    drawRect(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                animatedMidColor.copy(alpha = 0.6f),
-                                Color.Transparent
-                            ),
-                            center = Offset(0f, h),
-                            radius = r
-                        )
-                    )
-
-                    // Overlay 4: bottom-right radial, tertiary (darkVibrant)
-                    drawRect(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                animatedBottomColor.copy(alpha = 0.7f),
-                                Color.Transparent
-                            ),
-                            center = Offset(w, h),
-                            radius = r
-                        )
-                    )
-                }
-        )
-
-        // (2) Sharp album art — SQUARE container at top, with an alpha
-        //     mask that fades the bottom 140dp from opaque → transparent.
-        //     Uses graphicsLayer + CompositingStrategy.OffSet so the
-        //     BlendMode.DstIn applies to this layer's content only (the
-        //     sharp AsyncImage) — not the parent's blurred bg below.
-        //     Result: sharp at top, smoothly fading to reveal the blurred
-        //     bg at the image's bottom edge — exactly the "blending zone"
-        //     the user described.
+        // (2) Sharp album art — SQUARE container at top, moved down 24dp
+        //     (so the status bar sits on the blurred bg, not on the art).
+        //     Has alpha masks at BOTH top (64dp) and bottom (140dp) that
+        //     fade opaque → transparent using BlendMode.DstIn. Result:
+        //     sharp in the middle, fading to transparent at both edges —
+        //     smoothly revealing the blurred bg above (status bar area)
+        //     and below (controls area).
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
                 .align(Alignment.TopCenter)
+                .offset(y = 24.dp)
                 .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
                 .drawWithContent {
-                    // Draw the sharp image first
                     drawContent()
-                    // Then apply an alpha mask: vertical gradient with
-                    // DstIn keeps content where gradient is opaque (top),
-                    // removes content where gradient is transparent (bottom).
-                    val fadeHeightPx = 140.dp.toPx()
+                    val topFadeHeightPx = 64.dp.toPx()
+                    val bottomFadeHeightPx = 140.dp.toPx()
                     val imageHeight = size.height
-                    val fadeStartY = (imageHeight - fadeHeightPx).coerceAtLeast(0f)
+
+                    // Top fade: 64dp at the top, transparent → opaque.
+                    // DstIn removes content where source is transparent
+                    // (top of image) — sharp art's top edge fades out,
+                    // revealing the blurred bg behind (status bar area).
                     drawRect(
                         brush = Brush.verticalGradient(
                             colors = listOf(
-                                Color.Black,        // opaque → keep content (sharp visible)
-                                Color.Transparent   // transparent → remove content (blurred shows)
+                                Color.Transparent,   // y=0: remove content (top hidden)
+                                Color.Black           // y=topFadeHeightPx: keep content
                             ),
-                            startY = fadeStartY,
+                            startY = 0f,
+                            endY = topFadeHeightPx
+                        ),
+                        blendMode = BlendMode.DstIn
+                    )
+
+                    // Bottom fade: 140dp at the bottom, opaque → transparent.
+                    // DstIn removes content where source is transparent
+                    // (bottom of image) — sharp art's bottom edge fades
+                    // out, revealing the blurred bg behind (controls area).
+                    val bottomFadeStartY = (imageHeight - bottomFadeHeightPx).coerceAtLeast(0f)
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Black,         // bottomFadeStartY: keep content
+                                Color.Transparent    // imageHeight: remove content
+                            ),
+                            startY = bottomFadeStartY,
                             endY = imageHeight
                         ),
                         blendMode = BlendMode.DstIn
