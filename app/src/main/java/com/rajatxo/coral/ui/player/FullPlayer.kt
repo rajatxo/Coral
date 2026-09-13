@@ -275,6 +275,28 @@ fun FullPlayer(
             }
         }
 
+        // Black gradient overlay at the bottom — darkens the lower
+        // portion of the screen for text legibility (white controls
+        // text needs contrast against the blurred album cover bg).
+        // Transparent in the top 50% (sharp art area), gradually
+        // darkens to ~92% black at the very bottom.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.00f to Color.Transparent,
+                            0.50f to Color.Transparent,
+                            0.60f to Color.Black.copy(alpha = 0.30f),
+                            0.75f to Color.Black.copy(alpha = 0.65f),
+                            0.90f to Color.Black.copy(alpha = 0.85f),
+                            1.00f to Color.Black.copy(alpha = 0.92f)
+                        )
+                    )
+                )
+        )
+
         // (3) Heart pop overlay (double-tap on album art to favorite)
         if (showHeartPop) {
             Box(
