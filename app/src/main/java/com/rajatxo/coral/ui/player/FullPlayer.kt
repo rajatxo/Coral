@@ -71,6 +71,7 @@ import coil3.compose.AsyncImage
 import com.rajatxo.coral.data.store.PlaylistStore
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.lyrics.LyricsSheet
+import com.rajatxo.coral.ui.theme.CalSansFamily
 import com.rajatxo.coral.util.CoralPalette
 import com.rajatxo.coral.util.extractPalette
 import kotlinx.coroutines.delay
@@ -372,24 +373,9 @@ fun FullPlayer(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.10f))
-                        .clickable(onClick = onDismiss),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = CoralIcons.ChevronDown,
-                        contentDescription = "Collapse",
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
                 Text(
                     "NOW PLAYING",
                     color = Color.White.copy(alpha = 0.55f),
@@ -397,54 +383,6 @@ fun FullPlayer(
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = 1.5.sp
                 )
-                Box {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.10f))
-                            .clickable { showMoreMenu = true },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = CoralIcons.MoreVertical,
-                            contentDescription = "More",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = showMoreMenu,
-                        onDismissRequest = { showMoreMenu = false },
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color(0xFF1A1A1A))
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .clickable {
-                                    showMoreMenu = false
-                                    songId?.let { onAddToPlaylist(it) }
-                                }
-                                .padding(horizontal = 20.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = CoralIcons.Heart,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                "Add to playlist",
-                                color = Color.White,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
-                }
             }
 
             Spacer(modifier = Modifier.weight(1f))
@@ -466,6 +404,7 @@ fun FullPlayer(
                             text = title,
                             color = Color.White,
                             fontSize = 22.sp,
+                            fontFamily = CalSansFamily,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -475,6 +414,7 @@ fun FullPlayer(
                             text = artist,
                             color = Color.White.copy(alpha = 0.7f),
                             fontSize = 15.sp,
+                            fontFamily = CalSansFamily,
                             fontWeight = FontWeight.Normal,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -504,23 +444,56 @@ fun FullPlayer(
                         )
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.15f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = androidx.compose.material3.ripple(bounded = false)
-                            ) { showMoreMenu = true },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = CoralIcons.Queue,
-                            contentDescription = "Queue",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
+                    Box {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.15f))
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = androidx.compose.material3.ripple(bounded = false)
+                                ) { showMoreMenu = true },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = CoralIcons.Queue,
+                                contentDescription = "Queue",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showMoreMenu,
+                            onDismissRequest = { showMoreMenu = false },
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color(0xFF1A1A1A))
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .clickable {
+                                        showMoreMenu = false
+                                        songId?.let { onAddToPlaylist(it) }
+                                    }
+                                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = CoralIcons.Heart,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    "Add to playlist",
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
                     }
                 }
 
