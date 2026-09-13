@@ -371,7 +371,7 @@ fun FullPlayer(
                 .statusBarsPadding()
                 .navigationBarsPadding()
         ) {
-            Spacer(modifier = Modifier.weight(0.7f))
+            Spacer(modifier = Modifier.weight(0.75f))
 
             // ── Bottom controls column ────────────────────────────────
             Column(
@@ -461,6 +461,12 @@ fun FullPlayer(
                     animationSpec = tween(200),
                     label = "trackHeight"
                 )
+                // BUTTERY SMOOTH SCRUBBING: during drag, the visual uses
+                // dragFraction (local state, immediate — no media-seek lag).
+                // onSeek is only called on drag END (one seek, not per-frame).
+                // This eliminates the lag from per-frame media seeks.
+                var dragFraction by remember { mutableStateOf<Float?>(null) }
+                val displayProgress = dragFraction ?: progress
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -469,12 +475,23 @@ fun FullPlayer(
                         .pointerInput(durationMs) {
                             detectDragGestures(
                                 onDragStart = { isDragging = true },
-                                onDragEnd = { isDragging = false },
-                                onDragCancel = { isDragging = false },
+                                onDragEnd = {
+                                    isDragging = false
+                                    dragFraction?.let { frac ->
+                                        if (durationMs > 0) {
+                                            onSeek((frac * durationMs).toLong())
+                                        }
+                                    }
+                                    dragFraction = null
+                                },
+                                onDragCancel = {
+                                    isDragging = false
+                                    dragFraction = null
+                                },
                                 onDrag = { change, _ ->
                                     if (durationMs > 0 && seekbarWidthPx > 0) {
                                         val frac = (change.position.x / seekbarWidthPx).coerceIn(0f, 1f)
-                                        onSeek((frac * durationMs).toLong())
+                                        dragFraction = frac
                                     }
                                 }
                             )
@@ -490,7 +507,7 @@ fun FullPlayer(
                     )
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(progress)
+                            .fillMaxWidth(displayProgress)
                             .height(trackHeight)
                             .clip(RoundedCornerShape(trackHeight / 2))
                             .align(Alignment.CenterStart)
@@ -503,12 +520,12 @@ fun FullPlayer(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = formatTime(currentPositionMs),
+                        text = formatTime((displayProgress * durationMs).toLong()),
                         color = Color.White.copy(alpha = 0.55f),
                         fontSize = 11.sp
                     )
                     Text(
-                        text = "-" + formatTime((durationMs - currentPositionMs).coerceAtLeast(0L)),
+                        text = "-" + formatTime(((1f - displayProgress) * durationMs).toLong()),
                         color = Color.White.copy(alpha = 0.55f),
                         fontSize = 11.sp
                     )
@@ -609,7 +626,7 @@ fun FullPlayer(
                 }
             }
 
-            Spacer(modifier = Modifier.weight(0.3f))
+            Spacer(modifier = Modifier.weight(0.25f))
         }
 
         if (showLyrics) {
