@@ -46,10 +46,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -120,6 +121,7 @@ fun FullPlayer(
     val animatedTopColor    by animateColorAsState(palette.primary,   tween(600), label = "top")
     val animatedMidColor   by animateColorAsState(palette.secondary,  tween(600), label = "mid")
     val animatedBottomColor by animateColorAsState(palette.tertiary,  tween(600), label = "bottom")
+    val animatedAccentColor by animateColorAsState(palette.accent,    tween(600), label = "accent")
 
     // ─── Playback position polling ────────────────────────────────────
     var currentPositionMs by remember { mutableStateOf(0L) }
@@ -171,36 +173,88 @@ fun FullPlayer(
         onDispose { context.contentResolver.unregisterContentObserver(observer) }
     }
 
-    // ─── Root Box: blurred album cover bg + sharp square art at top ───
-    // Immersive layout (user's reference):
-    //   (1) BLURRED album cover fills the entire screen as the background
-    //       (replaces the solid palette color). 64dp radius = ~98% blur on
-    //       Android 12+ (hardware-accelerated RenderEffect).
-    //   (2) SHARP album art in a SQUARE container (fillMaxWidth +
-    //       aspectRatio 1f) anchored to TopCenter. Has an ALPHA MASK on the
-    //       bottom 140dp that fades opaque → transparent using
-    //       BlendMode.DstIn. This smoothly reveals the blurred bg below —
-    //       no hard edge between the sharp image's bottom and the blurred bg.
-    //   (3) Heart pop overlay (double-tap to favorite)
-    //   (4) Main content column (header at top overlaying the art, controls
-    //       at bottom overlaying the blurred bg)
+    // ─── Root Box: mesh gradient bg + sharp square art at top ───
+    // Apple Music-style: 4 radial gradient overlays at the screen's
+    // corners using the album's palette colors, blended on top of a
+    // base vertical gradient. Colors are boosted 2-2.5x saturation in
+    // PaletteExtractor for extra vibrancy. Sharp album art sits at top
+    // with an alpha mask that fades to transparent at the bottom,
+    // revealing the mesh gradient below.
     Box(modifier = Modifier.fillMaxSize().background(animatedBottomColor)) {
 
-        // (1) Blurred album cover — fills entire screen as the background.
-        //     This replaces the previous solid animatedBottomColor fill.
-        //     Modifier.blur uses RenderEffect on Android 12+ (hardware
-        //     accelerated). On older API levels the blur may not apply but
-        //     the image still renders (graceful fallback).
-        if (albumArtUri != null) {
-            AsyncImage(
-                model = albumArtUri,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .blur(64.dp)
-            )
-        }
+        // (1) MESH GRADIENT background — base vertical gradient + 4 radial
+        //     gradient overlays at the screen's corners. Each radial
+        //     overlay uses a different palette color, blending smoothly
+        //     with the others. Uses drawBehind to draw all layers in one
+        //     DrawScope pass (efficient — no separate Box per overlay).
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .drawBehind {
+                    val w = size.width
+                    val h = size.height
+                    val r = maxOf(w, h) * 1.2f  // large radius for broad blending
+
+                    // Base layer: vertical gradient (primary → secondary → tertiary)
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                animatedTopColor,
+                                animatedMidColor,
+                                animatedBottomColor
+                            )
+                        )
+                    )
+
+                    // Overlay 1: top-left radial, primary (dominant color)
+                    drawRect(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                animatedTopColor.copy(alpha = 0.7f),
+                                Color.Transparent
+                            ),
+                            center = Offset(0f, 0f),
+                            radius = r
+                        )
+                    )
+
+                    // Overlay 2: top-right radial, accent (vibrant)
+                    drawRect(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                animatedAccentColor.copy(alpha = 0.55f),
+                                Color.Transparent
+                            ),
+                            center = Offset(w, 0f),
+                            radius = r
+                        )
+                    )
+
+                    // Overlay 3: bottom-left radial, secondary (lightVibrant)
+                    drawRect(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                animatedMidColor.copy(alpha = 0.6f),
+                                Color.Transparent
+                            ),
+                            center = Offset(0f, h),
+                            radius = r
+                        )
+                    )
+
+                    // Overlay 4: bottom-right radial, tertiary (darkVibrant)
+                    drawRect(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                animatedBottomColor.copy(alpha = 0.7f),
+                                Color.Transparent
+                            ),
+                            center = Offset(w, h),
+                            radius = r
+                        )
+                    )
+                }
+        )
 
         // (2) Sharp album art — SQUARE container at top, with an alpha
         //     mask that fades the bottom 140dp from opaque → transparent.

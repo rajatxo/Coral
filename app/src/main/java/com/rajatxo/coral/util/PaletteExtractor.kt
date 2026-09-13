@@ -89,15 +89,16 @@ suspend fun extractPalette(context: Context, artUri: Uri?): CoralPalette? {
 
             if (dominant == null) return@withContext null
 
-            // Boost saturation for vibrant gradient cards.
-            // The palette's primary (dominant) can be muddy/muted — we want the
-            // cards to feel ALIVE with color. So we boost the saturation of
-            // the dominant + vibrant + lightVibrant colors.
+            // Boost saturation + brightness for vibrant mesh gradient bg
+            // (Apple Music-style). 2-2.5x saturation makes the colors feel
+            // ALIVE; the slight value (brightness) boost on primary/accent
+            // makes them pop without washing out. Tertiary is slightly
+            // darkened for text legibility at the bottom of the screen.
             CoralPalette(
-                primary = boostSaturation(Color(dominant), 1.6f),
-                secondary = boostSaturation(Color(lightVibrant ?: dominant), 1.5f),
-                tertiary = Color(darkVibrant ?: dominant),
-                accent = boostSaturation(Color(vibrant ?: dominant), 1.5f)
+                primary = boostSaturation(Color(dominant), 2.5f, 1.15f),
+                secondary = boostSaturation(Color(lightVibrant ?: dominant), 2.0f, 1.1f),
+                tertiary = boostSaturation(Color(darkVibrant ?: dominant), 1.8f, 0.92f),
+                accent = boostSaturation(Color(vibrant ?: dominant), 2.5f, 1.15f)
             )
         } catch (_: Exception) {
             null
@@ -109,13 +110,13 @@ suspend fun extractPalette(context: Context, artUri: Uri?): CoralPalette? {
  * Boosts the saturation of a [Color] by the given factor (1.0 = no change,
  * 1.5 = 50% more saturated, 2.0 = double saturation).
  *
- * Used by Quick Picks gradient cards to make the album art's palette
- * colors feel more vibrant — the default dominant color is often muddy
- * or muted, which makes for dull gradients.
+ * Also boosts the value (brightness) by [valueFactor] (1.0 = no change,
+ * 1.15 = 15% brighter). Useful for making colors feel more vibrant —
+ * saturation alone can darken, so a slight value bump keeps them glowing.
  *
- * Convert to HSV, scale S, keep H and V unchanged, convert back.
+ * Convert to HSV, scale S and V, keep H unchanged, convert back.
  */
-private fun boostSaturation(color: Color, factor: Float): Color {
+private fun boostSaturation(color: Color, factor: Float, valueFactor: Float = 1.0f): Color {
     val hsv = FloatArray(3)
     android.graphics.Color.RGBToHSV(
         (color.red * 255).toInt(),
@@ -124,6 +125,7 @@ private fun boostSaturation(color: Color, factor: Float): Color {
         hsv
     )
     hsv[1] = (hsv[1] * factor).coerceIn(0f, 1f)
+    hsv[2] = (hsv[2] * valueFactor).coerceIn(0f, 1f)
     val rgb = android.graphics.Color.HSVToColor(hsv)
     return Color(
         red = ((rgb shr 16) and 0xFF) / 255f,
