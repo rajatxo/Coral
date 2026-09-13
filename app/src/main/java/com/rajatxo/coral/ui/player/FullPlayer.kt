@@ -8,6 +8,7 @@ import android.os.Looper
 import android.provider.Settings
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.basicMarquee
@@ -370,7 +371,7 @@ fun FullPlayer(
                 .statusBarsPadding()
                 .navigationBarsPadding()
         ) {
-            Spacer(modifier = Modifier.weight(0.6f))
+            Spacer(modifier = Modifier.weight(0.7f))
 
             // ── Bottom controls column ────────────────────────────────
             Column(
@@ -452,6 +453,14 @@ fun FullPlayer(
                     (currentPositionMs.toFloat() / durationMs).coerceIn(0f, 1f)
                 else 0f
                 var seekbarWidthPx by remember { mutableFloatStateOf(1f) }
+                // Drag state — when holding/dragging the timeline, the track
+                // gets thicker (6dp → 12dp). Animates back to 6dp on release.
+                var isDragging by remember { mutableStateOf(false) }
+                val trackHeight by animateDpAsState(
+                    targetValue = if (isDragging) 12.dp else 6.dp,
+                    animationSpec = tween(200),
+                    label = "trackHeight"
+                )
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -459,7 +468,9 @@ fun FullPlayer(
                         .onSizeChanged { seekbarWidthPx = it.width.toFloat() }
                         .pointerInput(durationMs) {
                             detectDragGestures(
-                                onDragEnd = {},
+                                onDragStart = { isDragging = true },
+                                onDragEnd = { isDragging = false },
+                                onDragCancel = { isDragging = false },
                                 onDrag = { change, _ ->
                                     if (durationMs > 0 && seekbarWidthPx > 0) {
                                         val frac = (change.position.x / seekbarWidthPx).coerceIn(0f, 1f)
@@ -472,31 +483,18 @@ fun FullPlayer(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp))
+                            .height(trackHeight)
+                            .clip(RoundedCornerShape(trackHeight / 2))
                             .align(Alignment.CenterStart)
                             .background(Color.White.copy(alpha = 0.25f))
                     )
                     Box(
                         modifier = Modifier
                             .fillMaxWidth(progress)
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp))
+                            .height(trackHeight)
+                            .clip(RoundedCornerShape(trackHeight / 2))
                             .align(Alignment.CenterStart)
                             .background(Color.White)
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(18.dp)
-                            .clip(CircleShape)
-                            .background(Color.White)
-                            .align(Alignment.CenterStart)
-                            .offset {
-                                IntOffset(
-                                    (progress * seekbarWidthPx - 9.dp.toPx()).coerceAtLeast(0f).toInt(),
-                                    0
-                                )
-                            }
                     )
                 }
 
@@ -611,7 +609,7 @@ fun FullPlayer(
                 }
             }
 
-            Spacer(modifier = Modifier.weight(0.4f))
+            Spacer(modifier = Modifier.weight(0.3f))
         }
 
         if (showLyrics) {
