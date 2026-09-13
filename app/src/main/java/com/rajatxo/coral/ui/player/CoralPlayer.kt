@@ -225,7 +225,7 @@ fun CoralPlayer(
     // ─── Seek bar state (buttery smooth, no thumb, thickens on drag) ──
     var isDragging by remember { mutableStateOf(false) }
     val trackHeight by animateDpAsState(
-        targetValue = if (isDragging) 10.dp else 4.dp,
+        targetValue = if (isDragging) 12.dp else 5.dp,
         animationSpec = tween(200),
         label = "trackHeight"
     )
@@ -547,7 +547,7 @@ fun CoralPlayer(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            // Favorite — HeartPlus (not favorited) / HeartMinus (favorited)
+                            // Favorite — HeartLucide (not favorited) / HeartLucideFilled (favorited)
                             Box(
                                 modifier = Modifier
                                     .size(32.dp)
@@ -558,13 +558,13 @@ fun CoralPlayer(
                                     ) {
                                         if (songId != null) {
                                             PlaylistStore.toggleFavorite(songId)
-                                            tickHaptic()
+                                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                                         }
                                     },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = if (isFavorite) CoralIcons.HeartMinus else CoralIcons.HeartPlus,
+                                    imageVector = if (isFavorite) CoralIcons.HeartLucideFilled else CoralIcons.HeartLucide,
                                     contentDescription = "Favorite",
                                     tint = if (isFavorite) animatedAccentColor else Color.White,
                                     modifier = Modifier.size(20.dp)
@@ -611,7 +611,7 @@ fun CoralPlayer(
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(3.dp))
+                Spacer(modifier = Modifier.height(2.dp))
                 // Artist name (left-aligned, 95% white, no shadow)
                 Text(
                     text = artist,
@@ -625,38 +625,68 @@ fun CoralPlayer(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Album name (with music icon, tappable → lyrics) ───────
-                if (albumName != null) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { showLyrics = true }
-                    ) {
-                        Image(
-                            imageVector = CoralIcons.Music,
-                            contentDescription = null,
-                            colorFilter = ColorFilter.tint(Color.White.copy(alpha = 0.5f)),
-                            modifier = Modifier.size(14.dp)
+                // Lyrics preview (3-line synced) ────────────────────────
+                val lyricsRepository = remember { com.rajatxo.coral.data.lyrics.LyricsRepository(context) }
+                var lyricData by remember { mutableStateOf<com.rajatxo.coral.data.lyrics.Lyric?>(null) }
+                androidx.compose.runtime.LaunchedEffect(title, artist, durationMs) {
+                    try {
+                        lyricData = lyricsRepository.getLyrics(
+                            track = title, artist = artist, album = albumName, durationMs = durationMs
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                    } catch (_: Exception) { }
+                }
+                val activeLineIndex = if (lyricData != null && lyricData!!.synced && lyricData!!.lines.isNotEmpty()) {
+                    findActiveLineIndex(lyricData!!.lines, currentPositionMs)
+                } else -1
+
+                // "Lyrics" header (same size + font as artist name)
+                Text(
+                    text = "Lyrics",
+                    color = Color.White.copy(alpha = 0.95f),
+                    fontSize = 16.sp,
+                    fontFamily = CalSansFamily,
+                    fontWeight = FontWeight.Normal
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // 3-line synced lyrics preview
+                if (lyricData != null && lyricData!!.synced && activeLineIndex >= 0) {
+                    val lines = lyricData!!.lines
+                    // Previous line (smaller, 90% white)
+                    if (activeLineIndex > 0) {
                         Text(
-                            text = albumName,
-                            color = Color.White.copy(alpha = 0.5f),
-                            fontSize = 13.sp,
+                            text = lines[activeLineIndex - 1].text.ifBlank { "\u266A" },
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontSize = 14.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Image(
-                            imageVector = CoralIcons.ChevronRight,
-                            contentDescription = null,
-                            colorFilter = ColorFilter.tint(Color.White.copy(alpha = 0.5f)),
-                            modifier = Modifier.size(14.dp)
+                    }
+                    // Active line (bigger, full white)
+                    Text(
+                        text = lines[activeLineIndex].text.ifBlank { "\u266A" },
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    // Next line (smaller, 90% white)
+                    if (activeLineIndex < lines.size - 1) {
+                        Text(
+                            text = lines[activeLineIndex + 1].text.ifBlank { "\u266A" },
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontSize = 14.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
+                } else {
+                    Text(
+                        text = "Sync lyrics from LrcLib",
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 14.sp
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -723,7 +753,73 @@ fun CoralPlayer(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Small + Big glass capsule (side by side, combined width = timeline)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Small glass capsule
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp)
+                            .clip(RoundedCornerShape(22.dp))
+                            .drawBackdrop(
+                                backdrop = glassBackdrop,
+                                shape = { RoundedCornerShape(22.dp) },
+                                effects = {
+                                    vibrancy()
+                                    colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.5f)
+                                    blur(12f.dp.toPx())
+                                },
+                                onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) { }
+                    // Big glass capsule
+                    Box(
+                        modifier = Modifier
+                            .weight(2f)
+                            .height(44.dp)
+                            .clip(RoundedCornerShape(22.dp))
+                            .drawBackdrop(
+                                backdrop = glassBackdrop,
+                                shape = { RoundedCornerShape(22.dp) },
+                                effects = {
+                                    vibrancy()
+                                    colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.5f)
+                                    blur(12f.dp.toPx())
+                                },
+                                onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) { }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Big glass capsule (full width)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .drawBackdrop(
+                            backdrop = glassBackdrop,
+                            shape = { RoundedCornerShape(22.dp) },
+                            effects = {
+                                vibrancy()
+                                colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.5f)
+                                blur(12f.dp.toPx())
+                            },
+                            onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) { }
+
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // Transport: Rewind | play/pause circle | FastForward ──────
                 Row(
@@ -821,4 +917,24 @@ fun CoralPlayer(
 private fun formatTime(ms: Long): String {
     val s = ms / 1000
     return "%d:%02d".format(s / 60, s % 60)
+}
+
+/** Find the index of the lyric line that should currently be active. */
+private fun findActiveLineIndex(lines: List<com.rajatxo.coral.data.lyrics.LyricLine>, positionMs: Long): Int {
+    if (lines.isEmpty()) return -1
+    var lo = 0
+    var hi = lines.lastIndex
+    var result = -1
+    while (lo <= hi) {
+        val mid = (lo + hi) / 2
+        if (lines[mid].timeMs in 0..positionMs) {
+            result = mid
+            lo = mid + 1
+        } else if (lines[mid].timeMs > positionMs) {
+            hi = mid - 1
+        } else {
+            lo = mid + 1
+        }
+    }
+    return result
 }
