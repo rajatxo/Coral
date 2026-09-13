@@ -611,7 +611,7 @@ fun CoralPlayer(
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(3.dp))
                 // Artist name (left-aligned, 95% white, no shadow)
                 Text(
                     text = artist,
