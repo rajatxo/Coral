@@ -10,6 +10,7 @@ import android.view.HapticFeedbackConstants
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -62,6 +63,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -368,7 +370,7 @@ fun FullPlayer(
                 .statusBarsPadding()
                 .navigationBarsPadding()
         ) {
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.weight(0.6f))
 
             // ── Bottom controls column ────────────────────────────────
             Column(
@@ -377,83 +379,33 @@ fun FullPlayer(
                     .padding(horizontal = 24.dp)
             ) {
 
-                // (a) Song title + heart + queue ─────────────────────
-                Row(
+                // (a) Song title + artist (centered) ───────────────────
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = title,
-                            color = Color.White,
-                            fontSize = 34.sp,
-                            fontFamily = CalSansFamily,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = artist,
-                            color = Color.White.copy(alpha = 0.7f),
-                            fontSize = 20.sp,
-                            fontFamily = CalSansFamily,
-                            fontWeight = FontWeight.Normal,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    Box {
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.15f))
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = androidx.compose.material3.ripple(bounded = false)
-                                ) { showMoreMenu = true },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = CoralIcons.Ellipsis,
-                                contentDescription = "More",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        DropdownMenu(
-                            expanded = showMoreMenu,
-                            onDismissRequest = { showMoreMenu = false },
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(Color(0xFF1A1A1A))
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .clickable {
-                                        showMoreMenu = false
-                                        songId?.let { onAddToPlaylist(it) }
-                                    }
-                                    .padding(horizontal = 20.dp, vertical = 14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = CoralIcons.Heart,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    "Add to playlist",
-                                    color = Color.White,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                        }
-                    }
+                    Text(
+                        text = title,
+                        color = Color.White,
+                        fontSize = 28.sp,
+                        fontFamily = CalSansFamily,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.basicMarquee()
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = artist,
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 18.sp,
+                        fontFamily = CalSansFamily,
+                        fontWeight = FontWeight.Normal,
+                        maxLines = 1,
+                        textAlign = TextAlign.Center,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -520,28 +472,28 @@ fun FullPlayer(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(3.dp)
-                            .clip(RoundedCornerShape(1.5.dp))
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
                             .align(Alignment.CenterStart)
                             .background(Color.White.copy(alpha = 0.25f))
                     )
                     Box(
                         modifier = Modifier
                             .fillMaxWidth(progress)
-                            .height(3.dp)
-                            .clip(RoundedCornerShape(1.5.dp))
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
                             .align(Alignment.CenterStart)
                             .background(Color.White)
                     )
                     Box(
                         modifier = Modifier
-                            .size(12.dp)
+                            .size(18.dp)
                             .clip(CircleShape)
                             .background(Color.White)
                             .align(Alignment.CenterStart)
                             .offset {
                                 IntOffset(
-                                    (progress * seekbarWidthPx - 6.dp.toPx()).coerceAtLeast(0f).toInt(),
+                                    (progress * seekbarWidthPx - 9.dp.toPx()).coerceAtLeast(0f).toInt(),
                                     0
                                 )
                             }
@@ -566,15 +518,16 @@ fun FullPlayer(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // (d) Transport ─ prev · play/pause · next ─────────────
+                // (d) Transport — Rewind (prev) · glossy capsule (play/pause) · FastForward (next)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Previous — Rewind icon (two left-pointing triangles)
                     Box(
                         modifier = Modifier
-                            .size(56.dp)
+                            .size(48.dp)
                             .clip(CircleShape)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
@@ -586,35 +539,58 @@ fun FullPlayer(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = CoralIcons.SkipPrev,
+                            imageVector = CoralIcons.Rewind,
                             contentDescription = "Previous",
                             tint = Color.White,
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(28.dp)
                         )
                     }
+                    // Glossy capsule — play/pause icon + text
+                    // White pill with subtle vertical gradient (glossy effect).
+                    // Inside: filled Play/PauseLucide icon + "Play"/"Pause" text.
                     Box(
                         modifier = Modifier
-                            .size(72.dp)
-                            .clip(CircleShape)
+                            .clip(RoundedCornerShape(50.dp))
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.White,
+                                        Color.White.copy(alpha = 0.85f)
+                                    )
+                                )
+                            )
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = androidx.compose.material3.ripple(bounded = false)
                             ) {
                                 onPlayPauseClick()
                                 view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                            },
-                        contentAlignment = Alignment.Center
+                            }
+                            .padding(horizontal = 28.dp, vertical = 14.dp)
                     ) {
-                        Icon(
-                            imageVector = if (isPlaying) CoralIcons.Pause else CoralIcons.Play,
-                            contentDescription = "Play/Pause",
-                            tint = Color.White,
-                            modifier = Modifier.size(48.dp)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (isPlaying) CoralIcons.PauseLucide else CoralIcons.PlayLucide,
+                                contentDescription = if (isPlaying) "Pause" else "Play",
+                                tint = Color.Black,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = if (isPlaying) "Pause" else "Play",
+                                color = Color.Black,
+                                fontSize = 18.sp,
+                                fontFamily = CalSansFamily,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
+                    // Next — FastForward icon (two right-pointing triangles)
                     Box(
                         modifier = Modifier
-                            .size(56.dp)
+                            .size(48.dp)
                             .clip(CircleShape)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
@@ -626,86 +602,16 @@ fun FullPlayer(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = CoralIcons.SkipNext,
+                            imageVector = CoralIcons.FastForward,
                             contentDescription = "Next",
                             tint = Color.White,
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(28.dp)
                         )
                     }
                 }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // (f) Bottom utility ─ shuffle · repeat-1 · repeat-∞ · queue
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = androidx.compose.material3.ripple(bounded = false)
-                            ) { view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = CoralIcons.Shuffle,
-                            contentDescription = "Shuffle",
-                            tint = Color.White.copy(alpha = 0.7f),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.22f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = androidx.compose.material3.ripple(bounded = false)
-                            ) { view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("1", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.22f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = androidx.compose.material3.ripple(bounded = false)
-                            ) { view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("∞", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Normal)
-                    }
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = androidx.compose.material3.ripple(bounded = false)
-                            ) { showLyrics = true },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = CoralIcons.Queue,
-                            contentDescription = "Queue",
-                            tint = Color.White.copy(alpha = 0.7f),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
             }
+
+            Spacer(modifier = Modifier.weight(0.4f))
         }
 
         if (showLyrics) {

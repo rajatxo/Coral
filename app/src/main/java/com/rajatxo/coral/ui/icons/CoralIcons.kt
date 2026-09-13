@@ -547,4 +547,38 @@ object CoralIcons {
         lineToRelative(6f, 6f)
         lineToRelative(-6f, 6f)
     }
+
+    /**
+     * Lucide rewind (MIT licensed) — two left-pointing triangles.
+     * Used for the "previous track" button.
+     */
+    val Rewind: ImageVector = stroke("Rewind") {
+        // First triangle (left, pointing left)
+        moveTo(11f, 19f)
+        lineTo(2f, 12f)
+        lineTo(11f, 5f)
+        close()
+        // Second triangle (right, pointing left)
+        moveTo(22f, 19f)
+        lineTo(13f, 12f)
+        lineTo(22f, 5f)
+        close()
+    }
+
+    /**
+     * Lucide fast-forward (MIT licensed) — two right-pointing triangles.
+     * Mirrored rewind. Used for the "next track" button.
+     */
+    val FastForward: ImageVector = stroke("FastForward") {
+        // First triangle (left, pointing right)
+        moveTo(13f, 19f)
+        lineTo(22f, 12f)
+        lineTo(13f, 5f)
+        close()
+        // Second triangle (right, pointing right)
+        moveTo(2f, 19f)
+        lineTo(11f, 12f)
+        lineTo(2f, 5f)
+        close()
+    }
 }
