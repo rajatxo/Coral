@@ -165,50 +165,48 @@ fun FullPlayer(
         onDispose { context.contentResolver.unregisterContentObserver(observer) }
     }
 
-    // ─── Root Box: black base + full-bleed album art ────────────────
+    // ─── Root Box: black base + gradient bg + square album art ──────
+    // BitChord-style: opaque black base, vertical gradient from album
+    // colors fills the screen, album art is a square in the middle.
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
 
-        // (1) Full-bleed album art fills the entire viewport
-        if (albumArtUri != null) {
-            AsyncImage(
-                model = albumArtUri,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(albumArtUri) {
-                        detectTapGestures(
-                            onDoubleTap = {
-                                if (songId != null) {
-                                    PlaylistStore.toggleFavorite(songId)
-                                    showHeartPop = true
-                                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                                }
-                            }
+        // (1) Vertical gradient using album art's dominant colors
+        //     (NOT the album art itself — just its palette). Full opacity,
+        //     600ms crossfade on song change → no grey flash.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            animatedTopColor,
+                            animatedMidColor,
+                            animatedBottomColor
                         )
-                    }
-            )
-        }
+                    )
+                )
+        )
 
-        // (2) Dark gradient overlay — transparent at top, opaque at bottom
-        // for text legibility over the album art
+        // (2) Soft dark overlay only at the bottom — text legibility.
+        //     BitChord style: transparent at top, fades to dark at bottom
+        //     so the vibrant palette colors show through the upper 70%.
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
-                            0.00f to Color.Black.copy(alpha = 0.15f),
-                            0.40f to Color.Black.copy(alpha = 0.20f),
-                            0.65f to Color.Black.copy(alpha = 0.50f),
-                            0.85f to Color.Black.copy(alpha = 0.85f),
-                            1.00f to Color.Black.copy(alpha = 0.95f)
+                            0.00f to Color.Black.copy(alpha = 0.00f),
+                            0.50f to Color.Black.copy(alpha = 0.00f),
+                            0.70f to Color.Black.copy(alpha = 0.20f),
+                            0.85f to Color.Black.copy(alpha = 0.50f),
+                            1.00f to Color.Black.copy(alpha = 0.75f)
                         )
                     )
                 )
         )
 
-        // (3) Heart pop overlay (double-tap to favorite)
+        // (3) Heart pop overlay (double-tap on album art to favorite)
         if (showHeartPop) {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -225,7 +223,8 @@ fun FullPlayer(
             }
         }
 
-        // (3) Main content column — bottom-aligned, statusBarsPadding at top
+        // (4) Main content column — header at top, square art centered,
+        //     controls at bottom. Weights push the art toward vertical center.
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -312,7 +311,47 @@ fun FullPlayer(
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.weight(0.6f))
+
+            // ── Square album art (BitChord-style: NOT full-screen) ───
+            // Full width with 24dp horizontal padding → 10dp rounded
+            // corners → 20dp drop shadow → square-ish look (320dp tall).
+            // Background uses animatedBottomColor so when the image is
+            // loading there's no empty box — the gradient color fills in.
+            // Double-tap toggles favorite + shows heart pop.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .height(320.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .shadow(20.dp, RoundedCornerShape(10.dp))
+                    .background(animatedBottomColor)
+                    .pointerInput(albumArtUri) {
+                        detectTapGestures(
+                            onDoubleTap = {
+                                if (songId != null) {
+                                    PlaylistStore.toggleFavorite(songId)
+                                    showHeartPop = true
+                                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                }
+                            }
+                        )
+                    }
+            ) {
+                if (albumArtUri != null) {
+                    AsyncImage(
+                        model = albumArtUri,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(10.dp))
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.weight(0.4f))
 
             // ── Bottom controls column ────────────────────────────────
             Column(
