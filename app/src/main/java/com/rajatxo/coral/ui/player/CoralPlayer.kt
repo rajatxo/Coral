@@ -452,67 +452,55 @@ fun CoralPlayer(
             }
         }
 
-        // (4) Main content column — header overlays the art at top,
-        //     controls sit on the solid color at bottom.
+        // (4) 3-segment cover indicator — at EXACT center of screen
+        var coverMode by remember { mutableStateOf(0) }
+        Row(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth()
+                .padding(horizontal = 60.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            // Segment 1: Original cover
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(1.5.dp))
+                    .background(if (coverMode == 0) Color.White else Color.White.copy(alpha = 0.2f))
+                    .clickable { coverMode = 0 }
+            )
+            // Segment 2: Custom image
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(1.5.dp))
+                    .background(if (coverMode == 1) Color.White else Color.White.copy(alpha = 0.2f))
+                    .clickable { coverMode = 1 }
+            )
+            // Segment 3: Animated video
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(1.5.dp))
+                    .background(if (coverMode == 2) Color.White else Color.White.copy(alpha = 0.2f))
+                    .clickable { coverMode = 2 }
+            )
+        }
+
+        // (5) Content column — at bottom of screen, below the indicator
+        var seekbarWidthPx by remember { mutableFloatStateOf(1f) }
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 16.dp)
         ) {
-            Spacer(modifier = Modifier.weight(0.5f))
 
-            // ── 3-segment cover indicator ──────────────────────────────
-            // Just below the blending point. Three horizontal segments:
-            //   1. Original album cover (default, active)
-            //   2. Custom image (user can select their own)
-            //   3. Animated album art video
-            // Active segment is white, inactive are white 20%. Tappable
-            // to switch cover mode (functionality added later).
-            var coverMode by remember { mutableStateOf(0) }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 60.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                // Segment 1: Original cover
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(3.dp)
-                        .clip(RoundedCornerShape(1.5.dp))
-                        .background(if (coverMode == 0) Color.White else Color.White.copy(alpha = 0.2f))
-                        .clickable { coverMode = 0 }
-                )
-                // Segment 2: Custom image
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(3.dp)
-                        .clip(RoundedCornerShape(1.5.dp))
-                        .background(if (coverMode == 1) Color.White else Color.White.copy(alpha = 0.2f))
-                        .clickable { coverMode = 1 }
-                )
-                // Segment 3: Animated video
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(3.dp)
-                        .clip(RoundedCornerShape(1.5.dp))
-                        .background(if (coverMode == 2) Color.White else Color.White.copy(alpha = 0.2f))
-                        .clickable { coverMode = 2 }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // ── Content column (left-aligned, below the indicator) ─────
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-            ) {
                 // Song title (left-aligned, bold) ────────────────────────
                 Text(
                     text = title,
@@ -715,8 +703,7 @@ fun CoralPlayer(
                 }
             }
 
-            Spacer(modifier = Modifier.weight(0.5f))
-        }
+
 
         if (showLyrics) {
             LyricsSheet(
