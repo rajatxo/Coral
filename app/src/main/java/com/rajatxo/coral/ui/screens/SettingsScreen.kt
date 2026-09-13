@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rajatxo.coral.data.premium.PremiumManager
+import com.rajatxo.coral.data.prefs.CrossfadeManager
 import com.rajatxo.coral.data.prefs.PlayerStyleManager
 import com.rajatxo.coral.data.prefs.SoundHapticsManager
 import com.rajatxo.coral.ui.components.CoralColors
@@ -65,6 +66,7 @@ fun SettingsScreen(
     val soundsEnabled by SoundHapticsManager.soundsEnabled.collectAsState()
     val soundVolume by SoundHapticsManager.soundVolume.collectAsState()
     val playerStyle by PlayerStyleManager.playerStyle.collectAsState()
+    val crossfadeDuration by CrossfadeManager.crossfadeDuration.collectAsState()
     var versionTapCount by remember { mutableIntStateOf(0) }
 
     Column(
@@ -223,8 +225,27 @@ fun SettingsScreen(
                 title = "Crossfade",
                 subtitle = "Smooth transition between songs" +
                     (if (isPremium) "" else " (Premium)"),
-                value = if (isPremium) "Off" else "🔒"
+                value = if (isPremium) {
+                    if (crossfadeDuration == 0) "Off" else "${crossfadeDuration}s"
+                } else "\uD83D\uDD12"
             )
+            // Crossfade slider (1-12 seconds, 0 = off)
+            if (isPremium) {
+                androidx.compose.material3.Slider(
+                    value = crossfadeDuration.toFloat(),
+                    onValueChange = { CrossfadeManager.setCrossfadeDuration(it.toInt()) },
+                    valueRange = 0f..12f,
+                    steps = 11,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    colors = androidx.compose.material3.SliderDefaults.colors(
+                        thumbColor = Color.White,
+                        activeTrackColor = Color.White,
+                        inactiveTrackColor = Color.White.copy(alpha = 0.2f)
+                    )
+                )
+            }
             SettingsRow(
                 icon = CoralIcons.SkipNext,
                 title = "Skip on error",

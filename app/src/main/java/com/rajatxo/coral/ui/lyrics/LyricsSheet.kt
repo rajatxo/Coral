@@ -189,7 +189,7 @@ fun LyricsSheet(
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator(color = Color(0xFFFF6B6B))
+                            CircularProgressIndicator(color = Color.White)
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
                                 text = "Searching LrcLib...",
@@ -225,7 +225,7 @@ fun LyricsSheet(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(24.dp))
-                                    .background(Color(0xFFFF6B6B))
+                                    .background(Color.White)
                                     .clickable { refresh() }
                                     .padding(horizontal = 32.dp, vertical = 12.dp)
                             ) {
@@ -387,9 +387,9 @@ private fun KaraokeLine(
     )
 
     // Size + weight for active vs inactive
-    val fontSize = if (isActive) 22.sp else 17.sp
+    val fontSize = if (isActive) 24.sp else 18.sp
     val fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal
-    val color = if (isActive) Color(0xFFFF6B6B) else Color.White
+    val color = if (isActive) Color.White else Color.White
 
     Text(
         text = line.text.ifBlank { "♪" },
