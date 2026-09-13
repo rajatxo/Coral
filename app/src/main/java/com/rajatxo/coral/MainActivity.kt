@@ -165,6 +165,15 @@ fun CoralApp() {
                     currentSongAlbum = mediaItem?.mediaMetadata?.albumTitle?.toString()
                     currentSongArt = mediaItem?.mediaMetadata?.artworkUri
                     currentSongId = mediaItem?.mediaId?.toLongOrNull()
+                    // Auto-play on song change — fixes:
+                    // 1. Next song doesn't play after current ends (auto-advance
+                    //    loads the next item but playWhenReady can get stuck false)
+                    // 2. Next/prev buttons sometimes don't start playback
+                    // Skip PLAYLIST_CHANGED — the caller (onSongClick) already
+                    // calls play() after setMediaItems.
+                    if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) {
+                        controller.play()
+                    }
                 }
                 override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
             })
