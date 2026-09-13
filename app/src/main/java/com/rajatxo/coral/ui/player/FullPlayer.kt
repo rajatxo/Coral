@@ -200,6 +200,51 @@ fun FullPlayer(
             )
         }
 
+        // Medium-blur bridge layer (32dp blur) — sits between the heavy-blur
+        // bg (96dp) and the sharp art (0dp). Has a bell-curve alpha mask
+        // that makes it visible only in the transition zone (around the
+        // sharp art's bottom edge, ~48% down the screen). This creates a
+        // gradual blur: sharp → 32dp → 96dp. The texture change is spread
+        // across two stages instead of one, so the transition looks
+        // seamless — like one continuous image, not "sharp then blurred".
+        if (albumArtUri != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                    .drawWithContent {
+                        drawContent()
+                        // Bell-curve alpha mask via DstIn:
+                        //   0-40%  : transparent (sharp art area, medium-blur hidden)
+                        //   40-48% : fade in (sharp art fading out, medium-blur fading in)
+                        //   48-55% : fully opaque (medium-blur dominates)
+                        //   55-85% : fade out (transitioning to heavy-blur)
+                        //   85-100%: transparent (heavy-blur dominates)
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colorStops = arrayOf(
+                                    0.00f to Color.Transparent,
+                                    0.40f to Color.Transparent,
+                                    0.48f to Color.Black,
+                                    0.55f to Color.Black,
+                                    0.70f to Color.Black.copy(alpha = 0.4f),
+                                    0.85f to Color.Transparent,
+                                    1.00f to Color.Transparent
+                                )
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
+            ) {
+                AsyncImage(
+                    model = albumArtUri,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().blur(32.dp)
+                )
+            }
+        }
+
         // (2) Sharp album art — SQUARE container at top, moved down 24dp
         //     (so the status bar sits on the blurred bg, not on the art).
         //     Has alpha masks at BOTH top (64dp) and bottom (140dp) that
