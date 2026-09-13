@@ -20,6 +20,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -270,7 +271,8 @@ fun CoralPlayer(
     //       drawWithContent + DstIn. Result: sharp in the middle, fading
     //       to transparent at both edges — smoothly revealing the blurred
     //       bg above (status bar area) and below (controls area).
-    Box(modifier = Modifier.fillMaxSize().background(animatedBottomColor)) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(animatedBottomColor)) {
+        val center = maxHeight / 2
 
         // Background layer — wrapped with layerBackdrop so the glass capsule
         // can sample + blur the album cover behind it (liquid glass effect).
@@ -456,7 +458,8 @@ fun CoralPlayer(
         var coverMode by remember { mutableStateOf(0) }
         Row(
             modifier = Modifier
-                .align(Alignment.Center)
+                .align(Alignment.TopStart)
+                .offset(y = center - 1.5.dp)
                 .fillMaxWidth()
                 .padding(horizontal = 60.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -495,10 +498,9 @@ fun CoralPlayer(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
+                .align(Alignment.TopStart)
+                .offset(y = center + 1.5.dp + 20.dp)
                 .padding(horizontal = 24.dp)
-                .padding(bottom = 16.dp)
         ) {
 
                 // Song title (left-aligned, bold) ────────────────────────
