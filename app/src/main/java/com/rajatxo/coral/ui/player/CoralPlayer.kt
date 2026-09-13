@@ -499,7 +499,7 @@ fun CoralPlayer(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopStart)
-                .offset(y = center + 1.5.dp + 20.dp)
+                .offset(y = center + 1.5.dp + 22.dp)
                 .padding(horizontal = 24.dp)
         ) {
 
@@ -514,11 +514,11 @@ fun CoralPlayer(
                     overflow = TextOverflow.Ellipsis,
                     style = TextStyle(shadow = textShadow)
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 // Artist name (left-aligned) ─────────────────────────────
                 Text(
                     text = artist,
-                    color = Color.White.copy(alpha = 0.7f),
+                    color = Color.White.copy(alpha = 0.95f),
                     fontSize = 16.sp,
                     fontFamily = CalSansFamily,
                     fontWeight = FontWeight.Normal,
@@ -551,8 +551,7 @@ fun CoralPlayer(
                             color = Color.White.copy(alpha = 0.5f),
                             fontSize = 13.sp,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            style = TextStyle(shadow = textShadow)
+                            overflow = TextOverflow.Ellipsis
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Image(
@@ -619,14 +618,12 @@ fun CoralPlayer(
                     Text(
                         text = formatTime((displayProgress * durationMs).toLong()),
                         color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 11.sp,
-                        style = TextStyle(shadow = textShadow)
+                        fontSize = 11.sp
                     )
                     Text(
                         text = "-" + formatTime(((1f - displayProgress) * durationMs).toLong()),
                         color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 11.sp,
-                        style = TextStyle(shadow = textShadow)
+                        fontSize = 11.sp
                     )
                 }
 

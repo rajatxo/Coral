@@ -581,4 +581,71 @@ object CoralIcons {
         lineTo(2f, 5f)
         close()
     }
+
+    /**
+     * Lucide heart-plus (outline) — heart with a + sign.
+     * Used when a song is NOT favorited. Tap to add to favorites.
+     */
+    val HeartPlus: ImageVector = stroke("HeartPlus") {
+        // Heart outline (same path as HeartLucide)
+        moveTo(2f, 9.5f)
+        arcToRelative(5.5f, 5.5f, 0f, false, true, 9.591f, -3.676f)
+        arcToRelative(0.56f, 0.56f, 0f, false, false, 0.818f, 0f)
+        arcTo(5.49f, 5.49f, 0f, false, true, 22f, 9.5f)
+        curveToRelative(0f, 2.29f, -1.5f, 4f, -3f, 5.5f)
+        lineToRelative(-5.492f, 5.313f)
+        arcToRelative(2f, 2f, 0f, false, true, -3f, 0.019f)
+        lineTo(5f, 15f)
+        curveToRelative(-1.5f, -1.5f, -3f, -3.2f, -3f, -5.5f)
+        // Plus sign
+        moveTo(15f, 15f)
+        horizontalLineToRelative(6f)
+        moveTo(18f, 12f)
+        verticalLineToRelative(6f)
+    }
+
+    /**
+     * Lucide heart-minus (outline) — heart with a - sign.
+     * Used when a song IS favorited. Tap to remove from favorites.
+     */
+    val HeartMinus: ImageVector = stroke("HeartMinus") {
+        // Heart outline (same path as HeartLucide)
+        moveTo(2f, 9.5f)
+        arcToRelative(5.5f, 5.5f, 0f, false, true, 9.591f, -3.676f)
+        arcToRelative(0.56f, 0.56f, 0f, false, false, 0.818f, 0f)
+        arcTo(5.49f, 5.49f, 0f, false, true, 22f, 9.5f)
+        curveToRelative(0f, 2.29f, -1.5f, 4f, -3f, 5.5f)
+        lineToRelative(-5.492f, 5.313f)
+        arcToRelative(2f, 2f, 0f, false, true, -3f, 0.019f)
+        lineTo(5f, 15f)
+        curveToRelative(-1.5f, -1.5f, -3f, -3.2f, -3f, -5.5f)
+        // Minus sign
+        moveTo(15f, 15f)
+        horizontalLineToRelative(6f)
+    }
+
+    /**
+     * Lucide share-2 (outline) — three circles connected by lines.
+     * Standard iOS-style share icon.
+     */
+    val Share2: ImageVector = stroke("Share2") {
+        // Circle 1: center (18, 5), radius 3
+        moveTo(21f, 5f)
+        arcTo(3f, 3f, 0f, true, true, 15f, 5f)
+        arcTo(3f, 3f, 0f, true, true, 21f, 5f)
+        // Circle 2: center (6, 12), radius 3
+        moveTo(9f, 12f)
+        arcTo(3f, 3f, 0f, true, true, 3f, 12f)
+        arcTo(3f, 3f, 0f, true, true, 9f, 12f)
+        // Circle 3: center (18, 19), radius 3
+        moveTo(21f, 19f)
+        arcTo(3f, 3f, 0f, true, true, 15f, 19f)
+        arcTo(3f, 3f, 0f, true, true, 21f, 19f)
+        // Connecting lines
+        moveTo(8.59f, 13.51f)
+        lineTo(15.42f, 17.49f)
+        moveTo(15.41f, 6.51f)
+        lineTo(8.59f, 10.49f)
+    }
+
 }
