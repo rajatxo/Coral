@@ -15,6 +15,7 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -59,6 +60,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -74,6 +76,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.session.MediaController
 import coil3.compose.AsyncImage
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.colorControls
+import com.kyant.backdrop.effects.vibrancy
+import com.rajatxo.coral.data.prefs.SoundHapticsManager
 import com.rajatxo.coral.data.store.PlaylistStore
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.lyrics.LyricsSheet
@@ -125,6 +134,57 @@ fun FullPlayer(
         offset = Offset(1f, 1f),
         blurRadius = 3f
     )
+
+    // Sound + haptics for the glass capsule swipe (same as TabCapsule nav bar)
+    val soundPool = remember {
+        android.media.SoundPool.Builder()
+            .setMaxStreams(2)
+            .setAudioAttributes(
+                android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            .build()
+    }
+    var soundLoaded by remember { mutableStateOf(false) }
+    val tickSoundId = remember {
+        soundPool.setOnLoadCompleteListener { _, _, status ->
+            if (status == 0) soundLoaded = true
+        }
+        soundPool.load(context, com.rajatxo.coral.R.raw.wheel_tick, 1)
+    }
+
+    fun tickHaptic() {
+        val hapticsOn = SoundHapticsManager.hapticsEnabled.value
+        val soundsOn = SoundHapticsManager.soundsEnabled.value
+        val volume = SoundHapticsManager.soundVolume.value / 100f
+        if (hapticsOn) {
+            try {
+                view.performHapticFeedback(
+                    HapticFeedbackConstants.VIRTUAL_KEY,
+                    HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING or
+                    HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+                )
+            } catch (_: Exception) { }
+        }
+        if (soundsOn && soundLoaded) {
+            try {
+                soundPool.play(tickSoundId, volume, volume, 1, 0, 1f)
+            } catch (_: Exception) { }
+        }
+    }
+
+    // Liquid glass backdrop — captures the background so the glass capsule
+    // can sample + blur it in real-time (same API as the nav bar TabCapsule).
+    val graphicsLayer = rememberGraphicsLayer()
+    val glassBackdrop = rememberLayerBackdrop(graphicsLayer = graphicsLayer) {
+        drawContent()
+    }
+
+    // Drag state for the glass capsule swipe L/R
+    var dragAccumulator by remember { mutableFloatStateOf(0f) }
+    val dragThreshold = 60f
 
     // ─── Palette (extracted from album art) ───────────────────────────
     var palette by remember { mutableStateOf(CoralPalette.Default) }
@@ -198,6 +258,10 @@ fun FullPlayer(
     //       to transparent at both edges — smoothly revealing the blurred
     //       bg above (status bar area) and below (controls area).
     Box(modifier = Modifier.fillMaxSize().background(animatedBottomColor)) {
+
+        // Background layer — wrapped with layerBackdrop so the glass capsule
+        // can sample + blur the album cover behind it (liquid glass effect).
+        Box(modifier = Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
 
         // (1) Blurred album cover — fills entire screen as the background.
         //     96dp blur radius = ~100% blur (very heavy, image becomes a
@@ -355,6 +419,8 @@ fun FullPlayer(
                     )
                 )
         )
+
+        } // end layerBackdrop Box
 
         // (3) Heart pop overlay (double-tap on album art to favorite)
         if (showHeartPop) {
@@ -636,6 +702,82 @@ fun FullPlayer(
                             contentDescription = "Next",
                             tint = Color.White,
                             modifier = Modifier.size(36.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Glass capsule — liquid glass with swipe L/R to change songs.
+                // Uses kyant backdrop library (same as TabCapsule nav bar) for
+                // REAL real-time backdrop blur. Samples the album cover behind
+                // it and applies AGSL blur. Swipe L -> next, R -> prev, with
+                // haptics + tick sound.
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .padding(horizontal = 24.dp)
+                        .clip(RoundedCornerShape(28.dp))
+                        .drawBackdrop(
+                            backdrop = glassBackdrop,
+                            shape = { RoundedCornerShape(28.dp) },
+                            effects = {
+                                vibrancy()
+                                colorControls(
+                                    brightness = 0.05f,
+                                    contrast = 1f,
+                                    saturation = 1.5f
+                                )
+                                blur(12f.dp.toPx())
+                            },
+                            onDrawSurface = {
+                                drawRect(Color.Black.copy(alpha = 0.25f))
+                            }
+                        )
+                        .pointerInput(Unit) {
+                            detectHorizontalDragGestures(
+                                onDragEnd = { dragAccumulator = 0f },
+                                onHorizontalDrag = { _, dragAmount ->
+                                    dragAccumulator += dragAmount
+                                    if (dragAccumulator < -dragThreshold) {
+                                        onNextClick()
+                                        tickHaptic()
+                                        dragAccumulator = 0f
+                                    } else if (dragAccumulator > dragThreshold) {
+                                        onPrevClick()
+                                        tickHaptic()
+                                        dragAccumulator = 0f
+                                    }
+                                }
+                            )
+                        }
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = CoralIcons.ChevronLeft,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.5f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Swipe",
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 14.sp,
+                            fontFamily = CalSansFamily,
+                            style = TextStyle(shadow = textShadow)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(
+                            imageVector = CoralIcons.ChevronRight,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.5f),
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
