@@ -165,42 +165,58 @@ fun FullPlayer(
         onDispose { context.contentResolver.unregisterContentObserver(observer) }
     }
 
-    // ─── Root Box: black base + gradient bg + square album art ──────
-    // BitChord-style: opaque black base, vertical gradient from album
-    // colors fills the screen, album art is a square in the middle.
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+    // ─── Root Box: solid color bg + full-bleed top art + fade zone ────
+    // Immersive layout (matches reference screenshot):
+    //   Top ~45%   : album art fills the screen edge-to-edge (no rounded
+    //               corners, no padding, no shadow — full bleed).
+    //   Middle 45-68% : gradient fade from transparent (image visible)
+    //               → solid background color (image hidden). This is the
+    //               "blending zone" the user described.
+    //   Bottom ~68%: solid background color (sampled from the album art's
+    //               palette) where the controls live.
+    Box(modifier = Modifier.fillMaxSize().background(animatedBottomColor)) {
 
-        // (1) Vertical gradient using album art's dominant colors
-        //     (NOT the album art itself — just its palette). Full opacity,
-        //     600ms crossfade on song change → no grey flash.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            animatedTopColor,
-                            animatedMidColor,
-                            animatedBottomColor
+        // (1) Album art fills the entire screen via ContentScale.Crop.
+        //     The bottom portion is hidden by the gradient fade overlay
+        //     in (2), so visually only the top ~45% shows the art — but
+        //     the fade is smooth, not a sharp cut.
+        if (albumArtUri != null) {
+            AsyncImage(
+                model = albumArtUri,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(albumArtUri) {
+                        detectTapGestures(
+                            onDoubleTap = {
+                                if (songId != null) {
+                                    PlaylistStore.toggleFavorite(songId)
+                                    showHeartPop = true
+                                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                }
+                            }
                         )
-                    )
-                )
-        )
+                    }
+            )
+        }
 
-        // (2) Soft dark overlay only at the bottom — text legibility.
-        //     BitChord style: transparent at top, fades to dark at bottom
-        //     so the vibrant palette colors show through the upper 70%.
+        // (2) The FADE ZONE — gradient overlay that does the blending.
+        //     Transparent at top (image fully visible) → solid
+        //     animatedBottomColor at bottom (image fully hidden, controls
+        //     sit on this solid color). Crossfades in 600ms on song change.
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
-                            0.00f to Color.Black.copy(alpha = 0.00f),
-                            0.50f to Color.Black.copy(alpha = 0.00f),
-                            0.70f to Color.Black.copy(alpha = 0.20f),
-                            0.85f to Color.Black.copy(alpha = 0.50f),
-                            1.00f to Color.Black.copy(alpha = 0.75f)
+                            0.00f to Color.Transparent,                        // top: art fully visible
+                            0.42f to Color.Transparent,                        // 42% down: still fully visible
+                            0.50f to animatedBottomColor.copy(alpha = 0.25f),  // 50% (middle): fade begins
+                            0.60f to animatedBottomColor.copy(alpha = 0.75f),  // mostly faded
+                            0.68f to animatedBottomColor,                       // fully solid by 68%
+                            1.00f to animatedBottomColor                        // solid to bottom
                         )
                     )
                 )
@@ -223,8 +239,8 @@ fun FullPlayer(
             }
         }
 
-        // (4) Main content column — header at top, square art centered,
-        //     controls at bottom. Weights push the art toward vertical center.
+        // (4) Main content column — header overlays the art at top,
+        //     controls sit on the solid color at bottom.
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -311,47 +327,7 @@ fun FullPlayer(
                 }
             }
 
-            Spacer(modifier = Modifier.weight(0.6f))
-
-            // ── Square album art (BitChord-style: NOT full-screen) ───
-            // Full width with 24dp horizontal padding → 10dp rounded
-            // corners → 20dp drop shadow → square-ish look (320dp tall).
-            // Background uses animatedBottomColor so when the image is
-            // loading there's no empty box — the gradient color fills in.
-            // Double-tap toggles favorite + shows heart pop.
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .height(320.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .shadow(20.dp, RoundedCornerShape(10.dp))
-                    .background(animatedBottomColor)
-                    .pointerInput(albumArtUri) {
-                        detectTapGestures(
-                            onDoubleTap = {
-                                if (songId != null) {
-                                    PlaylistStore.toggleFavorite(songId)
-                                    showHeartPop = true
-                                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                                }
-                            }
-                        )
-                    }
-            ) {
-                if (albumArtUri != null) {
-                    AsyncImage(
-                        model = albumArtUri,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(RoundedCornerShape(10.dp))
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.weight(0.4f))
+            Spacer(modifier = Modifier.weight(1f))
 
             // ── Bottom controls column ────────────────────────────────
             Column(
