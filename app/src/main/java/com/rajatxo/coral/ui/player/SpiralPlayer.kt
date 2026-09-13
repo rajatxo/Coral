@@ -10,6 +10,7 @@ import android.view.HapticFeedbackConstants
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.background
@@ -455,40 +456,43 @@ fun SpiralPlayer(
             }
         }
 
-        // (4) 3-segment cover indicator — at EXACT center of screen
+        // (4) 3-dot cover indicator — at EXACT center of screen
+        // Each dot highlights like the old segments:
+        //   Dot 1: Original cover (default, active)
+        //   Dot 2: Custom image
+        //   Dot 3: Animated video
         var coverMode by remember { mutableStateOf(0) }
         Row(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .offset(y = center - 1.5.dp)
-                .fillMaxWidth()
-                .padding(horizontal = 60.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                .offset(y = center - 4.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center
         ) {
-            // Segment 1: Original cover
+            // Dot 1
             Box(
                 modifier = Modifier
-                    .weight(1f)
-                    .height(3.dp)
-                    .clip(RoundedCornerShape(1.5.dp))
+                    .padding(horizontal = 6.dp)
+                    .size(8.dp)
+                    .clip(CircleShape)
                     .background(if (coverMode == 0) Color.White else Color.White.copy(alpha = 0.2f))
                     .clickable { coverMode = 0 }
             )
-            // Segment 2: Custom image
+            // Dot 2
             Box(
                 modifier = Modifier
-                    .weight(1f)
-                    .height(3.dp)
-                    .clip(RoundedCornerShape(1.5.dp))
+                    .padding(horizontal = 6.dp)
+                    .size(8.dp)
+                    .clip(CircleShape)
                     .background(if (coverMode == 1) Color.White else Color.White.copy(alpha = 0.2f))
                     .clickable { coverMode = 1 }
             )
-            // Segment 3: Animated video
+            // Dot 3
             Box(
                 modifier = Modifier
-                    .weight(1f)
-                    .height(3.dp)
-                    .clip(RoundedCornerShape(1.5.dp))
+                    .padding(horizontal = 6.dp)
+                    .size(8.dp)
+                    .clip(CircleShape)
                     .background(if (coverMode == 2) Color.White else Color.White.copy(alpha = 0.2f))
                     .clickable { coverMode = 2 }
             )
@@ -504,115 +508,21 @@ fun SpiralPlayer(
                 .padding(horizontal = 24.dp)
         ) {
 
-                // Song title + glass capsule (side by side) ─────────────
-                Row(
+                // Song title (centered, below the 3 dots) ──────────────
+                Text(
+                    text = title,
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontFamily = CalSansFamily,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(shadow = textShadow),
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = title,
-                        color = Color.White,
-                        fontSize = 24.sp,
-                        fontFamily = CalSansFamily,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(shadow = textShadow),
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    // Glass morphism capsule — favorite / share / menu
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(20.dp))
-                            .drawBackdrop(
-                                backdrop = glassBackdrop,
-                                shape = { RoundedCornerShape(20.dp) },
-                                effects = {
-                                    vibrancy()
-                                    colorControls(
-                                        brightness = 0.05f,
-                                        contrast = 1f,
-                                        saturation = 1.5f
-                                    )
-                                    blur(12f.dp.toPx())
-                                },
-                                onDrawSurface = {
-                                    drawRect(Color.Black.copy(alpha = 0.25f))
-                                }
-                            )
-                            .padding(horizontal = 8.dp, vertical = 6.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            // Favorite — HeartPlus (not favorited) / HeartMinus (favorited)
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = androidx.compose.material3.ripple(bounded = false)
-                                    ) {
-                                        if (songId != null) {
-                                            PlaylistStore.toggleFavorite(songId)
-                                            tickHaptic()
-                                        }
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = if (isFavorite) CoralIcons.HeartMinus else CoralIcons.HeartPlus,
-                                    contentDescription = "Favorite",
-                                    tint = if (isFavorite) animatedAccentColor else Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                            // Share
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = androidx.compose.material3.ripple(bounded = false)
-                                    ) { },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = CoralIcons.Share2,
-                                    contentDescription = "Share",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                            // Menu (more)
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = androidx.compose.material3.ripple(bounded = false)
-                                    ) {
-                                        songId?.let { onAddToPlaylist(it) }
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = CoralIcons.Ellipsis,
-                                    contentDescription = "More",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(3.dp))
-                // Artist name (left-aligned, 95% white, no shadow)
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                // Artist name (centered, 95% white)
                 Text(
                     text = artist,
                     color = Color.White.copy(alpha = 0.95f),
@@ -620,12 +530,12 @@ fun SpiralPlayer(
                     fontFamily = CalSansFamily,
                     fontWeight = FontWeight.Normal,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Album name (with music icon, tappable → lyrics) ───────
+                                // Album name (with music icon, tappable → lyrics) ───────
                 if (albumName != null) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -661,12 +571,14 @@ fun SpiralPlayer(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Seek bar (buttery smooth, no thumb, thickens on drag) ──
+                // Arc timeline — curves upward, both ends fade.
+                // The artist name sits at the peak (top) of the arc.
+                // Drag horizontally to seek (left=0, right=1).
                 var seekbarWidthPx by remember { mutableFloatStateOf(1f) }
-                Box(
+                Canvas(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(24.dp)
+                        .height(40.dp)
                         .onSizeChanged { seekbarWidthPx = it.width.toFloat() }
                         .pointerInput(durationMs) {
                             detectDragGestures(
@@ -680,33 +592,61 @@ fun SpiralPlayer(
                                 },
                                 onDragCancel = { isDragging = false; dragFraction = null },
                                 onDrag = { change, _ ->
-                                    if (durationMs > 0 && seekbarWidthPx > 0) {
-                                        val frac = (change.position.x / seekbarWidthPx).coerceIn(0f, 1f)
+                                    if (durationMs > 0 && size.width > 0) {
+                                        val frac = (change.position.x / size.width).coerceIn(0f, 1f)
                                         dragFraction = frac
                                     }
                                 }
                             )
                         }
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(trackHeight)
-                            .clip(RoundedCornerShape(trackHeight / 2))
-                            .align(Alignment.CenterStart)
-                            .background(Color.White.copy(alpha = 0.2f))
+                    val w = size.width
+                    val h = size.height
+                    val arcW = w * 0.9f
+                    val left = (w - arcW) / 2f
+                    val arcH = h * 2f
+                    val centerY = h.toFloat()
+
+                    // Background arc (dim, with fading ends)
+                    val fadeBrush = Brush.horizontalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.White.copy(alpha = 0.2f),
+                            Color.White.copy(alpha = 0.2f),
+                            Color.Transparent
+                        )
                     )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(displayProgress)
-                            .height(trackHeight)
-                            .clip(RoundedCornerShape(trackHeight / 2))
-                            .align(Alignment.CenterStart)
-                            .background(Color.White)
+                    drawArc(
+                        brush = fadeBrush,
+                        startAngle = 180f,
+                        sweepAngle = 180f,
+                        useCenter = false,
+                        topLeft = androidx.compose.ui.geometry.Offset(left, centerY - arcH),
+                        size = androidx.compose.ui.geometry.Size(arcW, arcH),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(
+                            width = trackHeight.toPx(),
+                            cap = androidx.compose.ui.graphics.StrokeCap.Round
+                        )
                     )
+
+                    // Progress arc (solid white, fills left to right)
+                    if (displayProgress > 0f) {
+                        drawArc(
+                            color = Color.White,
+                            startAngle = 180f,
+                            sweepAngle = 180f * displayProgress,
+                            useCenter = false,
+                            topLeft = androidx.compose.ui.geometry.Offset(left, centerY - arcH),
+                            size = androidx.compose.ui.geometry.Size(arcW, arcH),
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                width = trackHeight.toPx(),
+                                cap = androidx.compose.ui.graphics.StrokeCap.Round
+                            )
+                        )
+                    }
                 }
 
-                // Time labels ────────────────────────────────────────────
+                                // Time labels ────────────────────────────────────────────
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
