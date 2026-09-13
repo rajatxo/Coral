@@ -46,11 +46,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -166,33 +171,72 @@ fun FullPlayer(
         onDispose { context.contentResolver.unregisterContentObserver(observer) }
     }
 
-    // ─── Root Box: solid color bg + square art at top + fade zone ───
-    // Immersive layout (matches user's reference):
-    //   Top       : album art in a SQUARE container (fillMaxWidth + aspectRatio 1f)
-    //               so the image fits naturally — NO zooming (Crop on a square
-    //               container with square album art = no visible cropping).
-    //               Container is anchored to TopCenter so the image sits at the
-    //               top of the screen, edge-to-edge horizontally.
-    //   Below art : fade zone — gradient overlay at the image's bottom edge
-    //               fades transparent → solid background color. This is the
-    //               "blending zone" the user described (cover's bottom blends
-    //               into the gradient below).
-    //   Below fade: solid animatedBottomColor (palette tertiary) — this is the
-    //               outer Box's background, visible because the image Box only
-    //               takes the top ~square area. Controls sit on this.
+    // ─── Root Box: blurred album cover bg + sharp square art at top ───
+    // Immersive layout (user's reference):
+    //   (1) BLURRED album cover fills the entire screen as the background
+    //       (replaces the solid palette color). 64dp radius = ~98% blur on
+    //       Android 12+ (hardware-accelerated RenderEffect).
+    //   (2) SHARP album art in a SQUARE container (fillMaxWidth +
+    //       aspectRatio 1f) anchored to TopCenter. Has an ALPHA MASK on the
+    //       bottom 140dp that fades opaque → transparent using
+    //       BlendMode.DstIn. This smoothly reveals the blurred bg below —
+    //       no hard edge between the sharp image's bottom and the blurred bg.
+    //   (3) Heart pop overlay (double-tap to favorite)
+    //   (4) Main content column (header at top overlaying the art, controls
+    //       at bottom overlaying the blurred bg)
     Box(modifier = Modifier.fillMaxSize().background(animatedBottomColor)) {
 
-        // (1) Album art — SQUARE container, full width, no zoom.
-        //     aspectRatio(1f) makes height = width (so on a 360dp-wide phone,
-        //     the image is 360x360dp — top ~45% of a typical 800dp screen).
-        //     ContentScale.Crop in a square container on square album art =
-        //     no visible cropping. NO zooming the image to fill the screen.
-        //     Double-tap toggles favorite + shows heart pop.
+        // (1) Blurred album cover — fills entire screen as the background.
+        //     This replaces the previous solid animatedBottomColor fill.
+        //     Modifier.blur uses RenderEffect on Android 12+ (hardware
+        //     accelerated). On older API levels the blur may not apply but
+        //     the image still renders (graceful fallback).
+        if (albumArtUri != null) {
+            AsyncImage(
+                model = albumArtUri,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(64.dp)
+            )
+        }
+
+        // (2) Sharp album art — SQUARE container at top, with an alpha
+        //     mask that fades the bottom 140dp from opaque → transparent.
+        //     Uses graphicsLayer + CompositingStrategy.OffSet so the
+        //     BlendMode.DstIn applies to this layer's content only (the
+        //     sharp AsyncImage) — not the parent's blurred bg below.
+        //     Result: sharp at top, smoothly fading to reveal the blurred
+        //     bg at the image's bottom edge — exactly the "blending zone"
+        //     the user described.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
                 .align(Alignment.TopCenter)
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    // Draw the sharp image first
+                    drawContent()
+                    // Then apply an alpha mask: vertical gradient with
+                    // DstIn keeps content where gradient is opaque (top),
+                    // removes content where gradient is transparent (bottom).
+                    val fadeHeightPx = 140.dp.toPx()
+                    val imageHeight = size.height
+                    val fadeStartY = (imageHeight - fadeHeightPx).coerceAtLeast(0f)
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Black,        // opaque → keep content (sharp visible)
+                                Color.Transparent   // transparent → remove content (blurred shows)
+                            ),
+                            startY = fadeStartY,
+                            endY = imageHeight
+                        ),
+                        blendMode = BlendMode.DstIn
+                    )
+                }
                 .pointerInput(albumArtUri) {
                     detectTapGestures(
                         onDoubleTap = {
@@ -213,28 +257,6 @@ fun FullPlayer(
                     modifier = Modifier.fillMaxSize()
                 )
             }
-
-            // (2) Fade zone — gradient overlay at the bottom of the image,
-            //     fading transparent → solid animatedBottomColor. This blends
-            //     the image's bottom edge into the background color below.
-            //     140dp tall, anchored to the bottom of the image Box (so it
-            //     overlaps the image's bottom 140dp and ends right at the
-            //     image's bottom edge — meeting the solid color below).
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(140.dp)
-                    .align(Alignment.BottomCenter)
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                animatedBottomColor.copy(alpha = 0f),
-                                animatedBottomColor.copy(alpha = 0.5f),
-                                animatedBottomColor
-                            )
-                        )
-                    )
-            )
         }
 
         // (3) Heart pop overlay (double-tap on album art to favorite)
