@@ -52,17 +52,20 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -115,6 +118,13 @@ fun FullPlayer(
 ) {
     val context = LocalContext.current
     val view = LocalView.current
+
+    // Subtle text shadow — makes white text readable on bright backgrounds
+    val textShadow = Shadow(
+        color = Color.Black.copy(alpha = 0.6f),
+        offset = Offset(1f, 1f),
+        blurRadius = 3f
+    )
 
     // ─── Palette (extracted from album art) ───────────────────────────
     var palette by remember { mutableStateOf(CoralPalette.Default) }
@@ -393,6 +403,7 @@ fun FullPlayer(
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         textAlign = TextAlign.Center,
+                        style = TextStyle(shadow = textShadow),
                         modifier = Modifier.basicMarquee()
                     )
                     Spacer(modifier = Modifier.height(4.dp))
@@ -405,6 +416,7 @@ fun FullPlayer(
                         maxLines = 1,
                         textAlign = TextAlign.Center,
                         overflow = TextOverflow.Ellipsis,
+                        style = TextStyle(shadow = textShadow),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -436,6 +448,7 @@ fun FullPlayer(
                         fontFamily = CalSansFamily,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        style = TextStyle(shadow = textShadow),
                         modifier = Modifier.weight(1f)
                     )
                     Image(
@@ -522,12 +535,14 @@ fun FullPlayer(
                     Text(
                         text = formatTime((displayProgress * durationMs).toLong()),
                         color = Color.White.copy(alpha = 0.55f),
-                        fontSize = 11.sp
+                        fontSize = 11.sp,
+                        style = TextStyle(shadow = textShadow)
                     )
                     Text(
                         text = "-" + formatTime(((1f - displayProgress) * durationMs).toLong()),
                         color = Color.White.copy(alpha = 0.55f),
-                        fontSize = 11.sp
+                        fontSize = 11.sp,
+                        style = TextStyle(shadow = textShadow)
                     )
                 }
 
@@ -542,7 +557,7 @@ fun FullPlayer(
                     // Previous — Rewind icon (two left-pointing triangles)
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(56.dp)
                             .clip(CircleShape)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
@@ -557,7 +572,7 @@ fun FullPlayer(
                             imageVector = CoralIcons.Rewind,
                             contentDescription = "Previous",
                             tint = Color.White,
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(36.dp)
                         )
                     }
                     // Glossy capsule — play/pause icon + text
@@ -605,7 +620,7 @@ fun FullPlayer(
                     // Next — FastForward icon (two right-pointing triangles)
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(56.dp)
                             .clip(CircleShape)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
@@ -620,7 +635,7 @@ fun FullPlayer(
                             imageVector = CoralIcons.FastForward,
                             contentDescription = "Next",
                             tint = Color.White,
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(36.dp)
                         )
                     }
                 }
