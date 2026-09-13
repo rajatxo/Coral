@@ -165,18 +165,20 @@ fun CoralApp() {
                     currentSongAlbum = mediaItem?.mediaMetadata?.albumTitle?.toString()
                     currentSongArt = mediaItem?.mediaMetadata?.artworkUri
                     currentSongId = mediaItem?.mediaId?.toLongOrNull()
-                    // Auto-play on song change — fixes:
-                    // 1. Next song doesn't play after current ends (auto-advance
-                    //    loads the next item but playWhenReady can get stuck false)
-                    // 2. Next/prev buttons sometimes don't start playback
-                    // Skip PLAYLIST_CHANGED — the caller (onSongClick) already
-                    // calls play() after setMediaItems.
-                    if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) {
+                    // Only force play() for SEEK transitions (user clicked next/prev).
+                    // For AUTO transitions (song ended), the player handles it
+                    // naturally — calling play() during auto-advance causes the
+                    // "1-2, 1-2" restart bug.
+                    if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) {
                         controller.play()
                     }
                 }
                 override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
             })
+
+            // Ensure REPEAT_MODE_ALL is set on the controller (overrides any
+            // stale service setting). This guarantees auto-advance works.
+            controller.repeatMode = Player.REPEAT_MODE_ALL
 
             // --- BUG FIX: Restore mini player state after app restart ---
             val currentMediaItem = controller.currentMediaItem

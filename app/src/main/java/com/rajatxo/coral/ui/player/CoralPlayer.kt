@@ -75,6 +75,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import coil3.compose.AsyncImage
 import com.kyant.backdrop.backdrops.layerBackdrop
@@ -234,6 +235,16 @@ fun CoralPlayer(
         (currentPositionMs.toFloat() / durationMs).coerceIn(0f, 1f)
     else 0f
     val displayProgress = dragFraction ?: progress
+
+    // ─── Shuffle + repeat state (read from MediaController) ──────────
+    var shuffleEnabled by remember { mutableStateOf(false) }
+    var repeatMode by remember { mutableStateOf(Player.REPEAT_MODE_ALL) }
+    LaunchedEffect(mediaController) {
+        mediaController?.let {
+            shuffleEnabled = it.shuffleModeEnabled
+            repeatMode = it.repeatMode
+        }
+    }
 
     // ─── System volume (so the volume slider reflects hardware keys) ─
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
@@ -869,7 +880,7 @@ fun CoralPlayer(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Big glass capsule (full width)
+                // Big glass capsule (full width) — shuffle / repeat / queue / lyrics
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -886,7 +897,107 @@ fun CoralPlayer(
                             onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
                         ),
                     contentAlignment = Alignment.Center
-                ) { }
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Shuffle
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = androidx.compose.material3.ripple(bounded = false)
+                                ) {
+                                    mediaController?.let {
+                                        it.shuffleModeEnabled = !it.shuffleModeEnabled
+                                        shuffleEnabled = it.shuffleModeEnabled
+                                    }
+                                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = CoralIcons.Shuffle,
+                                contentDescription = "Shuffle",
+                                tint = if (shuffleEnabled) Color.White else Color.White.copy(alpha = 0.4f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        // Repeat (cycle OFF → ONE → ALL)
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = androidx.compose.material3.ripple(bounded = false)
+                                ) {
+                                    mediaController?.let {
+                                        val newMode = when (it.repeatMode) {
+                                            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ONE
+                                            Player.REPEAT_MODE_ONE -> Player.REPEAT_MODE_ALL
+                                            else -> Player.REPEAT_MODE_OFF
+                                        }
+                                        it.repeatMode = newMode
+                                        repeatMode = newMode
+                                    }
+                                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            when (repeatMode) {
+                                Player.REPEAT_MODE_ONE -> Text("1", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Player.REPEAT_MODE_ALL -> Text("\u221E", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Normal)
+                                else -> Icon(
+                                    imageVector = CoralIcons.Repeat,
+                                    contentDescription = "Repeat",
+                                    tint = Color.White.copy(alpha = 0.4f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                        // Queue (placeholder)
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = androidx.compose.material3.ripple(bounded = false)
+                                ) { },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = CoralIcons.Queue,
+                                contentDescription = "Queue",
+                                tint = Color.White.copy(alpha = 0.4f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        // Lyrics
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = androidx.compose.material3.ripple(bounded = false)
+                                ) { showLyrics = true },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = CoralIcons.Music,
+                                contentDescription = "Lyrics",
+                                tint = Color.White.copy(alpha = 0.4f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
 
             }
 
