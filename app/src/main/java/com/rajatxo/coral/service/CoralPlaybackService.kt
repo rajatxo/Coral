@@ -3,6 +3,7 @@ package com.rajatxo.coral.service
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.DefaultAudioSink
@@ -47,6 +48,12 @@ class CoralPlaybackService : MediaSessionService() {
         }
 
         val player = ExoPlayer.Builder(this, renderersFactory).build()
+        // REPEAT_MODE_ALL — playlist loops. Fixes:
+        // 1. Auto-advance: when a song ends, the next song plays automatically
+        //    (REPEAT_MODE_OFF stops after the last song)
+        // 2. Next/prev buttons always work — they wrap around instead of
+        //    doing nothing on the first/last song
+        player.repeatMode = Player.REPEAT_MODE_ALL
 
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
