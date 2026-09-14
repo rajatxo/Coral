@@ -60,6 +60,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.rememberGraphicsLayer
@@ -203,9 +204,28 @@ fun SpiralPlayer(
     val xfActive by CrossfadeVisualState.isActive.collectAsState()
     val xfProgress by CrossfadeVisualState.progress.collectAsState()
     val xfIncomingArt by CrossfadeVisualState.incomingArtUri.collectAsState()
-    val dissolveAngle = remember { (0..3).random() * 90f }
     val outAlpha = if (xfActive) kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f) else 1f
-    val inAlpha = if (xfActive) kotlin.math.sin(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f) else 0f
+    // Keep incoming layers visible after crossfade ends UNTIL albumArtUri
+    // actually updates to the new song. This prevents the snap where
+    // xfActive goes false but albumArtUri is still the old song.
+    val showIncoming = xfIncomingArt != null && (xfActive || albumArtUri != xfIncomingArt)
+    val inAlpha = when {
+        xfActive -> kotlin.math.sin(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
+        showIncoming -> 1f
+        else -> 0f
+    }
+
+    // Saturation boost for the blurred backgrounds — vivid colors.
+    val bgSatFilter = remember {
+        val s = 1.45f
+        val r = 0.3086f; val g = 0.6094f; val b = 0.0820f
+        ColorFilter.colorMatrix(ColorMatrix(floatArrayOf(
+            r + (1 - r) * s, g * (1 - s), b * (1 - s), 0f, 0f,
+            r * (1 - s), g + (1 - g) * s, b * (1 - s), 0f, 0f,
+            r * (1 - s), g * (1 - s), b + (1 - b) * s, 0f, 0f,
+            0f, 0f, 0f, 1f, 0f
+        )))
+    }
 
     // ─── Playback position polling ────────────────────────────────────
     var currentPositionMs by remember { mutableStateOf(0L) }
@@ -298,6 +318,7 @@ fun SpiralPlayer(
                 model = albumArtUri,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
+                colorFilter = bgSatFilter,
                 modifier = Modifier
                     .fillMaxSize()
                     .blur(96.dp)
@@ -345,6 +366,7 @@ fun SpiralPlayer(
                     model = albumArtUri,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
+                    colorFilter = bgSatFilter,
                     modifier = Modifier.fillMaxSize().blur(32.dp)
                 )
             }
@@ -425,66 +447,21 @@ fun SpiralPlayer(
             }
         }
 
-        // Black gradient overlay at the bottom — darkens the lower
-        // portion of the screen for text legibility (white controls
-        // text needs contrast against the blurred album cover bg).
-        // Transparent in the top 50% (sharp art area), gradually
-        // darkens to ~92% black at the very bottom.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer { alpha = outAlpha }
-                .background(
-                    Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0.00f to Color.Transparent,
-                            0.50f to Color.Transparent,
-                            0.60f to Color.Black.copy(alpha = 0.30f),
-                            0.75f to Color.Black.copy(alpha = 0.65f),
-                            0.90f to Color.Black.copy(alpha = 0.85f),
-                            1.00f to Color.Black.copy(alpha = 0.92f)
-                        )
-                    )
-                )
-        )
-
-        // VISUAL CROSSFADE: incoming art dissolves in on top of outgoing
-        if (xfActive && xfIncomingArt != null) {
-            // Incoming blurred bg with diagonal dissolve
-            Box(
+        // VISUAL CROSSFADE: incoming art mixes in on top of outgoing.
+        // Plain alpha crossfade (no diagonal wipe) for true color mixing.
+        // Incoming layers stay rendered until albumArtUri catches up.
+        if (showIncoming && xfIncomingArt != null) {
+            // Incoming blurred bg — plain alpha, no diagonal mask.
+            AsyncImage(
+                model = xfIncomingArt,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                colorFilter = bgSatFilter,
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer {
-                        compositingStrategy = CompositingStrategy.Offscreen
-                        alpha = inAlpha
-                    }
-                    .drawWithContent {
-                        drawContent()
-                        val w = size.width
-                        val h = size.height
-                        val cx = w / 2f
-                        val cy = h / 2f
-                        val r = kotlin.math.sqrt(w * w + h * h) / 2f
-                        val rad = Math.toRadians(dissolveAngle.toDouble()).toFloat()
-                        val dx = kotlin.math.cos(rad) * r
-                        val dy = kotlin.math.sin(rad) * r
-                        drawRect(
-                            brush = Brush.linearGradient(
-                                colors = listOf(Color.Transparent, Color.Black, Color.Black, Color.Transparent),
-                                start = androidx.compose.ui.geometry.Offset(cx - dx, cy - dy),
-                                end = androidx.compose.ui.geometry.Offset(cx + dx, cy + dy)
-                            ),
-                            blendMode = BlendMode.DstIn
-                        )
-                    }
-            ) {
-                AsyncImage(
-                    model = xfIncomingArt,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().blur(96.dp)
-                )
-            }
+                    .blur(96.dp)
+                    .graphicsLayer { alpha = inAlpha }
+            )
 
             // Incoming medium-blur bridge (32dp) with bell-curve mask
             Box(
@@ -516,6 +493,7 @@ fun SpiralPlayer(
                     model = xfIncomingArt,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
+                    colorFilter = bgSatFilter,
                     modifier = Modifier.fillMaxSize().blur(32.dp)
                 )
             }
@@ -561,24 +539,6 @@ fun SpiralPlayer(
                 )
             }
 
-            // Incoming black gradient overlay
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { alpha = inAlpha }
-                    .background(
-                        Brush.verticalGradient(
-                            colorStops = arrayOf(
-                                0.00f to Color.Transparent,
-                                0.50f to Color.Transparent,
-                                0.60f to Color.Black.copy(alpha = 0.30f),
-                                0.75f to Color.Black.copy(alpha = 0.65f),
-                                0.90f to Color.Black.copy(alpha = 0.85f),
-                                1.00f to Color.Black.copy(alpha = 0.92f)
-                            )
-                        )
-                    )
-            )
         }
 
         } // end layerBackdrop Box

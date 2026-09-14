@@ -59,6 +59,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.rememberGraphicsLayer
@@ -203,9 +204,31 @@ fun CoralPlayer(
     val xfActive by CrossfadeVisualState.isActive.collectAsState()
     val xfProgress by CrossfadeVisualState.progress.collectAsState()
     val xfIncomingArt by CrossfadeVisualState.incomingArtUri.collectAsState()
-    val dissolveAngle = remember { (0..3).random() * 90f }
     val outAlpha = if (xfActive) kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f) else 1f
-    val inAlpha = if (xfActive) kotlin.math.sin(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f) else 0f
+    // Keep incoming layers visible after crossfade ends UNTIL albumArtUri
+    // actually updates to the new song. This prevents the snap where
+    // xfActive goes false but albumArtUri is still the old song — without
+    // this, the screen would flash the old song before the new one appears.
+    val showIncoming = xfIncomingArt != null && (xfActive || albumArtUri != xfIncomingArt)
+    val inAlpha = when {
+        xfActive -> kotlin.math.sin(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
+        showIncoming -> 1f  // hold incoming at full opacity until art catches up
+        else -> 0f
+    }
+
+    // Saturation boost for the blurred backgrounds — makes the whole
+    // player feel more vivid and the crossfade transition more saturated
+    // (alpha-blending two images can look muddy; this keeps colors rich).
+    val bgSatFilter = remember {
+        val s = 1.45f
+        val r = 0.3086f; val g = 0.6094f; val b = 0.0820f
+        ColorFilter.colorMatrix(ColorMatrix(floatArrayOf(
+            r + (1 - r) * s, g * (1 - s), b * (1 - s), 0f, 0f,
+            r * (1 - s), g + (1 - g) * s, b * (1 - s), 0f, 0f,
+            r * (1 - s), g * (1 - s), b + (1 - b) * s, 0f, 0f,
+            0f, 0f, 0f, 1f, 0f
+        )))
+    }
 
     // ─── Playback position polling ────────────────────────────────────
     var currentPositionMs by remember { mutableStateOf(0L) }
@@ -303,12 +326,14 @@ fun CoralPlayer(
         //     96dp blur radius = ~100% blur (very heavy, image becomes a
         //     smooth color wash with subtle variations). Modifier.blur
         //     uses RenderEffect on Android 12+ (hardware-accelerated).
-        // Outgoing blurred bg — fades out during visual crossfade
+        // Outgoing blurred bg — fades out during visual crossfade.
+        // 96dp blur = heavy wash. Saturation filter keeps colors vivid.
         if (albumArtUri != null) {
             AsyncImage(
                 model = albumArtUri,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
+                colorFilter = bgSatFilter,
                 modifier = Modifier
                     .fillMaxSize()
                     .blur(96.dp)
@@ -397,7 +422,7 @@ fun CoralPlayer(
             }
         }
 
-        // OUTGOING medium-blur bridge + black gradient (fades out during crossfade)
+        // OUTGOING medium-blur bridge (fades out during crossfade)
         if (albumArtUri != null) {
             // Medium-blur bridge (32dp) with bell-curve mask
             Box(
@@ -429,74 +454,31 @@ fun CoralPlayer(
                     model = albumArtUri,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
+                    colorFilter = bgSatFilter,
                     modifier = Modifier.fillMaxSize().blur(32.dp)
                 )
             }
         }
 
-        // OUTGOING black gradient overlay (fades out during crossfade)
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer { alpha = outAlpha }
-                .background(
-                    Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0.00f to Color.Transparent,
-                            0.50f to Color.Transparent,
-                            0.60f to Color.Black.copy(alpha = 0.30f),
-                            0.75f to Color.Black.copy(alpha = 0.65f),
-                            0.90f to Color.Black.copy(alpha = 0.85f),
-                            1.00f to Color.Black.copy(alpha = 0.92f)
-                        )
-                    )
-                )
-        )
-
-        // VISUAL CROSSFADE: incoming art dissolves in on top of outgoing
-        if (xfActive && xfIncomingArt != null) {
-            // Incoming blurred bg — dissolves in with diagonal sweep
-            Box(
+        // VISUAL CROSSFADE: incoming art mixes in on top of outgoing.
+        // Plain alpha crossfade (no diagonal wipe) for true color mixing —
+        // both images are simultaneously visible during the transition,
+        // blending together smoothly. Incoming layers stay rendered until
+        // albumArtUri catches up to prevent any snap at the end.
+        if (showIncoming && xfIncomingArt != null) {
+            // Incoming blurred bg — plain alpha fade in, no diagonal mask.
+            // True mixing: outgoing (at outAlpha) + incoming (at inAlpha)
+            // are both visible, colors blend naturally.
+            AsyncImage(
+                model = xfIncomingArt,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                colorFilter = bgSatFilter,
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer {
-                        compositingStrategy = CompositingStrategy.Offscreen
-                        alpha = inAlpha
-                    }
-                    .drawWithContent {
-                        drawContent()
-                        // Diagonal dissolve mask — parts of new art
-                        // appear before others (organic morph effect)
-                        val w = size.width
-                        val h = size.height
-                        val cx = w / 2f
-                        val cy = h / 2f
-                        val r = kotlin.math.sqrt(w * w + h * h) / 2f
-                        val rad = Math.toRadians(dissolveAngle.toDouble()).toFloat()
-                        val dx = kotlin.math.cos(rad) * r
-                        val dy = kotlin.math.sin(rad) * r
-                        drawRect(
-                            brush = Brush.linearGradient(
-                                colors = listOf(
-                                    Color.Transparent,
-                                    Color.Black,
-                                    Color.Black,
-                                    Color.Transparent
-                                ),
-                                start = androidx.compose.ui.geometry.Offset(cx - dx, cy - dy),
-                                end = androidx.compose.ui.geometry.Offset(cx + dx, cy + dy)
-                            ),
-                            blendMode = BlendMode.DstIn
-                        )
-                    }
-            ) {
-                AsyncImage(
-                    model = xfIncomingArt,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().blur(96.dp)
-                )
-            }
+                    .blur(96.dp)
+                    .graphicsLayer { alpha = inAlpha }
+            )
 
             // Incoming sharp art — same square container + fade as outgoing
             Box(
@@ -569,28 +551,11 @@ fun CoralPlayer(
                     model = xfIncomingArt,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
+                    colorFilter = bgSatFilter,
                     modifier = Modifier.fillMaxSize().blur(32.dp)
                 )
             }
 
-            // INCOMING black gradient overlay — fades in during crossfade
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { alpha = inAlpha }
-                    .background(
-                        Brush.verticalGradient(
-                            colorStops = arrayOf(
-                                0.00f to Color.Transparent,
-                                0.50f to Color.Transparent,
-                                0.60f to Color.Black.copy(alpha = 0.30f),
-                                0.75f to Color.Black.copy(alpha = 0.65f),
-                                0.90f to Color.Black.copy(alpha = 0.85f),
-                                1.00f to Color.Black.copy(alpha = 0.92f)
-                            )
-                        )
-                    )
-            )
         }
 
         } // end layerBackdrop Box
