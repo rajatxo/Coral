@@ -658,13 +658,13 @@ fun SpiralPlayer(
                 .offset(y = center + 18.dp)
                 .padding(horizontal = 28.dp)
         ) {
-            // Song title (centered, below the 3 dots) — synced with cover blend
-            // During crossfade: outgoing title fades out (outAlpha) + incoming
-            // title fades in (inAlpha), perfectly synced with the cover blend.
-            // When not crossfading: just show the current title at full opacity.
+            // Song title (centered, below the 3 dots) — blur + slide transition
+            // During crossfade: outgoing slides up + blurs out, incoming slides
+            // in from below + blur clears. Synced with cover blend (xfProgress).
+            // The blur + offset separation prevents "two texts overlapping clutter".
             Box(modifier = Modifier.fillMaxWidth()) {
                 if (xfActive && xfIncomingTitle.isNotEmpty()) {
-                    // Outgoing title (fades out)
+                    // Outgoing title: slides up 20dp, blurs 0→20px, alpha 1→0
                     Text(
                         text = title,
                         color = Color.White,
@@ -674,10 +674,14 @@ fun SpiralPlayer(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = TextStyle(shadow = textShadow),
-                        modifier = Modifier.fillMaxWidth().graphicsLayer { alpha = outAlpha },
+                        modifier = Modifier.fillMaxWidth().graphicsLayer {
+                            alpha = outAlpha
+                            translationY = -20f * (1f - outAlpha)  // slide up as it fades
+                            renderEffect = blurRenderEffect(20f * (1f - outAlpha))
+                        },
                         textAlign = TextAlign.Center
                     )
-                    // Incoming title (fades in)
+                    // Incoming title: slides in from below 20dp, blur 20→0, alpha 0→1
                     Text(
                         text = xfIncomingTitle,
                         color = Color.White,
@@ -687,7 +691,11 @@ fun SpiralPlayer(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = TextStyle(shadow = textShadow),
-                        modifier = Modifier.fillMaxWidth().graphicsLayer { alpha = inAlpha },
+                        modifier = Modifier.fillMaxWidth().graphicsLayer {
+                            alpha = inAlpha
+                            translationY = 20f * (1f - inAlpha)  // slide down → up as it fades in
+                            renderEffect = blurRenderEffect(20f * (1f - inAlpha))
+                        },
                         textAlign = TextAlign.Center
                     )
                 } else {
@@ -706,7 +714,7 @@ fun SpiralPlayer(
                 }
             }
             Spacer(modifier = Modifier.height(2.dp))
-            // Artist name (centered, dimmer, NO shadow) — synced with cover blend
+            // Artist name (centered, dimmer, NO shadow) — blur + slide transition
             Box(modifier = Modifier.fillMaxWidth()) {
                 if (xfActive && xfIncomingArtist.isNotEmpty()) {
                     Text(
@@ -718,7 +726,11 @@ fun SpiralPlayer(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().graphicsLayer { alpha = outAlpha }
+                        modifier = Modifier.fillMaxWidth().graphicsLayer {
+                            alpha = outAlpha
+                            translationY = -16f * (1f - outAlpha)
+                            renderEffect = blurRenderEffect(16f * (1f - outAlpha))
+                        }
                     )
                     Text(
                         text = xfIncomingArtist,
@@ -729,7 +741,11 @@ fun SpiralPlayer(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().graphicsLayer { alpha = inAlpha }
+                        modifier = Modifier.fillMaxWidth().graphicsLayer {
+                            alpha = inAlpha
+                            translationY = 16f * (1f - inAlpha)
+                            renderEffect = blurRenderEffect(16f * (1f - inAlpha))
+                        }
                     )
                 } else {
                     Text(
@@ -1027,4 +1043,18 @@ fun SpiralPlayer(
 private fun formatTime(ms: Long): String {
     val s = ms / 1000
     return "%d:%02d".format(s / 60, s % 60)
+}
+
+/**
+ * Creates a Compose RenderEffect for blurring text during crossfade transitions.
+ * Returns null on Android < 12 (API 31) or when blur radius is 0.
+ * 0f = no blur (sharp), 20f = heavy blur.
+ */
+private fun blurRenderEffect(blurRadius: Float): androidx.compose.ui.graphics.RenderEffect? {
+    if (blurRadius <= 0f) return null
+    if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S) return null
+    return androidx.compose.ui.graphics.BlurEffect(
+        radiusX = blurRadius,
+        radiusY = blurRadius
+    )
 }
