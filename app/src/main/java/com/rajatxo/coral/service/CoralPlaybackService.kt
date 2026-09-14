@@ -12,7 +12,6 @@ import androidx.media3.session.MediaSessionService
 import com.rajatxo.coral.MainActivity
 import com.rajatxo.coral.audio.SimpleCrossfadeController
 import com.rajatxo.coral.audio.StudioClarityProcessor
-import com.rajatxo.coral.data.prefs.CrossfadeManager
 import com.rajatxo.coral.data.prefs.SoundHapticsManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,15 +28,17 @@ class CoralPlaybackService : MediaSessionService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var clarityObserver: Job? = null
 
-    // Dual-player for crossfade
     private var playerA: ExoPlayer? = null
     private var playerB: ExoPlayer? = null
     private var crossfadeController: SimpleCrossfadeController? = null
 
+    // Track which player is active vs standby
+    private var activePlayer: ExoPlayer? = null
+    private var standbyPlayer: ExoPlayer? = null
+
     override fun onCreate() {
         super.onCreate()
 
-        // Build two ExoPlayers — one active, one standby for crossfade
         val renderersFactory = object : DefaultRenderersFactory(this) {
             override fun buildAudioSink(
                 context: Context,
@@ -52,29 +53,11 @@ class CoralPlaybackService : MediaSessionService() {
             }
         }
 
-        playerA = ExoPlayer.Builder(this, renderersFactory)
-            .setAudioAttributes(
-                androidx.media3.common.AudioAttributes.Builder()
-                    .setUsage(androidx.media3.common.C.USAGE_MEDIA)
-                    .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MUSIC)
-                    .build(),
-                /* handleAudioFocus = */ true
-            )
-            .setHandleAudioBecomingNoisy(true)
-            .build()
-        playerA?.repeatMode = Player.REPEAT_MODE_ALL
+        playerA = buildPlayer(renderersFactory, ownsSession = true)
+        playerB = buildPlayer(renderersFactory, ownsSession = false)
 
-        playerB = ExoPlayer.Builder(this, renderersFactory)
-            .setAudioAttributes(
-                androidx.media3.common.AudioAttributes.Builder()
-                    .setUsage(androidx.media3.common.C.USAGE_MEDIA)
-                    .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MUSIC)
-                    .build(),
-                /* handleAudioFocus = */ false  // Only active player handles focus
-            )
-            .setHandleAudioBecomingNoisy(false)
-            .build()
-        playerB?.repeatMode = Player.REPEAT_MODE_ALL
+        activePlayer = playerA
+        standbyPlayer = playerB
 
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
@@ -86,20 +69,21 @@ class CoralPlaybackService : MediaSessionService() {
             .setSessionActivity(pendingIntent)
             .build()
 
-        // Crossfade controller — swaps session between playerA and playerB
         crossfadeController = SimpleCrossfadeController(
             scope = serviceScope,
-            active = { mediaSession?.player as? ExoPlayer ?: playerA },
-            standby = { playerB },
-            onHandoff = { incoming ->
+            active = { activePlayer },
+            standby = { standbyPlayer },
+            onHandoff = { outgoing, incoming ->
                 // Swap the session to the incoming player
                 mediaSession?.player = incoming
-                // The old active player becomes the standby
-                val outgoing = if (incoming == playerA) playerB else playerA
-                outgoing?.volume = 1f
-                // Swap roles: the standby is now the old active
-                playerB = outgoing
-                playerA = if (incoming == playerA) playerA else incoming
+
+                // Swap roles — outgoing becomes the new standby
+                activePlayer = incoming
+                standbyPlayer = outgoing
+
+                // The outgoing player was already stopped + cleared by the controller.
+                // Just make sure its volume is reset for the next use.
+                outgoing.volume = 1f
             }
         )
         crossfadeController?.start()
@@ -109,6 +93,24 @@ class CoralPlaybackService : MediaSessionService() {
                 clarityProcessor.flush()
             }
         }
+    }
+
+    private fun buildPlayer(
+        renderersFactory: DefaultRenderersFactory,
+        ownsSession: Boolean
+    ): ExoPlayer {
+        val player = ExoPlayer.Builder(this, renderersFactory)
+            .setAudioAttributes(
+                androidx.media3.common.AudioAttributes.Builder()
+                    .setUsage(androidx.media3.common.C.USAGE_MEDIA)
+                    .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MUSIC)
+                    .build(),
+                /* handleAudioFocus = */ ownsSession
+            )
+            .setHandleAudioBecomingNoisy(ownsSession)
+            .build()
+        player.repeatMode = Player.REPEAT_MODE_ALL
+        return player
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
