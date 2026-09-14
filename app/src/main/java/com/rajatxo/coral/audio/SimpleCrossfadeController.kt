@@ -1,26 +1,30 @@
 package com.rajatxo.coral.audio
 
 import android.util.Log
-import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import com.rajatxo.coral.data.prefs.CrossfadeManager
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * Dual-ExoPlayer crossfade controller.
+ * Dual-ExoPlayer crossfade controller with visual state broadcast.
  *
  * When the active song is within crossfadeSeconds of ending, the standby
  * player is loaded with the next song. Both play simultaneously — outgoing
  * fades out (cos) while incoming fades in (sin). At the crossover, the
- * session swaps and the outgoing player is STOPPED (not just muted).
+ * session swaps and the outgoing player is STOPPED.
+ *
+ * Visual state is broadcast via [CrossfadeVisualState] so CoralPlayer can
+ * render a dual-layer art dissolve synced to the same progress curve.
  *
  * Equal-power curve: sin²+cos²=1 → constant power, no dip.
  */
@@ -52,7 +56,7 @@ class SimpleCrossfadeController(
                         }
                     }
                 }
-                delay(30) // Poll every 30ms for precise trigger
+                delay(30)
             }
         }
     }
@@ -91,13 +95,28 @@ class SimpleCrossfadeController(
             incoming.volume = 0f
             incoming.playWhenReady = true
 
-            // Wait for the incoming player to be READY (not just started)
-            // but cap the wait to avoid missing the fade window
+            // Wait for READY
             var waitCount = 0
             while (incoming.playbackState != Player.STATE_READY && waitCount < 30) {
                 delay(10)
                 waitCount++
             }
+
+            // Grab the incoming song's metadata for the visual crossfade
+            val incomingItem = incoming.currentMediaItem
+            val incomingMeta = incomingItem?.mediaMetadata
+            val incomingArt = incomingMeta?.artworkUri
+            val incomingTitle = incomingMeta?.title?.toString() ?: ""
+            val incomingArtist = incomingMeta?.artist?.toString() ?: ""
+            val incomingAlbum = incomingMeta?.albumTitle?.toString()
+
+            // Broadcast: tell the UI a visual crossfade is starting
+            CrossfadeVisualState.beginTransition(
+                artUri = incomingArt,
+                title = incomingTitle,
+                artist = incomingArtist,
+                album = incomingAlbum
+            )
 
             // Start the incoming player
             incoming.play()
@@ -110,9 +129,6 @@ class SimpleCrossfadeController(
                 val progress = (elapsed / totalFadeMs).coerceIn(0f, 1f)
 
                 // Equal-power crossfade: cos² + sin² = 1
-                // At progress=0: outgoing=1, incoming=0
-                // At progress=0.5: outgoing≈0.7, incoming≈0.7
-                // At progress=1: outgoing=0, incoming=1
                 val angle = progress * PI / 2
                 val outVol = cos(angle).toFloat().coerceIn(0f, 1f)
                 val inVol = sin(angle).toFloat().coerceIn(0f, 1f)
@@ -120,25 +136,30 @@ class SimpleCrossfadeController(
                 outgoing.volume = outVol
                 incoming.volume = inVol
 
+                // Broadcast visual progress to the UI
+                CrossfadeVisualState.updateProgress(progress)
+
                 if (progress >= 1f || !outgoing.isPlaying) {
                     break
                 }
-                delay(8) // ~120fps for smooth volume ramp
+                delay(8) // ~120fps
             }
 
-            // Final state: incoming at full, outgoing silent
+            // Final state
             outgoing.volume = 0f
             incoming.volume = 1f
-
-            // STOP the outgoing player — don't let it keep playing
             outgoing.stop()
             outgoing.clearMediaItems()
+
+            // End the visual crossfade
+            CrossfadeVisualState.endTransition()
 
             // Handoff: swap roles
             onHandoff(outgoing, incoming)
 
         } catch (e: Exception) {
             Log.e("Crossfade", "Transition failed", e)
+            CrossfadeVisualState.endTransition()
             val activePlayer = active()
             activePlayer?.volume = 1f
         } finally {

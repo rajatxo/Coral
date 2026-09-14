@@ -75,6 +75,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rajatxo.coral.audio.CrossfadeVisualState
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import coil3.compose.AsyncImage
@@ -198,6 +199,14 @@ fun CoralPlayer(
     val animatedBottomColor by animateColorAsState(palette.tertiary,  tween(600), label = "bottom")
     val animatedAccentColor by animateColorAsState(palette.accent,    tween(600), label = "accent")
 
+    // Visual crossfade state (broadcast by SimpleCrossfadeController)
+    val xfActive by CrossfadeVisualState.isActive.collectAsState()
+    val xfProgress by CrossfadeVisualState.progress.collectAsState()
+    val xfIncomingArt by CrossfadeVisualState.incomingArtUri.collectAsState()
+    val dissolveAngle = remember { (0..3).random() * 90f }
+    val outAlpha = if (xfActive) kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f) else 1f
+    val inAlpha = if (xfActive) kotlin.math.sin(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f) else 0f
+
     // ─── Playback position polling ────────────────────────────────────
     var currentPositionMs by remember { mutableStateOf(0L) }
     var durationMs by remember { mutableStateOf(0L) }
@@ -294,6 +303,7 @@ fun CoralPlayer(
         //     96dp blur radius = ~100% blur (very heavy, image becomes a
         //     smooth color wash with subtle variations). Modifier.blur
         //     uses RenderEffect on Android 12+ (hardware-accelerated).
+        // Outgoing blurred bg — fades out during visual crossfade
         if (albumArtUri != null) {
             AsyncImage(
                 model = albumArtUri,
@@ -302,6 +312,7 @@ fun CoralPlayer(
                 modifier = Modifier
                     .fillMaxSize()
                     .blur(96.dp)
+                    .graphicsLayer { alpha = outAlpha }
             )
         }
 
@@ -363,7 +374,7 @@ fun CoralPlayer(
                 .aspectRatio(1f)
                 .align(Alignment.TopCenter)
                 .offset(y = 24.dp)
-                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen; alpha = outAlpha }
                 .drawWithContent {
                     drawContent()
                     val topFadeHeightPx = 64.dp.toPx()
