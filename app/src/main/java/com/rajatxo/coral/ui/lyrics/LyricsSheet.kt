@@ -1,5 +1,6 @@
 package com.rajatxo.coral.ui.lyrics
 
+import android.net.Uri
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -32,14 +33,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
 import com.rajatxo.coral.data.lyrics.Lyric
 import com.rajatxo.coral.data.lyrics.LyricLine
 import com.rajatxo.coral.data.lyrics.LyricsRepository
@@ -89,7 +93,8 @@ fun LyricsSheet(
     currentPositionMs: Long,
     isPlaying: Boolean,
     onDismiss: () -> Unit,
-    onSeek: (Long) -> Unit
+    onSeek: (Long) -> Unit,
+    albumArtUri: Uri? = null
 ) {
     val context = LocalContext.current
     val repository = remember { LyricsRepository(context) }
@@ -137,6 +142,21 @@ fun LyricsSheet(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+        // Blurred album cover background (BitChord-style)
+        if (albumArtUri != null) {
+            AsyncImage(
+                model = albumArtUri,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().blur(64.dp)
+            )
+        }
+        // Dark overlay for text legibility
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.75f))
+        )
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             // Top bar
             Row(

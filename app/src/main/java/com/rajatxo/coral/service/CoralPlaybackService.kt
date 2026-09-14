@@ -11,11 +11,13 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.rajatxo.coral.MainActivity
 import com.rajatxo.coral.audio.StudioClarityProcessor
+import com.rajatxo.coral.data.prefs.CrossfadeManager
 import com.rajatxo.coral.data.prefs.SoundHapticsManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
@@ -26,6 +28,7 @@ class CoralPlaybackService : MediaSessionService() {
     private val clarityProcessor = StudioClarityProcessor()
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var clarityObserver: Job? = null
+    private var crossfadeJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -73,6 +76,38 @@ class CoralPlaybackService : MediaSessionService() {
                 clarityProcessor.flush()
             }
         }
+
+        // Crossfade — fade out at the end of each song, fade in at the start.
+        // Not a true crossfade (no overlap), but a smooth volume transition.
+        // Polls every 100ms, reads crossfadeDuration from CrossfadeManager.
+        crossfadeJob = serviceScope.launch {
+            while (true) {
+                val player = mediaSession?.player ?: continue
+                val crossfadeDuration = CrossfadeManager.crossfadeDuration.value
+                if (crossfadeDuration > 0 && player.isPlaying) {
+                    val duration = player.duration
+                    val position = player.currentPosition
+                    if (duration > 0) {
+                        val fadeMs = crossfadeDuration * 1000L
+                        val remaining = duration - position
+                        when {
+                            remaining < fadeMs -> {
+                                // Fade out at end
+                                player.volume = (remaining.toFloat() / fadeMs).coerceIn(0.05f, 1f)
+                            }
+                            position < fadeMs -> {
+                                // Fade in at start
+                                player.volume = (position.toFloat() / fadeMs).coerceIn(0.05f, 1f)
+                            }
+                            else -> player.volume = 1f
+                        }
+                    }
+                } else if (crossfadeDuration == 0) {
+                    player.volume = 1f
+                }
+                delay(100)
+            }
+        }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
@@ -88,6 +123,7 @@ class CoralPlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         clarityObserver?.cancel()
+        crossfadeJob?.cancel()
         mediaSession?.player?.release()
         mediaSession?.release()
         super.onDestroy()

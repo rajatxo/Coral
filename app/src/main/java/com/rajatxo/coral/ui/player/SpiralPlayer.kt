@@ -749,7 +749,8 @@ fun SpiralPlayer(
                 currentPositionMs = currentPositionMs,
                 isPlaying = isPlaying,
                 onDismiss = { showLyrics = false },
-                onSeek = onSeek
+                onSeek = onSeek,
+                albumArtUri = albumArtUri
             )
         }
     }

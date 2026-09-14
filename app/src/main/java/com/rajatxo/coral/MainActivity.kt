@@ -165,12 +165,14 @@ fun CoralApp() {
                     currentSongAlbum = mediaItem?.mediaMetadata?.albumTitle?.toString()
                     currentSongArt = mediaItem?.mediaMetadata?.artworkUri
                     currentSongId = mediaItem?.mediaId?.toLongOrNull()
-                    // Only force play() for SEEK transitions (user clicked next/prev).
-                    // For AUTO transitions (song ended), the player handles it
-                    // naturally — calling play() during auto-advance causes the
-                    // "1-2, 1-2" restart bug.
-                    if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) {
-                        controller.play()
+                    // Play on song change — call play() for ALL transitions
+                    // except PLAYLIST_CHANGED (caller already calls play()).
+                    // Check isPlaying first to avoid the "1-2" restart bug
+                    // (if already playing mid-transition, don't interfere).
+                    if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) {
+                        if (!controller.isPlaying) {
+                            controller.play()
+                        }
                     }
                 }
                 override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }

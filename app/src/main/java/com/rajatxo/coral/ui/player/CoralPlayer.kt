@@ -960,7 +960,7 @@ fun CoralPlayer(
                                 )
                             }
                         }
-                        // Queue (placeholder)
+                        // Queue — opens add to playlist
                         Box(
                             modifier = Modifier
                                 .size(32.dp)
@@ -968,7 +968,9 @@ fun CoralPlayer(
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = androidx.compose.material3.ripple(bounded = false)
-                                ) { },
+                                ) {
+                                    songId?.let { onAddToPlaylist(it) }
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -1012,7 +1014,8 @@ fun CoralPlayer(
                 currentPositionMs = currentPositionMs,
                 isPlaying = isPlaying,
                 onDismiss = { showLyrics = false },
-                onSeek = onSeek
+                onSeek = onSeek,
+                albumArtUri = albumArtUri
             )
         }
     }
