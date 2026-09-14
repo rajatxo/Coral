@@ -41,7 +41,7 @@ class SimpleCrossfadeController(
     fun start() {
         job?.cancel()
         job = scope.launch {
-            while (kotlinx.coroutines.coroutineContext[kotlinx.coroutines.Job]!!.isActive) {
+            while (true) {
                 val crossfadeSeconds = CrossfadeManager.crossfadeDuration.value
                 if (crossfadeSeconds > 0 && !transitioning) {
                     val player = active() ?: run { delay(200); continue }
@@ -103,7 +103,8 @@ class SimpleCrossfadeController(
             val startTime = System.currentTimeMillis()
             val totalFadeMs = remaining.coerceAtMost(fadeMs).toFloat()
 
-            while (kotlinx.coroutines.coroutineContext[kotlinx.coroutines.Job]!!.isActive) {
+            while (job?.isActive == true) {
+                val elapsed = (System.currentTimeMillis() - startTime).toFloat()
                 val progress = (elapsed / totalFadeMs).coerceIn(0f, 1f)
 
                 // Equal-power crossfade: cos² + sin² = 1
