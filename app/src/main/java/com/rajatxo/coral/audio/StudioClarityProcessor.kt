@@ -92,20 +92,27 @@ class StudioClarityProcessor : androidx.media3.common.audio.AudioProcessor {
     }
 
     override fun isActive(): Boolean {
-        // ALWAYS return true — we check the toggle INSIDE queueInput() on every
-        // buffer. This ensures the processor is always in the audio pipeline,
-        // and the toggle takes effect immediately (no need to skip songs).
-        return configured
+        // Only active when the clarity toggle is ON. ExoPlayer bypasses
+        // the processor entirely when this returns false — no buffer
+        // interference during song transitions.
+        // The toggle takes effect on the next song change (when configure()
+        // is called and isActive() is re-evaluated). This is the expected
+        // ExoPlayer behavior for audio processors.
+        active = SoundHapticsManager.studioClarityEnabled.value && configured
+        return active
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
-        val clarityOn = SoundHapticsManager.studioClarityEnabled.value
-        val reefOn = SoundHapticsManager.coralReefEnabled.value
-
-        if (!clarityOn && !reefOn) {
+        // Use the cached 'active' flag (set in isActive()) — don't return
+        // early based on the toggle. If we're here, the processor IS active.
+        if (!active) {
             outputBuffer = inputBuffer
             return
         }
+
+        // Read toggles once per buffer (fine — processor is already active)
+        val clarityOn = SoundHapticsManager.studioClarityEnabled.value
+        val reefOn = SoundHapticsManager.coralReefEnabled.value
 
         val remaining = inputBuffer.remaining()
         if (outputBuffer.capacity() < remaining) {
