@@ -7,6 +7,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.view.HapticFeedbackConstants
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -647,43 +648,52 @@ fun SpiralPlayer(
                 .offset(y = center + 18.dp)
                 .padding(horizontal = 28.dp)
         ) {
-            // Song title (centered, below the 3 dots)
-            Text(
-                text = title,
-                color = Color.White,
-                fontSize = 24.sp,
-                fontFamily = CalSansFamily,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = TextStyle(shadow = textShadow),
-                modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Center
-            )
+            // Song title (centered, below the 3 dots) — Crossfade on change
+            Crossfade(
+                targetState = title,
+                animationSpec = tween(500),
+                label = "titleCrossfade"
+            ) { titleText ->
+                Text(
+                    text = titleText,
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontFamily = CalSansFamily,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(shadow = textShadow),
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+            }
             Spacer(modifier = Modifier.height(2.dp))
-            // Artist name (centered, dimmer)
-            Text(
-                text = artist,
-                color = Color.White.copy(alpha = 0.7f),
-                fontSize = 16.sp,
-                fontFamily = CalSansFamily,
-                fontWeight = FontWeight.Normal,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
-                style = TextStyle(shadow = textShadow),
-                modifier = Modifier.fillMaxWidth()
-            )
+            // Artist name (centered, dimmer, NO shadow) — Crossfade on change
+            Crossfade(
+                targetState = artist,
+                animationSpec = tween(500),
+                label = "artistCrossfade"
+            ) { artistText ->
+                Text(
+                    text = artistText,
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 16.sp,
+                    fontFamily = CalSansFamily,
+                    fontWeight = FontWeight.Normal,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ─── TIMELINE CAPSULE (animated progress bar) ──────────────
-            // Glass pill with:
-            //  - "Timeline" label + Music icon on the left (fixed)
-            //  - Animated progress fill (rounded capsule that grows, with
-            //    a glowing leading edge dot)
-            //  - Current time on the right
-            //  - Draggable anywhere to seek
+            // ─── TIMELINE CAPSULE (Gemini-style) ───────────────────────
+            // Glass pill with a gradient progress fill behind the content.
+            // Content (song name + time) sits on top of the fill.
+            // No icon, no "Timeline" label — the song name IS the label.
+            // Draggable anywhere to seek.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -720,88 +730,55 @@ fun SpiralPlayer(
                         onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
                     )
             ) {
+                // ── Layer 1: Gradient progress fill (behind content) ──
+                // Violet → Indigo gradient, width = progress%, rounded left edge
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(displayProgress)
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(
+                                    Color(0xFF7C3AED),  // violet-600
+                                    Color(0xFF6366F1)   // indigo-500
+                                )
+                            )
+                        )
+                )
+
+                // ── Layer 2: Content (song name + time) on top ──
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Left: Music icon + "Timeline" label (fixed width)
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.width(110.dp)
-                    ) {
-                        Icon(
-                            imageVector = CoralIcons.Music,
-                            contentDescription = "Timeline",
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
+                    // Left: Song name (changes per song) — Crossfade
+                    Crossfade(
+                        targetState = title,
+                        animationSpec = tween(400),
+                        label = "capsuleTitleCrossfade"
+                    ) { titleText ->
                         Text(
-                            text = "Timeline",
+                            text = titleText,
                             color = Color.White,
-                            fontSize = 13.sp,
+                            fontSize = 14.sp,
                             fontFamily = CalSansFamily,
-                            fontWeight = FontWeight.Medium
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
                     }
-
-                    // Center: animated progress track (takes remaining space)
-                    BoxWithConstraints(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(28.dp),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        val trackMaxWidth = maxWidth
-                        // Background track (dim)
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(6.dp)
-                                .clip(RoundedCornerShape(3.dp))
-                                .background(Color.White.copy(alpha = 0.15f))
-                        )
-                        // Progress fill (bright, animated width)
-                        Box(
-                            modifier = Modifier
-                                .width(trackMaxWidth * displayProgress)
-                                .height(6.dp)
-                                .clip(RoundedCornerShape(3.dp))
-                                .background(Color.White)
-                        )
-                        // Glowing leading edge dot (only when progress > 0)
-                        if (displayProgress > 0.001f) {
-                            Box(
-                                modifier = Modifier
-                                    .offset(
-                                        x = (trackMaxWidth * displayProgress) - 7.dp
-                                    )
-                                    .size(14.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.White)
-                                    .shadow(
-                                        elevation = 8.dp,
-                                        shape = CircleShape,
-                                        ambientColor = Color.White,
-                                        spotColor = Color.White
-                                    )
-                            )
-                        }
-                    }
-
                     Spacer(modifier = Modifier.width(12.dp))
-
-                    // Right: current time (fixed width)
+                    // Right: current time / total time
                     Text(
-                        text = formatTime((displayProgress * durationMs).toLong()),
-                        color = Color.White,
-                        fontSize = 13.sp,
+                        text = "${formatTime((displayProgress * durationMs).toLong())} / ${formatTime(durationMs)}",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 12.sp,
                         fontFamily = CalSansFamily,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.width(48.dp),
-                        textAlign = TextAlign.End
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }
