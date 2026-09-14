@@ -205,14 +205,29 @@ fun CoralPlayer(
     val xfProgress by CrossfadeVisualState.progress.collectAsState()
     val xfIncomingArt by CrossfadeVisualState.incomingArtUri.collectAsState()
     val outAlpha = if (xfActive) kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f) else 1f
-    // Keep incoming layers visible after crossfade ends UNTIL albumArtUri
-    // actually updates to the new song. This prevents the snap where
-    // xfActive goes false but albumArtUri is still the old song — without
-    // this, the screen would flash the old song before the new one appears.
-    val showIncoming = xfIncomingArt != null && (xfActive || albumArtUri != xfIncomingArt)
+    // Keep incoming layers visible for a brief moment (500ms) after the
+    // crossfade ends, to give albumArtUri time to update to the new song.
+    // Without this hold, the screen would flash the old song before the
+    // new one appears (snap at end of crossfade).
+    //
+    // The hold is TIME-BOUNDED (500ms max) — after that, we assume
+    // albumArtUri has caught up and the hold is released. This prevents
+    // the "stuck at one cover" bug where a stale xfIncomingArt could
+    // match a future albumArtUri (e.g. same album, or returning to a song).
+    var holdAfterEnd by remember { mutableStateOf(false) }
+    LaunchedEffect(xfActive) {
+        if (!xfActive) {
+            holdAfterEnd = true
+            delay(500L)  // hold for 500ms after crossfade ends
+            holdAfterEnd = false
+        } else {
+            holdAfterEnd = false
+        }
+    }
+    val showIncoming = xfIncomingArt != null && (xfActive || holdAfterEnd)
     val inAlpha = when {
         xfActive -> kotlin.math.sin(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
-        showIncoming -> 1f  // hold incoming at full opacity until art catches up
+        holdAfterEnd -> 1f  // hold incoming at full opacity for 500ms after crossfade ends
         else -> 0f
     }
 

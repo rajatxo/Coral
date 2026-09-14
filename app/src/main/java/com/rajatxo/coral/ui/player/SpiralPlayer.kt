@@ -205,13 +205,22 @@ fun SpiralPlayer(
     val xfProgress by CrossfadeVisualState.progress.collectAsState()
     val xfIncomingArt by CrossfadeVisualState.incomingArtUri.collectAsState()
     val outAlpha = if (xfActive) kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f) else 1f
-    // Keep incoming layers visible after crossfade ends UNTIL albumArtUri
-    // actually updates to the new song. This prevents the snap where
-    // xfActive goes false but albumArtUri is still the old song.
-    val showIncoming = xfIncomingArt != null && (xfActive || albumArtUri != xfIncomingArt)
+    // Hold incoming layers for 500ms after crossfade ends to give albumArtUri
+    // time to update. Time-bounded to prevent "stuck at one cover" bug.
+    var holdAfterEnd by remember { mutableStateOf(false) }
+    LaunchedEffect(xfActive) {
+        if (!xfActive) {
+            holdAfterEnd = true
+            delay(500L)
+            holdAfterEnd = false
+        } else {
+            holdAfterEnd = false
+        }
+    }
+    val showIncoming = xfIncomingArt != null && (xfActive || holdAfterEnd)
     val inAlpha = when {
         xfActive -> kotlin.math.sin(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
-        showIncoming -> 1f
+        holdAfterEnd -> 1f
         else -> 0f
     }
 

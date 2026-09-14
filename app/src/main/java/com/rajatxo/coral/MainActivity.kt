@@ -47,6 +47,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import com.rajatxo.coral.audio.CrossfadeVisualState
 import com.rajatxo.coral.data.scanner.MusicScanner
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.service.CoralPlaybackService
@@ -269,10 +270,20 @@ fun CoralApp() {
                     onPlayPauseClick = {
                         if (isPlaying) mediaController?.pause() else mediaController?.play()
                     },
-                    onNextClick = { mediaController?.seekToNextMediaItem() },
-                    onPrevClick = { mediaController?.seekToPreviousMediaItem() },
+                    onNextClick = {
+                        // Clear stale crossfade state — prevents "stuck at one
+                        // cover" bug when manual next coincides with/replaces
+                        // a pending visual crossfade.
+                        CrossfadeVisualState.clearIncoming()
+                        mediaController?.seekToNextMediaItem()
+                    },
+                    onPrevClick = {
+                        CrossfadeVisualState.clearIncoming()
+                        mediaController?.seekToPreviousMediaItem()
+                    },
                     onSeek = { positionMs -> mediaController?.seekTo(positionMs) },
                     onSongClick = { song ->
+                        CrossfadeVisualState.clearIncoming()
                         mediaController?.let { controller ->
                             val allMediaItems = songs.map { s ->
                                 MediaItem.Builder().setUri(s.uri).setMediaId(s.id.toString())

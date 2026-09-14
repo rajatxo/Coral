@@ -58,9 +58,34 @@ object CrossfadeVisualState {
         _progress.value = progress
     }
 
-    /** Called when the crossfade is complete. */
+    /** Called when the crossfade is complete.
+     *
+     *  IMPORTANT: We keep _incomingArtUri set here (NOT cleared) because
+     *  the UI uses it to hold the incoming art visible until albumArtUri
+     *  catches up (prevents snap at end of crossfade). The UI clears its
+     *  own hold condition once albumArtUri matches xfIncomingArt.
+     *
+     *  BUT we must clear the stale incomingArtUri when a NEW transition
+     *  starts (beginTransition overwrites it) or when the user manually
+     *  changes songs (see clearIncoming()). Otherwise the stale URI can
+     *  match a future albumArtUri and cause the "stuck at one cover" bug. */
     fun endTransition() {
         _isActive.value = false
         _progress.value = 1f
+    }
+
+    /** Clears the incoming art URI. Called when the user manually changes
+     *  songs (seek to previous/next via button, or jumps to a track in the
+     *  queue). Without this, a stale xfIncomingArtUri from a previous
+     *  crossfade can match the new albumArtUri and cause the UI to hold
+     *  a stale incoming overlay forever — the "stuck at one cover" bug. */
+    fun clearIncoming() {
+        if (!_isActive.value) {
+            _incomingArtUri.value = null
+            _incomingTitle.value = ""
+            _incomingArtist.value = ""
+            _incomingAlbum.value = null
+            _progress.value = 0f
+        }
     }
 }
