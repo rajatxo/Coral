@@ -10,6 +10,7 @@ import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.rajatxo.coral.MainActivity
+import com.rajatxo.coral.audio.SimpleCrossfadeController
 import com.rajatxo.coral.audio.StudioClarityProcessor
 import com.rajatxo.coral.data.prefs.CrossfadeManager
 import com.rajatxo.coral.data.prefs.SoundHapticsManager
@@ -17,7 +18,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
@@ -28,14 +28,16 @@ class CoralPlaybackService : MediaSessionService() {
     private val clarityProcessor = StudioClarityProcessor()
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var clarityObserver: Job? = null
-    private var crossfadeJob: Job? = null
+
+    // Dual-player for crossfade
+    private var playerA: ExoPlayer? = null
+    private var playerB: ExoPlayer? = null
+    private var crossfadeController: SimpleCrossfadeController? = null
 
     override fun onCreate() {
         super.onCreate()
 
-        // Build ExoPlayer with a custom RenderersFactory that injects the
-        // Studio Clarity audio processor into the audio sink.
-        // (Same approach as LastWave — override buildAudioSink)
+        // Build two ExoPlayers — one active, one standby for crossfade
         val renderersFactory = object : DefaultRenderersFactory(this) {
             override fun buildAudioSink(
                 context: Context,
@@ -50,13 +52,29 @@ class CoralPlaybackService : MediaSessionService() {
             }
         }
 
-        val player = ExoPlayer.Builder(this, renderersFactory).build()
-        // REPEAT_MODE_ALL — playlist loops. Fixes:
-        // 1. Auto-advance: when a song ends, the next song plays automatically
-        //    (REPEAT_MODE_OFF stops after the last song)
-        // 2. Next/prev buttons always work — they wrap around instead of
-        //    doing nothing on the first/last song
-        player.repeatMode = Player.REPEAT_MODE_ALL
+        playerA = ExoPlayer.Builder(this, renderersFactory)
+            .setAudioAttributes(
+                androidx.media3.common.AudioAttributes.Builder()
+                    .setUsage(androidx.media3.common.C.USAGE_MEDIA)
+                    .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MUSIC)
+                    .build(),
+                /* handleAudioFocus = */ true
+            )
+            .setHandleAudioBecomingNoisy(true)
+            .build()
+        playerA?.repeatMode = Player.REPEAT_MODE_ALL
+
+        playerB = ExoPlayer.Builder(this, renderersFactory)
+            .setAudioAttributes(
+                androidx.media3.common.AudioAttributes.Builder()
+                    .setUsage(androidx.media3.common.C.USAGE_MEDIA)
+                    .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MUSIC)
+                    .build(),
+                /* handleAudioFocus = */ false  // Only active player handles focus
+            )
+            .setHandleAudioBecomingNoisy(false)
+            .build()
+        playerB?.repeatMode = Player.REPEAT_MODE_ALL
 
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
@@ -64,52 +82,31 @@ class CoralPlaybackService : MediaSessionService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        mediaSession = MediaSession.Builder(this, player)
+        mediaSession = MediaSession.Builder(this, playerA!!)
             .setSessionActivity(pendingIntent)
             .build()
 
-        // Observe the studio clarity toggle — when it changes, the processor
-        // automatically picks it up on the next audio buffer (via isActive()).
-        // No need to reconfigure the player — just flush the processor.
+        // Crossfade controller — swaps session between playerA and playerB
+        crossfadeController = SimpleCrossfadeController(
+            scope = serviceScope,
+            active = { mediaSession?.player as? ExoPlayer ?: playerA },
+            standby = { playerB },
+            onHandoff = { incoming ->
+                // Swap the session to the incoming player
+                mediaSession?.player = incoming
+                // The old active player becomes the standby
+                val outgoing = if (incoming == playerA) playerB else playerA
+                outgoing?.volume = 1f
+                // Swap roles: the standby is now the old active
+                playerB = outgoing
+                playerA = if (incoming == playerA) playerA else incoming
+            }
+        )
+        crossfadeController?.start()
+
         clarityObserver = serviceScope.launch {
             SoundHapticsManager.studioClarityEnabled.collect { enabled ->
                 clarityProcessor.flush()
-            }
-        }
-
-        // Crossfade — fade out at the end of each song, fade in at the start.
-        // Not a true crossfade (no overlap), but a smooth volume transition.
-        // Polls every 100ms, reads crossfadeDuration from CrossfadeManager.
-        crossfadeJob = serviceScope.launch {
-            while (true) {
-                val player = mediaSession?.player
-                if (player == null) {
-                    delay(200)
-                    continue
-                }
-                val crossfadeDuration = CrossfadeManager.crossfadeDuration.value
-                if (crossfadeDuration > 0) {
-                    val duration = player.duration
-                    val position = player.currentPosition
-                    if (duration > 0 && position > 0) {
-                        val fadeMs = crossfadeDuration * 1000L
-                        val remaining = duration - position
-                        when {
-                            remaining < fadeMs && remaining > 0 -> {
-                                player.volume = (remaining.toFloat() / fadeMs).coerceIn(0.02f, 1f)
-                            }
-                            position < fadeMs -> {
-                                player.volume = (position.toFloat() / fadeMs).coerceIn(0.02f, 1f)
-                            }
-                            else -> {
-                                if (player.volume != 1f) player.volume = 1f
-                            }
-                        }
-                    }
-                } else {
-                    if (player.volume != 1f) player.volume = 1f
-                }
-                delay(100)
             }
         }
     }
@@ -127,8 +124,9 @@ class CoralPlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         clarityObserver?.cancel()
-        crossfadeJob?.cancel()
-        mediaSession?.player?.release()
+        crossfadeController?.stop()
+        playerA?.release()
+        playerB?.release()
         mediaSession?.release()
         super.onDestroy()
     }
