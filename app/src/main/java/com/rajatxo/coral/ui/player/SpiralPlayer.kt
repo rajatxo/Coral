@@ -196,15 +196,6 @@ fun SpiralPlayer(
     var dragAccumulator by remember { mutableFloatStateOf(0f) }
     val dragThreshold = 60f
 
-    // ─── Drag-down-to-dismiss state ──────────────────────────────────
-    // Tracks how far the user has dragged the player down from the top.
-    // The player fades out (alpha) as you drag down. If you drag past
-    // the threshold, onDismiss() is called (collapses to mini player).
-    var dismissDragY by remember { mutableFloatStateOf(0f) }
-    val dismissThreshold = 300f
-    // Alpha decreases from 1 → 0.3 as you drag from 0 → threshold
-    val dismissAlpha = (1f - (dismissDragY / dismissThreshold) * 0.7f).coerceIn(0.3f, 1f)
-
     // ─── Palette (extracted from album art) ───────────────────────────
     // Preload the album art via Coil FIRST, then extract palette. This
     // ensures the image is in Coil's cache when AsyncImage renders it,
@@ -238,14 +229,15 @@ fun SpiralPlayer(
     // Incoming title/artist — used to sync text transition with cover blend
     val xfIncomingTitle by CrossfadeVisualState.incomingTitle.collectAsState()
     val xfIncomingArtist by CrossfadeVisualState.incomingArtist.collectAsState()
-    // Outgoing alpha: 1 normally, fades to 0 during crossfade, STAYS 0
-    // during the hold period (prevents old song cover from popping back
-    // up after the blend ends but before albumArtUri catches up).
+    // Hold incoming layers visible after crossfade ends to give albumArtUri
+    // time to catch up. During hold: outgoing=0 (hidden), incoming=1 (full).
+    // After hold: both released — albumArtUri should have updated by now.
+    // 800ms is enough for the MediaController transition to fire.
     var holdAfterEnd by remember { mutableStateOf(false) }
     LaunchedEffect(xfActive) {
         if (!xfActive) {
             holdAfterEnd = true
-            delay(600L)
+            delay(800L)
             holdAfterEnd = false
         } else {
             holdAfterEnd = false
@@ -253,7 +245,7 @@ fun SpiralPlayer(
     }
     val outAlpha = when {
         xfActive -> kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
-        holdAfterEnd -> 0f  // hide outgoing during hold so old art doesn't pop
+        holdAfterEnd -> 0f  // hide outgoing during hold so old art doesn't flash
         else -> 1f
     }
     val showIncoming = xfIncomingArt != null && (xfActive || holdAfterEnd)
@@ -350,20 +342,11 @@ fun SpiralPlayer(
     //       drawWithContent + DstIn. Result: sharp in the middle, fading
     //       to transparent at both edges — smoothly revealing the blurred
     //       bg above (status bar area) and below (controls area).
-    // Use BLACK as the base background (not animatedBottomColor) to prevent
-    // the solid color flash when opening the mini player. The blurred album
-    // art covers this once it loads — black is neutral and doesn't flash.
-    // The whole player is wrapped in a vertical drag gesture: drag down to
-    // dismiss (fade + translate down), like Spotify/Apple Music.
-    BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-            .graphicsLayer {
-                alpha = dismissAlpha
-                translationY = dismissDragY
-            }
-    ) {
+    // Transparent background — no solid color flash. The blurred album art
+    // fills the screen as soon as it loads (it's already in Coil's cache from
+    // the mini player). Using any solid color here causes a flash before the
+    // art renders.
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val center = maxHeight / 2
 
         // Background layer — wrapped with layerBackdrop so the glass capsule
@@ -604,32 +587,6 @@ fun SpiralPlayer(
 
         } // end layerBackdrop Box
 
-        // ─── Drag-down-to-dismiss zone ───────────────────────────────
-        // Invisible zone at the top of the screen (status bar area, above
-        // the 3-dot indicator). Drag down here to dismiss the player into
-        // the mini player. The whole player fades + translates down while
-        // dragging — like Spotify/Apple Music.
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(120.dp)
-                .align(Alignment.TopCenter)
-                .pointerInput(Unit) {
-                    detectVerticalDragGestures(
-                        onDragEnd = {
-                            if (dismissDragY > dismissThreshold) {
-                                onDismiss()
-                            }
-                            dismissDragY = 0f
-                        },
-                        onDragCancel = { dismissDragY = 0f },
-                        onVerticalDrag = { _, dragAmount ->
-                            dismissDragY = (dismissDragY + dragAmount).coerceAtLeast(0f)
-                        }
-                    )
-                }
-        )
-
         // (3) Heart pop overlay (double-tap on album art to favorite)
         if (showHeartPop) {
             Box(
@@ -791,11 +748,15 @@ fun SpiralPlayer(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ─── TIMELINE CAPSULE (dim glass + vibrant fill) ──────────
-            // The whole capsule is a DIM glass morphism (faded look).
-            // The progress fill is a VIBRANT colored glass — brighter,
-            // using the song's accent color, with a rounded leading edge.
-            // Only "Timeline" text on the right side. Draggable to seek.
+            // ─── TIMELINE CAPSULE (reveal glass effect) ─────────────────
+            // Think of it like glass covered by dry detergent bubbles:
+            // - The UNFILLED portion (right) is covered by a faded/opaque
+            //   white overlay — the glass is obscured (dulled).
+            // - The FILLED portion (left) has NO overlay — the clear glass
+            //   morphism shows through (vibrant, alive).
+            // As you slide, the faded overlay retreats and the clear glass
+            // is "revealed". "Timeline" text at extreme left, time on right.
+            // Draggable to seek.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -829,36 +790,33 @@ fun SpiralPlayer(
                             colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.5f)
                             blur(12f.dp.toPx())
                         },
-                        // Dim/faded glass for the unfilled portion
-                        onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.4f)) }
+                        onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
                     )
             ) {
-                // ── Layer 1: Vibrant colored glass fill ──
-                if (displayProgress > 0.001f) {
+                // ── Layer 1: Faded overlay on the UNFILLED portion (right) ──
+                // This is the "detergent bubbles" — a semi-opaque white layer
+                // that covers the right side, making the glass look dull/faded.
+                // Rounded left edge so the boundary looks smooth as it retreats.
+                if (displayProgress < 0.999f) {
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
-                            .fillMaxWidth(displayProgress)
+                            .align(Alignment.TopEnd)
+                            .fillMaxWidth(1f - displayProgress)
                             .clip(RoundedCornerShape(26.dp))
-                            .background(animatedAccentColor.copy(alpha = 0.55f))
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(displayProgress)
-                            .clip(RoundedCornerShape(26.dp))
-                            .background(Color.White.copy(alpha = 0.08f))
+                            .background(Color.White.copy(alpha = 0.25f))
                     )
                 }
 
-                // ── Layer 2: Content — only "Timeline" + time on the right ──
+                // ── Layer 2: Content — "Timeline" at extreme left, time right ──
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 20.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.End
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
+                    // Extreme left: "Timeline" label
                     Text(
                         text = "Timeline",
                         color = Color.White,
@@ -866,7 +824,7 @@ fun SpiralPlayer(
                         fontFamily = CalSansFamily,
                         fontWeight = FontWeight.Medium
                     )
-                    Spacer(modifier = Modifier.width(12.dp))
+                    // Right: current time / total time
                     Text(
                         text = "${formatTime((displayProgress * durationMs).toLong())} / ${formatTime(durationMs)}",
                         color = Color.White.copy(alpha = 0.7f),
