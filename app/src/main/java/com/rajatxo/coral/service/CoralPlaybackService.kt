@@ -82,28 +82,32 @@ class CoralPlaybackService : MediaSessionService() {
         // Polls every 100ms, reads crossfadeDuration from CrossfadeManager.
         crossfadeJob = serviceScope.launch {
             while (true) {
-                val player = mediaSession?.player ?: continue
+                val player = mediaSession?.player
+                if (player == null) {
+                    delay(200)
+                    continue
+                }
                 val crossfadeDuration = CrossfadeManager.crossfadeDuration.value
-                if (crossfadeDuration > 0 && player.isPlaying) {
+                if (crossfadeDuration > 0) {
                     val duration = player.duration
                     val position = player.currentPosition
-                    if (duration > 0) {
+                    if (duration > 0 && position > 0) {
                         val fadeMs = crossfadeDuration * 1000L
                         val remaining = duration - position
                         when {
-                            remaining < fadeMs -> {
-                                // Fade out at end
-                                player.volume = (remaining.toFloat() / fadeMs).coerceIn(0.05f, 1f)
+                            remaining < fadeMs && remaining > 0 -> {
+                                player.volume = (remaining.toFloat() / fadeMs).coerceIn(0.02f, 1f)
                             }
                             position < fadeMs -> {
-                                // Fade in at start
-                                player.volume = (position.toFloat() / fadeMs).coerceIn(0.05f, 1f)
+                                player.volume = (position.toFloat() / fadeMs).coerceIn(0.02f, 1f)
                             }
-                            else -> player.volume = 1f
+                            else -> {
+                                if (player.volume != 1f) player.volume = 1f
+                            }
                         }
                     }
-                } else if (crossfadeDuration == 0) {
-                    player.volume = 1f
+                } else {
+                    if (player.volume != 1f) player.volume = 1f
                 }
                 delay(100)
             }
