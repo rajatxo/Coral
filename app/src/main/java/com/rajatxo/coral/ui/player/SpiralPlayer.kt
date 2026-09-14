@@ -637,14 +637,9 @@ fun SpiralPlayer(
 
         // (5) Content column — centered below the 3-dot indicator
         //     Song name sits just below the dots, then artist, then the
-        //     dual-mode capsule (Volume ↔ Timeline), then Lyrics capsule,
+        //     Timeline capsule (animated progress bar), then Lyrics capsule,
         //     then the triple-circle control pod.
-        var volPillWidthPx by remember { mutableFloatStateOf(1f) }
-        // Mode: 0 = Volume, 1 = Timeline (swipe left on text to switch)
-        var capsuleMode by remember { mutableStateOf(0) }
-        // Swipe accumulator for mode switching
-        var modeSwipeAccum by remember { mutableFloatStateOf(0f) }
-        val modeSwipeThreshold = 80f
+        var timelinePillWidthPx by remember { mutableFloatStateOf(1f) }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -682,58 +677,34 @@ fun SpiralPlayer(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ─── DUAL-MODE CAPSULE (Volume ↔ Timeline) ────────────────
-            // One glass pill that can be swiped left/right on the label
-            // area to switch between Volume mode and Timeline mode.
-            // The label sits inside a sliding sub-capsule (rounded thumb).
-            // In Volume mode: 5 dots (one per 20%) + percentage + thumb
-            // In Timeline mode: progress track + times + draggable seek
+            // ─── TIMELINE CAPSULE (animated progress bar) ──────────────
+            // Glass pill with:
+            //  - "Timeline" label + Music icon on the left (fixed)
+            //  - Animated progress fill (rounded capsule that grows, with
+            //    a glowing leading edge dot)
+            //  - Current time on the right
+            //  - Draggable anywhere to seek
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp)
                     .clip(RoundedCornerShape(26.dp))
-                    .onSizeChanged { volPillWidthPx = it.width.toFloat() }
-                    .pointerInput(capsuleMode, maxVolume, durationMs) {
-                        detectHorizontalDragGestures(
+                    .onSizeChanged { timelinePillWidthPx = it.width.toFloat() }
+                    .pointerInput(durationMs) {
+                        detectDragGestures(
+                            onDragStart = { isDragging = true },
                             onDragEnd = {
-                                modeSwipeAccum = 0f
-                                // Commit seek if we were dragging the timeline
-                                if (capsuleMode == 1 && dragFraction != null) {
-                                    isDragging = false
-                                    dragFraction?.let { frac ->
-                                        if (durationMs > 0) onSeek((frac * durationMs).toLong())
-                                    }
-                                    dragFraction = null
+                                isDragging = false
+                                dragFraction?.let { frac ->
+                                    if (durationMs > 0) onSeek((frac * durationMs).toLong())
                                 }
+                                dragFraction = null
                             },
-                            onDragCancel = {
-                                modeSwipeAccum = 0f
-                                isDragging = false; dragFraction = null
-                            },
-                            onHorizontalDrag = { change, _ ->
-                                if (volPillWidthPx > 0) {
-                                    val frac = (change.position.x / volPillWidthPx).coerceIn(0f, 1f)
-                                    modeSwipeAccum += change.position.x - change.previousPosition.x
-                                    // Mode switch on large swipes
-                                    if (modeSwipeAccum < -modeSwipeThreshold && capsuleMode == 0) {
-                                        capsuleMode = 1
-                                        modeSwipeAccum = 0f
-                                    } else if (modeSwipeAccum > modeSwipeThreshold && capsuleMode == 1) {
-                                        capsuleMode = 0
-                                        modeSwipeAccum = 0f
-                                    } else {
-                                        // Small drag = adjust value
-                                        if (capsuleMode == 0 && maxVolume > 0) {
-                                            // Volume mode: set system volume
-                                            val newVol = (frac * maxVolume).toInt().coerceIn(0, maxVolume)
-                                            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
-                                        } else if (capsuleMode == 1 && durationMs > 0) {
-                                            // Timeline mode: seek
-                                            isDragging = true
-                                            dragFraction = frac
-                                        }
-                                    }
+                            onDragCancel = { isDragging = false; dragFraction = null },
+                            onDrag = { change, _ ->
+                                if (durationMs > 0 && timelinePillWidthPx > 0) {
+                                    val frac = (change.position.x / timelinePillWidthPx).coerceIn(0f, 1f)
+                                    dragFraction = frac
                                 }
                             }
                         )
@@ -749,87 +720,88 @@ fun SpiralPlayer(
                         onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
                     )
             ) {
-                // ── Sliding thumb (rounded capsule that moves with value) ──
-                // In Volume mode: thumb width = volume% of (pill - label width)
-                // In Timeline mode: thumb width = progress% of (pill - label width)
-                val thumbFraction = if (capsuleMode == 0) volume else displayProgress
-                val labelWidthPx = 120f * volPillWidthPx / context.resources.displayMetrics.density  // approx
-                val thumbMaxWidth = (volPillWidthPx - labelWidthPx).coerceAtLeast(1f)
-                val thumbWidth = (thumbFraction * thumbMaxWidth).coerceIn(0f, thumbMaxWidth)
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .fillMaxHeight()
-                        .width(with(androidx.compose.ui.platform.LocalDensity.current) { thumbWidth.toDp() })
-                        .padding(4.dp)
-                        .clip(RoundedCornerShape(22.dp))
-                        .background(Color.White.copy(alpha = 0.15f))
-                )
-
-                // ── Content row (label + dots/track + value) ──
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 20.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Left: mode label (Volume or Timeline)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Left: Music icon + "Timeline" label (fixed width)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.width(110.dp)
+                    ) {
                         Icon(
-                            imageVector = if (capsuleMode == 0) {
-                                if (volume > 0.1f) CoralIcons.VolumeHigh else CoralIcons.VolumeLow
-                            } else CoralIcons.Music,
-                            contentDescription = if (capsuleMode == 0) "Volume" else "Timeline",
+                            imageVector = CoralIcons.Music,
+                            contentDescription = "Timeline",
                             tint = Color.White,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (capsuleMode == 0) "Volume" else "Timeline",
+                            text = "Timeline",
                             color = Color.White,
-                            fontSize = 14.sp,
+                            fontSize = 13.sp,
                             fontFamily = CalSansFamily,
                             fontWeight = FontWeight.Medium
                         )
                     }
-                    // Center: 5 dots (volume) or time text (timeline)
-                    if (capsuleMode == 0) {
-                        // 5 dots — one highlights per 20% increment
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            val level = (volume * 5).toInt().coerceIn(0, 5)
-                            repeat(5) { i ->
-                                Box(
-                                    modifier = Modifier
-                                        .size(6.dp)
-                                        .clip(CircleShape)
-                                        .background(
-                                            if (i < level) Color.White
-                                            else Color.White.copy(alpha = 0.2f)
-                                        )
-                                )
-                            }
-                        }
-                    } else {
-                        // Timeline: current time / total time
-                        Text(
-                            text = "${formatTime((displayProgress * durationMs).toLong())} / ${formatTime(durationMs)}",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 12.sp,
-                            fontFamily = CalSansFamily
+
+                    // Center: animated progress track (takes remaining space)
+                    BoxWithConstraints(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(28.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        val trackMaxWidth = maxWidth
+                        // Background track (dim)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(Color.White.copy(alpha = 0.15f))
                         )
+                        // Progress fill (bright, animated width)
+                        Box(
+                            modifier = Modifier
+                                .width(trackMaxWidth * displayProgress)
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(Color.White)
+                        )
+                        // Glowing leading edge dot (only when progress > 0)
+                        if (displayProgress > 0.001f) {
+                            Box(
+                                modifier = Modifier
+                                    .offset(
+                                        x = (trackMaxWidth * displayProgress) - 7.dp
+                                    )
+                                    .size(14.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White)
+                                    .shadow(
+                                        elevation = 8.dp,
+                                        shape = CircleShape,
+                                        ambientColor = Color.White,
+                                        spotColor = Color.White
+                                    )
+                            )
+                        }
                     }
-                    // Right: percentage (volume) or remaining (timeline)
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    // Right: current time (fixed width)
                     Text(
-                        text = if (capsuleMode == 0) "${(volume * 100).toInt()}%"
-                        else "-" + formatTime(((1f - displayProgress) * durationMs).toLong()),
+                        text = formatTime((displayProgress * durationMs).toLong()),
                         color = Color.White,
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         fontFamily = CalSansFamily,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.width(48.dp),
+                        textAlign = TextAlign.End
                     )
                 }
             }
