@@ -316,50 +316,11 @@ fun CoralPlayer(
             )
         }
 
-        // Medium-blur bridge layer (32dp blur) — sits between the heavy-blur
-        // bg (96dp) and the sharp art (0dp). Has a bell-curve alpha mask
-        // that makes it visible only in the transition zone (around the
-        // sharp art's bottom edge, ~48% down the screen). This creates a
-        // gradual blur: sharp → 32dp → 96dp. The texture change is spread
-        // across two stages instead of one, so the transition looks
-        // seamless — like one continuous image, not "sharp then blurred".
-        if (albumArtUri != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-                    .drawWithContent {
-                        drawContent()
-                        // Bell-curve alpha mask via DstIn:
-                        //   0-40%  : transparent (sharp art area, medium-blur hidden)
-                        //   40-48% : fade in (sharp art fading out, medium-blur fading in)
-                        //   48-55% : fully opaque (medium-blur dominates)
-                        //   55-85% : fade out (transitioning to heavy-blur)
-                        //   85-100%: transparent (heavy-blur dominates)
-                        drawRect(
-                            brush = Brush.verticalGradient(
-                                colorStops = arrayOf(
-                                    0.00f to Color.Transparent,
-                                    0.40f to Color.Transparent,
-                                    0.48f to Color.Black,
-                                    0.55f to Color.Black,
-                                    0.70f to Color.Black.copy(alpha = 0.4f),
-                                    0.85f to Color.Transparent,
-                                    1.00f to Color.Transparent
-                                )
-                            ),
-                            blendMode = BlendMode.DstIn
-                        )
-                    }
-            ) {
-                AsyncImage(
-                    model = albumArtUri,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().blur(32.dp)
-                )
-            }
-        }
+        // MOVED: medium-blur bridge + black gradient are now inside the
+        // visual crossfade section (below) so they also crossfade.
+        // During normal playback (no crossfade), they render at outAlpha=1.
+        // During crossfade, outgoing versions fade out + incoming versions
+        // fade in — no snap when the blend ends.
 
         // (2) Sharp album art — SQUARE container at top, moved down 24dp
         //     (so the status bar sits on the blurred bg, not on the art).
@@ -436,14 +397,48 @@ fun CoralPlayer(
             }
         }
 
-        // Black gradient overlay at the bottom — darkens the lower
-        // portion of the screen for text legibility (white controls
-        // text needs contrast against the blurred album cover bg).
-        // Transparent in the top 50% (sharp art area), gradually
-        // darkens to ~92% black at the very bottom.
+        // OUTGOING medium-blur bridge + black gradient (fades out during crossfade)
+        if (albumArtUri != null) {
+            // Medium-blur bridge (32dp) with bell-curve mask
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        compositingStrategy = CompositingStrategy.Offscreen
+                        alpha = outAlpha
+                    }
+                    .drawWithContent {
+                        drawContent()
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colorStops = arrayOf(
+                                    0.00f to Color.Transparent,
+                                    0.40f to Color.Transparent,
+                                    0.48f to Color.Black,
+                                    0.55f to Color.Black,
+                                    0.70f to Color.Black.copy(alpha = 0.4f),
+                                    0.85f to Color.Transparent,
+                                    1.00f to Color.Transparent
+                                )
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
+            ) {
+                AsyncImage(
+                    model = albumArtUri,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().blur(32.dp)
+                )
+            }
+        }
+
+        // OUTGOING black gradient overlay (fades out during crossfade)
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .graphicsLayer { alpha = outAlpha }
                 .background(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
@@ -543,6 +538,59 @@ fun CoralPlayer(
                     modifier = Modifier.fillMaxSize()
                 )
             }
+
+            // INCOMING medium-blur bridge (32dp) — fades in during crossfade
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        compositingStrategy = CompositingStrategy.Offscreen
+                        alpha = inAlpha
+                    }
+                    .drawWithContent {
+                        drawContent()
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colorStops = arrayOf(
+                                    0.00f to Color.Transparent,
+                                    0.40f to Color.Transparent,
+                                    0.48f to Color.Black,
+                                    0.55f to Color.Black,
+                                    0.70f to Color.Black.copy(alpha = 0.4f),
+                                    0.85f to Color.Transparent,
+                                    1.00f to Color.Transparent
+                                )
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
+            ) {
+                AsyncImage(
+                    model = xfIncomingArt,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().blur(32.dp)
+                )
+            }
+
+            // INCOMING black gradient overlay — fades in during crossfade
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = inAlpha }
+                    .background(
+                        Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.00f to Color.Transparent,
+                                0.50f to Color.Transparent,
+                                0.60f to Color.Black.copy(alpha = 0.30f),
+                                0.75f to Color.Black.copy(alpha = 0.65f),
+                                0.90f to Color.Black.copy(alpha = 0.85f),
+                                1.00f to Color.Black.copy(alpha = 0.92f)
+                            )
+                        )
+                    )
+            )
         }
 
         } // end layerBackdrop Box
