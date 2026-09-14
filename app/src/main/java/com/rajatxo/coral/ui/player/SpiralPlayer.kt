@@ -342,11 +342,11 @@ fun SpiralPlayer(
     //       drawWithContent + DstIn. Result: sharp in the middle, fading
     //       to transparent at both edges — smoothly revealing the blurred
     //       bg above (status bar area) and below (controls area).
-    // Transparent background — no solid color flash. The blurred album art
-    // fills the screen as soon as it loads (it's already in Coil's cache from
-    // the mini player). Using any solid color here causes a flash before the
-    // art renders.
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    // Use the palette's dominant color as the base background. This matches
+    // the album art (extracted from it) so there's no jarring flash — the
+    // blurred art fills over it seamlessly once it loads. animatedBottomColor
+    // animates smoothly when the palette changes.
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(animatedBottomColor)) {
         val center = maxHeight / 2
 
         // Background layer — wrapped with layerBackdrop so the glass capsule
@@ -809,15 +809,16 @@ fun SpiralPlayer(
                         onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
                     )
             ) {
-                // ── Layer 1: Faded overlay on the UNFILLED portion (right) ──
-                // This is the "detergent bubbles" — a semi-opaque white layer
-                // that covers the right side, making the glass look dull/faded.
-                // Rounded left edge so the boundary looks smooth as it retreats.
+                // ── Layer 1: Faded overlay on the UNFILLED portion (left) ──
+                // The fade starts from the LEFT (where "Timeline" text is)
+                // and retreats toward the Timeline text as you slide.
+                // The concave (curved) face points LEFT toward the Timeline text.
+                // Filled portion (right) = clear glass, unfilled (left) = faded.
                 if (displayProgress < 0.999f) {
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
-                            .align(Alignment.TopEnd)
+                            .align(Alignment.TopStart)
                             .fillMaxWidth(1f - displayProgress)
                             .clip(RoundedCornerShape(26.dp))
                             .background(Color.White.copy(alpha = 0.25f))
