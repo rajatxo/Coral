@@ -76,6 +76,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rajatxo.coral.audio.CrossfadeVisualState
 import androidx.media3.session.MediaController
 import coil3.compose.AsyncImage
 import com.kyant.backdrop.backdrops.layerBackdrop
@@ -198,6 +199,14 @@ fun SpiralPlayer(
     val animatedBottomColor by animateColorAsState(palette.tertiary,  tween(600), label = "bottom")
     val animatedAccentColor by animateColorAsState(palette.accent,    tween(600), label = "accent")
 
+    // Visual crossfade state (broadcast by SimpleCrossfadeController)
+    val xfActive by CrossfadeVisualState.isActive.collectAsState()
+    val xfProgress by CrossfadeVisualState.progress.collectAsState()
+    val xfIncomingArt by CrossfadeVisualState.incomingArtUri.collectAsState()
+    val dissolveAngle = remember { (0..3).random() * 90f }
+    val outAlpha = if (xfActive) kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f) else 1f
+    val inAlpha = if (xfActive) kotlin.math.sin(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f) else 0f
+
     // ─── Playback position polling ────────────────────────────────────
     var currentPositionMs by remember { mutableStateOf(0L) }
     var durationMs by remember { mutableStateOf(0L) }
@@ -292,6 +301,7 @@ fun SpiralPlayer(
                 modifier = Modifier
                     .fillMaxSize()
                     .blur(96.dp)
+                    .graphicsLayer { alpha = outAlpha }
             )
         }
 
@@ -306,7 +316,7 @@ fun SpiralPlayer(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen; alpha = outAlpha }
                     .drawWithContent {
                         drawContent()
                         // Bell-curve alpha mask via DstIn:
@@ -353,7 +363,7 @@ fun SpiralPlayer(
                 .aspectRatio(1f)
                 .align(Alignment.TopCenter)
                 .offset(y = 24.dp)
-                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen; alpha = outAlpha }
                 .drawWithContent {
                     drawContent()
                     val topFadeHeightPx = 64.dp.toPx()
@@ -423,6 +433,7 @@ fun SpiralPlayer(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .graphicsLayer { alpha = outAlpha }
                 .background(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
@@ -436,6 +447,139 @@ fun SpiralPlayer(
                     )
                 )
         )
+
+        // VISUAL CROSSFADE: incoming art dissolves in on top of outgoing
+        if (xfActive && xfIncomingArt != null) {
+            // Incoming blurred bg with diagonal dissolve
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        compositingStrategy = CompositingStrategy.Offscreen
+                        alpha = inAlpha
+                    }
+                    .drawWithContent {
+                        drawContent()
+                        val w = size.width
+                        val h = size.height
+                        val cx = w / 2f
+                        val cy = h / 2f
+                        val r = kotlin.math.sqrt(w * w + h * h) / 2f
+                        val rad = Math.toRadians(dissolveAngle.toDouble()).toFloat()
+                        val dx = kotlin.math.cos(rad) * r
+                        val dy = kotlin.math.sin(rad) * r
+                        drawRect(
+                            brush = Brush.linearGradient(
+                                colors = listOf(Color.Transparent, Color.Black, Color.Black, Color.Transparent),
+                                start = androidx.compose.ui.geometry.Offset(cx - dx, cy - dy),
+                                end = androidx.compose.ui.geometry.Offset(cx + dx, cy + dy)
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
+            ) {
+                AsyncImage(
+                    model = xfIncomingArt,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().blur(96.dp)
+                )
+            }
+
+            // Incoming medium-blur bridge (32dp) with bell-curve mask
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        compositingStrategy = CompositingStrategy.Offscreen
+                        alpha = inAlpha
+                    }
+                    .drawWithContent {
+                        drawContent()
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colorStops = arrayOf(
+                                    0.00f to Color.Transparent,
+                                    0.40f to Color.Transparent,
+                                    0.48f to Color.Black,
+                                    0.55f to Color.Black,
+                                    0.70f to Color.Black.copy(alpha = 0.4f),
+                                    0.85f to Color.Transparent,
+                                    1.00f to Color.Transparent
+                                )
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
+            ) {
+                AsyncImage(
+                    model = xfIncomingArt,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().blur(32.dp)
+                )
+            }
+
+            // Incoming sharp art
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .align(Alignment.TopCenter)
+                    .offset(y = 24.dp)
+                    .graphicsLayer {
+                        compositingStrategy = CompositingStrategy.Offscreen
+                        alpha = inAlpha
+                    }
+                    .drawWithContent {
+                        drawContent()
+                        val topFade = 64.dp.toPx()
+                        val bottomFade = 140.dp.toPx()
+                        val imgH = size.height
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black),
+                                startY = 0f, endY = topFade
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                        val botStart = (imgH - bottomFade).coerceAtLeast(0f)
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color.Black, Color.Transparent),
+                                startY = botStart, endY = imgH
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
+            ) {
+                AsyncImage(
+                    model = xfIncomingArt,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            // Incoming black gradient overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = inAlpha }
+                    .background(
+                        Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.00f to Color.Transparent,
+                                0.50f to Color.Transparent,
+                                0.60f to Color.Black.copy(alpha = 0.30f),
+                                0.75f to Color.Black.copy(alpha = 0.65f),
+                                0.90f to Color.Black.copy(alpha = 0.85f),
+                                1.00f to Color.Black.copy(alpha = 0.92f)
+                            )
+                        )
+                    )
+            )
+        }
 
         } // end layerBackdrop Box
 
@@ -571,14 +715,12 @@ fun SpiralPlayer(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Arc timeline — curves upward, both ends fade.
-                // The artist name sits at the peak (top) of the arc.
-                // Drag horizontally to seek (left=0, right=1).
+                // Straight timeline (same as CoralPlayer — thickens on drag)
                 var seekbarWidthPx by remember { mutableFloatStateOf(1f) }
-                Canvas(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(40.dp)
+                        .height(24.dp)
                         .onSizeChanged { seekbarWidthPx = it.width.toFloat() }
                         .pointerInput(durationMs) {
                             detectDragGestures(
@@ -592,58 +734,30 @@ fun SpiralPlayer(
                                 },
                                 onDragCancel = { isDragging = false; dragFraction = null },
                                 onDrag = { change, _ ->
-                                    if (durationMs > 0 && size.width > 0) {
-                                        val frac = (change.position.x / size.width).coerceIn(0f, 1f)
+                                    if (durationMs > 0 && seekbarWidthPx > 0) {
+                                        val frac = (change.position.x / seekbarWidthPx).coerceIn(0f, 1f)
                                         dragFraction = frac
                                     }
                                 }
                             )
                         }
                 ) {
-                    val w = size.width
-                    val h = size.height
-                    val arcW = w * 0.9f
-                    val left = (w - arcW) / 2f
-                    val arcH = h * 2f
-                    val centerY = h.toFloat()
-
-                    // Background arc (dim, with fading ends)
-                    val fadeBrush = Brush.horizontalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.White.copy(alpha = 0.2f),
-                            Color.White.copy(alpha = 0.2f),
-                            Color.Transparent
-                        )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(trackHeight)
+                            .clip(RoundedCornerShape(trackHeight / 2))
+                            .align(Alignment.CenterStart)
+                            .background(Color.White.copy(alpha = 0.2f))
                     )
-                    drawArc(
-                        brush = fadeBrush,
-                        startAngle = 180f,
-                        sweepAngle = 180f,
-                        useCenter = false,
-                        topLeft = androidx.compose.ui.geometry.Offset(left, centerY - arcH),
-                        size = androidx.compose.ui.geometry.Size(arcW, arcH),
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(
-                            width = trackHeight.toPx(),
-                            cap = androidx.compose.ui.graphics.StrokeCap.Round
-                        )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(displayProgress)
+                            .height(trackHeight)
+                            .clip(RoundedCornerShape(trackHeight / 2))
+                            .align(Alignment.CenterStart)
+                            .background(Color.White)
                     )
-
-                    // Progress arc (solid white, fills left to right)
-                    if (displayProgress > 0f) {
-                        drawArc(
-                            color = Color.White,
-                            startAngle = 180f,
-                            sweepAngle = 180f * displayProgress,
-                            useCenter = false,
-                            topLeft = androidx.compose.ui.geometry.Offset(left, centerY - arcH),
-                            size = androidx.compose.ui.geometry.Size(arcW, arcH),
-                            style = androidx.compose.ui.graphics.drawscope.Stroke(
-                                width = trackHeight.toPx(),
-                                cap = androidx.compose.ui.graphics.StrokeCap.Round
-                            )
-                        )
-                    }
                 }
 
                                 // Time labels ────────────────────────────────────────────
