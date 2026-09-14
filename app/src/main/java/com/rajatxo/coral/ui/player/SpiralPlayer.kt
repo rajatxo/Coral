@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
@@ -65,6 +66,7 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -611,215 +613,399 @@ fun SpiralPlayer(
             )
         }
 
-        // (5) Content column — at bottom of screen, below the indicator
-        var seekbarWidthPx by remember { mutableFloatStateOf(1f) }
+        // ─── VERTICAL TIMELINE (right edge) ───────────────────────────
+        // Thin vertical white line on the far right, spanning from ~25% to
+        // ~75% of screen height. Progress fills from top to bottom. Times
+        // sit at the top and bottom of the line.
+        val timelineTopPad = 80.dp
+        val timelineBotPad = 280.dp
+        var timelineHeightPx by remember { mutableFloatStateOf(1f) }
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(50.dp)
+                .align(Alignment.TopEnd)
+                .padding(top = timelineTopPad, bottom = timelineBotPad)
+                .pointerInput(durationMs) {
+                    detectDragGestures(
+                        onDragStart = { isDragging = true },
+                        onDragEnd = {
+                            isDragging = false
+                            dragFraction?.let { frac ->
+                                if (durationMs > 0) onSeek((frac * durationMs).toLong())
+                            }
+                            dragFraction = null
+                        },
+                        onDragCancel = { isDragging = false; dragFraction = null },
+                        onDrag = { change, _ ->
+                            if (durationMs > 0 && timelineHeightPx > 0) {
+                                val frac = (change.position.y / timelineHeightPx).coerceIn(0f, 1f)
+                                dragFraction = frac
+                            }
+                        }
+                    )
+                }
+        ) {
+            // Track (full height, dim white)
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(3.dp)
+                    .clip(RoundedCornerShape(1.5.dp))
+                    .align(Alignment.Center)
+                    .onSizeChanged { timelineHeightPx = it.height.toFloat() }
+                    .background(Color.White.copy(alpha = 0.2f))
+            )
+            // Progress (top portion, bright white)
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight(displayProgress)
+                    .width(3.dp)
+                    .clip(RoundedCornerShape(1.5.dp))
+                    .align(Alignment.TopCenter)
+                    .background(Color.White)
+            )
+            // Current time (top)
+            Text(
+                text = formatTime((displayProgress * durationMs).toLong()),
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 11.sp,
+                fontFamily = CalSansFamily,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = (-20).dp)
+            )
+            // Total time (bottom)
+            Text(
+                text = formatTime(durationMs),
+                color = Color.White.copy(alpha = 0.5f),
+                fontSize = 11.sp,
+                fontFamily = CalSansFamily,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .offset(y = 8.dp)
+            )
+        }
+
+        // (5) Content column — meditation-style: tag + title + sliders + controls
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .align(Alignment.TopStart)
-                .offset(y = center + 1.5.dp + 22.dp)
-                .padding(horizontal = 24.dp)
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(horizontal = 28.dp)
+                .padding(bottom = 32.dp)
         ) {
-
-                // Song title (centered, below the 3 dots) ──────────────
+            // Glass capsule tag (top-left) — album name or "Now Playing"
+            val tagText = albumName ?: "Now Playing"
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .drawBackdrop(
+                        backdrop = glassBackdrop,
+                        shape = { RoundedCornerShape(50) },
+                        effects = {
+                            vibrancy()
+                            colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.5f)
+                            blur(12f.dp.toPx())
+                        },
+                        onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
+                    )
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
                 Text(
-                    text = title,
+                    text = tagText,
                     color = Color.White,
-                    fontSize = 24.sp,
+                    fontSize = 13.sp,
                     fontFamily = CalSansFamily,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = TextStyle(shadow = textShadow),
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center
+                    style = TextStyle(shadow = textShadow)
                 )
-                Spacer(modifier = Modifier.height(2.dp))
-                // Artist name (centered, 95% white)
-                Text(
-                    text = artist,
-                    color = Color.White.copy(alpha = 0.95f),
-                    fontSize = 16.sp,
-                    fontFamily = CalSansFamily,
-                    fontWeight = FontWeight.Normal,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
+            }
 
-                                // Album name (with music icon, tappable → lyrics) ───────
-                if (albumName != null) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { showLyrics = true }
-                    ) {
-                        Image(
-                            imageVector = CoralIcons.Music,
-                            contentDescription = null,
-                            colorFilter = ColorFilter.tint(Color.White.copy(alpha = 0.5f)),
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = albumName,
-                            color = Color.White.copy(alpha = 0.5f),
-                            fontSize = 13.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Image(
-                            imageVector = CoralIcons.ChevronRight,
-                            contentDescription = null,
-                            colorFilter = ColorFilter.tint(Color.White.copy(alpha = 0.5f)),
-                            modifier = Modifier.size(14.dp)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Song title (large, left-aligned, CalSans)
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 34.sp,
+                fontFamily = CalSansFamily,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                style = TextStyle(shadow = textShadow),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(3.dp))
+            // Artist name (smaller, dimmer)
+            Text(
+                text = artist,
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 16.sp,
+                fontFamily = CalSansFamily,
+                fontWeight = FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = TextStyle(shadow = textShadow),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            // ─── Volume glass pill slider ──────────────────────────────
+            var volPillWidthPx by remember { mutableFloatStateOf(1f) }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .clip(RoundedCornerShape(26.dp))
+                    .onSizeChanged { volPillWidthPx = it.width.toFloat() }
+                    .pointerInput(maxVolume) {
+                        detectHorizontalDragGestures(
+                            onDragEnd = { },
+                            onHorizontalDrag = { change, _ ->
+                                if (maxVolume > 0 && volPillWidthPx > 0) {
+                                    val frac = (change.position.x / volPillWidthPx).coerceIn(0f, 1f)
+                                    val newVol = (frac * maxVolume).toInt().coerceIn(0, maxVolume)
+                                    audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                                }
+                            }
                         )
                     }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Straight timeline (same as CoralPlayer — thickens on drag)
-                var seekbarWidthPx by remember { mutableFloatStateOf(1f) }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(24.dp)
-                        .onSizeChanged { seekbarWidthPx = it.width.toFloat() }
-                        .pointerInput(durationMs) {
-                            detectDragGestures(
-                                onDragStart = { isDragging = true },
-                                onDragEnd = {
-                                    isDragging = false
-                                    dragFraction?.let { frac ->
-                                        if (durationMs > 0) onSeek((frac * durationMs).toLong())
-                                    }
-                                    dragFraction = null
-                                },
-                                onDragCancel = { isDragging = false; dragFraction = null },
-                                onDrag = { change, _ ->
-                                    if (durationMs > 0 && seekbarWidthPx > 0) {
-                                        val frac = (change.position.x / seekbarWidthPx).coerceIn(0f, 1f)
-                                        dragFraction = frac
-                                    }
-                                }
-                            )
-                        }
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(trackHeight)
-                            .clip(RoundedCornerShape(trackHeight / 2))
-                            .align(Alignment.CenterStart)
-                            .background(Color.White.copy(alpha = 0.2f))
+                    .drawBackdrop(
+                        backdrop = glassBackdrop,
+                        shape = { RoundedCornerShape(26.dp) },
+                        effects = {
+                            vibrancy()
+                            colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.5f)
+                            blur(12f.dp.toPx())
+                        },
+                        onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
                     )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(displayProgress)
-                            .height(trackHeight)
-                            .clip(RoundedCornerShape(trackHeight / 2))
-                            .align(Alignment.CenterStart)
-                            .background(Color.White)
-                    )
-                }
-
-                                // Time labels ────────────────────────────────────────────
+                    .padding(horizontal = 20.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = formatTime((displayProgress * durationMs).toLong()),
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 11.sp
-                    )
-                    Text(
-                        text = "-" + formatTime(((1f - displayProgress) * durationMs).toLong()),
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 11.sp
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Transport: Rewind | play/pause circle | FastForward ──────
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Previous — Rewind icon
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = androidx.compose.material3.ripple(bounded = false)
-                            ) {
-                                onPrevClick()
-                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
+                    // Left: Volume icon + "Volume" text
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = CoralIcons.Rewind,
-                            contentDescription = "Previous",
+                            imageVector = if (volume > 0.1f) CoralIcons.VolumeHigh else CoralIcons.VolumeLow,
+                            contentDescription = "Volume",
                             tint = Color.White,
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Volume",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontFamily = CalSansFamily,
+                            fontWeight = FontWeight.Medium
                         )
                     }
-                    // Play/pause circle (white, centered)
-                    Box(
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clip(CircleShape)
-                            .background(Color.White)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = androidx.compose.material3.ripple(bounded = false)
-                            ) {
-                                onPlayPauseClick()
-                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                            },
-                        contentAlignment = Alignment.Center
+                    // Center: 5 dots showing volume level
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = if (isPlaying) CoralIcons.PauseLucide else CoralIcons.PlayLucide,
-                            contentDescription = "Play/Pause",
-                            tint = Color.Black,
-                            modifier = Modifier.size(24.dp)
-                        )
+                        val level = (volume * 5).toInt().coerceIn(0, 5)
+                        repeat(5) { i ->
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (i < level) Color.White
+                                        else Color.White.copy(alpha = 0.2f)
+                                    )
+                            )
+                        }
                     }
-                    // Next — FastForward icon
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = androidx.compose.material3.ripple(bounded = false)
-                            ) {
-                                onNextClick()
-                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = CoralIcons.FastForward,
-                            contentDescription = "Next",
-                            tint = Color.White,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
+                    // Right: volume number
+                    Text(
+                        text = "${(volume * 100).toInt()}",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontFamily = CalSansFamily,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // ─── Theme glass pill slider (brightness — tappable → lyrics) ─
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .clip(RoundedCornerShape(26.dp))
+                    .drawBackdrop(
+                        backdrop = glassBackdrop,
+                        shape = { RoundedCornerShape(26.dp) },
+                        effects = {
+                            vibrancy()
+                            colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.5f)
+                            blur(12f.dp.toPx())
+                        },
+                        onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
+                    )
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { showLyrics = true }
+                    .padding(horizontal = 20.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = CoralIcons.Music,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Lyrics",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontFamily = CalSansFamily,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        repeat(6) { i ->
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White.copy(alpha = 0.3f + i * 0.12f))
+                            )
+                        }
+                    }
+                    Text(
+                        text = "Open",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 14.sp,
+                        fontFamily = CalSansFamily
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // ─── Triple-circle control pod ─────────────────────────────
+            // Glass circle | White play circle | Glass circle
+            // The center circle is slightly larger and overlaps the sides.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Left — Rewind (previous)
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .offset(x = 6.dp)
+                        .clip(CircleShape)
+                        .drawBackdrop(
+                            backdrop = glassBackdrop,
+                            shape = { CircleShape },
+                            effects = {
+                                vibrancy()
+                                colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.5f)
+                                blur(12f.dp.toPx())
+                            },
+                            onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
+                        )
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = androidx.compose.material3.ripple(bounded = false)
+                        ) {
+                            onPrevClick()
+                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = CoralIcons.Rewind,
+                        contentDescription = "Previous",
+                        tint = Color.White,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+                // Center — Play/Pause (solid white, larger)
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .zIndex(1f)
+                        .clip(CircleShape)
+                        .background(Color.White)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = androidx.compose.material3.ripple(bounded = false)
+                        ) {
+                            onPlayPauseClick()
+                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isPlaying) CoralIcons.PauseLucide else CoralIcons.PlayLucide,
+                        contentDescription = "Play/Pause",
+                        tint = Color.Black,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+                // Right — FastForward (next)
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .offset(x = (-6).dp)
+                        .clip(CircleShape)
+                        .drawBackdrop(
+                            backdrop = glassBackdrop,
+                            shape = { CircleShape },
+                            effects = {
+                                vibrancy()
+                                colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.5f)
+                                blur(12f.dp.toPx())
+                            },
+                            onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
+                        )
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = androidx.compose.material3.ripple(bounded = false)
+                        ) {
+                            onNextClick()
+                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = CoralIcons.FastForward,
+                        contentDescription = "Next",
+                        tint = Color.White,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+            }
+        }
 
 
 
