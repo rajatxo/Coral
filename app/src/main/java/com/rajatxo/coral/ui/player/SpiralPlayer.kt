@@ -9,6 +9,7 @@ import android.provider.Settings
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -648,10 +649,10 @@ fun SpiralPlayer(
                 .offset(y = center + 18.dp)
                 .padding(horizontal = 28.dp)
         ) {
-            // Song title (centered, below the 3 dots) — Crossfade on change
+            // Song title (centered, below the 3 dots) — smooth Crossfade
             Crossfade(
                 targetState = title,
-                animationSpec = tween(500),
+                animationSpec = tween(700, easing = FastOutSlowInEasing),
                 label = "titleCrossfade"
             ) { titleText ->
                 Text(
@@ -668,10 +669,10 @@ fun SpiralPlayer(
                 )
             }
             Spacer(modifier = Modifier.height(2.dp))
-            // Artist name (centered, dimmer, NO shadow) — Crossfade on change
+            // Artist name (centered, dimmer, NO shadow) — smooth Crossfade
             Crossfade(
                 targetState = artist,
-                animationSpec = tween(500),
+                animationSpec = tween(700, easing = FastOutSlowInEasing),
                 label = "artistCrossfade"
             ) { artistText ->
                 Text(
@@ -689,10 +690,11 @@ fun SpiralPlayer(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ─── TIMELINE CAPSULE (Gemini-style) ───────────────────────
-            // Glass pill with a gradient progress fill behind the content.
-            // Content (song name + time) sits on top of the fill.
-            // No icon, no "Timeline" label — the song name IS the label.
+            // ─── TIMELINE CAPSULE (dim glass + vibrant fill) ──────────
+            // The whole capsule is a DIM glass morphism (faded look).
+            // The progress fill is a VIBRANT colored glass — brighter,
+            // using the song's accent color, with a rounded leading edge.
+            // Content (song name + time) sits on top of both layers.
             // Draggable anywhere to seek.
             Box(
                 modifier = Modifier
@@ -727,24 +729,32 @@ fun SpiralPlayer(
                             colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.5f)
                             blur(12f.dp.toPx())
                         },
-                        onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
+                        // Dim/faded glass for the unfilled portion
+                        onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.4f)) }
                     )
             ) {
-                // ── Layer 1: Gradient progress fill (behind content) ──
-                // Violet → Indigo gradient, width = progress%, rounded left edge
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(displayProgress)
-                        .background(
-                            Brush.horizontalGradient(
-                                colors = listOf(
-                                    Color(0xFF7C3AED),  // violet-600
-                                    Color(0xFF6366F1)   // indigo-500
-                                )
-                            )
-                        )
-                )
+                // ── Layer 1: Vibrant colored glass fill ──
+                // Uses the song's accent color at moderate opacity, creating
+                // a vibrant glass effect that's brighter than the dim base.
+                // Right edge is ROUNDED (clip with capsule shape) so the
+                // leading edge goes from straight → rounded smoothly.
+                if (displayProgress > 0.001f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(displayProgress)
+                            .clip(RoundedCornerShape(26.dp))
+                            .background(animatedAccentColor.copy(alpha = 0.55f))
+                    )
+                    // Subtle white highlight on top of the fill for vibrancy
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(displayProgress)
+                            .clip(RoundedCornerShape(26.dp))
+                            .background(Color.White.copy(alpha = 0.08f))
+                    )
+                }
 
                 // ── Layer 2: Content (song name + time) on top ──
                 Row(
@@ -754,10 +764,10 @@ fun SpiralPlayer(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Left: Song name (changes per song) — Crossfade
+                    // Left: Song name (changes per song) — smooth Crossfade
                     Crossfade(
                         targetState = title,
-                        animationSpec = tween(400),
+                        animationSpec = tween(600, easing = FastOutSlowInEasing),
                         label = "capsuleTitleCrossfade"
                     ) { titleText ->
                         Text(
