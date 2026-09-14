@@ -458,6 +458,93 @@ fun CoralPlayer(
                 )
         )
 
+        // VISUAL CROSSFADE: incoming art dissolves in on top of outgoing
+        if (xfActive && xfIncomingArt != null) {
+            // Incoming blurred bg — dissolves in with diagonal sweep
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        compositingStrategy = CompositingStrategy.Offscreen
+                        alpha = inAlpha
+                    }
+                    .drawWithContent {
+                        drawContent()
+                        // Diagonal dissolve mask — parts of new art
+                        // appear before others (organic morph effect)
+                        val w = size.width
+                        val h = size.height
+                        val cx = w / 2f
+                        val cy = h / 2f
+                        val r = kotlin.math.sqrt(w * w + h * h) / 2f
+                        val rad = Math.toRadians(dissolveAngle.toDouble()).toFloat()
+                        val dx = kotlin.math.cos(rad) * r
+                        val dy = kotlin.math.sin(rad) * r
+                        drawRect(
+                            brush = Brush.linearGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    Color.Black,
+                                    Color.Black,
+                                    Color.Transparent
+                                ),
+                                start = androidx.compose.ui.geometry.Offset(cx - dx, cy - dy),
+                                end = androidx.compose.ui.geometry.Offset(cx + dx, cy + dy)
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
+            ) {
+                AsyncImage(
+                    model = xfIncomingArt,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().blur(96.dp)
+                )
+            }
+
+            // Incoming sharp art — same square container + fade as outgoing
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .align(Alignment.TopCenter)
+                    .offset(y = 24.dp)
+                    .graphicsLayer {
+                        compositingStrategy = CompositingStrategy.Offscreen
+                        alpha = inAlpha
+                    }
+                    .drawWithContent {
+                        drawContent()
+                        val topFade = 64.dp.toPx()
+                        val bottomFade = 140.dp.toPx()
+                        val imgH = size.height
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black),
+                                startY = 0f, endY = topFade
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                        val botStart = (imgH - bottomFade).coerceAtLeast(0f)
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color.Black, Color.Transparent),
+                                startY = botStart, endY = imgH
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
+            ) {
+                AsyncImage(
+                    model = xfIncomingArt,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+
         } // end layerBackdrop Box
 
         // (3) Heart pop overlay (double-tap on album art to favorite)
