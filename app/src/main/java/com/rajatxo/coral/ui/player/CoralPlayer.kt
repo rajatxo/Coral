@@ -191,8 +191,22 @@ fun CoralPlayer(
     val dragThreshold = 60f
 
     // ─── Palette (extracted from album art) ───────────────────────────
+    // Preload the album art via Coil FIRST, then extract palette. This
+    // ensures the image is in Coil's cache when AsyncImage renders it,
+    // eliminating the "solid color flash" on first-time song load.
     var palette by remember { mutableStateOf(CoralPalette.Default) }
-    LaunchedEffect(albumArtUri) { extractPalette(context, albumArtUri)?.let { palette = it } }
+    LaunchedEffect(albumArtUri) {
+        if (albumArtUri != null) {
+            try {
+                coil3.ImageLoader(context).execute(
+                    coil3.request.ImageRequest.Builder(context)
+                        .data(albumArtUri)
+                        .build()
+                )
+            } catch (_: Exception) { }
+            extractPalette(context, albumArtUri)?.let { palette = it }
+        }
+    }
 
     // Smooth crossfade when colors change on song switch (no grey flash).
     val animatedTopColor    by animateColorAsState(palette.primary,   tween(600), label = "top")
@@ -204,30 +218,28 @@ fun CoralPlayer(
     val xfActive by CrossfadeVisualState.isActive.collectAsState()
     val xfProgress by CrossfadeVisualState.progress.collectAsState()
     val xfIncomingArt by CrossfadeVisualState.incomingArtUri.collectAsState()
-    val outAlpha = if (xfActive) kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f) else 1f
-    // Keep incoming layers visible for a brief moment (500ms) after the
-    // crossfade ends, to give albumArtUri time to update to the new song.
-    // Without this hold, the screen would flash the old song before the
-    // new one appears (snap at end of crossfade).
-    //
-    // The hold is TIME-BOUNDED (500ms max) — after that, we assume
-    // albumArtUri has caught up and the hold is released. This prevents
-    // the "stuck at one cover" bug where a stale xfIncomingArt could
-    // match a future albumArtUri (e.g. same album, or returning to a song).
+    // Outgoing alpha: 1 normally, fades to 0 during crossfade, STAYS 0
+    // during the hold period (prevents old song cover from popping back
+    // up after the blend ends but before albumArtUri catches up).
     var holdAfterEnd by remember { mutableStateOf(false) }
     LaunchedEffect(xfActive) {
         if (!xfActive) {
             holdAfterEnd = true
-            delay(500L)  // hold for 500ms after crossfade ends
+            delay(600L)
             holdAfterEnd = false
         } else {
             holdAfterEnd = false
         }
     }
+    val outAlpha = when {
+        xfActive -> kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
+        holdAfterEnd -> 0f  // hide outgoing during hold so old art doesn't pop
+        else -> 1f
+    }
     val showIncoming = xfIncomingArt != null && (xfActive || holdAfterEnd)
     val inAlpha = when {
         xfActive -> kotlin.math.sin(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
-        holdAfterEnd -> 1f  // hold incoming at full opacity for 500ms after crossfade ends
+        holdAfterEnd -> 1f  // keep incoming at full during hold
         else -> 0f
     }
 
