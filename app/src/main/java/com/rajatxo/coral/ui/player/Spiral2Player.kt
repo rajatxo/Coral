@@ -746,7 +746,7 @@ fun Spiral2Player(
                 .fillMaxWidth()
                 .align(Alignment.CenterStart)
                 .padding(horizontal = 28.dp)
-                .offset(y = (-40).dp)  // nudge up slightly from exact center
+                .offset(y = (-20).dp)  // nudge up slightly from exact center
         ) {
             // ── Song title (LEFT-aligned, ultra-smooth blend transition) ──
             Box(modifier = Modifier.fillMaxWidth()) {
@@ -848,9 +848,9 @@ fun Spiral2Player(
             }
         }
 
-        // ─── Bottom section: Timeline + Controls + Second Capsule ─────
+        // ─── Bottom section: Timeline line → gap → Volume line → Buttons ─
         var timelinePillWidthPx by remember { mutableFloatStateOf(1f) }
-        var secondPillWidthPx by remember { mutableFloatStateOf(1f) }
+        var volumeLineWidthPx by remember { mutableFloatStateOf(1f) }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -860,16 +860,15 @@ fun Spiral2Player(
                 .padding(bottom = 32.dp)
         ) {
 
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // ─── THIN TIMELINE (12dp, NO glass — plain background) ──────
-            // Same animations/colors, but no drawBackdrop glass effect.
+            // ─── TIMELINE LINE (pure white, both ends fade) ───────────
+            // Like Coral player's timeline. A thin white line with a
+            // horizontal gradient mask: transparent → white → transparent,
+            // so both ends fade out smoothly. Draggable to seek.
+            // Progress fill uses the accent color with the same fade mask.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(12.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color.White.copy(alpha = 0.15f))
+                    .height(24.dp)  // taller for easier drag targeting
                     .graphicsLayer { alpha = timelineAlpha }
                     .onSizeChanged { timelinePillWidthPx = it.width.toFloat() }
                     .pointerInput(durationMs) {
@@ -892,44 +891,57 @@ fun Spiral2Player(
                         )
                     }
             ) {
-                // Layer 1: Dynamic accent color fill (rounded end)
+                // Layer 1: Track — pure white line with faded both ends
+                // (transparent → white → transparent)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(2.dp)
+                        .align(Alignment.Center)
+                        .background(
+                            Brush.horizontalGradient(
+                                colorStops = arrayOf(
+                                    0.0f to Color.Transparent,
+                                    0.1f to Color.White,
+                                    0.9f to Color.White,
+                                    1.0f to Color.Transparent
+                                )
+                            )
+                        )
+                )
+                // Layer 2: Progress fill — accent color, same fade mask,
+                // width = displayProgress. Rounded end.
                 if (displayProgress > 0.001f) {
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
                             .fillMaxWidth(displayProgress)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(timelineAccentColor.copy(alpha = 0.55f))
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(displayProgress)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color.White.copy(alpha = 0.08f))
-                    )
-                }
-                // Layer 2: Charging animation gradient highlight
-                if (displayProgress > 0.01f) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(displayProgress)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(
-                                Brush.horizontalGradient(
-                                    colorStops = arrayOf(
-                                        0.0f to Color.Transparent,
-                                        0.7f to timelineAccentColor.copy(alpha = 0.2f),
-                                        1.0f to timelineAccentColor.copy(alpha = 0.9f)
+                            .align(Alignment.CenterStart)
+                            .drawWithContent {
+                                // Clip to the fade gradient so the fill also fades
+                                drawContent()
+                            }
+                    ) {
+                        // The progress line (accent color) with faded left end
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(2.dp)
+                                .align(Alignment.Center)
+                                .background(
+                                    Brush.horizontalGradient(
+                                        colorStops = arrayOf(
+                                            0.0f to timelineAccentColor.copy(alpha = 0f),
+                                            0.1f to timelineAccentColor.copy(alpha = 0.9f),
+                                            0.9f to timelineAccentColor.copy(alpha = 0.9f),
+                                            1.0f to timelineAccentColor.copy(alpha = 0.9f)
+                                        )
                                     )
                                 )
-                            )
-                    )
+                        )
+                    }
                 }
             }
-
-            Spacer(modifier = Modifier.height(8.dp))
 
             // Time labels (current / total)
             Row(
@@ -948,6 +960,75 @@ fun Spiral2Player(
                     fontSize = 11.sp,
                     fontFamily = CalSansFamily
                 )
+            }
+
+            // ─── GAP (3 lines for future lyrics) ──────────────────────
+            Spacer(modifier = Modifier.height(60.dp))
+
+            // ─── VOLUME LINE (pure white, both ends fade) ──────────────
+            // Same style as timeline. Draggable to adjust system volume.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(24.dp)
+                    .onSizeChanged { volumeLineWidthPx = it.width.toFloat() }
+                    .pointerInput(maxVolume) {
+                        detectDragGestures(
+                            onDragEnd = { },
+                            onDragCancel = { },
+                            onDrag = { change, _ ->
+                                if (maxVolume > 0 && volumeLineWidthPx > 0) {
+                                    val frac = (change.position.x / volumeLineWidthPx).coerceIn(0f, 1f)
+                                    val newVol = (frac * maxVolume).toInt().coerceIn(0, maxVolume)
+                                    audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                                }
+                            }
+                        )
+                    }
+            ) {
+                // Track — pure white line with faded both ends
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(2.dp)
+                        .align(Alignment.Center)
+                        .background(
+                            Brush.horizontalGradient(
+                                colorStops = arrayOf(
+                                    0.0f to Color.Transparent,
+                                    0.1f to Color.White.copy(alpha = 0.4f),
+                                    0.9f to Color.White.copy(alpha = 0.4f),
+                                    1.0f to Color.Transparent
+                                )
+                            )
+                        )
+                )
+                // Progress fill — white, same fade, width = volume
+                if (volume > 0.001f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(volume)
+                            .align(Alignment.CenterStart)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(2.dp)
+                                .align(Alignment.Center)
+                                .background(
+                                    Brush.horizontalGradient(
+                                        colorStops = arrayOf(
+                                            0.0f to Color.White.copy(alpha = 0f),
+                                            0.1f to Color.White,
+                                            0.9f to Color.White,
+                                            1.0f to Color.White
+                                        )
+                                    )
+                                )
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -1046,23 +1127,6 @@ fun Spiral2Player(
                     )
                 }
             }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // ─── SECOND THIN CAPSULE (12dp, NO glass — plain) ──────────
-            // Tappable → opens lyrics. Plain background, no glass effect.
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(12.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color.White.copy(alpha = 0.15f))
-                    .onSizeChanged { secondPillWidthPx = it.width.toFloat() }
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { showLyrics = true }
-            )
         }
 
 
