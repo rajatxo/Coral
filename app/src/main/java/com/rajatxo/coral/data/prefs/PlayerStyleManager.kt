@@ -21,6 +21,7 @@ object PlayerStyleManager {
     const val CORAL = "Coral"
     const val PROFILE = "Profile"
     const val SPIRAL = "Spiral"
+    const val SPIRAL_2 = "Spiral 2.0"
 
     private val _playerStyle = MutableStateFlow(CORAL)
     val playerStyle: StateFlow<String> = _playerStyle.asStateFlow()

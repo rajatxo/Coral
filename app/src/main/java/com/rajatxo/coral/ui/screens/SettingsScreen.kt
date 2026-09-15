@@ -180,7 +180,7 @@ fun SettingsScreen(
                 subtitle = "Choose your player layout",
                 value = playerStyle,
                 onClick = {
-                    val styles = listOf(PlayerStyleManager.CORAL, PlayerStyleManager.PROFILE, PlayerStyleManager.SPIRAL)
+                    val styles = listOf(PlayerStyleManager.CORAL, PlayerStyleManager.PROFILE, PlayerStyleManager.SPIRAL, PlayerStyleManager.SPIRAL_2)
                     val currentIdx = styles.indexOf(playerStyle)
                     PlayerStyleManager.setPlayerStyle(styles[(currentIdx + 1) % styles.size])
                 }
