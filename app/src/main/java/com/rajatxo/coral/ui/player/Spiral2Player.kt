@@ -10,7 +10,12 @@ import android.view.HapticFeedbackConstants
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -104,6 +109,9 @@ import com.rajatxo.coral.util.PaletteCache
 import com.rajatxo.coral.util.extractPalette
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
  * Immersive player — BitChord-style.
@@ -484,245 +492,37 @@ fun Spiral2Player(
     ) {
         val center = maxHeight / 2
 
-        // Background layer — wrapped with layerBackdrop so the glass capsule
-        // can sample + blur the album cover behind it (liquid glass effect).
-        Box(modifier = Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
+        // ═══════════════════════════════════════════════════════════════
+        // INK — The Color Bleed
+        // ═══════════════════════════════════════════════════════════════
+        // No album art shown. Instead, the palette colors bleed outward
+        // from the center like ink drops in water — organic color clouds
+        // that slowly drift and morph. Every song creates a completely
+        // different visual. Feels alive.
+        //
+        // During crossfade: the ink colors lerp from outgoing → incoming
+        // palette, synced with xfProgress. The colors literally morph
+        // from one song's palette to the other.
 
-        // (1) Blurred album cover — fills entire screen as the background.
-        //     96dp blur radius = ~100% blur (very heavy, image becomes a
-        //     smooth color wash with subtle variations). Modifier.blur
-        //     uses RenderEffect on Android 12+ (hardware-accelerated).
-        if (albumArtUri != null) {
-            AsyncImage(
-                model = albumArtUri,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                colorFilter = bgSatFilter,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .blur(96.dp)
-                    .graphicsLayer { alpha = outAlpha }
-            )
-        }
-
-        // Medium-blur bridge layer (32dp blur) — sits between the heavy-blur
-        // bg (96dp) and the sharp art (0dp). Has a bell-curve alpha mask
-        // that makes it visible only in the transition zone (around the
-        // sharp art's bottom edge, ~48% down the screen). This creates a
-        // gradual blur: sharp → 32dp → 96dp. The texture change is spread
-        // across two stages instead of one, so the transition looks
-        // seamless — like one continuous image, not "sharp then blurred".
-        if (albumArtUri != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen; alpha = outAlpha }
-                    .drawWithContent {
-                        drawContent()
-                        // Bell-curve alpha mask via DstIn:
-                        //   0-40%  : transparent (sharp art area, medium-blur hidden)
-                        //   40-48% : fade in (sharp art fading out, medium-blur fading in)
-                        //   48-55% : fully opaque (medium-blur dominates)
-                        //   55-85% : fade out (transitioning to heavy-blur)
-                        //   85-100%: transparent (heavy-blur dominates)
-                        drawRect(
-                            brush = Brush.verticalGradient(
-                                colorStops = arrayOf(
-                                    0.00f to Color.Transparent,
-                                    0.40f to Color.Transparent,
-                                    0.48f to Color.Black,
-                                    0.55f to Color.Black,
-                                    0.70f to Color.Black.copy(alpha = 0.4f),
-                                    0.85f to Color.Transparent,
-                                    1.00f to Color.Transparent
-                                )
-                            ),
-                            blendMode = BlendMode.DstIn
-                        )
-                    }
-            ) {
-                AsyncImage(
-                    model = albumArtUri,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    colorFilter = bgSatFilter,
-                    modifier = Modifier.fillMaxSize().blur(32.dp)
-                )
-            }
-        }
-
-        // (2) Sharp album art — SQUARE container at top, moved down 24dp
-        //     (so the status bar sits on the blurred bg, not on the art).
-        //     Has alpha masks at BOTH top (64dp) and bottom (140dp) that
-        //     fade opaque → transparent using BlendMode.DstIn. Result:
-        //     sharp in the middle, fading to transparent at both edges —
-        //     smoothly revealing the blurred bg above (status bar area)
-        //     and below (controls area).
-        Box(
+        // ─── Outgoing ink layer ──────────────────────────────────────
+        InkBackground(
+            palette = palette,
             modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .align(Alignment.TopCenter)
-                .offset(y = 24.dp)
-                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen; alpha = outAlpha }
-                .drawWithContent {
-                    drawContent()
-                    val topFadeHeightPx = 64.dp.toPx()
-                    val bottomFadeHeightPx = 140.dp.toPx()
-                    val imageHeight = size.height
+                .fillMaxSize()
+                .graphicsLayer { alpha = outAlpha }
+        )
 
-                    // Top fade: 64dp at the top, transparent → opaque.
-                    // DstIn removes content where source is transparent
-                    // (top of image) — sharp art's top edge fades out,
-                    // revealing the blurred bg behind (status bar area).
-                    drawRect(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Transparent,   // y=0: remove content (top hidden)
-                                Color.Black           // y=topFadeHeightPx: keep content
-                            ),
-                            startY = 0f,
-                            endY = topFadeHeightPx
-                        ),
-                        blendMode = BlendMode.DstIn
-                    )
-
-                    // Bottom fade: 140dp at the bottom, opaque → transparent.
-                    // DstIn removes content where source is transparent
-                    // (bottom of image) — sharp art's bottom edge fades
-                    // out, revealing the blurred bg behind (controls area).
-                    val bottomFadeStartY = (imageHeight - bottomFadeHeightPx).coerceAtLeast(0f)
-                    drawRect(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Black,         // bottomFadeStartY: keep content
-                                Color.Transparent    // imageHeight: remove content
-                            ),
-                            startY = bottomFadeStartY,
-                            endY = imageHeight
-                        ),
-                        blendMode = BlendMode.DstIn
-                    )
-                }
-                .pointerInput(albumArtUri) {
-                    detectTapGestures(
-                        onDoubleTap = {
-                            if (songId != null) {
-                                PlaylistStore.toggleFavorite(songId)
-                                showHeartPop = true
-                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                            }
-                        }
-                    )
-                }
-        ) {
-            if (albumArtUri != null) {
-                AsyncImage(
-                    model = albumArtUri,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-        }
-
-        // VISUAL CROSSFADE: incoming art mixes in on top of outgoing.
-        // Plain alpha crossfade (no diagonal wipe) for true color mixing.
-        // Incoming layers stay rendered until albumArtUri catches up.
-        if (showIncoming && xfIncomingArt != null) {
-            // Incoming blurred bg — plain alpha, no diagonal mask.
-            AsyncImage(
-                model = xfIncomingArt,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                colorFilter = bgSatFilter,
+        // ─── Incoming ink layer (crossfade) ──────────────────────────
+        if (showIncoming && incomingPalette != null) {
+            InkBackground(
+                palette = incomingPalette!!,
                 modifier = Modifier
                     .fillMaxSize()
-                    .blur(96.dp)
                     .graphicsLayer { alpha = inAlpha }
             )
-
-            // Incoming medium-blur bridge (32dp) with bell-curve mask
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        compositingStrategy = CompositingStrategy.Offscreen
-                        alpha = inAlpha
-                    }
-                    .drawWithContent {
-                        drawContent()
-                        drawRect(
-                            brush = Brush.verticalGradient(
-                                colorStops = arrayOf(
-                                    0.00f to Color.Transparent,
-                                    0.40f to Color.Transparent,
-                                    0.48f to Color.Black,
-                                    0.55f to Color.Black,
-                                    0.70f to Color.Black.copy(alpha = 0.4f),
-                                    0.85f to Color.Transparent,
-                                    1.00f to Color.Transparent
-                                )
-                            ),
-                            blendMode = BlendMode.DstIn
-                        )
-                    }
-            ) {
-                AsyncImage(
-                    model = xfIncomingArt,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    colorFilter = bgSatFilter,
-                    modifier = Modifier.fillMaxSize().blur(32.dp)
-                )
-            }
-
-            // Incoming sharp art
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f)
-                    .align(Alignment.TopCenter)
-                    .offset(y = 24.dp)
-                    .graphicsLayer {
-                        compositingStrategy = CompositingStrategy.Offscreen
-                        alpha = inAlpha
-                    }
-                    .drawWithContent {
-                        drawContent()
-                        val topFade = 64.dp.toPx()
-                        val bottomFade = 140.dp.toPx()
-                        val imgH = size.height
-                        drawRect(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, Color.Black),
-                                startY = 0f, endY = topFade
-                            ),
-                            blendMode = BlendMode.DstIn
-                        )
-                        val botStart = (imgH - bottomFade).coerceAtLeast(0f)
-                        drawRect(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(Color.Black, Color.Transparent),
-                                startY = botStart, endY = imgH
-                            ),
-                            blendMode = BlendMode.DstIn
-                        )
-                    }
-            ) {
-                AsyncImage(
-                    model = xfIncomingArt,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-
         }
 
-        } // end layerBackdrop Box
-
-        // (3) Heart pop overlay (double-tap on album art to favorite)
+        // (3) Heart pop overlay (double-tap to favorite)
         if (showHeartPop) {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -739,80 +539,81 @@ fun Spiral2Player(
             }
         }
 
-        // ─── Song name + Artist (LEFT-CENTER of screen) ──────────────
-        // Vertically centered, left-aligned. Uses the crossfade blend.
+        // ─── Song name + Artist (CENTER of screen, in dominant color) ─
+        // Vertically centered, centered text. Title in the album's dominant
+        // color (like it's written in ink). Uses the crossfade blend.
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .align(Alignment.CenterStart)
-                .padding(horizontal = 28.dp)
-                .offset(y = (-20).dp)  // nudge up slightly from exact center
+                .align(Alignment.Center)
+                .padding(horizontal = 32.dp)
+                .offset(y = (-20).dp)
         ) {
-            // ── Song title (LEFT-aligned, ultra-smooth blend transition) ──
+            // ── Song title (CENTERED, in dominant color, blend transition) ──
             Box(modifier = Modifier.fillMaxWidth()) {
                 if (xfActive && xfIncomingTitle.isNotEmpty()) {
                     val titleOutAlpha = kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
                     val titleInAlpha = kotlin.math.sin(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
                     Text(
                         text = title,
-                        color = Color.White,
-                        fontSize = 28.sp,
+                        color = animatedTopColor,
+                        fontSize = 36.sp,
                         fontFamily = CalSansFamily,
                         fontWeight = FontWeight.Bold,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(shadow = textShadow),
+                        style = TextStyle(shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(2f, 2f), blurRadius = 8f)),
                         modifier = Modifier.fillMaxWidth().graphicsLayer {
                             alpha = titleOutAlpha
                             renderEffect = blurRenderEffect(8f * (1f - titleOutAlpha))
                         },
-                        textAlign = TextAlign.Start
+                        textAlign = TextAlign.Center
                     )
                     Text(
                         text = xfIncomingTitle,
-                        color = Color.White,
-                        fontSize = 28.sp,
+                        color = if (incomingPalette != null) incomingPalette!!.primary else animatedTopColor,
+                        fontSize = 36.sp,
                         fontFamily = CalSansFamily,
                         fontWeight = FontWeight.Bold,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(shadow = textShadow),
+                        style = TextStyle(shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(2f, 2f), blurRadius = 8f)),
                         modifier = Modifier.fillMaxWidth().graphicsLayer {
                             alpha = titleInAlpha
                             renderEffect = blurRenderEffect(8f * (1f - titleInAlpha))
                         },
-                        textAlign = TextAlign.Start
+                        textAlign = TextAlign.Center
                     )
                 } else {
                     Text(
                         text = title,
-                        color = Color.White,
-                        fontSize = 28.sp,
+                        color = animatedTopColor,
+                        fontSize = 36.sp,
                         fontFamily = CalSansFamily,
                         fontWeight = FontWeight.Bold,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(shadow = textShadow),
+                        style = TextStyle(shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(2f, 2f), blurRadius = 8f)),
                         modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Start
+                        textAlign = TextAlign.Center
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(2.dp))
-            // ── Artist name (LEFT-aligned, ultra-smooth blend transition) ──
+            Spacer(modifier = Modifier.height(4.dp))
+            // ── Artist name (CENTERED, white, blend transition) ──
             Box(modifier = Modifier.fillMaxWidth()) {
                 if (xfActive && xfIncomingArtist.isNotEmpty()) {
                     val artistOutAlpha = kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
                     val artistInAlpha = kotlin.math.sin(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
                     Text(
                         text = artist,
-                        color = Color.White.copy(alpha = 0.7f),
+                        color = Color.White.copy(alpha = 0.6f),
                         fontSize = 16.sp,
                         fontFamily = CalSansFamily,
                         fontWeight = FontWeight.Normal,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Start,
+                        textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth().graphicsLayer {
                             alpha = artistOutAlpha
                             renderEffect = blurRenderEffect(6f * (1f - artistOutAlpha))
@@ -820,13 +621,13 @@ fun Spiral2Player(
                     )
                     Text(
                         text = xfIncomingArtist,
-                        color = Color.White.copy(alpha = 0.7f),
+                        color = Color.White.copy(alpha = 0.6f),
                         fontSize = 16.sp,
                         fontFamily = CalSansFamily,
                         fontWeight = FontWeight.Normal,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Start,
+                        textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth().graphicsLayer {
                             alpha = artistInAlpha
                             renderEffect = blurRenderEffect(6f * (1f - artistInAlpha))
@@ -835,13 +636,13 @@ fun Spiral2Player(
                 } else {
                     Text(
                         text = artist,
-                        color = Color.White.copy(alpha = 0.7f),
+                        color = Color.White.copy(alpha = 0.6f),
                         fontSize = 16.sp,
                         fontFamily = CalSansFamily,
                         fontWeight = FontWeight.Normal,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Start,
+                        textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -1144,6 +945,101 @@ fun Spiral2Player(
                 albumArtUri = albumArtUri
             )
         }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// INK BACKGROUND — animated color blobs that drift like ink in water
+// ═══════════════════════════════════════════════════════════════════
+// 4 radial gradient blobs (primary, secondary, tertiary, accent) that
+// slowly drift in organic paths. Each blob has a different speed and
+// phase, creating a living, morphing color field. No hard edges — just
+// soft color clouds bleeding into each other.
+@Composable
+private fun InkBackground(
+    palette: CoralPalette,
+    modifier: Modifier = Modifier
+) {
+    val transition = rememberInfiniteTransition(label = "ink")
+
+    // 4 blobs, each with different speed + phase for organic motion
+    val phase1 by transition.animateFloat(
+        0f, 2f * PI.toFloat(),
+        infiniteRepeatable(tween(12000, easing = LinearEasing), RepeatMode.Restart),
+        label = "ink1"
+    )
+    val phase2 by transition.animateFloat(
+        PI.toFloat(), 2f * PI.toFloat() + PI.toFloat(),
+        infiniteRepeatable(tween(16000, easing = LinearEasing), RepeatMode.Restart),
+        label = "ink2"
+    )
+    val phase3 by transition.animateFloat(
+        PI.toFloat() / 2, 2f * PI.toFloat() + PI.toFloat() / 2,
+        infiniteRepeatable(tween(20000, easing = LinearEasing), RepeatMode.Restart),
+        label = "ink3"
+    )
+    val phase4 by transition.animateFloat(
+        PI.toFloat() * 1.5f, 2f * PI.toFloat() + PI.toFloat() * 1.5f,
+        infiniteRepeatable(tween(14000, easing = LinearEasing), RepeatMode.Restart),
+        label = "ink4"
+    )
+
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val cx = w / 2f
+        val cy = h / 2f
+
+        // Base: dark fill (tertiary color, the darkest)
+        drawRect(color = palette.tertiary)
+
+        // Blob 1 — primary, drifts in upper-left quadrant
+        val r1 = w * 0.7f
+        val b1x = cx + cos(phase1) * w * 0.3f
+        val b1y = cy + sin(phase1) * h * 0.3f - h * 0.1f
+        drawRect(
+            brush = Brush.radialGradient(
+                colors = listOf(palette.primary, Color.Transparent),
+                center = Offset(b1x, b1y),
+                radius = r1
+            )
+        )
+
+        // Blob 2 — secondary, drifts in lower-right quadrant
+        val r2 = w * 0.65f
+        val b2x = cx + cos(phase2) * w * 0.35f + w * 0.1f
+        val b2y = cy + sin(phase2) * h * 0.35f + h * 0.15f
+        drawRect(
+            brush = Brush.radialGradient(
+                colors = listOf(palette.secondary, Color.Transparent),
+                center = Offset(b2x, b2y),
+                radius = r2
+            )
+        )
+
+        // Blob 3 — accent, drifts in center (the pop color)
+        val r3 = w * 0.5f
+        val b3x = cx + cos(phase3) * w * 0.2f
+        val b3y = cy + sin(phase3) * h * 0.2f
+        drawRect(
+            brush = Brush.radialGradient(
+                colors = listOf(palette.accent, Color.Transparent),
+                center = Offset(b3x, b3y),
+                radius = r3
+            )
+        )
+
+        // Blob 4 — primary again, drifts in lower-left (for coverage)
+        val r4 = w * 0.55f
+        val b4x = cx + cos(phase4) * w * 0.3f - w * 0.15f
+        val b4y = cy + sin(phase4) * h * 0.3f + h * 0.1f
+        drawRect(
+            brush = Brush.radialGradient(
+                colors = listOf(palette.primary, Color.Transparent),
+                center = Offset(b4x, b4y),
+                radius = r4
+            )
+        )
     }
 }
 
