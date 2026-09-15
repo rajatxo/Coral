@@ -256,6 +256,40 @@ fun SpiralPlayer(
     // Incoming title/artist — used to sync text transition with cover blend
     val xfIncomingTitle by CrossfadeVisualState.incomingTitle.collectAsState()
     val xfIncomingArtist by CrossfadeVisualState.incomingArtist.collectAsState()
+
+    // ─── Incoming palette (for smooth timeline color blend) ────────
+    // Extract the incoming song's palette so we can lerp the timeline
+    // accent color during the crossfade. Try PaletteCache first (instant),
+    // fall back to async extraction.
+    var incomingPalette by remember { mutableStateOf<CoralPalette?>(null) }
+    LaunchedEffect(xfIncomingArt) {
+        val incomingArt = xfIncomingArt
+        if (incomingArt != null) {
+            // Try cache first (instant — no extraction needed)
+            val cached = PaletteCache.get(incomingArt)
+            if (cached != null) {
+                incomingPalette = cached
+            } else {
+                extractPalette(context, incomingArt)?.let {
+                    incomingPalette = it
+                    PaletteCache.put(incomingArt, it)
+                }
+            }
+        } else {
+            incomingPalette = null
+        }
+    }
+
+    // ─── Timeline accent color (blends during crossfade) ───────────
+    // At rest: use the current song's accent color (animated smoothly).
+    // During crossfade: lerp from outgoing accent → incoming accent using
+    // xfProgress, so the timeline bar color blends perfectly in sync with
+    // the cover blend. After crossfade, the color has fully transitioned.
+    val timelineAccentColor = if (xfActive && incomingPalette != null) {
+        lerpColor(animatedAccentColor, incomingPalette!!.accent, xfProgress)
+    } else {
+        animatedAccentColor
+    }
     // ─── Cover flash fix ───────────────────────────────────────────
     // The old approach used a fixed 800ms timer for holdAfterEnd. But if
     // albumArtUri takes longer than 800ms to update, the outgoing layers
@@ -901,7 +935,7 @@ fun SpiralPlayer(
                             .fillMaxHeight()
                             .fillMaxWidth(displayProgress)
                             .clip(RoundedCornerShape(26.dp))
-                            .background(animatedAccentColor.copy(alpha = 0.55f))
+                            .background(timelineAccentColor.copy(alpha = 0.55f))
                     )
                     // Subtle white highlight on top of the fill for vibrancy
                     Box(
@@ -930,8 +964,8 @@ fun SpiralPlayer(
                                 Brush.horizontalGradient(
                                     colorStops = arrayOf(
                                         0.0f to Color.Transparent,                           // left edge: transparent
-                                        0.7f to animatedAccentColor.copy(alpha = 0.2f),      // 70%: faint
-                                        1.0f to animatedAccentColor.copy(alpha = 0.9f)       // current position: bright
+                                        0.7f to timelineAccentColor.copy(alpha = 0.2f),      // 70%: faint
+                                        1.0f to timelineAccentColor.copy(alpha = 0.9f)       // current position: bright
                                     )
                                 )
                             )
@@ -1157,6 +1191,16 @@ fun SpiralPlayer(
 private fun formatTime(ms: Long): String {
     val s = ms / 1000
     return "%d:%02d".format(s / 60, s % 60)
+}
+
+/** Linear interpolation between two Colors (for timeline color blend). */
+private fun lerpColor(a: Color, b: Color, t: Float): Color {
+    return Color(
+        red = a.red + (b.red - a.red) * t,
+        green = a.green + (b.green - a.green) * t,
+        blue = a.blue + (b.blue - a.blue) * t,
+        alpha = a.alpha + (b.alpha - a.alpha) * t
+    )
 }
 
 /**
