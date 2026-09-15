@@ -7,6 +7,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.palette.graphics.Palette
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Result of palette extraction. Holds the four colors Coral needs:
@@ -29,6 +32,30 @@ data class CoralPalette(
             tertiary = Color(0xFF000000),
             accent = Color(0xFFFF6B6B)
         )
+    }
+}
+
+/**
+ * PaletteCache — a singleton that caches the last-extracted palette by art URI.
+ *
+ * This solves the "solid color flash" when opening the full player from the
+ * mini player: the mini player extracts the palette while the song is playing,
+ * stores it here. When the full player opens, it reads the cached palette
+ * INSTANTLY — no black flash while waiting for async extraction.
+ */
+object PaletteCache {
+    private val _cached = MutableStateFlow<Pair<Uri?, CoralPalette>?>(null)
+    val cached: StateFlow<Pair<Uri?, CoralPalette>?> = _cached.asStateFlow()
+
+    /** Store a palette keyed by its art URI. */
+    fun put(artUri: Uri, palette: CoralPalette) {
+        _cached.value = artUri to palette
+    }
+
+    /** Get the cached palette for the given URI, or null if not cached. */
+    fun get(artUri: Uri?): CoralPalette? {
+        val current = _cached.value
+        return if (current != null && current.first == artUri) current.second else null
     }
 }
 

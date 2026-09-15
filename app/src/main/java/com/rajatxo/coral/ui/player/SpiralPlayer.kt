@@ -52,6 +52,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -98,8 +99,10 @@ import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.lyrics.LyricsSheet
 import com.rajatxo.coral.ui.theme.CalSansFamily
 import com.rajatxo.coral.util.CoralPalette
+import com.rajatxo.coral.util.PaletteCache
 import com.rajatxo.coral.util.extractPalette
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Immersive player — BitChord-style.
@@ -199,31 +202,41 @@ fun SpiralPlayer(
     // ─── Drag-down-to-dismiss (ArchiveTune style) ────────────────────
     // The whole player translates DOWN + fades as you drag down.
     // Release past threshold → onDismiss() (collapse to mini player).
-    // The mini player is always rendered underneath in HomeScreen, so
-    // there's no solid color flash — the mini player is already visible.
-    var dismissDragY by remember { mutableFloatStateOf(0f) }
+    // Release before threshold → smooth SPRING back to 0 (not instant snap).
+    // Uses Animatable for buttery spring physics on release.
+    val dismissDragY = remember { androidx.compose.animation.core.Animatable(0f) }
+    val coroutineScope = rememberCoroutineScope()
     val screenHeightPx = with(LocalDensity.current) { LocalView.current.rootView.height.toFloat() }
     val dismissThreshold = screenHeightPx * 0.25f  // 25% of screen height
     // Alpha: 1 at top, fades to 0.3 at threshold
-    val dismissAlpha = (1f - (dismissDragY / dismissThreshold) * 0.7f).coerceIn(0.3f, 1f)
+    val dismissAlpha = (1f - (dismissDragY.value / dismissThreshold) * 0.7f).coerceIn(0.3f, 1f)
 
-    // ─── Palette (extracted from album art) ───────────────────────────
-    // Preload the album art via Coil FIRST, then extract palette. This
-    // ensures the image is in Coil's cache when AsyncImage renders it,
-    // eliminating the "solid color flash" on first-time song load.
-    var palette by remember { mutableStateOf(CoralPalette.Default) }
+    // ─── Palette (extracted from album art, cached in PaletteCache) ───
+    // Read from PaletteCache FIRST (instant — no black flash). The mini
+    // player already extracted and cached the palette while the song was
+    // playing. If not cached, extract async + store for next time.
+    var palette by remember(albumArtUri) {
+        mutableStateOf(PaletteCache.get(albumArtUri) ?: CoralPalette.Default)
+    }
     LaunchedEffect(albumArtUri) {
         if (albumArtUri != null) {
-            // Preload into Coil cache (full size, for the blurred bg)
-            try {
-                coil3.ImageLoader(context).execute(
-                    coil3.request.ImageRequest.Builder(context)
-                        .data(albumArtUri)
-                        .build()
-                )
-            } catch (_: Exception) { }
-            // Now extract palette + the AsyncImage will load instantly
-            extractPalette(context, albumArtUri)?.let { palette = it }
+            // If already cached, skip extraction entirely
+            val cached = PaletteCache.get(albumArtUri)
+            if (cached == null) {
+                // Preload into Coil cache (full size, for the blurred bg)
+                try {
+                    coil3.ImageLoader(context).execute(
+                        coil3.request.ImageRequest.Builder(context)
+                            .data(albumArtUri)
+                            .build()
+                    )
+                } catch (_: Exception) { }
+                // Extract palette + cache it for next time
+                extractPalette(context, albumArtUri)?.let {
+                    palette = it
+                    PaletteCache.put(albumArtUri, it)
+                }
+            }
         }
     }
 
@@ -240,29 +253,27 @@ fun SpiralPlayer(
     // Incoming title/artist — used to sync text transition with cover blend
     val xfIncomingTitle by CrossfadeVisualState.incomingTitle.collectAsState()
     val xfIncomingArtist by CrossfadeVisualState.incomingArtist.collectAsState()
-    // Hold incoming layers visible after crossfade ends to give albumArtUri
-    // time to catch up. During hold: outgoing=0 (hidden), incoming=1 (full).
-    // After hold: both released — albumArtUri should have updated by now.
-    // 800ms is enough for the MediaController transition to fire.
-    var holdAfterEnd by remember { mutableStateOf(false) }
-    LaunchedEffect(xfActive) {
-        if (!xfActive) {
-            holdAfterEnd = true
-            delay(800L)
-            holdAfterEnd = false
-        } else {
-            holdAfterEnd = false
-        }
-    }
+    // ─── Cover flash fix ───────────────────────────────────────────
+    // The old approach used a fixed 800ms timer for holdAfterEnd. But if
+    // albumArtUri takes longer than 800ms to update, the outgoing layers
+    // (showing the OLD song) flash back at full opacity.
+    //
+    // NEW approach: keep outgoing hidden (outAlpha=0) and incoming visible
+    // (inAlpha=1) until albumArtUri ACTUALLY matches xfIncomingArt.
+    // This is a derived state — no timer, no race condition. The hold
+    // releases the EXACT frame albumArtUri catches up.
+    val albumArtCaughtUp = xfIncomingArt != null && albumArtUri == xfIncomingArt
     val outAlpha = when {
         xfActive -> kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
-        holdAfterEnd -> 0f  // hide outgoing during hold so old art doesn't flash
+        // After crossfade ends: keep outgoing hidden until albumArtUri catches up
+        (xfIncomingArt != null && !albumArtCaughtUp) -> 0f
         else -> 1f
     }
-    val showIncoming = xfIncomingArt != null && (xfActive || holdAfterEnd)
+    val showIncoming = xfIncomingArt != null && (xfActive || !albumArtCaughtUp)
     val inAlpha = when {
         xfActive -> kotlin.math.sin(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
-        holdAfterEnd -> 1f  // keep incoming at full during hold
+        // After crossfade ends: keep incoming at full until albumArtUri catches up
+        !albumArtCaughtUp -> 1f
         else -> 0f
     }
 
@@ -364,19 +375,48 @@ fun SpiralPlayer(
             .background(animatedBottomColor)
             .graphicsLayer {
                 alpha = dismissAlpha
-                translationY = dismissDragY
+                translationY = dismissDragY.value
             }
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
                     onDragEnd = {
-                        if (dismissDragY > dismissThreshold) {
-                            onDismiss()
+                        // Spring back to 0 or dismiss based on how far dragged
+                        coroutineScope.launch {
+                            if (dismissDragY.value > dismissThreshold) {
+                                // Animate past threshold then dismiss
+                                dismissDragY.animateTo(
+                                    targetValue = screenHeightPx,
+                                    animationSpec = androidx.compose.animation.core.tween(200)
+                                )
+                                onDismiss()
+                                dismissDragY.snapTo(0f)
+                            } else {
+                                // Spring back to 0 smoothly
+                                dismissDragY.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = androidx.compose.animation.core.spring(
+                                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                                        stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+                                    )
+                                )
+                            }
                         }
-                        dismissDragY = 0f
                     },
-                    onDragCancel = { dismissDragY = 0f },
+                    onDragCancel = {
+                        coroutineScope.launch {
+                            dismissDragY.animateTo(
+                                targetValue = 0f,
+                                animationSpec = androidx.compose.animation.core.spring(
+                                    dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                                    stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+                                )
+                            )
+                        }
+                    },
                     onVerticalDrag = { _, dragAmount ->
-                        dismissDragY = (dismissDragY + dragAmount).coerceAtLeast(0f)
+                        coroutineScope.launch {
+                            dismissDragY.snapTo((dismissDragY.value + dragAmount).coerceAtLeast(0f))
+                        }
                     }
                 )
             }
@@ -692,13 +732,17 @@ fun SpiralPlayer(
                 .offset(y = center + 18.dp)
                 .padding(horizontal = 28.dp)
         ) {
-            // Song title (centered, below the 3 dots) — blur + slide transition
-            // During crossfade: outgoing slides up + blurs out, incoming slides
-            // in from below + blur clears. Synced with cover blend (xfProgress).
-            // The blur + offset separation prevents "two texts overlapping clutter".
+            // Song title — ultra-smooth blend transition
+            // Both texts overlap at the SAME position (no offset). The old text
+            // fades out with a gentle blur while the new text fades in from a
+            // gentle blur. The alphas use an equal-power curve (cos²/sin²) so
+            // the total opacity stays constant — they DISSOLVE into each other
+            // rather than both being half-visible (which looks cluttered).
+            // Synced with cover blend (xfProgress).
             Box(modifier = Modifier.fillMaxWidth()) {
                 if (xfActive && xfIncomingTitle.isNotEmpty()) {
-                    // Outgoing title: slides up 20dp, blurs 0→20px, alpha 1→0
+                    val titleOutAlpha = kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
+                    val titleInAlpha = kotlin.math.sin(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
                     Text(
                         text = title,
                         color = Color.White,
@@ -709,13 +753,11 @@ fun SpiralPlayer(
                         overflow = TextOverflow.Ellipsis,
                         style = TextStyle(shadow = textShadow),
                         modifier = Modifier.fillMaxWidth().graphicsLayer {
-                            alpha = outAlpha
-                            translationY = -20f * (1f - outAlpha)  // slide up as it fades
-                            renderEffect = blurRenderEffect(20f * (1f - outAlpha))
+                            alpha = titleOutAlpha
+                            renderEffect = blurRenderEffect(8f * (1f - titleOutAlpha))
                         },
                         textAlign = TextAlign.Center
                     )
-                    // Incoming title: slides in from below 20dp, blur 20→0, alpha 0→1
                     Text(
                         text = xfIncomingTitle,
                         color = Color.White,
@@ -726,9 +768,8 @@ fun SpiralPlayer(
                         overflow = TextOverflow.Ellipsis,
                         style = TextStyle(shadow = textShadow),
                         modifier = Modifier.fillMaxWidth().graphicsLayer {
-                            alpha = inAlpha
-                            translationY = 20f * (1f - inAlpha)  // slide down → up as it fades in
-                            renderEffect = blurRenderEffect(20f * (1f - inAlpha))
+                            alpha = titleInAlpha
+                            renderEffect = blurRenderEffect(8f * (1f - titleInAlpha))
                         },
                         textAlign = TextAlign.Center
                     )
@@ -748,9 +789,11 @@ fun SpiralPlayer(
                 }
             }
             Spacer(modifier = Modifier.height(2.dp))
-            // Artist name (centered, dimmer, NO shadow) — blur + slide transition
+            // Artist name — ultra-smooth blend transition (same as title)
             Box(modifier = Modifier.fillMaxWidth()) {
                 if (xfActive && xfIncomingArtist.isNotEmpty()) {
+                    val artistOutAlpha = kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
+                    val artistInAlpha = kotlin.math.sin(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
                     Text(
                         text = artist,
                         color = Color.White.copy(alpha = 0.7f),
@@ -761,9 +804,8 @@ fun SpiralPlayer(
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth().graphicsLayer {
-                            alpha = outAlpha
-                            translationY = -16f * (1f - outAlpha)
-                            renderEffect = blurRenderEffect(16f * (1f - outAlpha))
+                            alpha = artistOutAlpha
+                            renderEffect = blurRenderEffect(6f * (1f - artistOutAlpha))
                         }
                     )
                     Text(
@@ -776,9 +818,8 @@ fun SpiralPlayer(
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth().graphicsLayer {
-                            alpha = inAlpha
-                            translationY = 16f * (1f - inAlpha)
-                            renderEffect = blurRenderEffect(16f * (1f - inAlpha))
+                            alpha = artistInAlpha
+                            renderEffect = blurRenderEffect(6f * (1f - artistInAlpha))
                         }
                     )
                 } else {

@@ -208,13 +208,21 @@ fun HomeScreen(
     // Extract palette for the capsule's progress color + playlist wheel accent
     // Default = #F4B400 (warm amber/gold) when no song is playing.
     // When a song plays, auto-detects the album art's vibrant color.
+    // Also caches the full palette in PaletteCache so the full player can
+    // read it INSTANTLY when opened (no black flash).
     val homeContext = androidx.compose.ui.platform.LocalContext.current
     var capsuleAccentColor by remember { mutableStateOf<Color>(Color(0xFFF4B400)) }
     androidx.compose.runtime.LaunchedEffect(currentSongArt) {
         com.rajatxo.coral.util.extractPalette(
             context = homeContext,
             artUri = currentSongArt
-        )?.let { capsuleAccentColor = it.accent }
+        )?.let {
+            capsuleAccentColor = it.accent
+            // Cache the full palette so the full player opens with no flash
+            if (currentSongArt != null) {
+                com.rajatxo.coral.util.PaletteCache.put(currentSongArt, it)
+            }
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(CoralColors.Surface)) {
