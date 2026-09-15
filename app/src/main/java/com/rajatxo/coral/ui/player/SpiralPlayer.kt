@@ -377,17 +377,17 @@ fun SpiralPlayer(
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
                     onDragEnd = {
-                        coroutineScope.launch {
-                            if (dismissDragY.value > dismissThreshold) {
-                                // Fast snap down + close (like back button)
-                                dismissDragY.animateTo(
-                                    targetValue = screenHeightPx,
-                                    animationSpec = androidx.compose.animation.core.tween(150)
-                                )
-                                onDismiss()
+                        if (dismissDragY.value > dismissThreshold) {
+                            // Dismiss IMMEDIATELY — let AnimatedVisibility handle
+                            // the exit animation (single smooth slide-down).
+                            // Reset drag offset so no double-motion.
+                            coroutineScope.launch {
                                 dismissDragY.snapTo(0f)
-                            } else {
-                                // Fast snap back to 0
+                            }
+                            onDismiss()
+                        } else {
+                            // Fast snap back to 0
+                            coroutineScope.launch {
                                 dismissDragY.animateTo(
                                     targetValue = 0f,
                                     animationSpec = androidx.compose.animation.core.tween(150)
