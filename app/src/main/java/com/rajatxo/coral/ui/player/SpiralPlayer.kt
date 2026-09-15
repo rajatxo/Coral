@@ -280,25 +280,9 @@ fun SpiralPlayer(
         }
     }
 
-    // ─── Timeline accent color (blends during crossfade) ───────────
-    // At rest: use the current song's accent color (animated smoothly).
-    // During crossfade: lerp from outgoing accent → incoming accent using
-    // xfProgress, so the timeline bar color blends perfectly in sync with
-    // the cover blend. After crossfade, the color has fully transitioned.
-    val timelineAccentColor = if (xfActive && incomingPalette != null) {
-        lerpColor(animatedAccentColor, incomingPalette!!.accent, xfProgress)
-    } else {
-        animatedAccentColor
-    }
     // ─── Cover flash fix ───────────────────────────────────────────
-    // The old approach used a fixed 800ms timer for holdAfterEnd. But if
-    // albumArtUri takes longer than 800ms to update, the outgoing layers
-    // (showing the OLD song) flash back at full opacity.
-    //
-    // NEW approach: keep outgoing hidden (outAlpha=0) and incoming visible
-    // (inAlpha=1) until albumArtUri ACTUALLY matches xfIncomingArt.
-    // This is a derived state — no timer, no race condition. The hold
-    // releases the EXACT frame albumArtUri catches up.
+    // Keep outgoing hidden / incoming visible until albumArtUri ACTUALLY
+    // matches xfIncomingArt. Derived state — no timer, no race condition.
     val albumArtCaughtUp = xfIncomingArt != null && albumArtUri == xfIncomingArt
     val outAlpha = when {
         xfActive -> kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
@@ -312,6 +296,42 @@ fun SpiralPlayer(
         // After crossfade ends: keep incoming at full until albumArtUri catches up
         !albumArtCaughtUp -> 1f
         else -> 0f
+    }
+
+    // ─── Timeline accent color (blends during crossfade, no flash) ──
+    // During crossfade: lerp outgoing accent → incoming accent (xfProgress).
+    // After crossfade (hold period): keep using the incoming color (fully
+    // transitioned at xfProgress=1) until albumArtUri catches up. This
+    // prevents the old color from flashing back when xfActive goes false.
+    // Once albumArtUri catches up: use animatedAccentColor (which has had
+    // time to animate to the new palette by then).
+    val timelineAccentColor = when {
+        xfActive && incomingPalette != null ->
+            lerpColor(animatedAccentColor, incomingPalette!!.accent, xfProgress)
+        // Hold period after crossfade: stay on the incoming color
+        (xfIncomingArt != null && !albumArtCaughtUp && incomingPalette != null) ->
+            incomingPalette!!.accent
+        else -> animatedAccentColor
+    }
+
+    // ─── Timeline fade-in on new song ──────────────────────────────
+    // When a new song starts (albumArtUri changes), the timeline fades in
+    // from 0 → 1 over 500ms. This makes the new color feel like it's
+    // smoothly arriving, not popping in.
+    var timelineAlpha by remember { mutableStateOf(1f) }
+    LaunchedEffect(albumArtUri) {
+        timelineAlpha = 0f
+        delay(100L)  // brief pause to let the color settle
+        // Animate alpha 0 → 1 over 500ms
+        val startTime = System.currentTimeMillis()
+        val duration = 500L
+        while (true) {
+            val elapsed = System.currentTimeMillis() - startTime
+            val progress = (elapsed.toFloat() / duration).coerceIn(0f, 1f)
+            timelineAlpha = progress
+            if (progress >= 1f) break
+            delay(16L)
+        }
     }
 
     // Saturation boost for the blurred backgrounds — vivid colors.
@@ -894,6 +914,7 @@ fun SpiralPlayer(
                     .fillMaxWidth()
                     .height(52.dp)
                     .clip(RoundedCornerShape(26.dp))
+                    .graphicsLayer { alpha = timelineAlpha }
                     .onSizeChanged { timelinePillWidthPx = it.width.toFloat() }
                     .pointerInput(durationMs) {
                         detectDragGestures(
