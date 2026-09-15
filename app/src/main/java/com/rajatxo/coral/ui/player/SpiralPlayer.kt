@@ -58,6 +58,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -200,14 +201,18 @@ fun SpiralPlayer(
     val dragThreshold = 60f
 
     // ─── Drag-down-to-dismiss (fast, like back button) ─────────────
-    // Drag down → player moves down with your finger (no fade).
-    // Release past threshold → fast snap down + close (like back button).
+    // Drag down → player moves down with your finger.
+    // As you drag, the background fades to TRANSPARENT so the songs list
+    // (home screen behind the player) becomes visible through it.
+    // Release past threshold → fast snap down + close.
     // Release before threshold → fast snap back to 0.
-    // No fade, no spring bounce — just fast, snappy motion.
     val dismissDragY = remember { androidx.compose.animation.core.Animatable(0f) }
     val coroutineScope = rememberCoroutineScope()
     val screenHeightPx = with(LocalDensity.current) { LocalView.current.rootView.height.toFloat() }
     val dismissThreshold = screenHeightPx * 0.15f  // 15% of screen height = close
+    // Background alpha: 1 (opaque) at rest, fades to 0 (transparent) as
+    // you drag down. This reveals the songs list behind the player.
+    val bgAlpha = (1f - (dismissDragY.value / dismissThreshold)).coerceIn(0f, 1f)
 
     // ─── Palette (extracted from album art, cached in PaletteCache) ───
     // Read from PaletteCache FIRST (instant — no black flash). The mini
@@ -370,7 +375,11 @@ fun SpiralPlayer(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(animatedBottomColor)
+            .drawBehind {
+                // Background fades to transparent as you drag down, revealing
+                // the songs list (home screen) behind the player.
+                drawRect(color = animatedBottomColor, alpha = bgAlpha)
+            }
             .graphicsLayer {
                 translationY = dismissDragY.value
             }
