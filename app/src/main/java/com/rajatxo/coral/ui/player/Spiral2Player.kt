@@ -739,67 +739,20 @@ fun Spiral2Player(
             }
         }
 
-        // (4) 3-dot cover indicator — at EXACT center of screen
-        // Each dot highlights like the old segments:
-        //   Dot 1: Original cover (default, active)
-        //   Dot 2: Custom image
-        //   Dot 3: Animated video
-        var coverMode by remember { mutableStateOf(0) }
-        Row(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .offset(y = center - 4.dp)
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center
-        ) {
-            // Dot 1
-            Box(
-                modifier = Modifier
-                    .padding(horizontal = 6.dp)
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(if (coverMode == 0) Color.White else Color.White.copy(alpha = 0.2f))
-                    .clickable { coverMode = 0 }
-            )
-            // Dot 2
-            Box(
-                modifier = Modifier
-                    .padding(horizontal = 6.dp)
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(if (coverMode == 1) Color.White else Color.White.copy(alpha = 0.2f))
-                    .clickable { coverMode = 1 }
-            )
-            // Dot 3
-            Box(
-                modifier = Modifier
-                    .padding(horizontal = 6.dp)
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(if (coverMode == 2) Color.White else Color.White.copy(alpha = 0.2f))
-                    .clickable { coverMode = 2 }
-            )
-        }
-
-        // (5) Content column — centered below the 3-dot indicator
-        //     Song name sits just below the dots, then artist, then the
-        //     Timeline capsule (animated progress bar), then Lyrics capsule,
-        //     then the triple-circle control pod.
+        // (5) Content column — left-aligned text, thin timeline, controls, second capsule
+        //     No 3-dot indicator. Song name + artist on the LEFT.
+        //     Layout: Title → Artist → Thin Timeline → Prev/Play/Next → Second Capsule
         var timelinePillWidthPx by remember { mutableFloatStateOf(1f) }
+        var secondPillWidthPx by remember { mutableFloatStateOf(1f) }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .align(Alignment.TopStart)
-                .offset(y = center + 18.dp)
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
                 .padding(horizontal = 28.dp)
+                .padding(bottom = 32.dp)
         ) {
-            // Song title — ultra-smooth blend transition
-            // Both texts overlap at the SAME position (no offset). The old text
-            // fades out with a gentle blur while the new text fades in from a
-            // gentle blur. The alphas use an equal-power curve (cos²/sin²) so
-            // the total opacity stays constant — they DISSOLVE into each other
-            // rather than both being half-visible (which looks cluttered).
-            // Synced with cover blend (xfProgress).
+            // ── Song title (LEFT-aligned, ultra-smooth blend transition) ──
             Box(modifier = Modifier.fillMaxWidth()) {
                 if (xfActive && xfIncomingTitle.isNotEmpty()) {
                     val titleOutAlpha = kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
@@ -807,7 +760,7 @@ fun Spiral2Player(
                     Text(
                         text = title,
                         color = Color.White,
-                        fontSize = 24.sp,
+                        fontSize = 28.sp,
                         fontFamily = CalSansFamily,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -817,12 +770,12 @@ fun Spiral2Player(
                             alpha = titleOutAlpha
                             renderEffect = blurRenderEffect(8f * (1f - titleOutAlpha))
                         },
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Start
                     )
                     Text(
                         text = xfIncomingTitle,
                         color = Color.White,
-                        fontSize = 24.sp,
+                        fontSize = 28.sp,
                         fontFamily = CalSansFamily,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -832,25 +785,25 @@ fun Spiral2Player(
                             alpha = titleInAlpha
                             renderEffect = blurRenderEffect(8f * (1f - titleInAlpha))
                         },
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Start
                     )
                 } else {
                     Text(
                         text = title,
                         color = Color.White,
-                        fontSize = 24.sp,
+                        fontSize = 28.sp,
                         fontFamily = CalSansFamily,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = TextStyle(shadow = textShadow),
                         modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Start
                     )
                 }
             }
             Spacer(modifier = Modifier.height(2.dp))
-            // Artist name — ultra-smooth blend transition (same as title)
+            // ── Artist name (LEFT-aligned, ultra-smooth blend transition) ──
             Box(modifier = Modifier.fillMaxWidth()) {
                 if (xfActive && xfIncomingArtist.isNotEmpty()) {
                     val artistOutAlpha = kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
@@ -863,7 +816,7 @@ fun Spiral2Player(
                         fontWeight = FontWeight.Normal,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
+                        textAlign = TextAlign.Start,
                         modifier = Modifier.fillMaxWidth().graphicsLayer {
                             alpha = artistOutAlpha
                             renderEffect = blurRenderEffect(6f * (1f - artistOutAlpha))
@@ -877,7 +830,7 @@ fun Spiral2Player(
                         fontWeight = FontWeight.Normal,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
+                        textAlign = TextAlign.Start,
                         modifier = Modifier.fillMaxWidth().graphicsLayer {
                             alpha = artistInAlpha
                             renderEffect = blurRenderEffect(6f * (1f - artistInAlpha))
@@ -892,28 +845,20 @@ fun Spiral2Player(
                         fontWeight = FontWeight.Normal,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
+                        textAlign = TextAlign.Start,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // ─── TIMELINE CAPSULE (reveal glass effect) ─────────────────
-            // Think of it like glass covered by dry detergent bubbles:
-            // - The UNFILLED portion (right) is covered by a faded/opaque
-            //   white overlay — the glass is obscured (dulled).
-            // - The FILLED portion (left) has NO overlay — the clear glass
-            //   morphism shows through (vibrant, alive).
-            // As you slide, the faded overlay retreats and the clear glass
-            // is "revealed". "Timeline" text at extreme left, time on right.
-            // Draggable to seek.
+            // ─── THIN TIMELINE CAPSULE (12dp height, same animations/colors) ──
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp)
-                    .clip(RoundedCornerShape(26.dp))
+                    .height(12.dp)
+                    .clip(RoundedCornerShape(6.dp))
                     .graphicsLayer { alpha = timelineAlpha }
                     .onSizeChanged { timelinePillWidthPx = it.width.toFloat() }
                     .pointerInput(durationMs) {
@@ -937,7 +882,7 @@ fun Spiral2Player(
                     }
                     .drawBackdrop(
                         backdrop = glassBackdrop,
-                        shape = { RoundedCornerShape(26.dp) },
+                        shape = { RoundedCornerShape(6.dp) },
                         effects = {
                             vibrancy()
                             colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.5f)
@@ -946,153 +891,67 @@ fun Spiral2Player(
                         onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
                     )
             ) {
-                // ── Layer 1: Dynamic accent color fill (rounded capsule end) ──
-                // Uses the song's accent color at 55% opacity. The fill's right
-                // edge is ROUNDED (clip with capsule shape) so it looks like a
-                // capsule end, not a vertical cut.
+                // Layer 1: Dynamic accent color fill (rounded end)
                 if (displayProgress > 0.001f) {
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
                             .fillMaxWidth(displayProgress)
-                            .clip(RoundedCornerShape(26.dp))
+                            .clip(RoundedCornerShape(6.dp))
                             .background(timelineAccentColor.copy(alpha = 0.55f))
                     )
-                    // Subtle white highlight on top of the fill for vibrancy
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
                             .fillMaxWidth(displayProgress)
-                            .clip(RoundedCornerShape(26.dp))
+                            .clip(RoundedCornerShape(6.dp))
                             .background(Color.White.copy(alpha = 0.08f))
                     )
                 }
-
-                // ── Layer 2: Charging animation gradient highlight ──────
-                // A gradient highlight at the EXACT current position that
-                // fades toward the LEFT (the played area). Think of it like
-                // a charging indicator — the bright spot is at the current
-                // position, and it trails off to the left.
-                // The gradient: transparent at the left edge of the played area
-                // → bright accent color at the current position (right edge).
+                // Layer 2: Charging animation gradient highlight
                 if (displayProgress > 0.01f) {
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
                             .fillMaxWidth(displayProgress)
-                            .clip(RoundedCornerShape(26.dp))
+                            .clip(RoundedCornerShape(6.dp))
                             .background(
                                 Brush.horizontalGradient(
                                     colorStops = arrayOf(
-                                        0.0f to Color.Transparent,                           // left edge: transparent
-                                        0.7f to timelineAccentColor.copy(alpha = 0.2f),      // 70%: faint
-                                        1.0f to timelineAccentColor.copy(alpha = 0.9f)       // current position: bright
+                                        0.0f to Color.Transparent,
+                                        0.7f to timelineAccentColor.copy(alpha = 0.2f),
+                                        1.0f to timelineAccentColor.copy(alpha = 0.9f)
                                     )
                                 )
                             )
                     )
                 }
-
-                // ── Layer 3: Content — "Timeline" at extreme left, time right ──
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 20.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    // Extreme left: "Timeline" label
-                    Text(
-                        text = "Timeline",
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontFamily = CalSansFamily,
-                        fontWeight = FontWeight.Medium
-                    )
-                    // Right: current time / total time
-                    Text(
-                        text = "${formatTime((displayProgress * durationMs).toLong())} / ${formatTime(durationMs)}",
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 12.sp,
-                        fontFamily = CalSansFamily,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // ─── Lyrics glass pill (tappable → lyrics sheet) ──────────
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-                    .clip(RoundedCornerShape(26.dp))
-                    .drawBackdrop(
-                        backdrop = glassBackdrop,
-                        shape = { RoundedCornerShape(26.dp) },
-                        effects = {
-                            vibrancy()
-                            colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.5f)
-                            blur(12f.dp.toPx())
-                        },
-                        onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
-                    )
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { showLyrics = true }
-                    .padding(horizontal = 20.dp),
-                contentAlignment = Alignment.CenterStart
+            // Time labels (current / total) — left-aligned, small
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = CoralIcons.Music,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Lyrics",
-                            color = Color.White,
-                            fontSize = 14.sp,
-                            fontFamily = CalSansFamily,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        repeat(6) { i ->
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.White.copy(alpha = 0.3f + i * 0.12f))
-                            )
-                        }
-                    }
-                    Text(
-                        text = "Open",
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 14.sp,
-                        fontFamily = CalSansFamily
-                    )
-                }
+                Text(
+                    text = formatTime((displayProgress * durationMs).toLong()),
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 11.sp,
+                    fontFamily = CalSansFamily
+                )
+                Text(
+                    text = formatTime(durationMs),
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 11.sp,
+                    fontFamily = CalSansFamily
+                )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // ─── Triple-circle control pod ─────────────────────────────
-            // Glass circle | White play circle | Glass circle
-            // Small gap between each (removed overlap for breathing room).
+            // ─── Triple-circle control pod (Prev | Play/Pause | Next) ───
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
@@ -1186,6 +1045,32 @@ fun Spiral2Player(
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // ─── SECOND THIN CAPSULE (12dp, same as timeline) ──────────
+            // Tappable → opens lyrics. Same glass morphism + thin shape.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(12.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .onSizeChanged { secondPillWidthPx = it.width.toFloat() }
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { showLyrics = true }
+                    .drawBackdrop(
+                        backdrop = glassBackdrop,
+                        shape = { RoundedCornerShape(6.dp) },
+                        effects = {
+                            vibrancy()
+                            colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.5f)
+                            blur(12f.dp.toPx())
+                        },
+                        onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
+                    )
+            )
         }
 
 
