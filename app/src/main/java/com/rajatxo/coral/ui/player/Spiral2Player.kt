@@ -493,11 +493,13 @@ fun Spiral2Player(
         val center = maxHeight / 2
 
         // ═══════════════════════════════════════════════════════════════
-        // BIG COVER (like Profile) + BLURRED BG (like Spiral)
+        // SPIRAL BG + BIGGER COVER (immersive, blends into blur)
         // ═══════════════════════════════════════════════════════════════
-        // Background: 96dp blurred album art fills the whole screen (Spiral style)
-        // Cover: big, top 60% of screen, full-bleed-ish (Profile style)
-        // During crossfade: outgoing fades out, incoming fades in
+        // Background: 96dp blurred album art fills whole screen (Spiral)
+        // Cover: BIGGER than Spiral (aspectRatio 1.2f instead of 1f),
+        //   full-bleed (no rounded corners, immersive). Symmetric fades
+        //   at top (64dp) and bottom (140dp) so the sharp cover blends
+        //   smoothly into the blurred bg — no black gradient.
 
         // ─── Outgoing blurred bg (96dp) ──────────────────────────────
         if (albumArtUri != null) {
@@ -513,14 +515,42 @@ fun Spiral2Player(
             )
         }
 
-        // ─── Outgoing big cover (top 60% of screen, rounded corners) ──
+        // ─── Outgoing big cover (aspectRatio 1.2f, symmetric fades) ──
         if (albumArtUri != null) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight(0.6f)
+                    .aspectRatio(1.2f)
                     .align(Alignment.TopCenter)
-                    .graphicsLayer { alpha = outAlpha }
+                    .offset(y = 16.dp)
+                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen; alpha = outAlpha }
+                    .drawWithContent {
+                        drawContent()
+                        val topFadeHeightPx = 64.dp.toPx()
+                        val bottomFadeHeightPx = 140.dp.toPx()
+                        val imageHeight = size.height
+
+                        // Top fade: transparent → opaque (64dp)
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black),
+                                startY = 0f,
+                                endY = topFadeHeightPx
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+
+                        // Bottom fade: opaque → transparent (140dp)
+                        val bottomFadeStartY = (imageHeight - bottomFadeHeightPx).coerceAtLeast(0f)
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color.Black, Color.Transparent),
+                                startY = bottomFadeStartY,
+                                endY = imageHeight
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
                     .pointerInput(albumArtUri) {
                         detectTapGestures(
                             onDoubleTap = {
@@ -533,30 +563,14 @@ fun Spiral2Player(
                         )
                     }
             ) {
-                AsyncImage(
-                    model = albumArtUri,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp, vertical = 40.dp)
-                        .clip(RoundedCornerShape(24.dp))
-                )
-                // Gradient at bottom of cover: transparent → blurred bg
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(100.dp)
-                        .align(Alignment.BottomCenter)
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Transparent,
-                                    animatedBottomColor.copy(alpha = 0.8f)
-                                )
-                            )
-                        )
-                )
+                if (albumArtUri != null) {
+                    AsyncImage(
+                        model = albumArtUri,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
         }
 
@@ -575,32 +589,40 @@ fun Spiral2Player(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight(0.6f)
+                    .aspectRatio(1.2f)
                     .align(Alignment.TopCenter)
-                    .graphicsLayer { alpha = inAlpha }
+                    .offset(y = 16.dp)
+                    .graphicsLayer {
+                        compositingStrategy = CompositingStrategy.Offscreen
+                        alpha = inAlpha
+                    }
+                    .drawWithContent {
+                        drawContent()
+                        val topFade = 64.dp.toPx()
+                        val bottomFade = 140.dp.toPx()
+                        val imgH = size.height
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black),
+                                startY = 0f, endY = topFade
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                        val botStart = (imgH - bottomFade).coerceAtLeast(0f)
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color.Black, Color.Transparent),
+                                startY = botStart, endY = imgH
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
             ) {
                 AsyncImage(
                     model = xfIncomingArt,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp, vertical = 40.dp)
-                        .clip(RoundedCornerShape(24.dp))
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(100.dp)
-                        .align(Alignment.BottomCenter)
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Transparent,
-                                    (incomingPalette?.tertiary ?: animatedBottomColor).copy(alpha = 0.8f)
-                                )
-                            )
-                        )
+                    modifier = Modifier.fillMaxSize()
                 )
             }
         }
