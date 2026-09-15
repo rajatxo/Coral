@@ -739,18 +739,14 @@ fun Spiral2Player(
             }
         }
 
-        // (5) Content column — left-aligned text, thin timeline, controls, second capsule
-        //     No 3-dot indicator. Song name + artist on the LEFT.
-        //     Layout: Title → Artist → Thin Timeline → Prev/Play/Next → Second Capsule
-        var timelinePillWidthPx by remember { mutableFloatStateOf(1f) }
-        var secondPillWidthPx by remember { mutableFloatStateOf(1f) }
+        // ─── Song name + Artist (LEFT-CENTER of screen) ──────────────
+        // Vertically centered, left-aligned. Uses the crossfade blend.
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
+                .align(Alignment.CenterStart)
                 .padding(horizontal = 28.dp)
-                .padding(bottom = 32.dp)
+                .offset(y = (-40).dp)  // nudge up slightly from exact center
         ) {
             // ── Song title (LEFT-aligned, ultra-smooth blend transition) ──
             Box(modifier = Modifier.fillMaxWidth()) {
@@ -850,15 +846,30 @@ fun Spiral2Player(
                     )
                 }
             }
+        }
+
+        // ─── Bottom section: Timeline + Controls + Second Capsule ─────
+        var timelinePillWidthPx by remember { mutableFloatStateOf(1f) }
+        var secondPillWidthPx by remember { mutableFloatStateOf(1f) }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(horizontal = 28.dp)
+                .padding(bottom = 32.dp)
+        ) {
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // ─── THIN TIMELINE CAPSULE (12dp height, same animations/colors) ──
+            // ─── THIN TIMELINE (12dp, NO glass — plain background) ──────
+            // Same animations/colors, but no drawBackdrop glass effect.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(12.dp)
                     .clip(RoundedCornerShape(6.dp))
+                    .background(Color.White.copy(alpha = 0.15f))
                     .graphicsLayer { alpha = timelineAlpha }
                     .onSizeChanged { timelinePillWidthPx = it.width.toFloat() }
                     .pointerInput(durationMs) {
@@ -880,16 +891,6 @@ fun Spiral2Player(
                             }
                         )
                     }
-                    .drawBackdrop(
-                        backdrop = glassBackdrop,
-                        shape = { RoundedCornerShape(6.dp) },
-                        effects = {
-                            vibrancy()
-                            colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.5f)
-                            blur(12f.dp.toPx())
-                        },
-                        onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
-                    )
             ) {
                 // Layer 1: Dynamic accent color fill (rounded end)
                 if (displayProgress > 0.001f) {
@@ -930,7 +931,7 @@ fun Spiral2Player(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Time labels (current / total) — left-aligned, small
+            // Time labels (current / total)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -1048,28 +1049,19 @@ fun Spiral2Player(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // ─── SECOND THIN CAPSULE (12dp, same as timeline) ──────────
-            // Tappable → opens lyrics. Same glass morphism + thin shape.
+            // ─── SECOND THIN CAPSULE (12dp, NO glass — plain) ──────────
+            // Tappable → opens lyrics. Plain background, no glass effect.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(12.dp)
                     .clip(RoundedCornerShape(6.dp))
+                    .background(Color.White.copy(alpha = 0.15f))
                     .onSizeChanged { secondPillWidthPx = it.width.toFloat() }
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
                     ) { showLyrics = true }
-                    .drawBackdrop(
-                        backdrop = glassBackdrop,
-                        shape = { RoundedCornerShape(6.dp) },
-                        effects = {
-                            vibrancy()
-                            colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.5f)
-                            blur(12f.dp.toPx())
-                        },
-                        onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
-                    )
             )
         }
 
