@@ -3,6 +3,7 @@ package com.rajatxo.coral.ui.home
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
@@ -472,8 +473,8 @@ fun HomeScreen(
         val playerStyle by com.rajatxo.coral.data.prefs.PlayerStyleManager.playerStyle.collectAsState()
         AnimatedVisibility(
             visible = showFullPlayer,
-            enter = slideInVertically { it },
-            exit = slideOutVertically { it }
+            enter = slideInVertically { it } + fadeIn(),
+            exit = fadeOut(animationSpec = tween(200))
         ) {
             if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.CORAL) {
                 com.rajatxo.coral.ui.player.CoralPlayer(

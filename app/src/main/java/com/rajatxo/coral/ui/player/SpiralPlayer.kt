@@ -378,13 +378,21 @@ fun SpiralPlayer(
                 detectVerticalDragGestures(
                     onDragEnd = {
                         if (dismissDragY.value > dismissThreshold) {
-                            // Dismiss IMMEDIATELY — let AnimatedVisibility handle
-                            // the exit animation (single smooth slide-down).
-                            // Reset drag offset so no double-motion.
+                            // Animate the player ALL the way down off-screen,
+                            // THEN call onDismiss(). We keep translationY at
+                            // screenHeightPx during the exit so the player
+                            // stays off-screen — no reappear.
                             coroutineScope.launch {
-                                dismissDragY.snapTo(0f)
+                                dismissDragY.animateTo(
+                                    targetValue = screenHeightPx,
+                                    animationSpec = androidx.compose.animation.core.tween(200)
+                                )
+                                onDismiss()
+                                // Don't reset dismissDragY here — keep it at
+                                // screenHeightPx so the player stays off-screen
+                                // during the exit transition. It'll reset when
+                                // the player is re-opened (LaunchedEffect below).
                             }
-                            onDismiss()
                         } else {
                             // Fast snap back to 0
                             coroutineScope.launch {
