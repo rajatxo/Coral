@@ -493,36 +493,119 @@ fun Spiral2Player(
         val center = maxHeight / 2
 
         // ═══════════════════════════════════════════════════════════════
-        // INK — The Color Bleed
+        // BIG COVER (like Profile) + BLURRED BG (like Spiral)
         // ═══════════════════════════════════════════════════════════════
-        // No album art shown. Instead, the palette colors bleed outward
-        // from the center like ink drops in water — organic color clouds
-        // that slowly drift and morph. Every song creates a completely
-        // different visual. Feels alive.
-        //
-        // During crossfade: the ink colors lerp from outgoing → incoming
-        // palette, synced with xfProgress. The colors literally morph
-        // from one song's palette to the other.
+        // Background: 96dp blurred album art fills the whole screen (Spiral style)
+        // Cover: big, top 60% of screen, full-bleed-ish (Profile style)
+        // During crossfade: outgoing fades out, incoming fades in
 
-        // ─── Outgoing ink layer ──────────────────────────────────────
-        InkBackground(
-            palette = palette,
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer { alpha = outAlpha }
-        )
-
-        // ─── Incoming ink layer (crossfade) ──────────────────────────
-        if (showIncoming && incomingPalette != null) {
-            InkBackground(
-                palette = incomingPalette!!,
+        // ─── Outgoing blurred bg (96dp) ──────────────────────────────
+        if (albumArtUri != null) {
+            AsyncImage(
+                model = albumArtUri,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                colorFilter = bgSatFilter,
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer { alpha = inAlpha }
+                    .blur(96.dp)
+                    .graphicsLayer { alpha = outAlpha }
             )
         }
 
-        // (3) Heart pop overlay (double-tap to favorite)
+        // ─── Outgoing big cover (top 60% of screen, rounded corners) ──
+        if (albumArtUri != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.6f)
+                    .align(Alignment.TopCenter)
+                    .graphicsLayer { alpha = outAlpha }
+                    .pointerInput(albumArtUri) {
+                        detectTapGestures(
+                            onDoubleTap = {
+                                if (songId != null) {
+                                    PlaylistStore.toggleFavorite(songId)
+                                    showHeartPop = true
+                                    view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                }
+                            }
+                        )
+                    }
+            ) {
+                AsyncImage(
+                    model = albumArtUri,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp, vertical = 40.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                )
+                // Gradient at bottom of cover: transparent → blurred bg
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    animatedBottomColor.copy(alpha = 0.8f)
+                                )
+                            )
+                        )
+                )
+            }
+        }
+
+        // ─── Incoming blurred bg + big cover (crossfade) ─────────────
+        if (showIncoming && xfIncomingArt != null) {
+            AsyncImage(
+                model = xfIncomingArt,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                colorFilter = bgSatFilter,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(96.dp)
+                    .graphicsLayer { alpha = inAlpha }
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.6f)
+                    .align(Alignment.TopCenter)
+                    .graphicsLayer { alpha = inAlpha }
+            ) {
+                AsyncImage(
+                    model = xfIncomingArt,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp, vertical = 40.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    (incomingPalette?.tertiary ?: animatedBottomColor).copy(alpha = 0.8f)
+                                )
+                            )
+                        )
+                )
+            }
+        }
+
+        // Heart pop overlay (double-tap to favorite)
         if (showHeartPop) {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -539,15 +622,14 @@ fun Spiral2Player(
             }
         }
 
-        // ─── Song name + Artist (CENTER of screen, in dominant color) ─
-        // Vertically centered, centered text. Title in the album's dominant
-        // color (like it's written in ink). Uses the crossfade blend.
+        // ─── Song name + Artist (below the cover, centered, white) ────
+        // The cover takes top 60%, so text sits in the lower area.
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.Center)
-                .padding(horizontal = 32.dp)
-                .offset(y = (-20).dp)
+                .padding(horizontal = 28.dp)
+                .offset(y = 60.dp)  // push down below the cover
         ) {
             // ── Song title (CENTERED, in dominant color, blend transition) ──
             Box(modifier = Modifier.fillMaxWidth()) {
@@ -556,13 +638,13 @@ fun Spiral2Player(
                     val titleInAlpha = kotlin.math.sin(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
                     Text(
                         text = title,
-                        color = animatedTopColor,
-                        fontSize = 36.sp,
+                        color = Color.White,
+                        fontSize = 28.sp,
                         fontFamily = CalSansFamily,
                         fontWeight = FontWeight.Bold,
-                        maxLines = 2,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(2f, 2f), blurRadius = 8f)),
+                        style = TextStyle(shadow = textShadow),
                         modifier = Modifier.fillMaxWidth().graphicsLayer {
                             alpha = titleOutAlpha
                             renderEffect = blurRenderEffect(8f * (1f - titleOutAlpha))
@@ -571,8 +653,8 @@ fun Spiral2Player(
                     )
                     Text(
                         text = xfIncomingTitle,
-                        color = if (incomingPalette != null) incomingPalette!!.primary else animatedTopColor,
-                        fontSize = 36.sp,
+                        color = Color.White,
+                        fontSize = 28.sp,
                         fontFamily = CalSansFamily,
                         fontWeight = FontWeight.Bold,
                         maxLines = 2,
@@ -587,13 +669,13 @@ fun Spiral2Player(
                 } else {
                     Text(
                         text = title,
-                        color = animatedTopColor,
-                        fontSize = 36.sp,
+                        color = Color.White,
+                        fontSize = 28.sp,
                         fontFamily = CalSansFamily,
                         fontWeight = FontWeight.Bold,
-                        maxLines = 2,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(2f, 2f), blurRadius = 8f)),
+                        style = TextStyle(shadow = textShadow),
                         modifier = Modifier.fillMaxWidth(),
                         textAlign = TextAlign.Center
                     )
