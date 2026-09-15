@@ -196,6 +196,17 @@ fun SpiralPlayer(
     var dragAccumulator by remember { mutableFloatStateOf(0f) }
     val dragThreshold = 60f
 
+    // ─── Drag-down-to-dismiss (ArchiveTune style) ────────────────────
+    // The whole player translates DOWN + fades as you drag down.
+    // Release past threshold → onDismiss() (collapse to mini player).
+    // The mini player is always rendered underneath in HomeScreen, so
+    // there's no solid color flash — the mini player is already visible.
+    var dismissDragY by remember { mutableFloatStateOf(0f) }
+    val screenHeightPx = with(LocalDensity.current) { LocalView.current.rootView.height.toFloat() }
+    val dismissThreshold = screenHeightPx * 0.25f  // 25% of screen height
+    // Alpha: 1 at top, fades to 0.3 at threshold
+    val dismissAlpha = (1f - (dismissDragY / dismissThreshold) * 0.7f).coerceIn(0.3f, 1f)
+
     // ─── Palette (extracted from album art) ───────────────────────────
     // Preload the album art via Coil FIRST, then extract palette. This
     // ensures the image is in Coil's cache when AsyncImage renders it,
@@ -344,9 +355,32 @@ fun SpiralPlayer(
     //       bg above (status bar area) and below (controls area).
     // Use the palette's dominant color as the base background. This matches
     // the album art (extracted from it) so there's no jarring flash — the
-    // blurred art fills over it seamlessly once it loads. animatedBottomColor
-    // animates smoothly when the palette changes.
-    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(animatedBottomColor)) {
+    // blurred art fills over it seamlessly once it loads.
+    // The whole player is wrapped in a vertical drag gesture: drag down to
+    // dismiss (fade + translate down), like ArchiveTune/Spotify.
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(animatedBottomColor)
+            .graphicsLayer {
+                alpha = dismissAlpha
+                translationY = dismissDragY
+            }
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onDragEnd = {
+                        if (dismissDragY > dismissThreshold) {
+                            onDismiss()
+                        }
+                        dismissDragY = 0f
+                    },
+                    onDragCancel = { dismissDragY = 0f },
+                    onVerticalDrag = { _, dragAmount ->
+                        dismissDragY = (dismissDragY + dragAmount).coerceAtLeast(0f)
+                    }
+                )
+            }
+    ) {
         val center = maxHeight / 2
 
         // Background layer — wrapped with layerBackdrop so the glass capsule
@@ -809,23 +843,54 @@ fun SpiralPlayer(
                         onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
                     )
             ) {
-                // ── Layer 1: Faded overlay on the UNFILLED portion (left) ──
-                // The fade starts from the LEFT (where "Timeline" text is)
-                // and retreats toward the Timeline text as you slide.
-                // The concave (curved) face points LEFT toward the Timeline text.
-                // Filled portion (right) = clear glass, unfilled (left) = faded.
-                if (displayProgress < 0.999f) {
+                // ── Layer 1: Dynamic accent color fill (rounded capsule end) ──
+                // Uses the song's accent color at 55% opacity. The fill's right
+                // edge is ROUNDED (clip with capsule shape) so it looks like a
+                // capsule end, not a vertical cut.
+                if (displayProgress > 0.001f) {
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
-                            .align(Alignment.TopStart)
-                            .fillMaxWidth(1f - displayProgress)
+                            .fillMaxWidth(displayProgress)
                             .clip(RoundedCornerShape(26.dp))
-                            .background(Color.White.copy(alpha = 0.25f))
+                            .background(animatedAccentColor.copy(alpha = 0.55f))
+                    )
+                    // Subtle white highlight on top of the fill for vibrancy
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(displayProgress)
+                            .clip(RoundedCornerShape(26.dp))
+                            .background(Color.White.copy(alpha = 0.08f))
                     )
                 }
 
-                // ── Layer 2: Content — "Timeline" at extreme left, time right ──
+                // ── Layer 2: Charging animation gradient highlight ──────
+                // A gradient highlight at the EXACT current position that
+                // fades toward the LEFT (the played area). Think of it like
+                // a charging indicator — the bright spot is at the current
+                // position, and it trails off to the left.
+                // The gradient: transparent at the left edge of the played area
+                // → bright accent color at the current position (right edge).
+                if (displayProgress > 0.01f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(displayProgress)
+                            .clip(RoundedCornerShape(26.dp))
+                            .background(
+                                Brush.horizontalGradient(
+                                    colorStops = arrayOf(
+                                        0.0f to Color.Transparent,                           // left edge: transparent
+                                        0.7f to animatedAccentColor.copy(alpha = 0.2f),      // 70%: faint
+                                        1.0f to animatedAccentColor.copy(alpha = 0.9f)       // current position: bright
+                                    )
+                                )
+                            )
+                    )
+                }
+
+                // ── Layer 3: Content — "Timeline" at extreme left, time right ──
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
