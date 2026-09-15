@@ -199,17 +199,15 @@ fun SpiralPlayer(
     var dragAccumulator by remember { mutableFloatStateOf(0f) }
     val dragThreshold = 60f
 
-    // ─── Drag-down-to-dismiss (ArchiveTune style) ────────────────────
-    // The whole player translates DOWN + fades as you drag down.
-    // Release past threshold → onDismiss() (collapse to mini player).
-    // Release before threshold → smooth SPRING back to 0 (not instant snap).
-    // Uses Animatable for buttery spring physics on release.
+    // ─── Drag-down-to-dismiss (fast, like back button) ─────────────
+    // Drag down → player moves down with your finger (no fade).
+    // Release past threshold → fast snap down + close (like back button).
+    // Release before threshold → fast snap back to 0.
+    // No fade, no spring bounce — just fast, snappy motion.
     val dismissDragY = remember { androidx.compose.animation.core.Animatable(0f) }
     val coroutineScope = rememberCoroutineScope()
     val screenHeightPx = with(LocalDensity.current) { LocalView.current.rootView.height.toFloat() }
-    val dismissThreshold = screenHeightPx * 0.25f  // 25% of screen height
-    // Alpha: 1 at top, fades to 0.3 at threshold
-    val dismissAlpha = (1f - (dismissDragY.value / dismissThreshold) * 0.7f).coerceIn(0.3f, 1f)
+    val dismissThreshold = screenHeightPx * 0.15f  // 15% of screen height = close
 
     // ─── Palette (extracted from album art, cached in PaletteCache) ───
     // Read from PaletteCache FIRST (instant — no black flash). The mini
@@ -374,30 +372,25 @@ fun SpiralPlayer(
             .fillMaxSize()
             .background(animatedBottomColor)
             .graphicsLayer {
-                alpha = dismissAlpha
                 translationY = dismissDragY.value
             }
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
                     onDragEnd = {
-                        // Spring back to 0 or dismiss based on how far dragged
                         coroutineScope.launch {
                             if (dismissDragY.value > dismissThreshold) {
-                                // Animate past threshold then dismiss
+                                // Fast snap down + close (like back button)
                                 dismissDragY.animateTo(
                                     targetValue = screenHeightPx,
-                                    animationSpec = androidx.compose.animation.core.tween(200)
+                                    animationSpec = androidx.compose.animation.core.tween(150)
                                 )
                                 onDismiss()
                                 dismissDragY.snapTo(0f)
                             } else {
-                                // Spring back to 0 smoothly
+                                // Fast snap back to 0
                                 dismissDragY.animateTo(
                                     targetValue = 0f,
-                                    animationSpec = androidx.compose.animation.core.spring(
-                                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
-                                        stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
-                                    )
+                                    animationSpec = androidx.compose.animation.core.tween(150)
                                 )
                             }
                         }
@@ -406,10 +399,7 @@ fun SpiralPlayer(
                         coroutineScope.launch {
                             dismissDragY.animateTo(
                                 targetValue = 0f,
-                                animationSpec = androidx.compose.animation.core.spring(
-                                    dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
-                                    stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
-                                )
+                                animationSpec = androidx.compose.animation.core.tween(150)
                             )
                         }
                     },
