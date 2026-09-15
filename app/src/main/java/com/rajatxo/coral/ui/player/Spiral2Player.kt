@@ -623,16 +623,30 @@ fun Spiral2Player(
             }
         }
 
-        // ─── Song name + Artist (below the cover, centered, white) ────
-        // The cover takes top 60%, so text sits in the lower area.
+        // ─── Light blur at top behind status bar (like Spiral/Coral) ──
+        // A subtle blurred strip at the top so the status bar icons are
+        // readable over the cover. Lighter than Spiral/Coral — just enough.
+        if (albumArtUri != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(80.dp)
+                    .align(Alignment.TopCenter)
+                    .blur(32.dp)
+                    .background(Color.Black.copy(alpha = 0.15f))
+            )
+        }
+
+        // ─── Song name + Artist (at the blend point, ~65% down) ──────
+        // Positioned exactly where the cover fades into the blur.
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .align(Alignment.Center)
+                .align(Alignment.TopCenter)
+                .offset(y = maxHeight * 0.62f)  // at the blend point
                 .padding(horizontal = 28.dp)
-                .offset(y = 60.dp)  // push down below the cover
         ) {
-            // ── Song title (CENTERED, in dominant color, blend transition) ──
+            // ── Song title (CENTERED, white, blend transition) ──
             Box(modifier = Modifier.fillMaxWidth()) {
                 if (xfActive && xfIncomingTitle.isNotEmpty()) {
                     val titleOutAlpha = kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
@@ -640,7 +654,7 @@ fun Spiral2Player(
                     Text(
                         text = title,
                         color = Color.White,
-                        fontSize = 28.sp,
+                        fontSize = 26.sp,
                         fontFamily = CalSansFamily,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -655,12 +669,12 @@ fun Spiral2Player(
                     Text(
                         text = xfIncomingTitle,
                         color = Color.White,
-                        fontSize = 28.sp,
+                        fontSize = 26.sp,
                         fontFamily = CalSansFamily,
                         fontWeight = FontWeight.Bold,
-                        maxLines = 2,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(2f, 2f), blurRadius = 8f)),
+                        style = TextStyle(shadow = textShadow),
                         modifier = Modifier.fillMaxWidth().graphicsLayer {
                             alpha = titleInAlpha
                             renderEffect = blurRenderEffect(8f * (1f - titleInAlpha))
@@ -671,7 +685,7 @@ fun Spiral2Player(
                     Text(
                         text = title,
                         color = Color.White,
-                        fontSize = 28.sp,
+                        fontSize = 26.sp,
                         fontFamily = CalSansFamily,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -682,8 +696,8 @@ fun Spiral2Player(
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(4.dp))
-            // ── Artist name (CENTERED, white, blend transition) ──
+            Spacer(modifier = Modifier.height(2.dp))
+            // ── Artist name (CENTERED, white 60%, blend transition) ──
             Box(modifier = Modifier.fillMaxWidth()) {
                 if (xfActive && xfIncomingArtist.isNotEmpty()) {
                     val artistOutAlpha = kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
@@ -691,7 +705,7 @@ fun Spiral2Player(
                     Text(
                         text = artist,
                         color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 16.sp,
+                        fontSize = 15.sp,
                         fontFamily = CalSansFamily,
                         fontWeight = FontWeight.Normal,
                         maxLines = 1,
@@ -705,7 +719,7 @@ fun Spiral2Player(
                     Text(
                         text = xfIncomingArtist,
                         color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 16.sp,
+                        fontSize = 15.sp,
                         fontFamily = CalSansFamily,
                         fontWeight = FontWeight.Normal,
                         maxLines = 1,
@@ -720,7 +734,7 @@ fun Spiral2Player(
                     Text(
                         text = artist,
                         color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 16.sp,
+                        fontSize = 15.sp,
                         fontFamily = CalSansFamily,
                         fontWeight = FontWeight.Normal,
                         maxLines = 1,
@@ -732,9 +746,8 @@ fun Spiral2Player(
             }
         }
 
-        // ─── Bottom section: Timeline line → gap → Volume line → Buttons ─
-        var timelinePillWidthPx by remember { mutableFloatStateOf(1f) }
-        var volumeLineWidthPx by remember { mutableFloatStateOf(1f) }
+        // ─── Bottom section: Coral timeline + Prev/Play/Next ────────
+        var seekbarWidthPx by remember { mutableFloatStateOf(1f) }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -743,18 +756,13 @@ fun Spiral2Player(
                 .padding(horizontal = 28.dp)
                 .padding(bottom = 32.dp)
         ) {
-
-            // ─── TIMELINE LINE (pure white, both ends fade) ───────────
-            // Like Coral player's timeline. A thin white line with a
-            // horizontal gradient mask: transparent → white → transparent,
-            // so both ends fade out smoothly. Draggable to seek.
-            // Progress fill uses the accent color with the same fade mask.
+            // ─── CORAL SEEK BAR (exact copy from CoralPlayer) ──────────
+            // Straight line, thickens on drag, no thumb, no animations.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(24.dp)  // taller for easier drag targeting
-                    .graphicsLayer { alpha = timelineAlpha }
-                    .onSizeChanged { timelinePillWidthPx = it.width.toFloat() }
+                    .height(24.dp)
+                    .onSizeChanged { seekbarWidthPx = it.width.toFloat() }
                     .pointerInput(durationMs) {
                         detectDragGestures(
                             onDragStart = { isDragging = true },
@@ -767,67 +775,35 @@ fun Spiral2Player(
                             },
                             onDragCancel = { isDragging = false; dragFraction = null },
                             onDrag = { change, _ ->
-                                if (durationMs > 0 && timelinePillWidthPx > 0) {
-                                    val frac = (change.position.x / timelinePillWidthPx).coerceIn(0f, 1f)
+                                if (durationMs > 0 && seekbarWidthPx > 0) {
+                                    val frac = (change.position.x / seekbarWidthPx).coerceIn(0f, 1f)
                                     dragFraction = frac
                                 }
                             }
                         )
                     }
             ) {
-                // Layer 1: Track — pure white line with faded both ends
-                // (transparent → white → transparent)
+                // Track (dim white)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(2.dp)
-                        .align(Alignment.Center)
-                        .background(
-                            Brush.horizontalGradient(
-                                colorStops = arrayOf(
-                                    0.0f to Color.Transparent,
-                                    0.1f to Color.White,
-                                    0.9f to Color.White,
-                                    1.0f to Color.Transparent
-                                )
-                            )
-                        )
+                        .height(trackHeight)
+                        .clip(RoundedCornerShape(trackHeight / 2))
+                        .align(Alignment.CenterStart)
+                        .background(Color.White.copy(alpha = 0.2f))
                 )
-                // Layer 2: Progress fill — accent color, same fade mask,
-                // width = displayProgress. Rounded end.
-                if (displayProgress > 0.001f) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(displayProgress)
-                            .align(Alignment.CenterStart)
-                            .drawWithContent {
-                                // Clip to the fade gradient so the fill also fades
-                                drawContent()
-                            }
-                    ) {
-                        // The progress line (accent color) with faded left end
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(2.dp)
-                                .align(Alignment.Center)
-                                .background(
-                                    Brush.horizontalGradient(
-                                        colorStops = arrayOf(
-                                            0.0f to timelineAccentColor.copy(alpha = 0f),
-                                            0.1f to timelineAccentColor.copy(alpha = 0.9f),
-                                            0.9f to timelineAccentColor.copy(alpha = 0.9f),
-                                            1.0f to timelineAccentColor.copy(alpha = 0.9f)
-                                        )
-                                    )
-                                )
-                        )
-                    }
-                }
+                // Progress (bright white)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(displayProgress)
+                        .height(trackHeight)
+                        .clip(RoundedCornerShape(trackHeight / 2))
+                        .align(Alignment.CenterStart)
+                        .background(Color.White)
+                )
             }
 
-            // Time labels (current / total)
+            // Time labels
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -839,83 +815,14 @@ fun Spiral2Player(
                     fontFamily = CalSansFamily
                 )
                 Text(
-                    text = formatTime(durationMs),
+                    text = "-" + formatTime(((1f - displayProgress) * durationMs).toLong()),
                     color = Color.White.copy(alpha = 0.5f),
                     fontSize = 11.sp,
                     fontFamily = CalSansFamily
                 )
             }
 
-            // ─── GAP (3 lines for future lyrics) ──────────────────────
-            Spacer(modifier = Modifier.height(60.dp))
-
-            // ─── VOLUME LINE (pure white, both ends fade) ──────────────
-            // Same style as timeline. Draggable to adjust system volume.
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(24.dp)
-                    .onSizeChanged { volumeLineWidthPx = it.width.toFloat() }
-                    .pointerInput(maxVolume) {
-                        detectDragGestures(
-                            onDragEnd = { },
-                            onDragCancel = { },
-                            onDrag = { change, _ ->
-                                if (maxVolume > 0 && volumeLineWidthPx > 0) {
-                                    val frac = (change.position.x / volumeLineWidthPx).coerceIn(0f, 1f)
-                                    val newVol = (frac * maxVolume).toInt().coerceIn(0, maxVolume)
-                                    audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
-                                }
-                            }
-                        )
-                    }
-            ) {
-                // Track — pure white line with faded both ends
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(2.dp)
-                        .align(Alignment.Center)
-                        .background(
-                            Brush.horizontalGradient(
-                                colorStops = arrayOf(
-                                    0.0f to Color.Transparent,
-                                    0.1f to Color.White.copy(alpha = 0.4f),
-                                    0.9f to Color.White.copy(alpha = 0.4f),
-                                    1.0f to Color.Transparent
-                                )
-                            )
-                        )
-                )
-                // Progress fill — white, same fade, width = volume
-                if (volume > 0.001f) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(volume)
-                            .align(Alignment.CenterStart)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(2.dp)
-                                .align(Alignment.Center)
-                                .background(
-                                    Brush.horizontalGradient(
-                                        colorStops = arrayOf(
-                                            0.0f to Color.White.copy(alpha = 0f),
-                                            0.1f to Color.White,
-                                            0.9f to Color.White,
-                                            1.0f to Color.White
-                                        )
-                                    )
-                                )
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // ─── Triple-circle control pod (Prev | Play/Pause | Next) ───
             Row(
