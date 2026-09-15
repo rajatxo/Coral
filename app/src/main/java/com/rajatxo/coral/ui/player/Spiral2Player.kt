@@ -493,13 +493,12 @@ fun Spiral2Player(
         val center = maxHeight / 2
 
         // ═══════════════════════════════════════════════════════════════
-        // SPIRAL BG + BIGGER COVER (immersive, blends into blur)
+        // PROFILE COVER (full-bleed top 65%) + BLUR BLEND (no black gradient)
         // ═══════════════════════════════════════════════════════════════
         // Background: 96dp blurred album art fills whole screen (Spiral)
-        // Cover: BIGGER than Spiral (aspectRatio 1.2f instead of 1f),
-        //   full-bleed (no rounded corners, immersive). Symmetric fades
-        //   at top (64dp) and bottom (140dp) so the sharp cover blends
-        //   smoothly into the blurred bg — no black gradient.
+        // Cover: full-bleed, top 65% of screen (Profile style). The bottom
+        //   edge fades into the blurred bg (NOT a black gradient) using a
+        //   DstIn mask — the sharp cover dissolves into the blur smoothly.
 
         // ─── Outgoing blurred bg (96dp) ──────────────────────────────
         if (albumArtUri != null) {
@@ -515,32 +514,21 @@ fun Spiral2Player(
             )
         }
 
-        // ─── Outgoing big cover (aspectRatio 1.2f, symmetric fades) ──
+        // ─── Outgoing full-bleed cover (top 65%, blur-blend at bottom) ──
         if (albumArtUri != null) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(1.2f)
+                    .fillMaxHeight(0.65f)
                     .align(Alignment.TopCenter)
-                    .offset(y = 16.dp)
                     .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen; alpha = outAlpha }
                     .drawWithContent {
                         drawContent()
-                        val topFadeHeightPx = 64.dp.toPx()
+                        // Bottom fade: opaque → transparent (140dp) so the
+                        // sharp cover dissolves into the blurred bg behind.
+                        // NO black gradient — just a DstIn mask.
                         val bottomFadeHeightPx = 140.dp.toPx()
                         val imageHeight = size.height
-
-                        // Top fade: transparent → opaque (64dp)
-                        drawRect(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, Color.Black),
-                                startY = 0f,
-                                endY = topFadeHeightPx
-                            ),
-                            blendMode = BlendMode.DstIn
-                        )
-
-                        // Bottom fade: opaque → transparent (140dp)
                         val bottomFadeStartY = (imageHeight - bottomFadeHeightPx).coerceAtLeast(0f)
                         drawRect(
                             brush = Brush.verticalGradient(
@@ -574,7 +562,7 @@ fun Spiral2Player(
             }
         }
 
-        // ─── Incoming blurred bg + big cover (crossfade) ─────────────
+        // ─── Incoming blurred bg + full-bleed cover (crossfade) ──────
         if (showIncoming && xfIncomingArt != null) {
             AsyncImage(
                 model = xfIncomingArt,
@@ -589,25 +577,16 @@ fun Spiral2Player(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(1.2f)
+                    .fillMaxHeight(0.65f)
                     .align(Alignment.TopCenter)
-                    .offset(y = 16.dp)
                     .graphicsLayer {
                         compositingStrategy = CompositingStrategy.Offscreen
                         alpha = inAlpha
                     }
                     .drawWithContent {
                         drawContent()
-                        val topFade = 64.dp.toPx()
                         val bottomFade = 140.dp.toPx()
                         val imgH = size.height
-                        drawRect(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, Color.Black),
-                                startY = 0f, endY = topFade
-                            ),
-                            blendMode = BlendMode.DstIn
-                        )
                         val botStart = (imgH - bottomFade).coerceAtLeast(0f)
                         drawRect(
                             brush = Brush.verticalGradient(
