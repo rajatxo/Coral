@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -893,12 +895,14 @@ private fun CinematicLine(
             ) { if (line.timeMs >= 0) onSeek(line.timeMs) }
     ) {
         if (line.hasWordSync && line.words != null) {
-            // ─── Word-by-word karaoke line (active + past + future) ──
-            Row(
+            // ─── Word-by-word karaoke line (wraps naturally) ────────
+            @OptIn(ExperimentalLayoutApi::class)
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
+                horizontalArrangement = Arrangement.Center,
+                verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                line.words.forEach { word ->
+                line.words.forEachIndexed { index, word ->
                     AnimatedWord(
                         word = word,
                         currentPositionMs = currentPositionMs,
@@ -906,7 +910,7 @@ private fun CinematicLine(
                         fontWeight = fontWeight,
                         isLineActive = isActive,
                         isLinePast = isPast,
-                        modifier = Modifier.padding(end = 4.dp)
+                        modifier = Modifier.padding(end = 6.dp)
                     )
                 }
             }

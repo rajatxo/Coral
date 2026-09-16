@@ -57,7 +57,7 @@ object LrcParser {
 
             // Clean text: remove word timestamp tags for the display text
             val cleanText = if (words != null) {
-                words.joinToString("") { it.text }
+                words.joinToString(" ") { it.text }
             } else {
                 textAfterTimestamp
             }
@@ -216,7 +216,7 @@ object LrcParser {
                     )
                 }.filter { it.text.isNotEmpty() }
 
-                val fullText = words.joinToString("") { it.text }
+                val fullText = words.joinToString(" ") { it.text }
                 result.add(LyricLine(
                     timeMs = lineStart,
                     text = fullText,
