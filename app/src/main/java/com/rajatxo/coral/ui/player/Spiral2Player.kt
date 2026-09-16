@@ -879,36 +879,26 @@ fun Spiral2Player(
             }
         }
 
-        // ─── Menu capsule popup (vertical glass capsule) ─────────────
-        // Appears when menu icon is tapped. Contains: Sleep Timer, Shuffle, Loop.
-        // Glass morphism capsule, positioned beside the menu icon (top-right).
-        androidx.compose.animation.AnimatedVisibility(
-            visible = showMoreMenu,
-            enter = androidx.compose.animation.fadeIn(animationSpec = tween(200)) +
-                androidx.compose.animation.scaleIn(animationSpec = tween(200), initialScale = 0.8f),
-            exit = androidx.compose.animation.fadeOut(animationSpec = tween(200)) +
-                androidx.compose.animation.scaleOut(animationSpec = tween(200), targetScale = 0.8f)
-        ) {
+        // ─── Menu capsule popup (vertical, right side, above menu button) ─
+        // Like Profile UI's right-side pill. Positioned at the right edge,
+        // vertically near the menu icon. Solid glass background (nav bar style).
+        if (showMoreMenu) {
             Box(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .offset(x = -28.dp, y = maxHeight * 0.65f + 40.dp)
-                    .padding(end = 28.dp)
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { toggleMenu() }  // tap outside to close
             ) {
                 Column(
                     modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(y = 420.dp)  // below the menu icon position
+                        .padding(end = 28.dp)
                         .width(160.dp)
                         .clip(RoundedCornerShape(20.dp))
-                        .drawBackdrop(
-                            backdrop = glassBackdrop,
-                            shape = { RoundedCornerShape(20.dp) },
-                            effects = {
-                                vibrancy()
-                                colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.5f)
-                                blur(16f.dp.toPx())
-                            },
-                            onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.3f)) }
-                        )
+                        .background(Color.Black.copy(alpha = 0.5f))
                         .padding(vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
