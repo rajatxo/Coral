@@ -702,29 +702,6 @@ fun Spiral2Player(
             }
         }
 
-        // ─── Blurred album art behind status bar ─────────────────────
-        // A strip at the top showing the album art BLURRED (not a black
-        // overlay). The actual art is rendered here with a heavy blur so
-        // status bar icons are readable over it.
-        if (albumArtUri != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(60.dp)
-                    .align(Alignment.TopCenter)
-                    .clipToBounds()
-            ) {
-                AsyncImage(
-                    model = albumArtUri,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .blur(32.dp)
-                )
-            }
-        }
-
         // ─── Song name + Artist (LEFT-aligned, at the blend point) ───
         // Positioned where the cover's bottom fade begins.
         Column(
@@ -879,9 +856,11 @@ fun Spiral2Player(
             }
         }
 
-        // ─── Menu capsule popup (vertical, right side, above menu button) ─
-        // Like Profile UI's right-side pill. Positioned at the right edge,
-        // vertically near the menu icon. Solid glass background (nav bar style).
+        // ─── Menu capsule popup (vertical pill, right side, icons only) ─
+        // A vertical capsule (like Coral's play-pause but vertical) with
+        // only icons inside: Sleep Timer, Shuffle, Loop. Glass morphism
+        // (drawBackdrop, same as prev/next buttons). Positioned on the
+        // right side, below the menu button — doesn't cover it.
         if (showMoreMenu) {
             Box(
                 modifier = Modifier
@@ -894,82 +873,77 @@ fun Spiral2Player(
                 Column(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .offset(y = 420.dp)  // below the menu icon position
+                        .offset(y = 430.dp)
                         .padding(end = 28.dp)
-                        .width(160.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Color.Black.copy(alpha = 0.5f))
-                        .padding(vertical = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        .width(52.dp)
+                        .clip(RoundedCornerShape(26.dp))
+                        .drawBackdrop(
+                            backdrop = glassBackdrop,
+                            shape = { RoundedCornerShape(26.dp) },
+                            effects = {
+                                vibrancy()
+                                colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.5f)
+                                blur(12f.dp.toPx())
+                            },
+                            onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
+                        )
+                        .padding(vertical = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Sleep Timer
-                    Row(
+                    // Sleep Timer (icon only)
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .size(32.dp)
+                            .clip(CircleShape)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
-                                indication = null
+                                indication = androidx.compose.material3.ripple(bounded = false)
                             ) {
                                 showSleepTimerPage = true
                                 toggleMenu()
-                            }
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            },
+                        contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = CoralIcons.Timer,
                             contentDescription = "Sleep Timer",
                             tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Text(
-                            text = "Sleep Timer",
-                            color = Color.White,
-                            fontSize = 14.sp,
-                            fontFamily = CalSansFamily,
-                            fontWeight = FontWeight.Medium
+                            modifier = Modifier.size(22.dp)
                         )
                     }
-                    // Shuffle
-                    Row(
+                    // Shuffle (icon only)
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .size(32.dp)
+                            .clip(CircleShape)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
-                                indication = null
+                                indication = androidx.compose.material3.ripple(bounded = false)
                             ) {
                                 mediaController?.let {
                                     it.shuffleModeEnabled = !it.shuffleModeEnabled
                                     shuffleEnabled = it.shuffleModeEnabled
                                 }
                                 view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                            }
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            },
+                        contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = CoralIcons.Shuffle,
                             contentDescription = "Shuffle",
                             tint = if (shuffleEnabled) palette.accent else Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Text(
-                            text = "Shuffle",
-                            color = if (shuffleEnabled) palette.accent else Color.White,
-                            fontSize = 14.sp,
-                            fontFamily = CalSansFamily,
-                            fontWeight = FontWeight.Medium
+                            modifier = Modifier.size(22.dp)
                         )
                     }
-                    // Loop (cycles OFF → ALL → ONE)
-                    Row(
+                    // Loop (icon only, cycles OFF → ALL → ONE)
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .size(32.dp)
+                            .clip(CircleShape)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
-                                indication = null
+                                indication = androidx.compose.material3.ripple(bounded = false)
                             ) {
                                 mediaController?.let {
                                     val newMode = when (it.repeatMode) {
@@ -983,10 +957,8 @@ fun Spiral2Player(
                                     repeatMode = newMode
                                 }
                                 view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                            }
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            },
+                        contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = when (repeatMode) {
@@ -996,18 +968,7 @@ fun Spiral2Player(
                             },
                             contentDescription = "Loop",
                             tint = if (repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) palette.accent else Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Text(
-                            text = when (repeatMode) {
-                                androidx.media3.common.Player.REPEAT_MODE_OFF -> "Loop Off"
-                                androidx.media3.common.Player.REPEAT_MODE_ONE -> "Loop One"
-                                else -> "Loop All"
-                            },
-                            color = if (repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) palette.accent else Color.White,
-                            fontSize = 14.sp,
-                            fontFamily = CalSansFamily,
-                            fontWeight = FontWeight.Medium
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }
