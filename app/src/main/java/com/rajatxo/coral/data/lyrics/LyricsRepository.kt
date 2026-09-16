@@ -1,6 +1,8 @@
 package com.rajatxo.coral.data.lyrics
 
 import android.content.Context
+import android.media.MediaMetadataRetriever
+import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -94,6 +96,117 @@ class LyricsRepository(private val context: Context) {
         val fetched = fetchFromLrcLib(track, artist, album, durationMs)
         if (fetched != null) writeCache(cacheFile, fetched)
         fetched
+    }
+
+    /**
+     * Always fetch lyrics from LrcLib (skipping the cache). Used by the
+     * manual Fetch / Search actions in the lyrics sheet — the user explicitly
+     * asked for fresh lyrics, so we go to the network and store the result.
+     *
+     * Returns null on network failure or when LrcLib has no match.
+     */
+    suspend fun searchLyrics(
+        track: String,
+        artist: String,
+        album: String? = null,
+        durationMs: Long? = null
+    ): Lyric? = withContext(Dispatchers.IO) {
+        if (track.isBlank() && artist.isBlank()) return@withContext null
+
+        val cacheFile = File(cacheDir, "${cacheKey(track, artist)}.json")
+        val fetched = fetchFromLrcLib(track, artist, album, durationMs)
+        if (fetched != null) writeCache(cacheFile, fetched)
+        fetched
+    }
+
+    /**
+     * Read previously fetched lyrics from the cache (no network call).
+     * Used as the lowest-priority source when the lyrics sheet first opens.
+     */
+    suspend fun getCachedLyrics(
+        track: String,
+        artist: String
+    ): Lyric? = withContext(Dispatchers.IO) {
+        if (track.isBlank() || artist.isBlank()) return@withContext null
+        val cacheFile = File(cacheDir, "${cacheKey(track, artist)}.json")
+        readCache(cacheFile)
+    }
+
+    /**
+     * Extract embedded lyrics from the audio file at [uri] using
+     * [MediaMetadataRetriever].
+     *
+     * Android's MediaMetadataRetriever exposes a single (hidden) key for
+     * lyrics: METADATA_KEY_LYRICS = 19. We reference it by integer value
+     * because the constant is annotated @hide in the SDK and not directly
+     * resolvable from Kotlin.
+     *
+     * For MP3 files this typically maps to the ID3 UNSYNCEDLYRICS frame
+     * (plain text) or SYNCEDLYRICS frame (LRC-formatted), depending on
+     * what the file's tagger wrote. For FLAC/M4A, it surfaces the LYRICS
+     * Vorbis comment / MOV box. The returned text may be plain or LRC —
+     * the caller decides how to parse it via [LrcParser].
+     *
+     * Returns the raw lyric text if found, null otherwise.
+     * Safe to call from any thread — dispatches to IO internally.
+     */
+    suspend fun getEmbeddedLyrics(uri: Uri): String? = withContext(Dispatchers.IO) {
+        if (uri == Uri.EMPTY) return@withContext null
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(context, uri)
+            // METADATA_KEY_LYRICS = 19 (hidden in the SDK, see AOSP source)
+            val lyrics = retriever.extractMetadata(19)
+            if (!lyrics.isNullOrBlank()) lyrics else null
+        } catch (_: Exception) {
+            null
+        } finally {
+            try { retriever.release() } catch (_: Exception) { /* best-effort */ }
+        }
+    }
+
+    /**
+     * Save a manually imported .lrc file's text as the lyrics for this track.
+     * Stored separately from the LrcLib cache (different filename suffix) so
+     * that the priority "imported > fetched" can be respected on next open.
+     *
+     * Returns the parsed [Lyric] on success, null on failure.
+     */
+    suspend fun saveImportedLrc(
+        track: String,
+        artist: String,
+        lrcText: String
+    ): Lyric? = withContext(Dispatchers.IO) {
+        if (track.isBlank() || artist.isBlank() || lrcText.isBlank()) return@withContext null
+        val lines = LrcParser.parse(lrcText)
+        if (lines.isEmpty()) return@withContext null
+        val hasWordSync = lines.any { it.hasWordSync }
+        val hasTimestamps = lines.any { it.timeMs >= 0 }
+        val lyric = Lyric(
+            synced = hasTimestamps,
+            lines = lines,
+            source = LyricSource.MANUAL,
+            trackName = track,
+            artistName = artist,
+            hasWordSync = hasWordSync
+        )
+        val importedFile = File(cacheDir, "${cacheKey(track, artist)}.imported.json")
+        writeCache(importedFile, lyric)
+        lyric
+    }
+
+    /**
+     * Read a previously imported .lrc file from disk (no network call).
+     * Used as the middle-priority source when the lyrics sheet first opens
+     * (above cached-fetched, below embedded).
+     */
+    suspend fun getImportedLrc(
+        track: String,
+        artist: String
+    ): Lyric? = withContext(Dispatchers.IO) {
+        if (track.isBlank() || artist.isBlank()) return@withContext null
+        val importedFile = File(cacheDir, "${cacheKey(track, artist)}.imported.json")
+        readCache(importedFile)?.copy(source = LyricSource.MANUAL)
     }
 
     // ---------- Cache ----------

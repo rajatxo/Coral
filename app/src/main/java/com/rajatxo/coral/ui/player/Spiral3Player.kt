@@ -404,6 +404,11 @@ fun Spiral3Player(
     var showLyrics by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
     var showHeartPop by remember { mutableStateOf(false) }
+    // ─── Embedded lyrics (extracted from audio metadata) ───────────
+    // Extracted in the background when albumArtUri changes. Passed to
+    // LyricsSheet so it can show embedded lyrics immediately (top priority)
+    // without a network fetch.
+    var embeddedLyrics by remember { mutableStateOf<String?>(null) }
     // ─── Menu icon tap animation (rotate, stay rotated while menu open) ──
     val menuRotation = remember { androidx.compose.animation.core.Animatable(0f) }
     val menuCoroutineScope = rememberCoroutineScope()
@@ -451,6 +456,14 @@ fun Spiral3Player(
                 track = title, artist = artist, album = albumName, durationMs = durationMs
             )
         } catch (_: Exception) { }
+    }
+    // ─── Embedded lyrics extraction (for the full lyrics sheet) ───
+    // Triggered when the song changes. Read by LyricsSheet as the top-
+    // priority lyric source (above imported .lrc and fetched from LrcLib).
+    LaunchedEffect(albumArtUri) {
+        embeddedLyrics = if (albumArtUri != null) {
+            runCatching { lyricsRepository.getEmbeddedLyrics(albumArtUri) }.getOrNull()
+        } else null
     }
     val activeLineIndex = if (lyricData != null && lyricData!!.synced && lyricData!!.lines.isNotEmpty()) {
         findActiveLineIndex(lyricData!!.lines, currentPositionMs)
@@ -1355,7 +1368,8 @@ fun Spiral3Player(
                 isPlaying = isPlaying,
                 onDismiss = { showLyrics = false },
                 onSeek = onSeek,
-                albumArtUri = albumArtUri
+                albumArtUri = albumArtUri,
+                embeddedLyrics = embeddedLyrics
             )
         }
 

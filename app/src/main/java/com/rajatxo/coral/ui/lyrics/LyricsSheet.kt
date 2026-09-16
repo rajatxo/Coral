@@ -1,11 +1,11 @@
 package com.rajatxo.coral.ui.lyrics
 
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -29,17 +29,21 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
@@ -48,6 +52,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -57,15 +62,19 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.rajatxo.coral.data.lyrics.LrcParser
 import com.rajatxo.coral.data.lyrics.Lyric
 import com.rajatxo.coral.data.lyrics.LyricLine
+import com.rajatxo.coral.data.lyrics.LyricSource
 import com.rajatxo.coral.data.lyrics.LyricsRepository
 import com.rajatxo.coral.data.lyrics.WordTimestamp
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
 import com.rajatxo.coral.util.CoralPalette
 import com.rajatxo.coral.util.extractPalette
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.PI
 import kotlin.math.sin
 
@@ -73,12 +82,18 @@ import kotlin.math.sin
  * Cinematic lyrics sheet — ArchiveTune-inspired.
  *
  * Features:
- *  1. Blurred album art background (46dp blur, 0.62 alpha) + gradient scrim
+ *  1. Solid palette-based gradient background (tertiary → darker tertiary)
+ *     — no visible bands or horizontal lines.
  *  2. Word-by-word karaoke animation (sweep fill + bounce + glow)
  *  3. Progressive opacity by distance from active line
  *  4. Smooth auto-scroll
- *  5. Top/bottom fade gradients
- *  6. Tap-to-seek on any line
+ *  5. Tap-to-seek on any line
+ *  6. 3-dot menu with: Close, Fetch, Search, Import LRC
+ *
+ * Lyrics priority:
+ *  1. Embedded lyrics (from audio metadata, passed in as parameter)
+ *  2. Manually imported .lrc file (saved via LyricsRepository.saveImportedLrc)
+ *  3. Fetched from LrcLib (only on manual user action)
  */
 @Composable
 fun LyricsSheet(
@@ -90,86 +105,173 @@ fun LyricsSheet(
     isPlaying: Boolean,
     onDismiss: () -> Unit,
     onSeek: (Long) -> Unit,
-    albumArtUri: Uri? = null
+    albumArtUri: Uri? = null,
+    embeddedLyrics: String? = null
 ) {
     val context = LocalContext.current
     val repository = remember { LyricsRepository(context) }
+    val coroutineScope = rememberCoroutineScope()
 
     var lyric by remember { mutableStateOf<Lyric?>(null) }
-    var isLoading by remember { mutableStateOf(true) }
+    var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var refreshTrigger by remember { mutableStateOf(0) }
     var palette by remember { mutableStateOf(CoralPalette.Default) }
 
-    LaunchedEffect(trackName, artistName, refreshTrigger) {
-        if (trackName.isBlank() || artistName.isBlank()) {
-            isLoading = false
-            error = "No track info available"
-            return@LaunchedEffect
-        }
-        isLoading = true
-        error = null
-        try {
-            val fetched = if (refreshTrigger == 0) {
-                repository.getLyrics(trackName, artistName, albumName, durationMs)
-            } else {
-                repository.refreshLyrics(trackName, artistName, albumName, durationMs)
+    // Menu + dialog state
+    var showMenu by remember { mutableStateOf(false) }
+    var showSearchDialog by remember { mutableStateOf(false) }
+
+    // File picker for LRC import — accepts */* and filters for .lrc extension
+    val lrcPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val uriStr = uri.toString().lowercase()
+        val displayName = runCatching {
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                val nameIdx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (nameIdx >= 0 && cursor.moveToFirst()) cursor.getString(nameIdx) else null
             }
-            lyric = fetched
-            if (fetched == null) error = "No lyrics found for this track"
-        } catch (e: Exception) {
-            error = "Failed to load lyrics: ${e.message ?: "unknown error"}"
+        }.getOrNull() ?: ""
+        val isLrc = uriStr.endsWith(".lrc") || displayName.lowercase().endsWith(".lrc")
+        if (!isLrc) {
+            error = "Please select a .lrc file"
+            return@rememberLauncherForActivityResult
         }
-        isLoading = false
+        coroutineScope.launch {
+            isLoading = true
+            error = null
+            try {
+                val lrcText = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use {
+                        it.bufferedReader().readText()
+                    }
+                }
+                if (lrcText.isNullOrBlank()) {
+                    error = "Could not read the file"
+                } else {
+                    val saved = repository.saveImportedLrc(trackName, artistName, lrcText)
+                    if (saved != null) {
+                        lyric = saved
+                    } else {
+                        error = "Failed to import lyrics"
+                    }
+                }
+            } catch (e: Exception) {
+                error = "Failed to import: ${e.message ?: "unknown error"}"
+            }
+            isLoading = false
+        }
     }
 
+    // ─── Initial load: embedded > imported .lrc > cached fetched lyrics ───
+    // Auto-fetch from LrcLib is intentionally NOT done here. The user must
+    // trigger Fetch / Search / Import via the menu.
+    LaunchedEffect(trackName, artistName, embeddedLyrics) {
+        isLoading = false
+        error = null
+        when {
+            // 1. Embedded lyrics (from audio metadata) — top priority
+            !embeddedLyrics.isNullOrBlank() -> {
+                val lines = withContext(Dispatchers.IO) { LrcParser.parse(embeddedLyrics) }
+                if (lines.isNotEmpty()) {
+                    val hasWordSync = lines.any { it.hasWordSync }
+                    val hasTimestamps = lines.any { it.timeMs >= 0 }
+                    lyric = Lyric(
+                        synced = hasTimestamps,
+                        lines = lines,
+                        source = LyricSource.EMBEDDED,
+                        trackName = trackName,
+                        artistName = artistName,
+                        hasWordSync = hasWordSync
+                    )
+                } else {
+                    lyric = null
+                }
+            }
+            // 2. Manually imported .lrc file
+            else -> {
+                val imported = withContext(Dispatchers.IO) {
+                    repository.getImportedLrc(trackName, artistName)
+                }
+                if (imported != null) {
+                    lyric = imported
+                } else {
+                    // 3. Cached fetched lyrics (from a previous Fetch/Search action)
+                    val cached = withContext(Dispatchers.IO) {
+                        repository.getCachedLyrics(trackName, artistName)
+                    }
+                    lyric = cached
+                }
+            }
+        }
+    }
+
+    // Palette extraction from album art
     LaunchedEffect(albumArtUri) {
         if (albumArtUri != null) {
             extractPalette(context, albumArtUri)?.let { palette = it }
         }
     }
 
-    fun refresh() { refreshTrigger++ }
+    // ─── Actions ───
 
-    // ═══ Background: blurred album art + gradient scrim ═════════════
-    Box(modifier = Modifier.fillMaxSize()) {
-        // Blurred album art
-        if (albumArtUri != null) {
-            AsyncImage(
-                model = albumArtUri,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .blur(46.dp)
-                    .graphicsLayer { alpha = 0.62f }
-            )
+    fun doFetch() {
+        if (trackName.isBlank() || artistName.isBlank()) {
+            error = "No track info available"
+            return
         }
+        coroutineScope.launch {
+            isLoading = true
+            error = null
+            try {
+                val fetched = repository.searchLyrics(trackName, artistName, albumName, durationMs)
+                if (fetched != null) {
+                    lyric = fetched
+                } else {
+                    error = "No lyrics found for this track"
+                }
+            } catch (e: Exception) {
+                error = "Failed to fetch: ${e.message ?: "unknown error"}"
+            }
+            isLoading = false
+        }
+    }
 
-        // Gradient scrim (palette colors or fallback)
-        val scrimColors = listOf(
-            palette.tertiary.copy(alpha = 0.88f),
-            palette.secondary.copy(alpha = 0.76f),
-            palette.tertiary.copy(alpha = 0.96f)
-        )
+    fun doSearch(customTrack: String, customArtist: String) {
+        if (customTrack.isBlank() && customArtist.isBlank()) {
+            error = "Enter a song title or artist"
+            return
+        }
+        coroutineScope.launch {
+            isLoading = true
+            error = null
+            try {
+                val fetched = repository.searchLyrics(customTrack, customArtist, null, null)
+                if (fetched != null) {
+                    lyric = fetched
+                } else {
+                    error = "No lyrics found for \"$customTrack\" by $customArtist"
+                }
+            } catch (e: Exception) {
+                error = "Failed to search: ${e.message ?: "unknown error"}"
+            }
+            isLoading = false
+        }
+    }
+
+    // ═══ Background: solid palette gradient (tertiary → darker tertiary) ═══
+    // Single smooth vertical gradient — no bands, no visible lines.
+    val topColor = palette.tertiary
+    val bottomColor = lerp(palette.tertiary, Color.Black, 0.4f)
+
+    Box(modifier = Modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Brush.verticalGradient(scrimColors))
-        )
-
-        // Black tint
-        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.18f)))
-
-        // Bottom scrim
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(120.dp)
-                .align(Alignment.BottomCenter)
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.28f))
+                        colors = listOf(topColor, bottomColor)
                     )
                 )
         )
@@ -181,14 +283,13 @@ fun LyricsSheet(
                 .statusBarsPadding()
                 .navigationBarsPadding()
         ) {
-            // ─── Header ──────────────────────────────────────────────
+            // ─── Header: thumbnail · title · 3-dot menu ─────────────────
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Thumbnail
                 if (albumArtUri != null) {
                     AsyncImage(
                         model = albumArtUri,
@@ -201,7 +302,6 @@ fun LyricsSheet(
                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
-                // Title + artist
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = trackName,
@@ -219,28 +319,120 @@ fun LyricsSheet(
                         maxLines = 1
                     )
                 }
-                // Close button
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.18f))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { onDismiss() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = CoralIcons.ChevronDown,
-                        contentDescription = "Close",
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
-                    )
+                // 3-dot menu button
+                Box {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.18f))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { showMenu = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = CoralIcons.Ellipsis,
+                            contentDescription = "More options",
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false },
+                        modifier = Modifier.background(Color(0xFF1F1F1F))
+                    ) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "Close",
+                                    color = Color.White,
+                                    fontFamily = CalSansFamily
+                                )
+                            },
+                            onClick = {
+                                showMenu = false
+                                onDismiss()
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    CoralIcons.ChevronDown,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "Fetch",
+                                    color = Color.White,
+                                    fontFamily = CalSansFamily
+                                )
+                            },
+                            onClick = {
+                                showMenu = false
+                                doFetch()
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    CoralIcons.Music,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "Search",
+                                    color = Color.White,
+                                    fontFamily = CalSansFamily
+                                )
+                            },
+                            onClick = {
+                                showMenu = false
+                                showSearchDialog = true
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    CoralIcons.Music,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "Import LRC",
+                                    color = Color.White,
+                                    fontFamily = CalSansFamily
+                                )
+                            },
+                            onClick = {
+                                showMenu = false
+                                lrcPicker.launch("*/*")
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    CoralIcons.FileHeadphone,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        )
+                    }
                 }
             }
 
-            // ─── Lyrics content ──────────────────────────────────────
+            // ─── Lyrics content ──────────────────────────────────────────
             when {
                 isLoading -> {
                     Box(
@@ -250,30 +442,12 @@ fun LyricsSheet(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             CircularProgressIndicator(color = Color.White)
                             Spacer(modifier = Modifier.height(16.dp))
-                            Text("Searching...", color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp)
-                        }
-                    }
-                }
-                error != null -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("♪", fontSize = 48.sp, color = Color.White.copy(alpha = 0.5f))
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(error ?: "No lyrics", color = Color.White, fontSize = 16.sp,
-                                fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
-                            Spacer(modifier = Modifier.height(24.dp))
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(24.dp))
-                                    .background(Color.White.copy(alpha = 0.2f))
-                                    .clickable { refresh() }
-                                    .padding(horizontal = 32.dp, vertical = 12.dp)
-                            ) {
-                                Text("Try again", color = Color.White, fontWeight = FontWeight.Bold)
-                            }
+                            Text(
+                                "Searching...",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 13.sp,
+                                fontFamily = CalSansFamily
+                            )
                         }
                     }
                 }
@@ -282,6 +456,258 @@ fun LyricsSheet(
                         lyric = lyric!!,
                         currentPositionMs = currentPositionMs,
                         onSeek = onSeek
+                    )
+                }
+                else -> {
+                    // "No lyrics" empty state with prompt to fetch/search/import
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(horizontal = 32.dp)
+                        ) {
+                            Icon(
+                                imageVector = CoralIcons.Music,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.5f),
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                "No lyrics",
+                                color = Color.White,
+                                fontSize = 20.sp,
+                                fontFamily = CalSansFamily,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "Fetch from LrcLib, search online, or import an .lrc file",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 14.sp,
+                                fontFamily = CalSansFamily,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(24.dp))
+                                        .background(Color.White.copy(alpha = 0.2f))
+                                        .clickable { doFetch() }
+                                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                                ) {
+                                    Text(
+                                        "Fetch",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = CalSansFamily
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(24.dp))
+                                        .background(Color.White.copy(alpha = 0.2f))
+                                        .clickable { showSearchDialog = true }
+                                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                                ) {
+                                    Text(
+                                        "Search",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = CalSansFamily
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(24.dp))
+                                        .background(Color.White.copy(alpha = 0.2f))
+                                        .clickable { lrcPicker.launch("*/*") }
+                                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                                ) {
+                                    Text(
+                                        "Import LRC",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = CalSansFamily
+                                    )
+                                }
+                            }
+                            if (error != null) {
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    error!!,
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    fontSize = 13.sp,
+                                    fontFamily = CalSansFamily,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ─── Search dialog (floating card) ──────────────────────────────
+    if (showSearchDialog) {
+        SearchLyricsDialog(
+            initialTrack = trackName,
+            initialArtist = artistName,
+            onDismiss = { showSearchDialog = false },
+            onSearch = { customTrack, customArtist ->
+                showSearchDialog = false
+                doSearch(customTrack, customArtist)
+            }
+        )
+    }
+}
+
+// ═══ Search lyrics dialog — ArchiveTune-style floating card ════════════
+
+@Composable
+private fun SearchLyricsDialog(
+    initialTrack: String,
+    initialArtist: String,
+    onDismiss: () -> Unit,
+    onSearch: (String, String) -> Unit
+) {
+    var track by remember { mutableStateOf(initialTrack) }
+    var artist by remember { mutableStateOf(initialArtist) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.6f))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { onDismiss() },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 24.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
+                .background(Color(0xFF1A1A1A))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {} // consume clicks so tapping the card doesn't dismiss
+                .padding(24.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = CoralIcons.Search,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    "Search lyrics",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = CalSansFamily
+                )
+            }
+            Spacer(modifier = Modifier.height(20.dp))
+            Text(
+                "Song title",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 13.sp,
+                fontFamily = CalSansFamily
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            OutlinedTextField(
+                value = track,
+                onValueChange = { track = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                textStyle = TextStyle(
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontFamily = CalSansFamily
+                ),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color.White.copy(alpha = 0.5f),
+                    unfocusedBorderColor = Color.White.copy(alpha = 0.3f),
+                    cursorColor = Color.White,
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent
+                )
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                "Song artists",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 13.sp,
+                fontFamily = CalSansFamily
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            OutlinedTextField(
+                value = artist,
+                onValueChange = { artist = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                textStyle = TextStyle(
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontFamily = CalSansFamily
+                ),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color.White.copy(alpha = 0.5f),
+                    unfocusedBorderColor = Color.White.copy(alpha = 0.3f),
+                    cursorColor = Color.White,
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent
+                )
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { onDismiss() }
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                ) {
+                    Text(
+                        "Cancel",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontFamily = CalSansFamily,
+                        fontSize = 14.sp
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color.White.copy(alpha = 0.22f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { onSearch(track, artist) }
+                        .padding(horizontal = 20.dp, vertical = 10.dp)
+                ) {
+                    Text(
+                        "Search online",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = CalSansFamily,
+                        fontSize = 14.sp
                     )
                 }
             }
@@ -333,55 +759,29 @@ private fun CinematicLyricsContent(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 80.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-            items(lyric.lines.size) { index ->
-                val line = lyric.lines[index]
-                val distance = kotlin.math.abs(index - activeIndex)
-                val isActive = index == activeIndex
-                val isPast = index < activeIndex
+    // No top/bottom fade gradients — they showed as visible horizontal lines.
+    // The solid palette background is enough for text legibility.
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 80.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        items(lyric.lines.size) { index ->
+            val line = lyric.lines[index]
+            val distance = kotlin.math.abs(index - activeIndex)
+            val isActive = index == activeIndex
+            val isPast = index < activeIndex
 
-                CinematicLine(
-                    line = line,
-                    isActive = isActive,
-                    isPast = isPast,
-                    distanceFromActive = distance,
-                    currentPositionMs = currentPositionMs,
-                    onSeek = onSeek
-                )
-            }
+            CinematicLine(
+                line = line,
+                isActive = isActive,
+                isPast = isPast,
+                distanceFromActive = distance,
+                currentPositionMs = currentPositionMs,
+                onSeek = onSeek
+            )
         }
-
-        // Top fade gradient
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(80.dp)
-                .align(Alignment.TopCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(Color.Black.copy(alpha = 0.6f), Color.Transparent)
-                    )
-                )
-        )
-
-        // Bottom fade gradient
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(80.dp)
-                .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f))
-                    )
-                )
-        )
     }
 }
 
