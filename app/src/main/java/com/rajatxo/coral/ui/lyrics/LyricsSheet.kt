@@ -153,6 +153,38 @@ fun LyricsSheet(
         }
     }
 
+    // TTML file picker — same logic, just a separate launcher for the TTML menu item
+    val ttmlPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        coroutineScope.launch {
+            isLoading = true
+            error = null
+            try {
+                val ttmlText = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use {
+                        it.bufferedReader().readText()
+                    }
+                }
+                if (ttmlText.isNullOrBlank()) {
+                    error = "Could not read the file"
+                } else {
+                    val saved = repository.saveImportedLrc(trackName, artistName, ttmlText)
+                    if (saved != null) {
+                        lyric = saved
+                        error = null
+                    } else {
+                        error = "Failed to parse TTML. Make sure it's a valid TTML file."
+                    }
+                }
+            } catch (e: Exception) {
+                error = "Failed to import: ${e.message ?: "unknown error"}"
+            }
+            isLoading = false
+        }
+    }
+
     // ─── Initial load: embedded > imported .lrc > cached fetched lyrics ───
     // Auto-fetch from LrcLib is intentionally NOT done here. The user must
     // trigger Fetch / Search / Import via the menu.
@@ -407,6 +439,48 @@ fun LyricsSheet(
                             onClick = {
                                 showMenu = false
                                 lrcPicker.launch(arrayOf("*/*"))
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    CoralIcons.FileHeadphone,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "Import LRC (Multi Person)",
+                                    color = Color.White,
+                                    fontFamily = CalSansFamily
+                                )
+                            },
+                            onClick = {
+                                showMenu = false
+                                lrcPicker.launch(arrayOf("*/*"))
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    CoralIcons.FileHeadphone,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "Import TTML",
+                                    color = Color.White,
+                                    fontFamily = CalSansFamily
+                                )
+                            },
+                            onClick = {
+                                showMenu = false
+                                ttmlPicker.launch(arrayOf("*/*"))
                             },
                             leadingIcon = {
                                 Icon(
