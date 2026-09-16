@@ -637,13 +637,13 @@ fun Spiral2Player(
             )
         }
 
-        // ─── Song name + Artist (at the blend point, ~65% down) ──────
-        // Positioned exactly where the cover fades into the blur.
+        // ─── Song name + Artist (lower, where the blending part starts) ─
+        // Positioned where the cover's bottom fade begins (~65% + a bit).
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
-                .offset(y = maxHeight * 0.62f)  // at the blend point
+                .offset(y = maxHeight * 0.68f)  // lower, where blending starts
                 .padding(horizontal = 28.dp)
         ) {
             // ── Song title (CENTERED, white, blend transition) ──
