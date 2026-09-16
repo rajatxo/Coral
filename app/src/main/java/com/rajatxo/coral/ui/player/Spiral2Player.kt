@@ -873,7 +873,7 @@ fun Spiral2Player(
                 Column(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .offset(y = 430.dp)
+                        .offset(y = 370.dp)
                         .padding(end = 28.dp)
                         .width(52.dp)
                         .clip(RoundedCornerShape(26.dp))
@@ -883,9 +883,9 @@ fun Spiral2Player(
                             effects = {
                                 vibrancy()
                                 colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.5f)
-                                blur(12f.dp.toPx())
+                                blur(20f.dp.toPx())
                             },
-                            onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
+                            onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.5f)) }
                         )
                         .padding(vertical = 12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
