@@ -400,6 +400,22 @@ fun Spiral2Player(
     var showLyrics by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
     var showHeartPop by remember { mutableStateOf(false) }
+    // ─── Menu icon tap animation (rotation) ──────────────────────
+    val menuRotation = remember { androidx.compose.animation.core.Animatable(0f) }
+    val menuCoroutineScope = rememberCoroutineScope()
+    fun animateMenuAndOpen() {
+        menuCoroutineScope.launch {
+            menuRotation.animateTo(
+                targetValue = 90f,
+                animationSpec = androidx.compose.animation.core.tween(200)
+            )
+            showMoreMenu = true
+            menuRotation.animateTo(
+                targetValue = 0f,
+                animationSpec = androidx.compose.animation.core.tween(200)
+            )
+        }
+    }
     LaunchedEffect(showHeartPop) {
         if (showHeartPop) { delay(800); showHeartPop = false }
     }
@@ -707,10 +723,11 @@ fun Spiral2Player(
                             tint = Color.White,
                             modifier = Modifier
                                 .size(28.dp)
+                                .graphicsLayer { rotationZ = menuRotation.value }
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null
-                                ) { showMoreMenu = true }
+                                ) { animateMenuAndOpen() }
                         )
                     }
                     Row(
@@ -762,10 +779,11 @@ fun Spiral2Player(
                             tint = Color.White,
                             modifier = Modifier
                                 .size(28.dp)
+                                .graphicsLayer { rotationZ = menuRotation.value }
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null
-                                ) { showMoreMenu = true }
+                                ) { animateMenuAndOpen() }
                         )
                     }
                 }
@@ -831,18 +849,21 @@ fun Spiral2Player(
                 .padding(bottom = 32.dp)
         ) {
             // ─── Lyrics text (1-line synced, sitting on top of timeline) ──
-            // Shows the current lyric line (like Coral but 1 line only).
-            // Tap to open the full lyrics page. CalSans, non-italic,
-            // size = artist size (15sp) + 1 = 16sp.
+            // Bigger (18sp), pure white, with auto-shadow for readability
+            // over bright backgrounds. Tap to open the full lyrics page.
             Text(
                 text = lyricLineText,
-                color = Color.White.copy(alpha = 0.7f),
-                fontSize = 16.sp,
+                color = Color.White,
+                fontSize = 18.sp,
                 fontFamily = CalSansFamily,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                style = TextStyle(shadow = textShadow),
+                style = TextStyle(shadow = Shadow(
+                    color = Color.Black.copy(alpha = 0.7f),
+                    offset = Offset(1f, 1f),
+                    blurRadius = 4f
+                )),
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable(
@@ -901,10 +922,11 @@ fun Spiral2Player(
                 )
             }
 
-            // Time labels
+            // Time labels + Format capsule (same line: 0:00  [FLAC]  -3:14)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = formatTime((displayProgress * durationMs).toLong()),
@@ -912,24 +934,37 @@ fun Spiral2Player(
                     fontSize = 11.sp,
                     fontFamily = CalSansFamily
                 )
+                // Format text in a small glass morphism capsule
+                if (songFormat.isNotEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .drawBackdrop(
+                                backdrop = glassBackdrop,
+                                shape = { RoundedCornerShape(10.dp) },
+                                effects = {
+                                    vibrancy()
+                                    colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.5f)
+                                    blur(8f.dp.toPx())
+                                },
+                                onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.2f)) }
+                            )
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = songFormat,
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 10.sp,
+                            fontFamily = CalSansFamily,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
                 Text(
                     text = "-" + formatTime(((1f - displayProgress) * durationMs).toLong()),
                     color = Color.White.copy(alpha = 0.5f),
                     fontSize = 11.sp,
                     fontFamily = CalSansFamily
-                )
-            }
-
-            // ─── Song format (centered, below timeline) ──────────────
-            if (songFormat.isNotEmpty()) {
-                Text(
-                    text = songFormat,
-                    color = Color.White.copy(alpha = 0.4f),
-                    fontSize = 10.sp,
-                    fontFamily = CalSansFamily,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center
                 )
             }
 
