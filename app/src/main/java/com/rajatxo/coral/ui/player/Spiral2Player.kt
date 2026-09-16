@@ -1260,7 +1260,32 @@ fun Spiral2Player(
             }
         }
 
-
+        // ─── Queue drag handle zone (bottom of screen, invisible) ────
+        // A thin invisible strip at the very bottom of the screen.
+        // Drag up from here to open the queue. Accumulates drag distance
+        // so it's reliable but not too sensitive.
+        var queueDragAccum by remember { mutableFloatStateOf(0f) }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(80.dp)
+                .align(Alignment.BottomCenter)
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures(
+                        onDragStart = { queueDragAccum = 0f },
+                        onDragEnd = { queueDragAccum = 0f },
+                        onDragCancel = { queueDragAccum = 0f },
+                        onVerticalDrag = { _, dragAmount ->
+                            queueDragAccum += dragAmount
+                            // Drag up (negative) accumulated > 60px = open queue
+                            if (queueDragAccum < -60f) {
+                                showQueue = true
+                                queueDragAccum = 0f
+                            }
+                        }
+                    )
+                }
+        )
 
         if (showLyrics) {
             LyricsSheet(
@@ -1276,22 +1301,32 @@ fun Spiral2Player(
             )
         }
 
-        // ─── Queue page (slide up from bottom, smooth animation) ────
-        androidx.compose.animation.AnimatedVisibility(
-            visible = showQueue,
-            enter = androidx.compose.animation.slideInVertically(
-                animationSpec = androidx.compose.animation.core.tween(300),
-                initialOffsetY = { it }  // slide from bottom (full height)
-            ) + androidx.compose.animation.fadeIn(),
-            exit = androidx.compose.animation.slideOutVertically(
-                animationSpec = androidx.compose.animation.core.tween(300),
-                targetOffsetY = { it }  // slide to bottom (full height)
-            ) + androidx.compose.animation.fadeOut()
-        ) {
-            com.rajatxo.coral.ui.screens.QueueScreen(
-                mediaController = mediaController,
-                onDismiss = { showQueue = false }
+        // ─── Queue page (smooth slide up from bottom) ──────────────
+        // Uses Animatable for buttery smooth slide animation.
+        val queueOffset = remember { androidx.compose.animation.core.Animatable(1f) }
+        LaunchedEffect(showQueue) {
+            queueOffset.animateTo(
+                targetValue = if (showQueue) 0f else 1f,
+                animationSpec = androidx.compose.animation.core.spring(
+                    dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+                    stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+                )
             )
+        }
+        if (showQueue || queueOffset.value < 1f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        translationY = size.height * queueOffset.value
+                        alpha = 1f - queueOffset.value * 0.3f
+                    }
+            ) {
+                com.rajatxo.coral.ui.screens.QueueScreen(
+                    mediaController = mediaController,
+                    onDismiss = { showQueue = false }
+                )
+            }
         }
     }
 }
