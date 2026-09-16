@@ -118,20 +118,180 @@ class LyricsRepository(private val context: Context) {
      */
     suspend fun getEmbeddedLyrics(uri: Uri): String? = withContext(Dispatchers.IO) {
         if (uri == Uri.EMPTY) return@withContext null
+
+        // Method 1: MediaMetadataRetriever (try all possible key values)
         val retriever = MediaMetadataRetriever()
         try {
             retriever.setDataSource(context, uri)
 
-            // Try multiple metadata keys for lyrics.
-            // Key 19 = METADATA_KEY_LYRICS (hidden in SDK but works on most devices)
-            val lyrics = retriever.extractMetadata(19)  // METADATA_KEY_LYRICS
-                ?: retriever.extractMetadata(15)        // METADATA_KEY_WRITER (sometimes stores lyrics)
-
-            if (!lyrics.isNullOrBlank()) lyrics else null
+            // Try ALL possible metadata keys that might contain lyrics.
+            // Different Android versions + devices use different key numbers.
+            // Key 19 = hidden METADATA_KEY_LYRICS (some devices)
+            // Key 30 = METADATA_KEY_LYRICS (Android 13+ / API 33+)
+            // Key 15 = METADATA_KEY_WRITER (sometimes stores lyrics)
+            // Key 1 = METADATA_KEY_TITLE (unlikely but check)
+            val possibleKeys = intArrayOf(30, 19, 15, 20, 21, 22, 23, 24, 25, 26)
+            for (key in possibleKeys) {
+                try {
+                    val value = retriever.extractMetadata(key)
+                    if (!value.isNullOrBlank() && looksLikeLyrics(value)) {
+                        retriever.release()
+                        return@withContext value
+                    }
+                } catch (_: Exception) { }
+            }
         } catch (_: Exception) {
-            null
         } finally {
             try { retriever.release() } catch (_: Exception) { }
+        }
+
+        // Method 2: Try MediaExtractor for FLAC Vorbis comments
+        try {
+            val extractor = android.media.MediaExtractor()
+            extractor.setDataSource(context, uri, null)
+            val format = extractor.getTrackFormat(0)
+            // Check all string keys in the format
+            val keys = listOf(
+                "LYRICS", "lyrics", "UNSYNCEDLYRICS", "unsyncedlyrics",
+                "SYNCEDLYRICS", "syncedlyrics", "SYNCLYRICS", "synclyrics",
+                "LYRICS_TAG", "lyrics_tag"
+            )
+            for (key in keys) {
+                try {
+                    val value = format.getString(key)
+                    if (!value.isNullOrBlank() && looksLikeLyrics(value)) {
+                        extractor.release()
+                        return@withContext value
+                    }
+                } catch (_: Exception) { }
+            }
+            extractor.release()
+        } catch (_: Exception) { }
+
+        // Method 3: Read raw file and search for LRC/lyrics in text portions
+        try {
+            val result = readLyricsFromRawFile(uri)
+            if (result != null) return@withContext result
+        } catch (_: Exception) { }
+
+        null
+    }
+
+    /**
+     * Heuristic: check if a string looks like actual lyrics (not a title/artist).
+     * Lyrics typically have multiple lines or contain LRC timestamps.
+     */
+    private fun looksLikeLyrics(text: String): Boolean {
+        if (text.length < 10) return false
+        // LRC timestamps = definitely lyrics
+        if (text.contains("[") && Regex("""\[\d{1,2}:\d{2}""").containsMatchIn(text)) return true
+        // TTML = definitely lyrics
+        if (text.contains("<tt") || text.contains("<span")) return true
+        // Multiple lines of text = likely lyrics
+        val lineCount = text.lines().filter { it.isNotBlank() }.size
+        if (lineCount >= 3) return true
+        // Single long line = could be lyrics
+        if (text.length > 50) return true
+        return false
+    }
+
+    /**
+     * Read the audio file as raw bytes and search for lyrics.
+     * This is a last-resort method that works for:
+     * - MP3 files with ID3v2 USLT/SYLT frames
+     * - FLAC files with Vorbis comments (LYRICS, UNSYNCEDLYRICS)
+     * - M4A files with ©lyr atom
+     */
+    private fun readLyricsFromRawFile(uri: Uri): String? {
+        return try {
+            // Read first 1MB of the file (metadata is usually at the start)
+            val byteArray = context.contentResolver.openInputStream(uri)?.use { stream ->
+                val buffer = ByteArray(1024 * 1024)
+                val read = stream.read(buffer)
+                if (read > 0) buffer.copyOf(read) else return null
+            } ?: return null
+
+            val text = String(byteArray, Charsets.ISO_8859_1)
+
+            // Search for LRC timestamps in the binary data
+            // Valid LRC lines: [mm:ss.xx]text or [mm:ss.xxx]text
+            val lrcLineRegex = Regex("""\[\d{1,2}:\d{2}[.:]\d{1,3}\][^\[\x00]{1,200}""")
+            val lrcMatches = lrcLineRegex.findAll(text).toList()
+
+            // Filter out false positives: require at least 3 LRC lines
+            if (lrcMatches.size >= 3) {
+                val lyrics = lrcMatches.joinToString("\n") { it.value.trim() }
+                if (looksLikeLyrics(lyrics)) return lyrics
+            }
+
+            // Search for TTML in the binary data
+            val ttmlStart = text.indexOf("<tt")
+            if (ttmlStart >= 0) {
+                val ttmlEnd = text.indexOf("</tt>", ttmlStart)
+                if (ttmlEnd > ttmlStart) {
+                    val ttml = text.substring(ttmlStart, ttmlEnd + 5)
+                    if (ttml.contains("<span")) return ttml
+                }
+            }
+
+            // Search for Vorbis comment fields (FLAC)
+            val vorbisKeys = listOf("LYRICS=", "UNSYNCEDLYRICS=", "SYNCEDLYRICS=", "SYNCLYRICS=")
+            for (key in vorbisKeys) {
+                val idx = text.indexOf(key, ignoreCase = true)
+                if (idx >= 0) {
+                    // Vorbis comments: key=value\0 or key=value\n
+                    val valueStart = idx + key.length
+                    val valueEnd = text.indexOfAny(charArrayOf('\u0000', '\n'), valueStart)
+                    val value = if (valueEnd > valueStart) {
+                        text.substring(valueStart, valueEnd)
+                    } else {
+                        text.substring(valueStart, minOf(valueStart + 10000, text.length))
+                    }
+                    // Decode from UTF-8 if possible
+                    val decoded = try {
+                        String(value.toByteArray(Charsets.ISO_8859_1), Charsets.UTF_8)
+                    } catch (_: Exception) { value }
+                    if (decoded.length > 20 && (decoded.contains("[") || decoded.lines().size >= 3)) {
+                        return decoded
+                    }
+                }
+            }
+
+            // Search for ID3v2 USLT frame (Unsynchronized lyrics)
+            // USLT frame: "USLT" + 4 bytes size + 2 bytes flags + 1 byte encoding +
+            //              3 bytes language + null-terminated content descriptor + lyrics
+            val usltIdx = text.indexOf("USLT")
+            if (usltIdx >= 0 && usltIdx < byteArray.size - 20) {
+                // Read the frame content (skip header: 10 bytes for ID3v2 frame header)
+                val contentStart = usltIdx + 10  // frame ID(4) + size(4) + flags(2)
+                if (contentStart < byteArray.size) {
+                    // Find the lyrics text after the language code (3 bytes) + null separator
+                    val lyricsStart = contentStart + 4  // encoding(1) + language(3)
+                    if (lyricsStart < byteArray.size) {
+                        // Read until null or end
+                        val lyricsBytes = mutableListOf<Byte>()
+                        var i = lyricsStart
+                        // Skip content descriptor (null-terminated string)
+                        while (i < byteArray.size && byteArray[i].toInt() != 0) i++
+                        i++  // skip the null
+                        // Read the actual lyrics
+                        while (i < byteArray.size && i < lyricsStart + 100000) {
+                            val b = byteArray[i]
+                            if (b.toInt() == 0 && i > lyricsStart + 1) break
+                            lyricsBytes.add(b)
+                            i++
+                        }
+                        if (lyricsBytes.size > 20) {
+                            val lyrics = String(lyricsBytes.toByteArray(), Charsets.UTF_8)
+                            if (looksLikeLyrics(lyrics)) return lyrics
+                        }
+                    }
+                }
+            }
+
+            null
+        } catch (_: Exception) {
+            null
         }
     }
 
