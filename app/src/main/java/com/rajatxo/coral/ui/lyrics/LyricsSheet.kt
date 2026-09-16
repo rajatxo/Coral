@@ -35,6 +35,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -110,6 +111,9 @@ fun LyricsSheet(
 ) {
     val context = LocalContext.current
     val repository = remember { LyricsRepository(context) }
+
+    // Back button: close lyrics page (not the whole player)
+    BackHandler { onDismiss() }
     val coroutineScope = rememberCoroutineScope()
 
     var lyric by remember { mutableStateOf<Lyric?>(null) }
@@ -119,7 +123,6 @@ fun LyricsSheet(
 
     // Menu + dialog state
     var showMenu by remember { mutableStateOf(false) }
-    var showSearchDialog by remember { mutableStateOf(false) }
 
     // File picker for LRC import — accepts any text file, tries to parse as LRC
     val lrcPicker = rememberLauncherForActivityResult(
@@ -237,49 +240,6 @@ fun LyricsSheet(
 
     // ─── Actions ───
 
-    fun doFetch() {
-        if (trackName.isBlank() || artistName.isBlank()) {
-            error = "No track info available"
-            return
-        }
-        coroutineScope.launch {
-            isLoading = true
-            error = null
-            try {
-                val fetched = repository.searchLyrics(trackName, artistName, albumName, durationMs)
-                if (fetched != null) {
-                    lyric = fetched
-                } else {
-                    error = "No lyrics found for this track"
-                }
-            } catch (e: Exception) {
-                error = "Failed to fetch: ${e.message ?: "unknown error"}"
-            }
-            isLoading = false
-        }
-    }
-
-    fun doSearch(customTrack: String, customArtist: String) {
-        if (customTrack.isBlank() && customArtist.isBlank()) {
-            error = "Enter a song title or artist"
-            return
-        }
-        coroutineScope.launch {
-            isLoading = true
-            error = null
-            try {
-                val fetched = repository.searchLyrics(customTrack, customArtist, null, null)
-                if (fetched != null) {
-                    lyric = fetched
-                } else {
-                    error = "No lyrics found for \"$customTrack\" by $customArtist"
-                }
-            } catch (e: Exception) {
-                error = "Failed to search: ${e.message ?: "unknown error"}"
-            }
-            isLoading = false
-        }
-    }
 
     // ═══ Background: solid palette gradient (tertiary → darker tertiary) ═══
     // Single smooth vertical gradient — no bands, no visible lines.
@@ -396,7 +356,7 @@ fun LyricsSheet(
                             },
                             onClick = {
                                 showMenu = false
-                                doFetch()
+                                /* doFetch removed */
                             },
                             leadingIcon = {
                                 Icon(
@@ -417,7 +377,7 @@ fun LyricsSheet(
                             },
                             onClick = {
                                 showMenu = false
-                                showSearchDialog = true
+                                /* showSearchDialog removed */
                             },
                             leadingIcon = {
                                 Icon(
@@ -481,6 +441,48 @@ fun LyricsSheet(
                             onClick = {
                                 showMenu = false
                                 ttmlPicker.launch(arrayOf("*/*"))
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    CoralIcons.FileHeadphone,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "Import ELRC",
+                                    color = Color.White,
+                                    fontFamily = CalSansFamily
+                                )
+                            },
+                            onClick = {
+                                showMenu = false
+                                lrcPicker.launch(arrayOf("*/*"))
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    CoralIcons.FileHeadphone,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "Import ELRC (Multi Person)",
+                                    color = Color.White,
+                                    fontFamily = CalSansFamily
+                                )
+                            },
+                            onClick = {
+                                showMenu = false
+                                lrcPicker.launch(arrayOf("*/*"))
                             },
                             leadingIcon = {
                                 Icon(
@@ -560,7 +562,7 @@ fun LyricsSheet(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(24.dp))
                                         .background(Color.White.copy(alpha = 0.2f))
-                                        .clickable { doFetch() }
+                                        
                                         .padding(horizontal = 20.dp, vertical = 12.dp)
                                 ) {
                                     Text(
@@ -574,7 +576,7 @@ fun LyricsSheet(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(24.dp))
                                         .background(Color.White.copy(alpha = 0.2f))
-                                        .clickable { showSearchDialog = true }
+                                        
                                         .padding(horizontal = 20.dp, vertical = 12.dp)
                                 ) {
                                     Text(
@@ -617,17 +619,6 @@ fun LyricsSheet(
     }
 
     // ─── Search dialog (floating card) ──────────────────────────────
-    if (showSearchDialog) {
-        SearchLyricsDialog(
-            initialTrack = trackName,
-            initialArtist = artistName,
-            onDismiss = { showSearchDialog = false },
-            onSearch = { customTrack, customArtist ->
-                showSearchDialog = false
-                doSearch(customTrack, customArtist)
-            }
-        )
-    }
 }
 
 // ═══ Search lyrics dialog — ArchiveTune-style floating card ════════════

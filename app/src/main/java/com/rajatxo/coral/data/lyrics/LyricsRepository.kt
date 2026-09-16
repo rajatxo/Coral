@@ -12,8 +12,6 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
 import java.net.URLEncoder
 
 /**
@@ -69,20 +67,13 @@ class LyricsRepository(private val context: Context) {
         val cacheKey = cacheKey(track, artist)
         val cacheFile = File(cacheDir, "$cacheKey.json")
 
-        // 1. Try cache first
+        // Read from cache only (no network fetching)
         val cached = readCache(cacheFile)
-        if (cached != null) return@withContext cached
-
-        // 2. Fetch from LrcLib
-        val fetched = fetchFromLrcLib(track, artist, album, durationMs)
-        if (fetched != null) {
-            writeCache(cacheFile, fetched)
-        }
-        fetched
+        cached
     }
 
     /**
-     * Force a re-fetch (used when the user picks a different match in a manual search).
+     * Clear cached lyrics for a track (used when re-importing).
      */
     suspend fun refreshLyrics(
         track: String,
@@ -92,36 +83,11 @@ class LyricsRepository(private val context: Context) {
     ): Lyric? = withContext(Dispatchers.IO) {
         val cacheFile = File(cacheDir, "${cacheKey(track, artist)}.json")
         if (cacheFile.exists()) cacheFile.delete()
-
-        val fetched = fetchFromLrcLib(track, artist, album, durationMs)
-        if (fetched != null) writeCache(cacheFile, fetched)
-        fetched
+        null
     }
 
     /**
-     * Always fetch lyrics from LrcLib (skipping the cache). Used by the
-     * manual Fetch / Search actions in the lyrics sheet — the user explicitly
-     * asked for fresh lyrics, so we go to the network and store the result.
-     *
-     * Returns null on network failure or when LrcLib has no match.
-     */
-    suspend fun searchLyrics(
-        track: String,
-        artist: String,
-        album: String? = null,
-        durationMs: Long? = null
-    ): Lyric? = withContext(Dispatchers.IO) {
-        if (track.isBlank() && artist.isBlank()) return@withContext null
-
-        val cacheFile = File(cacheDir, "${cacheKey(track, artist)}.json")
-        val fetched = fetchFromLrcLib(track, artist, album, durationMs)
-        if (fetched != null) writeCache(cacheFile, fetched)
-        fetched
-    }
-
-    /**
-     * Read previously fetched lyrics from the cache (no network call).
-     * Used as the lowest-priority source when the lyrics sheet first opens.
+     * Read previously imported lyrics from the cache (no network call).
      */
     suspend fun getCachedLyrics(
         track: String,
@@ -300,86 +266,6 @@ class LyricsRepository(private val context: Context) {
             .lowercase()
             .replace(Regex("[^a-z0-9]+"), "_")
             .trim('_')
-    }
-
-    // ---------- LrcLib API ----------
-
-    private fun fetchFromLrcLib(
-        track: String,
-        artist: String,
-        album: String?,
-        durationMs: Long?
-    ): Lyric? {
-        val urlBuilder = StringBuilder("https://lrclib.net/api/get?")
-        urlBuilder.append("track_name=").append(encode(track))
-        urlBuilder.append("&artist_name=").append(encode(artist))
-        if (!album.isNullOrBlank()) {
-            urlBuilder.append("&album_name=").append(encode(album))
-        }
-        if (durationMs != null && durationMs > 0) {
-            val durationSec = durationMs / 1000
-            urlBuilder.append("&duration=").append(durationSec)
-        }
-
-        return try {
-            val url = URL(urlBuilder.toString())
-            val conn = url.openConnection() as HttpURLConnection
-            conn.requestMethod = "GET"
-            conn.setRequestProperty("Accept", "application/json")
-            conn.connectTimeout = 8000
-            conn.readTimeout = 8000
-            conn.instanceFollowRedirects = true
-
-            val code = conn.responseCode
-            if (code != 200) return null
-
-            val body = conn.inputStream.bufferedReader().use { it.readText() }
-            parseLrcLibResponse(body)
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    private fun parseLrcLibResponse(body: String): Lyric? {
-        return try {
-            val obj: JsonObject = json.parseToJsonElement(body).jsonObject
-            val trackName = obj["trackName"]?.jsonPrimitive?.contentOrNull
-            val artistName = obj["artistName"]?.jsonPrimitive?.contentOrNull
-            val syncedLyrics = obj["syncedLyrics"]?.jsonPrimitive?.contentOrNull
-            val plainLyrics = obj["plainLyrics"]?.jsonPrimitive?.contentOrNull
-
-            if (!syncedLyrics.isNullOrBlank()) {
-                val lines = LrcParser.parse(syncedLyrics)
-            val hasWordSync = lines.any { it.hasWordSync }
-                if (lines.isNotEmpty()) {
-                    return Lyric(
-                        synced = true,
-                        lines = lines,
-                        source = LyricSource.NETWORK,
-                        trackName = trackName,
-                        artistName = artistName,
-                        hasWordSync = hasWordSync
-                    )
-                }
-            }
-            if (!plainLyrics.isNullOrBlank()) {
-                val lines = LrcParser.parse(plainLyrics)
-            val hasWordSync = lines.any { it.hasWordSync }
-                if (lines.isNotEmpty()) {
-                    return Lyric(
-                        synced = false,
-                        lines = lines,
-                        source = LyricSource.NETWORK,
-                        trackName = trackName,
-                        artistName = artistName,
-                        hasWordSync = false
-                    )
-                }
-            }
-            null
-        } catch (_: Exception) {
-            null
-        }
     }
 
     private fun encode(s: String): String =
