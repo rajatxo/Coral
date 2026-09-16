@@ -121,23 +121,11 @@ fun LyricsSheet(
     var showMenu by remember { mutableStateOf(false) }
     var showSearchDialog by remember { mutableStateOf(false) }
 
-    // File picker for LRC import — accepts */* and filters for .lrc extension
+    // File picker for LRC import — accepts any text file, tries to parse as LRC
     val lrcPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        val uriStr = uri.toString().lowercase()
-        val displayName = runCatching {
-            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                val nameIdx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                if (nameIdx >= 0 && cursor.moveToFirst()) cursor.getString(nameIdx) else null
-            }
-        }.getOrNull() ?: ""
-        val isLrc = uriStr.endsWith(".lrc") || displayName.lowercase().endsWith(".lrc")
-        if (!isLrc) {
-            error = "Please select a .lrc file"
-            return@rememberLauncherForActivityResult
-        }
         coroutineScope.launch {
             isLoading = true
             error = null
@@ -153,8 +141,9 @@ fun LyricsSheet(
                     val saved = repository.saveImportedLrc(trackName, artistName, lrcText)
                     if (saved != null) {
                         lyric = saved
+                        error = null
                     } else {
-                        error = "Failed to import lyrics"
+                        error = "Failed to parse lyrics. Make sure it's a valid LRC file."
                     }
                 }
             } catch (e: Exception) {
@@ -417,7 +406,7 @@ fun LyricsSheet(
                             },
                             onClick = {
                                 showMenu = false
-                                lrcPicker.launch("*/*")
+                                lrcPicker.launch(arrayOf("*/*"))
                             },
                             leadingIcon = {
                                 Icon(
@@ -525,7 +514,7 @@ fun LyricsSheet(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(24.dp))
                                         .background(Color.White.copy(alpha = 0.2f))
-                                        .clickable { lrcPicker.launch("*/*") }
+                                        .clickable { lrcPicker.launch(arrayOf("*/*")) }
                                         .padding(horizontal = 20.dp, vertical = 12.dp)
                                 ) {
                                     Text(
