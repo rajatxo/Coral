@@ -177,36 +177,33 @@ object LrcParser {
      */
     private fun parseTtml(ttml: String): List<LyricLine> {
         val result = mutableListOf<LyricLine>()
-        // Match <p> tags with begin and end attributes (any order)
-        val pRegex = Regex("""<p\s[^>]*?(?:begin|end)="([^"]+)"[^>]*?(?:begin|end)="([^"]+)"[^>]*?>(.*?)</p>""", RegexOption.DOT_MATCHES_ALL)
-        val spanRegex = Regex("""<span\s[^>]*?(?:begin|end)="([^"]+)"[^>]*?(?:begin|end)="([^"]+)"[^>]*?>(.*?)</span>""", RegexOption.DOT_MATCHES_ALL)
+
+        // Match all <p> tags — capture the full tag including all attributes
+        val pRegex = Regex("""<p\b[^>]*>(.*?)</p>""", RegexOption.DOT_MATCHES_ALL)
+        val spanRegex = Regex("""<span\b[^>]*>(.*?)</span>""", RegexOption.DOT_MATCHES_ALL)
+        val beginRegex = Regex("""\bbegin="([^"]+)"""")
+        val endRegex = Regex("""\bend="([^"]+)"""")
 
         pRegex.findAll(ttml).forEach { pMatch ->
-            // Determine which group is begin and which is end based on the full match
-            val pFullText = pMatch.value
-            val beginIdx = pFullText.indexOf("begin=\"")
-            val endIdx = pFullText.indexOf("end=\"")
-            val (lineStart, lineEnd) = if (beginIdx < endIdx && beginIdx >= 0) {
-                parseTtmlTime(pMatch.groupValues[1]) to parseTtmlTime(pMatch.groupValues[2])
-            } else {
-                parseTtmlTime(pMatch.groupValues[2]) to parseTtmlTime(pMatch.groupValues[1])
-            }
-            val pContent = pMatch.groupValues[3]
+            val pFullTag = pMatch.value
+            val pContent = pMatch.groupValues[1]
+
+            // Extract begin/end from the <p> tag's attributes
+            val beginMatch = beginRegex.find(pFullTag)
+            val endMatch = endRegex.find(pFullTag)
+            val lineStart = beginMatch?.groupValues?.get(1)?.let { parseTtmlTime(it) } ?: 0L
 
             val spanMatches = spanRegex.findAll(pContent).toList()
 
             if (spanMatches.isNotEmpty()) {
                 // Word-by-word timing from spans
                 val words = spanMatches.map { spanMatch ->
-                    val spanFullText = spanMatch.value
-                    val sBeginIdx = spanFullText.indexOf("begin=\"")
-                    val sEndIdx = spanFullText.indexOf("end=\"")
-                    val (wordStart, wordEnd) = if (sBeginIdx < sEndIdx && sBeginIdx >= 0) {
-                        parseTtmlTime(spanMatch.groupValues[1]) to parseTtmlTime(spanMatch.groupValues[2])
-                    } else {
-                        parseTtmlTime(spanMatch.groupValues[2]) to parseTtmlTime(spanMatch.groupValues[1])
-                    }
-                    val wordText = spanMatch.groupValues[3]
+                    val spanFullTag = spanMatch.value
+                    val sBeginMatch = beginRegex.find(spanFullTag)
+                    val sEndMatch = endRegex.find(spanFullTag)
+                    val wordStart = sBeginMatch?.groupValues?.get(1)?.let { parseTtmlTime(it) } ?: lineStart
+                    val wordEnd = sEndMatch?.groupValues?.get(1)?.let { parseTtmlTime(it) } ?: wordStart + 2000L
+                    val wordText = spanMatch.groupValues[1]
                         .replace(Regex("<[^>]+>"), "")  // strip nested tags
                         .trim()
                     WordTimestamp(
@@ -223,8 +220,11 @@ object LrcParser {
                     words = words.ifEmpty { null }
                 ))
             } else {
-                // No spans — just use the paragraph text
-                val cleanText = pContent.replace(Regex("<[^>]+>"), "").trim()
+                // No spans — just use the paragraph text, strip all tags
+                val cleanText = pContent
+                    .replace(Regex("<[^>]+>"), "")  // strip all XML tags
+                    .replace(Regex("\\s+"), " ")     // normalize whitespace
+                    .trim()
                 if (cleanText.isNotEmpty()) {
                     result.add(LyricLine(
                         timeMs = lineStart,

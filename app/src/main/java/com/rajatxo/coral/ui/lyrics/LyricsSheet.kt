@@ -137,7 +137,7 @@ fun LyricsSheet(
             try {
                 val lrcText = withContext(Dispatchers.IO) {
                     context.contentResolver.openInputStream(uri)?.use {
-                        it.bufferedReader().readText()
+                        it.bufferedReader(Charsets.UTF_8).readText()
                     }
                 }
                 if (lrcText.isNullOrBlank()) {
@@ -169,7 +169,7 @@ fun LyricsSheet(
             try {
                 val ttmlText = withContext(Dispatchers.IO) {
                     context.contentResolver.openInputStream(uri)?.use {
-                        it.bufferedReader().readText()
+                        it.bufferedReader(Charsets.UTF_8).readText()
                     }
                 }
                 if (ttmlText.isNullOrBlank()) {

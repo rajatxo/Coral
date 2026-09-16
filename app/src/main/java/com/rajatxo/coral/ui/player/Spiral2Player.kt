@@ -481,23 +481,23 @@ fun Spiral2Player(
                             var result: String? = null
                             try {
                                 context.contentResolver.openInputStream(Uri.parse("$baseName.lrc"))?.use { s ->
-                                    result = s.bufferedReader().readText()
+                                    result = s.bufferedReader(Charsets.UTF_8).readText()
                                 }
                             } catch (_: Exception) { }
                             if (result == null) {
                                 try {
                                     context.contentResolver.openInputStream(Uri.parse("$baseName.ttml"))?.use { s ->
-                                        result = s.bufferedReader().readText()
+                                        result = s.bufferedReader(Charsets.UTF_8).readText()
                                     }
                                 } catch (_: Exception) { }
                             }
                             if (result == null && uriStr.startsWith("file://")) {
                                 val basePath = uriStr.removePrefix("file://").substringBeforeLast(".")
                                 val lrcFile = java.io.File("$basePath.lrc")
-                                if (lrcFile.exists()) result = lrcFile.readText()
+                                if (lrcFile.exists()) result = lrcFile.readText(Charsets.UTF_8)
                                 else {
                                     val ttmlFile = java.io.File("$basePath.ttml")
-                                    if (ttmlFile.exists()) result = ttmlFile.readText()
+                                    if (ttmlFile.exists()) result = ttmlFile.readText(Charsets.UTF_8)
                                 }
                             }
                             result
