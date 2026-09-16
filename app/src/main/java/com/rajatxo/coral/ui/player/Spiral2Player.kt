@@ -400,20 +400,37 @@ fun Spiral2Player(
     var showLyrics by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
     var showHeartPop by remember { mutableStateOf(false) }
-    // ─── Menu icon tap animation (rotation) ──────────────────────
+    // ─── Menu icon tap animation (rotate, stay rotated while menu open) ──
     val menuRotation = remember { androidx.compose.animation.core.Animatable(0f) }
     val menuCoroutineScope = rememberCoroutineScope()
-    fun animateMenuAndOpen() {
+    // ─── Shuffle + Repeat state (from MediaController) ────────────
+    var shuffleEnabled by remember { mutableStateOf(false) }
+    var repeatMode by remember { androidx.compose.runtime.mutableIntStateOf(androidx.media3.common.Player.REPEAT_MODE_OFF) }
+    LaunchedEffect(mediaController) {
+        mediaController?.let {
+            shuffleEnabled = it.shuffleModeEnabled
+            repeatMode = it.repeatMode
+        }
+    }
+    // ─── Sleep timer placeholder page ─────────────────────────────
+    var showSleepTimerPage by remember { mutableStateOf(false) }
+    fun toggleMenu() {
         menuCoroutineScope.launch {
-            menuRotation.animateTo(
-                targetValue = 90f,
-                animationSpec = androidx.compose.animation.core.tween(200)
-            )
-            showMoreMenu = true
-            menuRotation.animateTo(
-                targetValue = 0f,
-                animationSpec = androidx.compose.animation.core.tween(200)
-            )
+            if (showMoreMenu) {
+                // Closing: rotate back to 0
+                showMoreMenu = false
+                menuRotation.animateTo(
+                    targetValue = 0f,
+                    animationSpec = androidx.compose.animation.core.tween(200)
+                )
+            } else {
+                // Opening: rotate to 90° and stay
+                menuRotation.animateTo(
+                    targetValue = 90f,
+                    animationSpec = androidx.compose.animation.core.tween(200)
+                )
+                showMoreMenu = true
+            }
         }
     }
     LaunchedEffect(showHeartPop) {
@@ -437,7 +454,7 @@ fun Spiral2Player(
     val lyricLineText = if (lyricData != null && lyricData!!.synced && activeLineIndex >= 0) {
         lyricData!!.lines[activeLineIndex].text.ifBlank { "♪" }
     } else {
-        "lyrics"  // fallback when no synced lyrics
+        "Lyrics..."  // fallback when no synced lyrics
     }
 
     // ─── Seek bar state (buttery smooth, no thumb, thickens on drag) ──
@@ -684,6 +701,20 @@ fun Spiral2Player(
             }
         }
 
+        // ─── Light blur behind status bar (like Spiral) ──────────────
+        // A subtle blurred strip at the top so status bar icons are
+        // readable over the cover. Lighter than Spiral — just enough.
+        if (albumArtUri != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(60.dp)
+                    .align(Alignment.TopCenter)
+                    .blur(24.dp)
+                    .background(Color.Black.copy(alpha = 0.1f))
+            )
+        }
+
         // ─── Song name + Artist (LEFT-aligned, at the blend point) ───
         // Positioned where the cover's bottom fade begins.
         Column(
@@ -727,7 +758,7 @@ fun Spiral2Player(
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null
-                                ) { animateMenuAndOpen() }
+                                ) { toggleMenu() }
                         )
                     }
                     Row(
@@ -783,7 +814,7 @@ fun Spiral2Player(
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null
-                                ) { animateMenuAndOpen() }
+                                ) { toggleMenu() }
                         )
                     }
                 }
@@ -838,6 +869,204 @@ fun Spiral2Player(
             }
         }
 
+        // ─── Menu capsule popup (vertical glass capsule) ─────────────
+        // Appears when menu icon is tapped. Contains: Sleep Timer, Shuffle, Loop.
+        // Glass morphism capsule, positioned beside the menu icon (top-right).
+        androidx.compose.animation.AnimatedVisibility(
+            visible = showMoreMenu,
+            enter = androidx.compose.animation.fadeIn(animationSpec = tween(200)) +
+                androidx.compose.animation.scaleIn(animationSpec = tween(200), initialScale = 0.8f),
+            exit = androidx.compose.animation.fadeOut(animationSpec = tween(200)) +
+                androidx.compose.animation.scaleOut(animationSpec = tween(200), targetScale = 0.8f)
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = -28.dp, y = maxHeight * 0.65f + 40.dp)
+                    .padding(end = 28.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .width(160.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .drawBackdrop(
+                            backdrop = glassBackdrop,
+                            shape = { RoundedCornerShape(20.dp) },
+                            effects = {
+                                vibrancy()
+                                colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.5f)
+                                blur(16f.dp.toPx())
+                            },
+                            onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.3f)) }
+                        )
+                        .padding(vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Sleep Timer
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                showSleepTimerPage = true
+                                toggleMenu()
+                            }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = CoralIcons.Timer,
+                            contentDescription = "Sleep Timer",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "Sleep Timer",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontFamily = CalSansFamily,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    // Shuffle
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                mediaController?.let {
+                                    it.shuffleModeEnabled = !it.shuffleModeEnabled
+                                    shuffleEnabled = it.shuffleModeEnabled
+                                }
+                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                            }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = CoralIcons.Shuffle,
+                            contentDescription = "Shuffle",
+                            tint = if (shuffleEnabled) palette.accent else Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "Shuffle",
+                            color = if (shuffleEnabled) palette.accent else Color.White,
+                            fontSize = 14.sp,
+                            fontFamily = CalSansFamily,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    // Loop (cycles OFF → ALL → ONE)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                mediaController?.let {
+                                    val newMode = when (it.repeatMode) {
+                                        androidx.media3.common.Player.REPEAT_MODE_OFF ->
+                                            androidx.media3.common.Player.REPEAT_MODE_ALL
+                                        androidx.media3.common.Player.REPEAT_MODE_ALL ->
+                                            androidx.media3.common.Player.REPEAT_MODE_ONE
+                                        else -> androidx.media3.common.Player.REPEAT_MODE_OFF
+                                    }
+                                    it.repeatMode = newMode
+                                    repeatMode = newMode
+                                }
+                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                            }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = when (repeatMode) {
+                                androidx.media3.common.Player.REPEAT_MODE_OFF -> CoralIcons.RepeatOff
+                                androidx.media3.common.Player.REPEAT_MODE_ONE -> CoralIcons.Infinity
+                                else -> CoralIcons.Repeat
+                            },
+                            contentDescription = "Loop",
+                            tint = if (repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) palette.accent else Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = when (repeatMode) {
+                                androidx.media3.common.Player.REPEAT_MODE_OFF -> "Loop Off"
+                                androidx.media3.common.Player.REPEAT_MODE_ONE -> "Loop One"
+                                else -> "Loop All"
+                            },
+                            color = if (repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) palette.accent else Color.White,
+                            fontSize = 14.sp,
+                            fontFamily = CalSansFamily,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
+
+        // ─── Sleep timer placeholder page ────────────────────────────
+        if (showSleepTimerPage) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.7f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { showSleepTimerPage = false },
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 40.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(Color.Black.copy(alpha = 0.8f))
+                        .padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = CoralIcons.Timer,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Sleep Timer",
+                        color = Color.White,
+                        fontSize = 24.sp,
+                        fontFamily = CalSansFamily,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Coming soon",
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 14.sp,
+                        fontFamily = CalSansFamily
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Text(
+                        text = "Tap anywhere to close",
+                        color = Color.White.copy(alpha = 0.4f),
+                        fontSize = 12.sp,
+                        fontFamily = CalSansFamily
+                    )
+                }
+            }
+        }
+
         // ─── Bottom section: Lyrics + Timeline + Format + Prev/Play/Next ─
         var seekbarWidthPx by remember { mutableFloatStateOf(1f) }
         Column(
@@ -848,6 +1077,9 @@ fun Spiral2Player(
                 .padding(horizontal = 28.dp)
                 .padding(bottom = 32.dp)
         ) {
+            // Gap between artist name and lyrics line
+            Spacer(modifier = Modifier.height(12.dp))
+
             // ─── Lyrics text (1-line synced, sitting on top of timeline) ──
             // Bigger (18sp), pure white, with auto-shadow for readability
             // over bright backgrounds. Tap to open the full lyrics page.
@@ -922,7 +1154,7 @@ fun Spiral2Player(
                 )
             }
 
-            // Time labels + Format capsule (same line: 0:00  [FLAC]  -3:14)
+            // Time labels + Format text (same line: 0:00  FLAC  -3:14)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -934,31 +1166,15 @@ fun Spiral2Player(
                     fontSize = 11.sp,
                     fontFamily = CalSansFamily
                 )
-                // Format text in a small glass morphism capsule
+                // Format text — plain, no capsule, fixed (no shaking)
                 if (songFormat.isNotEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .drawBackdrop(
-                                backdrop = glassBackdrop,
-                                shape = { RoundedCornerShape(10.dp) },
-                                effects = {
-                                    vibrancy()
-                                    colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.5f)
-                                    blur(8f.dp.toPx())
-                                },
-                                onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.2f)) }
-                            )
-                            .padding(horizontal = 8.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = songFormat,
-                            color = Color.White.copy(alpha = 0.7f),
-                            fontSize = 10.sp,
-                            fontFamily = CalSansFamily,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
+                    Text(
+                        text = songFormat,
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 11.sp,
+                        fontFamily = CalSansFamily,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
                 Text(
                     text = "-" + formatTime(((1f - displayProgress) * durationMs).toLong()),

@@ -689,4 +689,38 @@ object CoralIcons {
         arcTo(8f, 8f, 0f, true, true, 20f, 14f)
     }
 
+    /** Repeat-off (slash through repeat) — repeat disabled. */
+    val RepeatOff: ImageVector = stroke("RepeatOff") {
+        moveTo(11f, 6f)
+        lineTo(21f, 6f)
+        lineTo(17f, 2f)
+        moveTo(17.9f, 17.9f)
+        arcTo(4f, 4f, 0f, false, true, 17f, 18f)
+        lineTo(3f, 18f)
+        lineTo(7f, 14f)
+        moveTo(2f, 2f)
+        lineTo(22f, 22f)
+        moveTo(21f, 13f)
+        verticalLineToRelative(1f)
+        arcTo(4f, 4f, 0f, false, true, 20.83f, 15.16f)
+        moveTo(21f, 6f)
+        lineTo(17f, 10f)
+        moveTo(3f, 11f)
+        verticalLineToRelative(-1f)
+        arcTo(4f, 4f, 0f, false, true, 6.1f, 7.1f)
+        moveTo(7f, 22f)
+        lineTo(3f, 18f)
+        lineTo(7f, 14f)
+    }
+
+    /** Infinity — repeat one (loop single track). */
+    val Infinity: ImageVector = stroke("Infinity") {
+        moveTo(6f, 16f)
+        curveTo(11f, 16f, 13f, 8f, 18f, 8f)
+        arcTo(4f, 4f, 0f, false, true, 18f, 16f)
+        curveTo(13f, 16f, 11f, 8f, 6f, 8f)
+        arcTo(4f, 4f, 0f, false, false, 6f, 16f)
+        close()
+    }
+
 }
