@@ -415,6 +415,7 @@ fun Spiral2Player(
     }
     // ─── Sleep timer placeholder page ─────────────────────────────
     var showSleepTimerPage by remember { mutableStateOf(false) }
+    var showQueue by remember { mutableStateOf(false) }
     fun toggleMenu() {
         menuCoroutineScope.launch {
             if (showMoreMenu) {
@@ -1042,6 +1043,16 @@ fun Spiral2Player(
                 .navigationBarsPadding()
                 .padding(horizontal = 28.dp)
                 .padding(bottom = 32.dp)
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures(
+                        onVerticalDrag = { _, dragAmount ->
+                            // Drag UP (negative dragAmount) to open queue
+                            if (dragAmount < -80f) {
+                                showQueue = true
+                            }
+                        }
+                    )
+                }
         ) {
             // Gap between artist name and lyrics line
             Spacer(modifier = Modifier.height(12.dp))
@@ -1261,6 +1272,14 @@ fun Spiral2Player(
                 onDismiss = { showLyrics = false },
                 onSeek = onSeek,
                 albumArtUri = albumArtUri
+            )
+        }
+
+        // ─── Queue page (drag up to open) ────────────────────────────
+        if (showQueue) {
+            com.rajatxo.coral.ui.screens.QueueScreen(
+                mediaController = mediaController,
+                onDismiss = { showQueue = false }
             )
         }
     }

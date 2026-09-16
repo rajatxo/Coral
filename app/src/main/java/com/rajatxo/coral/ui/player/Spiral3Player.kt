@@ -415,6 +415,7 @@ fun Spiral3Player(
     }
     // ─── Sleep timer placeholder page ─────────────────────────────
     var showSleepTimerPage by remember { mutableStateOf(false) }
+    var showQueue by remember { mutableStateOf(false) }
     fun toggleMenu() {
         menuCoroutineScope.launch {
             if (showMoreMenu) {
@@ -1064,6 +1065,15 @@ fun Spiral3Player(
                 .navigationBarsPadding()
                 .padding(horizontal = 28.dp)
                 .padding(bottom = 32.dp)
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures(
+                        onVerticalDrag = { _, dragAmount ->
+                            if (dragAmount < -80f) {
+                                showQueue = true
+                            }
+                        }
+                    )
+                }
         ) {
             // Gap between artist name and lyrics line
             Spacer(modifier = Modifier.height(12.dp))
@@ -1283,6 +1293,13 @@ fun Spiral3Player(
                 onDismiss = { showLyrics = false },
                 onSeek = onSeek,
                 albumArtUri = albumArtUri
+            )
+        }
+
+        if (showQueue) {
+            com.rajatxo.coral.ui.screens.QueueScreen(
+                mediaController = mediaController,
+                onDismiss = { showQueue = false }
             )
         }
     }
