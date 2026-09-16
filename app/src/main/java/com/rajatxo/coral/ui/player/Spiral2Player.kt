@@ -623,30 +623,16 @@ fun Spiral2Player(
             }
         }
 
-        // ─── Light blur at top behind status bar (like Spiral/Coral) ──
-        // A subtle blurred strip at the top so the status bar icons are
-        // readable over the cover. Lighter than Spiral/Coral — just enough.
-        if (albumArtUri != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(80.dp)
-                    .align(Alignment.TopCenter)
-                    .blur(32.dp)
-                    .background(Color.Black.copy(alpha = 0.15f))
-            )
-        }
-
-        // ─── Song name + Artist (lower, where the blending part starts) ─
-        // Positioned where the cover's bottom fade begins (~65% + a bit).
+        // ─── Song name + Artist (LEFT-aligned, at the blend point) ───
+        // Positioned where the cover's bottom fade begins.
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
-                .offset(y = maxHeight * 0.68f)  // lower, where blending starts
+                .offset(y = maxHeight * 0.65f)  // slightly higher
                 .padding(horizontal = 28.dp)
         ) {
-            // ── Song title (CENTERED, white, blend transition) ──
+            // ── Song title (LEFT-aligned, white, blend transition) ──
             Box(modifier = Modifier.fillMaxWidth()) {
                 if (xfActive && xfIncomingTitle.isNotEmpty()) {
                     val titleOutAlpha = kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
@@ -664,7 +650,7 @@ fun Spiral2Player(
                             alpha = titleOutAlpha
                             renderEffect = blurRenderEffect(8f * (1f - titleOutAlpha))
                         },
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Start
                     )
                     Text(
                         text = xfIncomingTitle,
@@ -679,7 +665,7 @@ fun Spiral2Player(
                             alpha = titleInAlpha
                             renderEffect = blurRenderEffect(8f * (1f - titleInAlpha))
                         },
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Start
                     )
                 } else {
                     Text(
@@ -692,12 +678,12 @@ fun Spiral2Player(
                         overflow = TextOverflow.Ellipsis,
                         style = TextStyle(shadow = textShadow),
                         modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Start
                     )
                 }
             }
             Spacer(modifier = Modifier.height(2.dp))
-            // ── Artist name (CENTERED, white 60%, blend transition) ──
+            // ── Artist name (LEFT-aligned, white 60%, blend transition) ──
             Box(modifier = Modifier.fillMaxWidth()) {
                 if (xfActive && xfIncomingArtist.isNotEmpty()) {
                     val artistOutAlpha = kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
@@ -710,7 +696,7 @@ fun Spiral2Player(
                         fontWeight = FontWeight.Normal,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
+                        textAlign = TextAlign.Start,
                         modifier = Modifier.fillMaxWidth().graphicsLayer {
                             alpha = artistOutAlpha
                             renderEffect = blurRenderEffect(6f * (1f - artistOutAlpha))
@@ -724,7 +710,7 @@ fun Spiral2Player(
                         fontWeight = FontWeight.Normal,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
+                        textAlign = TextAlign.Start,
                         modifier = Modifier.fillMaxWidth().graphicsLayer {
                             alpha = artistInAlpha
                             renderEffect = blurRenderEffect(6f * (1f - artistInAlpha))
@@ -739,7 +725,7 @@ fun Spiral2Player(
                         fontWeight = FontWeight.Normal,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
+                        textAlign = TextAlign.Start,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -756,6 +742,9 @@ fun Spiral2Player(
                 .padding(horizontal = 28.dp)
                 .padding(bottom = 32.dp)
         ) {
+            // Gap for future single lyrics line (one line ~20dp)
+            Spacer(modifier = Modifier.height(20.dp))
+
             // ─── CORAL SEEK BAR (exact copy from CoralPlayer) ──────────
             // Straight line, thickens on drag, no thumb, no animations.
             Box(
