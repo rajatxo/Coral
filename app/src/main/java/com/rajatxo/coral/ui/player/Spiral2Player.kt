@@ -63,6 +63,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
@@ -701,18 +702,27 @@ fun Spiral2Player(
             }
         }
 
-        // ─── Light blur behind status bar (like Spiral) ──────────────
-        // A subtle blurred strip at the top so status bar icons are
-        // readable over the cover. Lighter than Spiral — just enough.
+        // ─── Blurred album art behind status bar ─────────────────────
+        // A strip at the top showing the album art BLURRED (not a black
+        // overlay). The actual art is rendered here with a heavy blur so
+        // status bar icons are readable over it.
         if (albumArtUri != null) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(60.dp)
                     .align(Alignment.TopCenter)
-                    .blur(24.dp)
-                    .background(Color.Black.copy(alpha = 0.1f))
-            )
+                    .clipToBounds()
+            ) {
+                AsyncImage(
+                    model = albumArtUri,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .blur(32.dp)
+                )
+            }
         }
 
         // ─── Song name + Artist (LEFT-aligned, at the blend point) ───
