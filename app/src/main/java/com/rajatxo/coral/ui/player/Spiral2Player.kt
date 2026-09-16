@@ -568,8 +568,14 @@ fun Spiral2Player(
                         }
                     },
                     onVerticalDrag = { _, dragAmount ->
-                        coroutineScope.launch {
-                            dismissDragY.snapTo((dismissDragY.value + dragAmount).coerceAtLeast(0f))
+                        // Drag DOWN (positive) = dismiss player
+                        // Drag UP (negative) = open queue (only if at rest)
+                        if (dragAmount < -80f && dismissDragY.value == 0f) {
+                            showQueue = true
+                        } else {
+                            coroutineScope.launch {
+                                dismissDragY.snapTo((dismissDragY.value + dragAmount).coerceAtLeast(0f))
+                            }
                         }
                     }
                 )

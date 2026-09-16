@@ -568,8 +568,12 @@ fun Spiral3Player(
                         }
                     },
                     onVerticalDrag = { _, dragAmount ->
-                        coroutineScope.launch {
-                            dismissDragY.snapTo((dismissDragY.value + dragAmount).coerceAtLeast(0f))
+                        if (dragAmount < -80f && dismissDragY.value == 0f) {
+                            showQueue = true
+                        } else {
+                            coroutineScope.launch {
+                                dismissDragY.snapTo((dismissDragY.value + dragAmount).coerceAtLeast(0f))
+                            }
                         }
                     }
                 )
@@ -1065,15 +1069,6 @@ fun Spiral3Player(
                 .navigationBarsPadding()
                 .padding(horizontal = 28.dp)
                 .padding(bottom = 32.dp)
-                .pointerInput(Unit) {
-                    detectVerticalDragGestures(
-                        onVerticalDrag = { _, dragAmount ->
-                            if (dragAmount < -80f) {
-                                showQueue = true
-                            }
-                        }
-                    )
-                }
         ) {
             // Gap between artist name and lyrics line
             Spacer(modifier = Modifier.height(12.dp))
