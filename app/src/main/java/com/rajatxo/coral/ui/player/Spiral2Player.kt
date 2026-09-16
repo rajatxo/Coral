@@ -452,10 +452,15 @@ fun Spiral2Player(
         findActiveLineIndex(lyricData!!.lines, currentPositionMs)
     } else -1
     // The current lyric line text (1 line only)
-    val lyricLineText = if (lyricData != null && lyricData!!.synced && activeLineIndex >= 0) {
-        lyricData!!.lines[activeLineIndex].text.ifBlank { "♪" }
-    } else {
-        "Lyrics..."  // fallback when no synced lyrics
+    // - Synced lyrics available: show current line (or ♪ if line is blank)
+    // - Lyrics available but not synced: show ♪ (lyrics exist)
+    // - No lyrics at all: show "No Lyrics Available"
+    val lyricLineText = when {
+        lyricData != null && lyricData!!.synced && activeLineIndex >= 0 ->
+            lyricData!!.lines[activeLineIndex].text.ifBlank { "♪" }
+        lyricData != null && !lyricData!!.synced && lyricData!!.lines.isNotEmpty() -> "♪"
+        lyricData != null && lyricData!!.synced -> "♪"  // synced but no active line yet
+        else -> "No Lyrics Available"
     }
 
     // ─── Seek bar state (buttery smooth, no thumb, thickens on drag) ──
@@ -873,8 +878,8 @@ fun Spiral2Player(
                 Column(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .offset(y = 370.dp)
-                        .padding(end = 28.dp)
+                        .offset(y = 350.dp)
+                        .padding(end = 20.dp)
                         .width(52.dp)
                         .clip(RoundedCornerShape(26.dp))
                         .drawBackdrop(
