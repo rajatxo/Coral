@@ -568,14 +568,9 @@ fun Spiral2Player(
                         }
                     },
                     onVerticalDrag = { _, dragAmount ->
-                        // Drag DOWN (positive) = dismiss player
-                        // Drag UP (negative) = open queue (only if at rest)
-                        if (dragAmount < -80f && dismissDragY.value == 0f) {
-                            showQueue = true
-                        } else {
-                            coroutineScope.launch {
-                                dismissDragY.snapTo((dismissDragY.value + dragAmount).coerceAtLeast(0f))
-                            }
+                        // Drag DOWN (positive) = dismiss player only
+                        coroutineScope.launch {
+                            dismissDragY.snapTo((dismissDragY.value + dragAmount).coerceAtLeast(0f))
                         }
                     }
                 )
@@ -1281,8 +1276,18 @@ fun Spiral2Player(
             )
         }
 
-        // ─── Queue page (drag up to open) ────────────────────────────
-        if (showQueue) {
+        // ─── Queue page (slide up from bottom, smooth animation) ────
+        androidx.compose.animation.AnimatedVisibility(
+            visible = showQueue,
+            enter = androidx.compose.animation.slideInVertically(
+                animationSpec = androidx.compose.animation.core.tween(300),
+                initialOffsetY = { it }  // slide from bottom (full height)
+            ) + androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.slideOutVertically(
+                animationSpec = androidx.compose.animation.core.tween(300),
+                targetOffsetY = { it }  // slide to bottom (full height)
+            ) + androidx.compose.animation.fadeOut()
+        ) {
             com.rajatxo.coral.ui.screens.QueueScreen(
                 mediaController = mediaController,
                 onDismiss = { showQueue = false }

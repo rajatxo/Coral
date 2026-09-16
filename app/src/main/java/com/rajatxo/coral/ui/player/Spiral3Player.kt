@@ -568,12 +568,8 @@ fun Spiral3Player(
                         }
                     },
                     onVerticalDrag = { _, dragAmount ->
-                        if (dragAmount < -80f && dismissDragY.value == 0f) {
-                            showQueue = true
-                        } else {
-                            coroutineScope.launch {
-                                dismissDragY.snapTo((dismissDragY.value + dragAmount).coerceAtLeast(0f))
-                            }
+                        coroutineScope.launch {
+                            dismissDragY.snapTo((dismissDragY.value + dragAmount).coerceAtLeast(0f))
                         }
                     }
                 )
@@ -610,13 +606,13 @@ fun Spiral3Player(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(1f)
+                    .aspectRatio(1.15f)
                     .align(Alignment.TopCenter)
                     .offset(y = 80.dp)
                     .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen; alpha = outAlpha }
                     .drawWithContent {
                         drawContent()
-                        val topFadeHeightPx = 160.dp.toPx()
+                        val topFadeHeightPx = 120.dp.toPx()
                         val bottomFadeHeightPx = 140.dp.toPx()
                         val imageHeight = size.height
 
@@ -679,7 +675,7 @@ fun Spiral3Player(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(1f)
+                    .aspectRatio(1.15f)
                     .align(Alignment.TopCenter)
                     .offset(y = 80.dp)
                     .graphicsLayer {
@@ -688,7 +684,7 @@ fun Spiral3Player(
                     }
                     .drawWithContent {
                         drawContent()
-                        val topFade = 160.dp.toPx()
+                        val topFade = 120.dp.toPx()
                         val bottomFade = 140.dp.toPx()
                         val imgH = size.height
                         drawRect(
@@ -716,6 +712,20 @@ fun Spiral3Player(
                 )
             }
         }
+
+        // ─── 'Now Playing' text at top ───────────────────────────────
+        Text(
+            text = "NOW PLAYING",
+            color = Color.White.copy(alpha = 0.5f),
+            fontSize = 12.sp,
+            fontFamily = CalSansFamily,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(top = 8.dp),
+            textAlign = TextAlign.Center
+        )
 
         // Heart pop overlay (double-tap to favorite)
         if (showHeartPop) {
@@ -1069,6 +1079,15 @@ fun Spiral3Player(
                 .navigationBarsPadding()
                 .padding(horizontal = 28.dp)
                 .padding(bottom = 32.dp)
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures(
+                        onVerticalDrag = { _, dragAmount ->
+                            if (dragAmount < -150f) {
+                                showQueue = true
+                            }
+                        }
+                    )
+                }
         ) {
             // Gap between artist name and lyrics line
             Spacer(modifier = Modifier.height(12.dp))
@@ -1291,7 +1310,17 @@ fun Spiral3Player(
             )
         }
 
-        if (showQueue) {
+        androidx.compose.animation.AnimatedVisibility(
+            visible = showQueue,
+            enter = androidx.compose.animation.slideInVertically(
+                animationSpec = androidx.compose.animation.core.tween(300),
+                initialOffsetY = { it }
+            ) + androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.slideOutVertically(
+                animationSpec = androidx.compose.animation.core.tween(300),
+                targetOffsetY = { it }
+            ) + androidx.compose.animation.fadeOut()
+        ) {
             com.rajatxo.coral.ui.screens.QueueScreen(
                 mediaController = mediaController,
                 onDismiss = { showQueue = false }
