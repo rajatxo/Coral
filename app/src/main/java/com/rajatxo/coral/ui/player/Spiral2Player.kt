@@ -112,6 +112,7 @@ import com.rajatxo.coral.util.CoralPalette
 import com.rajatxo.coral.util.PaletteCache
 import com.rajatxo.coral.util.extractPalette
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.cos
@@ -458,12 +459,34 @@ fun Spiral2Player(
         } catch (_: Exception) { }
     }
     // ─── Embedded lyrics extraction (for the full lyrics sheet) ───
-    // Triggered when the song changes. Read by LyricsSheet as the top-
-    // priority lyric source (above imported .lrc and fetched from LrcLib).
-    LaunchedEffect(albumArtUri) {
-        embeddedLyrics = if (albumArtUri != null) {
-            runCatching { lyricsRepository.getEmbeddedLyrics(albumArtUri) }.getOrNull()
-        } else null
+    // Uses the AUDIO file URI from mediaController (NOT albumArtUri which
+    // is just the thumbnail). Extracts lyrics from the file's metadata.
+    LaunchedEffect(mediaController, albumArtUri) {
+        embeddedLyrics = null
+        try {
+            mediaController?.let { controller ->
+                val audioUri = controller.currentMediaItem?.localConfiguration?.uri
+                if (audioUri != null) {
+                    val lyrics = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        lyricsRepository.getEmbeddedLyrics(audioUri)
+                    }
+                    embeddedLyrics = lyrics
+                    // If embedded lyrics found, also parse them for the strip
+                    if (lyrics != null) {
+                        val parsed = com.rajatxo.coral.data.lyrics.LrcParser.parse(lyrics)
+                        if (parsed.isNotEmpty()) {
+                            val hasWordSync = parsed.any { it.hasWordSync }
+                            lyricData = com.rajatxo.coral.data.lyrics.Lyric(
+                                synced = parsed.any { it.timeMs >= 0 },
+                                lines = parsed,
+                                source = com.rajatxo.coral.data.lyrics.LyricSource.EMBEDDED,
+                                hasWordSync = hasWordSync
+                            )
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) { }
     }
     val activeLineIndex = if (lyricData != null && lyricData!!.synced && lyricData!!.lines.isNotEmpty()) {
         findActiveLineIndex(lyricData!!.lines, currentPositionMs)
