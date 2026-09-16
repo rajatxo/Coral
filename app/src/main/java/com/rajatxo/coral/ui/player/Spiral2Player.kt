@@ -357,12 +357,27 @@ fun Spiral2Player(
     // ─── Playback position polling ────────────────────────────────────
     var currentPositionMs by remember { mutableStateOf(0L) }
     var durationMs by remember { mutableStateOf(0L) }
+    // ─── Song format detection (FLAC, MP3, etc) ─────────────────────
+    var songFormat by remember { mutableStateOf("") }
     LaunchedEffect(mediaController, isPlaying) {
         while (true) {
             try {
                 mediaController?.let {
                     currentPositionMs = it.currentPosition.coerceAtLeast(0L)
                     durationMs = it.duration.coerceAtLeast(0L)
+                    // Detect format from the current media item's URI extension
+                    val uri = it.currentMediaItem?.localConfiguration?.uri?.toString() ?: ""
+                    songFormat = when {
+                        uri.endsWith(".flac", ignoreCase = true) -> "FLAC"
+                        uri.endsWith(".mp3", ignoreCase = true) -> "MP3"
+                        uri.endsWith(".m4a", ignoreCase = true) -> "M4A"
+                        uri.endsWith(".aac", ignoreCase = true) -> "AAC"
+                        uri.endsWith(".ogg", ignoreCase = true) -> "OGG"
+                        uri.endsWith(".opus", ignoreCase = true) -> "OPUS"
+                        uri.endsWith(".wav", ignoreCase = true) -> "WAV"
+                        uri.endsWith(".wma", ignoreCase = true) -> "WMA"
+                        else -> ""
+                    }
                 }
             } catch (_: Exception) { }
             delay(if (isPlaying) 200L else 1000L)
@@ -632,54 +647,97 @@ fun Spiral2Player(
                 .offset(y = maxHeight * 0.65f)  // slightly higher
                 .padding(horizontal = 28.dp)
         ) {
-            // ── Song title (LEFT-aligned, white, blend transition) ──
+            // ── Song title + Menu icon (LEFT-aligned title, menu on right) ──
             Box(modifier = Modifier.fillMaxWidth()) {
                 if (xfActive && xfIncomingTitle.isNotEmpty()) {
                     val titleOutAlpha = kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
                     val titleInAlpha = kotlin.math.sin(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
-                    Text(
-                        text = title,
-                        color = Color.White,
-                        fontSize = 26.sp,
-                        fontFamily = CalSansFamily,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(shadow = textShadow),
+                    Row(
                         modifier = Modifier.fillMaxWidth().graphicsLayer {
                             alpha = titleOutAlpha
                             renderEffect = blurRenderEffect(8f * (1f - titleOutAlpha))
                         },
-                        textAlign = TextAlign.Start
-                    )
-                    Text(
-                        text = xfIncomingTitle,
-                        color = Color.White,
-                        fontSize = 26.sp,
-                        fontFamily = CalSansFamily,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(shadow = textShadow),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = title,
+                            color = Color.White,
+                            fontSize = 26.sp,
+                            fontFamily = CalSansFamily,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = TextStyle(shadow = textShadow),
+                            modifier = Modifier.weight(1f),
+                            textAlign = TextAlign.Start
+                        )
+                        Icon(
+                            imageVector = CoralIcons.Ellipsis,
+                            contentDescription = "Menu",
+                            tint = Color.White,
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) { showMoreMenu = true }
+                        )
+                    }
+                    Row(
                         modifier = Modifier.fillMaxWidth().graphicsLayer {
                             alpha = titleInAlpha
                             renderEffect = blurRenderEffect(8f * (1f - titleInAlpha))
                         },
-                        textAlign = TextAlign.Start
-                    )
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = xfIncomingTitle,
+                            color = Color.White,
+                            fontSize = 26.sp,
+                            fontFamily = CalSansFamily,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = TextStyle(shadow = textShadow),
+                            modifier = Modifier.weight(1f),
+                            textAlign = TextAlign.Start
+                        )
+                        Icon(
+                            imageVector = CoralIcons.Ellipsis,
+                            contentDescription = "Menu",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 } else {
-                    Text(
-                        text = title,
-                        color = Color.White,
-                        fontSize = 26.sp,
-                        fontFamily = CalSansFamily,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(shadow = textShadow),
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Start
-                    )
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = title,
+                            color = Color.White,
+                            fontSize = 26.sp,
+                            fontFamily = CalSansFamily,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = TextStyle(shadow = textShadow),
+                            modifier = Modifier.weight(1f),
+                            textAlign = TextAlign.Start
+                        )
+                        Icon(
+                            imageVector = CoralIcons.Ellipsis,
+                            contentDescription = "Menu",
+                            tint = Color.White,
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) { showMoreMenu = true }
+                        )
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(2.dp))
@@ -732,7 +790,7 @@ fun Spiral2Player(
             }
         }
 
-        // ─── Bottom section: Coral timeline + Prev/Play/Next ────────
+        // ─── Bottom section: Lyrics + Timeline + Format + Prev/Play/Next ─
         var seekbarWidthPx by remember { mutableFloatStateOf(1f) }
         Column(
             modifier = Modifier
@@ -742,8 +800,18 @@ fun Spiral2Player(
                 .padding(horizontal = 28.dp)
                 .padding(bottom = 32.dp)
         ) {
-            // Gap for future single lyrics line (one line ~20dp)
-            Spacer(modifier = Modifier.height(20.dp))
+            // ─── Lyrics text (sitting exactly on top of the timeline) ──
+            Text(
+                text = "lyrics",
+                color = Color.White.copy(alpha = 0.5f),
+                fontSize = 13.sp,
+                fontFamily = CalSansFamily,
+                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Start
+            )
+
+            Spacer(modifier = Modifier.height(2.dp))
 
             // ─── CORAL SEEK BAR (exact copy from CoralPlayer) ──────────
             // Straight line, thickens on drag, no thumb, no animations.
@@ -811,7 +879,20 @@ fun Spiral2Player(
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            // ─── Song format (centered, below timeline) ──────────────
+            if (songFormat.isNotEmpty()) {
+                Text(
+                    text = songFormat,
+                    color = Color.White.copy(alpha = 0.4f),
+                    fontSize = 10.sp,
+                    fontFamily = CalSansFamily,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             // ─── Triple-circle control pod (Prev | Play/Pause | Next) ───
             Row(
