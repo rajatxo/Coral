@@ -530,6 +530,24 @@ fun HomeScreen(
                         songToAddToPlaylist = songId
                     }
                 )
+            } else if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.SPIRAL_3) {
+                com.rajatxo.coral.ui.player.Spiral3Player(
+                    mediaController = mediaController,
+                    songId = currentSongId,
+                    title = currentSongTitle ?: "",
+                    artist = currentSongArtist ?: "",
+                    albumName = currentSongAlbum,
+                    albumArtUri = currentSongArt,
+                    isPlaying = isPlaying,
+                    onPlayPauseClick = onPlayPauseClick,
+                    onNextClick = onNextClick,
+                    onPrevClick = onPrevClick,
+                    onSeek = onSeek,
+                    onDismiss = onFullPlayerDismiss,
+                    onAddToPlaylist = { songId ->
+                        songToAddToPlaylist = songId
+                    }
+                )
             } else {
                 FullPlayer(
                     mediaController = mediaController,
