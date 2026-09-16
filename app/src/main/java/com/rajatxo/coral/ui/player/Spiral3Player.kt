@@ -607,11 +607,11 @@ fun Spiral3Player(
                     .fillMaxWidth()
                     .aspectRatio(1f)
                     .align(Alignment.TopCenter)
-                    .offset(y = 24.dp)
+                    .offset(y = 80.dp)
                     .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen; alpha = outAlpha }
                     .drawWithContent {
                         drawContent()
-                        val topFadeHeightPx = 64.dp.toPx()
+                        val topFadeHeightPx = 160.dp.toPx()
                         val bottomFadeHeightPx = 140.dp.toPx()
                         val imageHeight = size.height
 
@@ -676,14 +676,14 @@ fun Spiral3Player(
                     .fillMaxWidth()
                     .aspectRatio(1f)
                     .align(Alignment.TopCenter)
-                    .offset(y = 24.dp)
+                    .offset(y = 80.dp)
                     .graphicsLayer {
                         compositingStrategy = CompositingStrategy.Offscreen
                         alpha = inAlpha
                     }
                     .drawWithContent {
                         drawContent()
-                        val topFade = 64.dp.toPx()
+                        val topFade = 160.dp.toPx()
                         val bottomFade = 140.dp.toPx()
                         val imgH = size.height
                         drawRect(
