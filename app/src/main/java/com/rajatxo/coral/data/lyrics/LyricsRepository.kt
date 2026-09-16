@@ -124,64 +124,14 @@ class LyricsRepository(private val context: Context) {
 
             // Try multiple metadata keys for lyrics.
             // Key 19 = METADATA_KEY_LYRICS (hidden in SDK but works on most devices)
-            // Key 15 = METADATA_KEY_WRITER (sometimes stores lyrics)
-            // Also try the official key if available (API 29+)
             val lyrics = retriever.extractMetadata(19)  // METADATA_KEY_LYRICS
-                ?: retriever.extractMetadata(15)        // METADATA_KEY_WRITER
-                ?: retriever.extractMetadata(20)        // METADATA_KEY_LYRICS (alt)
-                ?: try {
-                    // Try using reflection for the hidden LYRICS constant
-                    val field = MediaMetadataRetriever::class.java
-                        .getDeclaredField("METADATA_KEY_LYRICS")
-                    field.isAccessible = true
-                    val key = field.getInt(null)
-                    retriever.extractMetadata(key)
-                } catch (_: Exception) { null }
+                ?: retriever.extractMetadata(15)        // METADATA_KEY_WRITER (sometimes stores lyrics)
 
-            if (!lyrics.isNullOrBlank()) {
-                lyrics
-            } else {
-                // Fallback: try reading directly from the file for FLAC Vorbis comments
-                tryExtractLyricsFromFile(uri)
-            }
+            if (!lyrics.isNullOrBlank()) lyrics else null
         } catch (_: Exception) {
             null
         } finally {
             try { retriever.release() } catch (_: Exception) { }
-        }
-    }
-
-    /**
-     * Fallback: try to extract lyrics directly from the audio file.
-     * Works for FLAC (Vorbis comments: LYRICS, UNSYNCEDLYRICS, SYNCEDLYRICS)
-     * and some MP3 files.
-     */
-    private fun tryExtractLyricsFromFile(uri: Uri): String? {
-        return try {
-            val tempFile = java.io.File.createTempFile("coral_lyrics", ".tmp", context.cacheDir)
-            context.contentResolver.openInputStream(uri)?.use { input ->
-                tempFile.outputStream().use { output -> input.copyTo(output) }
-            } ?: return null
-
-            // Read as text and search for LRC patterns
-            val text = tempFile.readText(charset = Charsets.ISO_8859_1)
-            tempFile.delete()
-
-            // Search for LRC timestamps pattern in the binary data
-            val lrcPattern = Regex("""\[\d{1,2}:\d{2}[.:]\d{1,3}\].*""")
-            val matches = lrcPattern.findAll(text).map { it.value }.toList()
-
-            if (matches.isNotEmpty()) {
-                // Found LRC data embedded in the file
-                matches.joinToString("\n")
-            } else {
-                // Search for plain text lyrics (UNSYNCEDLYRICS in FLAC)
-                val flacPattern = Regex("""(?:LYRICS|UNSYNCEDLYRICS|SYNCEDLYRICS)=([^\x00]*)""")
-                val flacMatch = flacPattern.find(text)
-                flacMatch?.groupValues?.getOrNull(1)?.takeIf { it.isNotBlank() }
-            }
-        } catch (_: Exception) {
-            null
         }
     }
 
