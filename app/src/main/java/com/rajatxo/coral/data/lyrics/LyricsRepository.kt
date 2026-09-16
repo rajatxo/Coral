@@ -111,25 +111,29 @@ class LyricsRepository(private val context: Context) {
 
             if (!lrc.isNullOrBlank()) {
                 val lines = LrcParser.parse(lrc)
+                val hasWordSync = lines.any { it.hasWordSync }
                 if (lines.isNotEmpty()) {
                     return Lyric(
                         synced = true,
                         lines = lines,
                         source = LyricSource.CACHE,
                         trackName = trackName,
-                        artistName = artistName
+                        artistName = artistName,
+                        hasWordSync = hasWordSync
                     )
                 }
             }
             if (!plain.isNullOrBlank()) {
                 val lines = LrcParser.parse(plain)
+                val hasWordSync = lines.any { it.hasWordSync }
                 if (lines.isNotEmpty()) {
                     return Lyric(
                         synced = false,
                         lines = lines,
                         source = LyricSource.CACHE,
                         trackName = trackName,
-                        artistName = artistName
+                        artistName = artistName,
+                        hasWordSync = false
                     )
                 }
             }
@@ -233,25 +237,29 @@ class LyricsRepository(private val context: Context) {
 
             if (!syncedLyrics.isNullOrBlank()) {
                 val lines = LrcParser.parse(syncedLyrics)
+            val hasWordSync = lines.any { it.hasWordSync }
                 if (lines.isNotEmpty()) {
                     return Lyric(
                         synced = true,
                         lines = lines,
                         source = LyricSource.NETWORK,
                         trackName = trackName,
-                        artistName = artistName
+                        artistName = artistName,
+                        hasWordSync = hasWordSync
                     )
                 }
             }
             if (!plainLyrics.isNullOrBlank()) {
                 val lines = LrcParser.parse(plainLyrics)
+            val hasWordSync = lines.any { it.hasWordSync }
                 if (lines.isNotEmpty()) {
                     return Lyric(
                         synced = false,
                         lines = lines,
                         source = LyricSource.NETWORK,
                         trackName = trackName,
-                        artistName = artistName
+                        artistName = artistName,
+                        hasWordSync = false
                     )
                 }
             }

@@ -1,15 +1,33 @@
 package com.rajatxo.coral.data.lyrics
 
 /**
+ * A single word with timing for word-by-word (karaoke) sync.
+ *
+ * @param text      The word text.
+ * @param startTime Start time in MILLISECONDS (when this word starts being sung).
+ * @param endTime   End time in MILLISECONDS (when this word finishes being sung).
+ */
+data class WordTimestamp(
+    val text: String,
+    val startTime: Long,
+    val endTime: Long
+)
+
+/**
  * One line of synced lyrics.
  *
  * @param timeMs  When this line should appear (epoch-style: 0 = song start).
- * @param text    The lyric text (may be empty — represents an instrumental gap).
+ * @param text    The full line text (may be empty — represents an instrumental gap).
+ * @param words   Word-by-word timing for karaoke. Null = line-synced only (no word timing).
  */
 data class LyricLine(
     val timeMs: Long,
-    val text: String
-)
+    val text: String,
+    val words: List<WordTimestamp>? = null
+) {
+    /** True if this line has word-by-word timing (karaoke). */
+    val hasWordSync: Boolean get() = words != null && words.isNotEmpty()
+}
 
 /**
  * Parsed lyrics for a single track.
@@ -20,16 +38,17 @@ data class LyricLine(
  * @param source     Where the lyrics came from (cache, network, manual search).
  * @param trackName  Track name as returned by LrcLib (for display in the UI).
  * @param artistName Artist name as returned by LrcLib.
+ * @param hasWordSync True if ANY line has word-by-word timing.
  */
 data class Lyric(
     val synced: Boolean,
     val lines: List<LyricLine>,
     val source: LyricSource,
     val trackName: String? = null,
-    val artistName: String? = null
+    val artistName: String? = null,
+    val hasWordSync: Boolean = false
 ) {
     companion object {
-        /** Empty lyrics — used as a placeholder while loading or when none found. */
         val Empty = Lyric(
             synced = false,
             lines = emptyList(),
@@ -39,8 +58,9 @@ data class Lyric(
 }
 
 enum class LyricSource {
-    CACHE,   // loaded from on-disk cache
-    NETWORK, // freshly fetched from LrcLib
-    MANUAL,  // user manually picked a match
-    NONE     // no lyrics found yet
+    CACHE,
+    NETWORK,
+    EMBEDDED,
+    MANUAL,
+    NONE
 }

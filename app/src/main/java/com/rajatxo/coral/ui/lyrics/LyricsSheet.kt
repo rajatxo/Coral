@@ -1,13 +1,19 @@
 package com.rajatxo.coral.ui.lyrics
 
 import android.net.Uri
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,9 +23,10 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -32,13 +39,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -47,42 +60,25 @@ import coil3.compose.AsyncImage
 import com.rajatxo.coral.data.lyrics.Lyric
 import com.rajatxo.coral.data.lyrics.LyricLine
 import com.rajatxo.coral.data.lyrics.LyricsRepository
+import com.rajatxo.coral.data.lyrics.WordTimestamp
 import com.rajatxo.coral.ui.icons.CoralIcons
+import com.rajatxo.coral.ui.theme.CalSansFamily
+import com.rajatxo.coral.util.CoralPalette
+import com.rajatxo.coral.util.extractPalette
 import kotlinx.coroutines.delay
+import kotlin.math.PI
+import kotlin.math.sin
 
 /**
- * Karaoke-style lyrics sheet — Phase B overnight feature.
+ * Cinematic lyrics sheet — ArchiveTune-inspired.
  *
- * What makes this "karaoke" vs the old lyrics sheet:
- *
- *  1. ACTIVE LINE GROWS: The currently-singing line is 22sp Bold + coral.
- *     Past/future lines are 17sp Normal + 30% opacity. The size + weight
- *     transition animates smoothly (tween 300ms) when the active line
- *     changes — feels alive, not jumpy.
- *
- *  2. SMOOTH AUTO-SCROLL: When the active line changes, the LazyColumn
- *     animates to bring the active line to roughly 1/3 from the top of
- *     the viewport (not centered — centered feels unnatural, 1/3 is the
- *     "reading position" your eye naturally rests at).
- *
- *  3. FADE GRADIENTS (top + bottom): Lines fade out as they scroll
- *     beyond the top or bottom of the viewport — no harsh edges where
- *     lines appear/disappear. Achieved with a vertical gradient overlay.
- *
- *  4. 60fps POSITION TRACKING: Polls the playback position every 200ms
- *     (5x faster than before) so the active line updates feel instant.
- *     The poller is wrapped in try-catch so service hiccups don't crash.
- *
- *  5. TAP-TO-SEEK: Tap any synced line to jump playback to that line's
- *     timestamp. Instant re-sync — no waiting for the next poll.
- *
- *  6. PROGRESSIVE OPACITY: Lines near the active line are brighter than
- *     lines far away. This creates a "spotlight" effect on the active
- *     line without using any blur (which would kill performance).
- *       - Active line: 100% opacity, coral, 22sp Bold
- *       - 1 line away: 60% opacity, white, 17sp Normal
- *       - 2 lines away: 35% opacity, white, 17sp Normal
- *       - 3+ lines away: 20% opacity, white, 17sp Normal
+ * Features:
+ *  1. Blurred album art background (46dp blur, 0.62 alpha) + gradient scrim
+ *  2. Word-by-word karaoke animation (sweep fill + bounce + glow)
+ *  3. Progressive opacity by distance from active line
+ *  4. Smooth auto-scroll
+ *  5. Top/bottom fade gradients
+ *  6. Tap-to-seek on any line
  */
 @Composable
 fun LyricsSheet(
@@ -103,8 +99,8 @@ fun LyricsSheet(
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var refreshTrigger by remember { mutableStateOf(0) }
+    var palette by remember { mutableStateOf(CoralPalette.Default) }
 
-    // Fetch lyrics when the song changes OR when refreshTrigger changes
     LaunchedEffect(trackName, artistName, refreshTrigger) {
         if (trackName.isBlank() || artistName.isBlank()) {
             isLoading = false
@@ -115,19 +111,9 @@ fun LyricsSheet(
         error = null
         try {
             val fetched = if (refreshTrigger == 0) {
-                repository.getLyrics(
-                    track = trackName,
-                    artist = artistName,
-                    album = albumName,
-                    durationMs = durationMs
-                )
+                repository.getLyrics(trackName, artistName, albumName, durationMs)
             } else {
-                repository.refreshLyrics(
-                    track = trackName,
-                    artist = artistName,
-                    album = albumName,
-                    durationMs = durationMs
-                )
+                repository.refreshLyrics(trackName, artistName, albumName, durationMs)
             }
             lyric = fetched
             if (fetched == null) error = "No lyrics found for this track"
@@ -137,71 +123,124 @@ fun LyricsSheet(
         isLoading = false
     }
 
-    fun refresh() {
-        refreshTrigger++
+    LaunchedEffect(albumArtUri) {
+        if (albumArtUri != null) {
+            extractPalette(context, albumArtUri)?.let { palette = it }
+        }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        // Blurred album cover background (BitChord-style)
+    fun refresh() { refreshTrigger++ }
+
+    // ═══ Background: blurred album art + gradient scrim ═════════════
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Blurred album art
         if (albumArtUri != null) {
             AsyncImage(
                 model = albumArtUri,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().blur(64.dp)
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(46.dp)
+                    .graphicsLayer { alpha = 0.62f }
             )
         }
-        // Dark overlay for text legibility
+
+        // Gradient scrim (palette colors or fallback)
+        val scrimColors = listOf(
+            palette.tertiary.copy(alpha = 0.88f),
+            palette.secondary.copy(alpha = 0.76f),
+            palette.tertiary.copy(alpha = 0.96f)
+        )
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.75f))
+                .background(Brush.verticalGradient(scrimColors))
         )
-        Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-            // Top bar
+
+        // Black tint
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.18f)))
+
+        // Bottom scrim
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(120.dp)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.28f))
+                    )
+                )
+        )
+
+        // ═══ Content ═════════════════════════════════════════════════
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+        ) {
+            // ─── Header ──────────────────────────────────────────────
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Thumbnail
+                if (albumArtUri != null) {
+                    AsyncImage(
+                        model = albumArtUri,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.White.copy(alpha = 0.18f))
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                // Title + artist
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = trackName,
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontFamily = CalSansFamily,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = artistName,
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 13.sp,
+                        fontFamily = CalSansFamily,
+                        maxLines = 1
+                    )
+                }
+                // Close button
                 Box(
                     modifier = Modifier
                         .size(40.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(Color.White.copy(alpha = 0.10f))
-                        .clickable(onClick = onDismiss),
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.18f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { onDismiss() },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = CoralIcons.ChevronDown,
-                        contentDescription = "Close lyrics",
+                        contentDescription = "Close",
                         tint = Color.White,
                         modifier = Modifier.size(22.dp)
                     )
                 }
-                Text(
-                    text = "LYRICS",
-                    color = Color.White.copy(alpha = 0.6f),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.5.sp
-                )
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(Color.White.copy(alpha = 0.10f))
-                        .clickable { refresh() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(text = "↻", color = Color.White, fontSize = 18.sp)
-                }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
+            // ─── Lyrics content ──────────────────────────────────────
             when {
                 isLoading -> {
                     Box(
@@ -211,11 +250,7 @@ fun LyricsSheet(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             CircularProgressIndicator(color = Color.White)
                             Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                text = "Searching LrcLib...",
-                                color = Color(0xFFB0B0B0),
-                                fontSize = 13.sp
-                            )
+                            Text("Searching...", color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp)
                         }
                     }
                 }
@@ -225,41 +260,25 @@ fun LyricsSheet(
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(text = "🎵", fontSize = 48.sp)
+                            Text("♪", fontSize = 48.sp, color = Color.White.copy(alpha = 0.5f))
                             Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                text = error ?: "No lyrics found",
-                                color = Color.White,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                textAlign = TextAlign.Center
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "Coral searched LrcLib for \"$trackName\" by $artistName",
-                                color = Color(0xFFB0B0B0),
-                                fontSize = 12.sp,
-                                textAlign = TextAlign.Center
-                            )
+                            Text(error ?: "No lyrics", color = Color.White, fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
                             Spacer(modifier = Modifier.height(24.dp))
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(24.dp))
-                                    .background(Color.White)
+                                    .background(Color.White.copy(alpha = 0.2f))
                                     .clickable { refresh() }
                                     .padding(horizontal = 32.dp, vertical = 12.dp)
                             ) {
-                                Text(
-                                    text = "Try again",
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Text("Try again", color = Color.White, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                 }
                 lyric != null -> {
-                    KaraokeLyricsContent(
+                    CinematicLyricsContent(
                         lyric = lyric!!,
                         currentPositionMs = currentPositionMs,
                         onSeek = onSeek
@@ -270,33 +289,27 @@ fun LyricsSheet(
     }
 }
 
-/**
- * The karaoke-style lyrics renderer.
- *
- * Finds the currently-active line based on playback position, then renders
- * all lines with the active one highlighted (coral, 22sp Bold) and others
- * faded based on their distance from the active line.
- */
+// ═══ Cinematic lyrics content with word-by-word karaoke ═════════════
+
 @Composable
-private fun KaraokeLyricsContent(
+private fun CinematicLyricsContent(
     lyric: Lyric,
     currentPositionMs: Long,
     onSeek: (Long) -> Unit
 ) {
     if (!lyric.synced) {
-        // Plain lyrics — just show them centered (no karaoke effect possible)
+        // Plain lyrics
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                horizontal = 32.dp, vertical = 32.dp
-            ),
+            contentPadding = PaddingValues(horizontal = 32.dp, vertical = 32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            items(lyric.lines) { line ->
+            items(lyric.lines.size) { index ->
                 Text(
-                    text = line.text,
+                    text = lyric.lines[index].text,
                     color = Color.White.copy(alpha = 0.85f),
                     fontSize = 18.sp,
+                    fontFamily = CalSansFamily,
                     lineHeight = 26.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
@@ -306,18 +319,15 @@ private fun KaraokeLyricsContent(
         return
     }
 
-    // Find the currently-active line index based on playback position
     val activeIndex = remember(lyric.lines, currentPositionMs) {
         findActiveLineIndex(lyric.lines, currentPositionMs)
     }
 
     val listState = rememberLazyListState()
 
-    // Auto-scroll to keep the active line roughly 1/3 from the top of viewport
+    // Auto-scroll: active line at ~1/3 from top
     LaunchedEffect(activeIndex) {
         if (activeIndex >= 0 && activeIndex < lyric.lines.size) {
-            // Target: active line at index (activeIndex - 3) so the active line
-            // appears about 1/3 down the viewport (assuming ~9 visible lines).
             val targetScroll = (activeIndex - 3).coerceAtLeast(0)
             listState.animateScrollToItem(targetScroll)
         }
@@ -327,25 +337,27 @@ private fun KaraokeLyricsContent(
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                horizontal = 24.dp,
-                vertical = 80.dp  // generous top/bottom so first/last lines can be centered
-            ),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 80.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             items(lyric.lines.size) { index ->
                 val line = lyric.lines[index]
                 val distance = kotlin.math.abs(index - activeIndex)
-                KaraokeLine(
+                val isActive = index == activeIndex
+                val isPast = index < activeIndex
+
+                CinematicLine(
                     line = line,
-                    isActive = index == activeIndex,
+                    isActive = isActive,
+                    isPast = isPast,
                     distanceFromActive = distance,
+                    currentPositionMs = currentPositionMs,
                     onSeek = onSeek
                 )
             }
         }
 
-        // Top fade gradient (lines fade out as they scroll past the top)
+        // Top fade gradient
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -353,11 +365,7 @@ private fun KaraokeLyricsContent(
                 .align(Alignment.TopCenter)
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Black,
-                            Color.Black.copy(alpha = 0.6f),
-                            Color.Transparent
-                        )
+                        colors = listOf(Color.Black.copy(alpha = 0.6f), Color.Transparent)
                     )
                 )
         )
@@ -370,11 +378,7 @@ private fun KaraokeLyricsContent(
                 .align(Alignment.BottomCenter)
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.Black.copy(alpha = 0.6f),
-                            Color.Black
-                        )
+                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f))
                     )
                 )
         )
@@ -382,60 +386,228 @@ private fun KaraokeLyricsContent(
 }
 
 /**
- * A single karaoke line — animates size, weight, color, and opacity based
- * on whether it's the active line and how far it is from the active line.
+ * A single cinematic lyric line.
+ * - Active line: full opacity, 26sp, bold, word-by-word karaoke animation
+ * - Past lines: 52% opacity (1 away), 30% (2), 18% (3), 10% (4+)
+ * - Future lines: same opacity scale
  */
 @Composable
-private fun KaraokeLine(
+private fun CinematicLine(
     line: LyricLine,
     isActive: Boolean,
+    isPast: Boolean,
     distanceFromActive: Int,
+    currentPositionMs: Long,
     onSeek: (Long) -> Unit
 ) {
-    // Progressive opacity based on distance from active line:
-    //   active: 100%, 1 away: 60%, 2 away: 35%, 3+ away: 20%
+    // Progressive opacity by distance
     val targetAlpha = when {
         isActive -> 1f
-        distanceFromActive == 1 -> 0.6f
-        distanceFromActive == 2 -> 0.35f
-        else -> 0.2f
+        distanceFromActive == 1 -> 0.52f
+        distanceFromActive == 2 -> 0.30f
+        distanceFromActive == 3 -> 0.18f
+        else -> 0.10f
     }
     val animatedAlpha by animateFloatAsState(
         targetValue = targetAlpha,
-        animationSpec = tween(300),
+        animationSpec = tween(if (isActive) 330 else 500, easing = androidx.compose.animation.core.FastOutSlowInEasing),
         label = "lineAlpha"
     )
 
-    // Size + weight for active vs inactive
-    val fontSize = if (isActive) 24.sp else 18.sp
-    val fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal
-    val color = if (isActive) Color.White else Color.White
+    // Scale: active = 1.0, inactive = 0.95
+    val targetScale = if (isActive) 1f else 0.95f
+    val animatedScale by animateFloatAsState(
+        targetValue = targetScale,
+        animationSpec = tween(166, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+        label = "lineScale"
+    )
 
-    Text(
-        text = line.text.ifBlank { "♪" },
-        color = color,
-        fontSize = fontSize,
-        fontWeight = fontWeight,
-        textAlign = TextAlign.Center,
-        lineHeight = if (isActive) 30.sp else 24.sp,
+    val fontSize = 26.sp
+    val fontWeight = if (isActive || isPast) FontWeight.ExtraBold else FontWeight.SemiBold
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .alpha(animatedAlpha)
-            .clickable {
-                if (line.timeMs >= 0) onSeek(line.timeMs)
+            .graphicsLayer {
+                alpha = animatedAlpha
+                scaleX = animatedScale
+                scaleY = animatedScale
             }
-    )
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { if (line.timeMs >= 0) onSeek(line.timeMs) }
+    ) {
+        if (isActive && line.hasWordSync && line.words != null) {
+            // ─── Word-by-word karaoke line ──────────────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                line.words.forEach { word ->
+                    AnimatedWord(
+                        word = word,
+                        currentPositionMs = currentPositionMs,
+                        fontSize = fontSize,
+                        fontWeight = fontWeight,
+                        modifier = Modifier.padding(end = 4.dp)
+                    )
+                }
+            }
+        } else {
+            // ─── Regular line (no word sync or inactive) ────────────
+            Text(
+                text = line.text.ifBlank { "♪" },
+                color = Color.White,
+                fontSize = fontSize,
+                fontFamily = CalSansFamily,
+                fontWeight = fontWeight,
+                lineHeight = (fontSize.value * 1.35f).sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
 }
 
 /**
- * Find the index of the lyric line that should currently be active.
+ * A single animated word with karaoke sweep fill + bounce + glow.
  *
- * "Active" = the last line whose timestamp is <= currentPositionMs.
- * If we're before the first timestamp, returns -1 (nothing active).
+ * Animation details (from ArchiveTune LyricsV2.AnimatedWordV2):
+ * - Sweep fill 0→1 with soft 8dp edge (BlendMode.DstIn)
+ * - Bounce: scale 1 + 0.015 * sin(π * progress)
+ * - Float: -4px * sin(π * progress)
+ * - Glow: shadow alpha 0.45, radius 12
+ * - Min sweep duration: 180ms, LinearEasing
+ */
+@Composable
+private fun AnimatedWord(
+    word: WordTimestamp,
+    currentPositionMs: Long,
+    fontSize: androidx.compose.ui.unit.TextUnit,
+    fontWeight: FontWeight,
+    modifier: Modifier = Modifier
+) {
+    val density = LocalDensity.current
+    val wordStartMs = word.startTime
+    val wordEndMs = word.endTime
+    val isWordComplete = currentPositionMs >= wordEndMs
+    val isWordActive = currentPositionMs >= wordStartMs && currentPositionMs < wordEndMs
+
+    // Sweep fill 0→1
+    val sweepAnimatable = remember(word) { Animatable(if (isWordComplete) 1f else 0f) }
+    LaunchedEffect(isWordActive, isWordComplete, wordStartMs, wordEndMs, currentPositionMs) {
+        when {
+            isWordComplete && sweepAnimatable.value < 1f -> {
+                sweepAnimatable.animateTo(1f, tween(80, easing = LinearEasing))
+            }
+            isWordActive -> {
+                val remainingMs = (wordEndMs - currentPositionMs).coerceAtLeast(1L)
+                sweepAnimatable.animateTo(1f, tween(maxOf(remainingMs, 180L).toInt(), easing = LinearEasing))
+            }
+            !isWordActive && !isWordComplete -> {
+                sweepAnimatable.snapTo(0f)
+            }
+        }
+    }
+    val progress = if (isWordComplete) 1f else sweepAnimatable.value
+    val sinProgress = sin(progress * PI).toFloat()
+
+    // BOUNCE: scale 1.0 → 1.015 peak mid-word
+    val wordScale = 1f + (0.015f * sinProgress)
+    // FLOAT: -4px peak mid-word
+    val targetFloat = if (isWordActive) -4f * sinProgress else 0f
+    val floatOffset by animateFloatAsState(
+        targetValue = targetFloat,
+        animationSpec = tween(if (isWordActive) 50 else 350, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+        label = "wordFloat"
+    )
+
+    // GLOW: peaks at half-sweep, then holds
+    val glowProgress = (progress * 2f).coerceAtMost(1f)
+    val glowAlpha = if (isWordActive) glowProgress * 0.45f else 0f
+    val glowRadius = if (isWordActive) glowProgress * 12f else 0f
+
+    val glowPadding = 10.dp
+    val fillTransitionWidth = 8f
+
+    val baseTextStyle = TextStyle(
+        color = Color.White.copy(alpha = 0.35f),
+        fontSize = fontSize,
+        fontFamily = CalSansFamily,
+        fontWeight = fontWeight
+    )
+
+    val fillShadow = if (isWordActive && glowAlpha > 0f) Shadow(
+        color = Color.White.copy(alpha = glowAlpha),
+        offset = androidx.compose.ui.geometry.Offset.Zero,
+        blurRadius = glowRadius.coerceAtLeast(1f)
+    ) else null
+
+    val fillTextStyle = TextStyle(
+        color = Color.White.copy(alpha = 1f),
+        fontSize = fontSize,
+        fontFamily = CalSansFamily,
+        fontWeight = fontWeight
+    ).let { if (fillShadow != null) it.copy(shadow = fillShadow) else it }
+
+    Box(
+        modifier = modifier
+            .graphicsLayer {
+                clip = false
+                translationY = floatOffset * density.density
+                scaleX = wordScale
+                scaleY = wordScale
+            }
+    ) {
+        // Base layer (dim)
+        Text(
+            text = word.text,
+            style = baseTextStyle,
+            modifier = Modifier.padding(glowPadding)
+        )
+
+        // Overlay layer (fill) — only if word is active/complete/past
+        if (progress > 0f) {
+            if (isWordActive && !isWordComplete) {
+                // Karaoke sweep wipe with soft edge
+                Text(
+                    text = word.text,
+                    style = fillTextStyle,
+                    modifier = Modifier
+                        .padding(glowPadding)
+                        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                        .drawWithContent {
+                            drawContent()
+                            val edgeWidth = fillTransitionWidth.dp.toPx()
+                            val center = (size.width + edgeWidth * 2) * progress - edgeWidth
+                            drawRect(
+                                brush = Brush.horizontalGradient(
+                                    colors = listOf(Color.Black, Color.Transparent),
+                                    startX = center - edgeWidth,
+                                    endX = center + edgeWidth
+                                ),
+                                blendMode = BlendMode.DstIn
+                            )
+                        }
+                )
+            } else {
+                // Complete or past — full fill
+                Text(
+                    text = word.text,
+                    style = fillTextStyle,
+                    modifier = Modifier.padding(glowPadding)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Find the active line index using binary search.
  */
 private fun findActiveLineIndex(lines: List<LyricLine>, positionMs: Long): Int {
     if (lines.isEmpty()) return -1
-    // Binary search for efficiency (lines are sorted by timeMs)
     var lo = 0
     var hi = lines.lastIndex
     var result = -1
@@ -447,7 +619,6 @@ private fun findActiveLineIndex(lines: List<LyricLine>, positionMs: Long): Int {
         } else if (lines[mid].timeMs > positionMs) {
             hi = mid - 1
         } else {
-            // timeMs < 0 (unsynced line) — skip
             lo = mid + 1
         }
     }

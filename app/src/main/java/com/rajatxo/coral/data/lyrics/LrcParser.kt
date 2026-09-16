@@ -1,42 +1,38 @@
 package com.rajatxo.coral.data.lyrics
 
 /**
- * Parses LRC-format synced lyrics into a list of [LyricLine]s.
+ * Parses LRC, Enhanced LRC, and TTML format lyrics into [LyricLine]s.
  *
- * LRC format example:
- *   [00:12.34]First line of lyrics
- *   [00:15.67]Second line
- *   [00:18.90]
- *   [00:21.45]Third line after a gap
- *
- * Timestamps may also appear in other formats:
- *   [mm:ss.xx]    (most common, what LrcLib returns)
- *   [mm:ss.xxx]    (some sources)
- *   [mm:ss]        (no fractional part)
- *
- * Multiple timestamps on a single line are supported:
- *   [00:12.34][00:45.67]Repeated chorus
- *
- * Plain (unsynced) lyrics have no timestamps — they're returned as a single
- * Lyric with synced=false and one LyricLine per text line at timeMs=-1.
+ * Supported formats:
+ *  - Standard LRC: [mm:ss.xx]text
+ *  - Enhanced LRC (word-by-word): [mm:ss.xx]<mm:ss.xx>word <mm:ss.xx>word
+ *  - TTML: <p begin="Xs" end="Ys"><span begin="Xs" end="Ys">word</span>...</p>
+ *  - Plain text (unsynced)
  */
 object LrcParser {
 
     private val TIMESTAMP_REGEX = Regex("""\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?]""")
+    // Enhanced LRC word timestamp: <mm:ss.xx> or <mm:ss.xxx>
+    private val WORD_TIMESTAMP_REGEX = Regex("""<(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?>""")
+    // Also supports <milliseconds> format: <12345>
+    private val WORD_MS_REGEX = Regex("""<(\d{1,8})>""")
 
     /**
-     * Parse an LRC string into a list of timed lines.
-     *
-     * Returns an empty list if the input is null/blank or contains no
-     * recognisable timestamps AND no plain text lines.
+     * Parse an LRC/enhanced-LRC/TTML string into a list of timed lines.
+     * Returns empty list if input is null/blank or contains no recognizable content.
      */
     fun parse(lrcText: String?): List<LyricLine> {
         if (lrcText.isNullOrBlank()) return emptyList()
 
+        // Check if it's TTML
+        val trimmed = lrcText.trim()
+        if (trimmed.startsWith("<") && (trimmed.contains("<tt") || trimmed.contains("ttml"))) {
+            return parseTtml(trimmed)
+        }
+
         val hasTimestamps = TIMESTAMP_REGEX.containsMatchIn(lrcText)
 
         if (!hasTimestamps) {
-            // Plain (unsynced) lyrics — split by newline, no timestamps.
             return lrcText.lines()
                 .map { it.trim() }
                 .filter { it.isNotEmpty() }
@@ -46,8 +42,6 @@ object LrcParser {
         val result = mutableListOf<LyricLine>()
 
         lrcText.lines().forEach { rawLine ->
-            // Skip metadata tags like [ar:Artist], [al:Album], [by:Editor] etc.
-            // These look like [xx:value] where xx is letters, not a timestamp.
             if (rawLine.startsWith("[") && !TIMESTAMP_REGEX.containsMatchIn(rawLine)) {
                 return@forEach
             }
@@ -55,28 +49,187 @@ object LrcParser {
             val matches = TIMESTAMP_REGEX.findAll(rawLine).toList()
             if (matches.isEmpty()) return@forEach
 
-            // The text after the last timestamp on this line
             val lastMatch = matches.last()
-            val text = rawLine.substring(lastMatch.range.last + 1).trim()
+            val textAfterTimestamp = rawLine.substring(lastMatch.range.last + 1).trim()
 
-            // Each timestamp on this line maps to the same text — this handles
-            // the [00:12.34][00:45.67]Repeated chorus pattern.
+            // Check for enhanced LRC word timestamps in the text
+            val words = parseEnhancedLrcWords(textAfterTimestamp, lastMatch)
+
+            // Clean text: remove word timestamp tags for the display text
+            val cleanText = if (words != null) {
+                words.joinToString("") { it.text }
+            } else {
+                textAfterTimestamp
+            }
+
             matches.forEach { match ->
-                val minutes = match.groupValues[1].toLong()
-                val seconds = match.groupValues[2].toLong()
-                val fracStr = match.groupValues[3]
-                val frac = if (fracStr.isEmpty()) 0L
-                else when (fracStr.length) {
-                    1 -> fracStr.toLong() * 100
-                    2 -> fracStr.toLong() * 10
-                    else -> fracStr.take(3).toLong()
-                }
-                val timeMs = minutes * 60_000L + seconds * 1000L + frac
-                result.add(LyricLine(timeMs = timeMs, text = text))
+                val timeMs = parseTimestampToMs(match)
+                result.add(LyricLine(
+                    timeMs = timeMs,
+                    text = cleanText,
+                    words = words
+                ))
             }
         }
 
-        // Sort by time so playback lookups are simple.
         return result.sortedBy { it.timeMs }
+    }
+
+    /**
+     * Parse enhanced LRC word timestamps from text like:
+     * <00:12.34>Hello <00:12.60>world <00:13.00>from
+     * Returns null if no word timestamps found (regular LRC).
+     */
+    private fun parseEnhancedLrcWords(text: String, lineMatch: MatchResult): List<WordTimestamp>? {
+        // Check if there are word timestamps
+        val hasWordTimestamps = WORD_TIMESTAMP_REGEX.containsMatchIn(text) || WORD_MS_REGEX.containsMatchIn(text)
+        if (!hasWordTimestamps) return null
+
+        val words = mutableListOf<WordTimestamp>()
+        val lineStartMs = parseTimestampToMs(lineMatch)
+
+        // Try <mm:ss.xx> format first
+        val wordMatches = WORD_TIMESTAMP_REGEX.findAll(text).toList()
+        if (wordMatches.isNotEmpty()) {
+            for (i in wordMatches.indices) {
+                val match = wordMatches[i]
+                val wordStartMs = parseTimestampToMs(match)
+                val wordEndMs = if (i + 1 < wordMatches.size) {
+                    parseTimestampToMs(wordMatches[i + 1])
+                } else {
+                    // Last word: end = line start + 2000ms (default duration)
+                    wordStartMs + 2000L
+                }
+
+                // Extract word text: everything between this timestamp and the next
+                val textStart = match.range.last + 1
+                val textEnd = if (i + 1 < wordMatches.size) wordMatches[i + 1].range.first else text.length
+                val wordText = text.substring(textStart, textEnd).trim()
+
+                if (wordText.isNotEmpty()) {
+                    words.add(WordTimestamp(
+                        text = wordText,
+                        startTime = wordStartMs,
+                        endTime = wordEndMs
+                    ))
+                }
+            }
+        }
+
+        // Try <milliseconds> format
+        if (words.isEmpty()) {
+            val msMatches = WORD_MS_REGEX.findAll(text).toList()
+            if (msMatches.isNotEmpty()) {
+                for (i in msMatches.indices) {
+                    val match = msMatches[i]
+                    val wordStartMs = match.groupValues[1].toLong()
+                    val wordEndMs = if (i + 1 < msMatches.size) {
+                        msMatches[i + 1].groupValues[1].toLong()
+                    } else {
+                        wordStartMs + 2000L
+                    }
+
+                    val textStart = match.range.last + 1
+                    val textEnd = if (i + 1 < msMatches.size) msMatches[i + 1].range.first else text.length
+                    val wordText = text.substring(textStart, textEnd).trim()
+
+                    if (wordText.isNotEmpty()) {
+                        words.add(WordTimestamp(
+                            text = wordText,
+                            startTime = wordStartMs,
+                            endTime = wordEndMs
+                        ))
+                    }
+                }
+            }
+        }
+
+        return if (words.isNotEmpty()) words else null
+    }
+
+    /**
+     * Parse a timestamp match (from TIMESTAMP_REGEX or WORD_TIMESTAMP_REGEX) to milliseconds.
+     */
+    private fun parseTimestampToMs(match: MatchResult): Long {
+        val minutes = match.groupValues[1].toLong()
+        val seconds = match.groupValues[2].toLong()
+        val fracStr = match.groupValues[3]
+        val frac = if (fracStr.isEmpty()) 0L
+        else when (fracStr.length) {
+            1 -> fracStr.toLong() * 100
+            2 -> fracStr.toLong() * 10
+            else -> fracStr.take(3).toLong()
+        }
+        return minutes * 60_000L + seconds * 1000L + frac
+    }
+
+    /**
+     * Parse TTML format lyrics with word-by-word timing.
+     * Format:
+     * <tt ...>
+     *   <div>
+     *     <p begin="12.345s" end="15.000s">
+     *       <span begin="12.345s" end="12.820s">Hello</span>
+     *       <span begin="12.820s" end="13.300s">world</span>
+     *     </p>
+     *   </div>
+     * </tt>
+     */
+    private fun parseTtml(ttml: String): List<LyricLine> {
+        val result = mutableListOf<LyricLine>()
+        val pRegex = Regex("""<p[^>]*begin="([^"]+)"[^>]*end="([^"]+)"[^>]*>(.*?)</p>""", RegexOption.DOT_MATCHES_ALL)
+        val spanRegex = Regex("""<span[^>]*begin="([^"]+)"[^>]*end="([^"]+)"[^>]*>(.*?)</span>""", RegexOption.DOT_MATCHES_ALL)
+
+        pRegex.findAll(ttml).forEach { pMatch ->
+            val lineStart = parseTtmlTime(pMatch.groupValues[1])
+            val lineEnd = parseTtmlTime(pMatch.groupValues[2])
+            val pContent = pMatch.groupValues[3]
+
+            val spanMatches = spanRegex.findAll(pContent).toList()
+
+            if (spanMatches.isNotEmpty()) {
+                // Word-by-word timing from spans
+                val words = spanMatches.map { spanMatch ->
+                    val wordStart = parseTtmlTime(spanMatch.groupValues[1])
+                    val wordEnd = parseTtmlTime(spanMatch.groupValues[2])
+                    val wordText = spanMatch.groupValues[3].trim()
+                    WordTimestamp(
+                        text = wordText,
+                        startTime = wordStart,
+                        endTime = wordEnd
+                    )
+                }.filter { it.text.isNotEmpty() }
+
+                val fullText = words.joinToString("") { it.text }
+                result.add(LyricLine(
+                    timeMs = lineStart,
+                    text = fullText,
+                    words = words.ifEmpty { null }
+                ))
+            } else {
+                // No spans — just use the paragraph text
+                val cleanText = pContent.replace(Regex("<[^>]+>"), "").trim()
+                if (cleanText.isNotEmpty()) {
+                    result.add(LyricLine(
+                        timeMs = lineStart,
+                        text = cleanText,
+                        words = null
+                    ))
+                }
+            }
+        }
+
+        return result.sortedBy { it.timeMs }
+    }
+
+    /**
+     * Parse a TTML time string like "12.345s" or "12345ms" to milliseconds.
+     */
+    private fun parseTtmlTime(timeStr: String): Long {
+        return when {
+            timeStr.endsWith("ms") -> timeStr.dropLast(2).toLongOrNull() ?: 0L
+            timeStr.endsWith("s") -> (timeStr.dropLast(1).toDoubleOrNull() ?: 0.0 * 1000).toLong()
+            else -> (timeStr.toDoubleOrNull() ?: 0.0 * 1000).toLong()
+        }
     }
 }

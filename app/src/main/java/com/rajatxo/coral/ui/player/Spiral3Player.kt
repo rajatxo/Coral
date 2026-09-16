@@ -85,6 +85,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -460,8 +463,44 @@ fun Spiral3Player(
         lyricData != null && lyricData!!.synced && activeLineIndex >= 0 ->
             lyricData!!.lines[activeLineIndex].text.ifBlank { "♪" }
         lyricData != null && !lyricData!!.synced && lyricData!!.lines.isNotEmpty() -> "♪"
-        lyricData != null && lyricData!!.synced -> "♪"  // synced but no active line yet
+        lyricData != null && lyricData!!.synced -> "♪"
         else -> "No Lyrics Available"
+    }
+
+    // Build word-by-word annotated string for the lyrics strip
+    // Active/complete words = white, future words = white 35%
+    val lyricStripText = if (lyricData != null && lyricData!!.synced && activeLineIndex >= 0) {
+        val activeLine = lyricData!!.lines[activeLineIndex]
+        if (activeLine.hasWordSync && activeLine.words != null) {
+            androidx.compose.ui.text.buildAnnotatedString {
+                activeLine.words.forEach { word ->
+                    val isWordActiveOrPast = currentPositionMs >= word.startTime
+                    if (isWordActiveOrPast) {
+                        withStyle(androidx.compose.ui.text.SpanStyle(
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )) { append(word.text) }
+                    } else {
+                        withStyle(androidx.compose.ui.text.SpanStyle(
+                            color = Color.White.copy(alpha = 0.35f)
+                        )) { append(word.text) }
+                    }
+                    append(" ")
+                }
+            }
+        } else {
+            androidx.compose.ui.text.buildAnnotatedString {
+                withStyle(androidx.compose.ui.text.SpanStyle(color = Color.White)) {
+                    append(lyricLineText)
+                }
+            }
+        }
+    } else {
+        androidx.compose.ui.text.buildAnnotatedString {
+            withStyle(androidx.compose.ui.text.SpanStyle(
+                color = Color.White.copy(alpha = 0.5f)
+            )) { append(lyricLineText) }
+        }
     }
 
     // ─── Seek bar state (buttery smooth, no thumb, thickens on drag) ──
@@ -1087,11 +1126,9 @@ fun Spiral3Player(
             // Bigger (18sp), pure white, with auto-shadow for readability
             // over bright backgrounds. Tap to open the full lyrics page.
             Text(
-                text = lyricLineText,
-                color = Color.White,
+                text = lyricStripText,
                 fontSize = 18.sp,
                 fontFamily = CalSansFamily,
-                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 style = TextStyle(shadow = Shadow(
