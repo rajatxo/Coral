@@ -365,18 +365,28 @@ fun Spiral2Player(
                 mediaController?.let {
                     currentPositionMs = it.currentPosition.coerceAtLeast(0L)
                     durationMs = it.duration.coerceAtLeast(0L)
-                    // Detect format from the current media item's URI extension
-                    val uri = it.currentMediaItem?.localConfiguration?.uri?.toString() ?: ""
-                    songFormat = when {
-                        uri.endsWith(".flac", ignoreCase = true) -> "FLAC"
-                        uri.endsWith(".mp3", ignoreCase = true) -> "MP3"
-                        uri.endsWith(".m4a", ignoreCase = true) -> "M4A"
-                        uri.endsWith(".aac", ignoreCase = true) -> "AAC"
-                        uri.endsWith(".ogg", ignoreCase = true) -> "OGG"
-                        uri.endsWith(".opus", ignoreCase = true) -> "OPUS"
-                        uri.endsWith(".wav", ignoreCase = true) -> "WAV"
-                        uri.endsWith(".wma", ignoreCase = true) -> "WMA"
-                        else -> ""
+                    // Detect format from MIME type (content:// URIs have no extension)
+                    if (songFormat.isEmpty()) {
+                        val uri = it.currentMediaItem?.localConfiguration?.uri
+                        if (uri != null) {
+                            val mimeType = try {
+                                context.contentResolver.getType(uri)
+                            } catch (_: Exception) { null }
+                            songFormat = when {
+                                mimeType == null -> ""
+                                mimeType.contains("flac", ignoreCase = true) -> "FLAC"
+                                mimeType.contains("mpeg", ignoreCase = true) -> "MP3"
+                                mimeType.contains("mp4", ignoreCase = true) ||
+                                    mimeType.contains("m4a", ignoreCase = true) -> "M4A"
+                                mimeType.contains("aac", ignoreCase = true) -> "AAC"
+                                mimeType.contains("ogg", ignoreCase = true) -> "OGG"
+                                mimeType.contains("opus", ignoreCase = true) -> "OPUS"
+                                mimeType.contains("wav", ignoreCase = true) -> "WAV"
+                                mimeType.contains("wma", ignoreCase = true) ||
+                                    mimeType.contains("x-ms-wma", ignoreCase = true) -> "WMA"
+                                else -> ""
+                            }
+                        }
                     }
                 }
             } catch (_: Exception) { }
@@ -392,6 +402,26 @@ fun Spiral2Player(
     var showHeartPop by remember { mutableStateOf(false) }
     LaunchedEffect(showHeartPop) {
         if (showHeartPop) { delay(800); showHeartPop = false }
+    }
+
+    // ─── Lyrics (1-line synced preview, like Coral but single line) ──
+    val lyricsRepository = remember { com.rajatxo.coral.data.lyrics.LyricsRepository(context) }
+    var lyricData by remember { mutableStateOf<com.rajatxo.coral.data.lyrics.Lyric?>(null) }
+    LaunchedEffect(title, artist, durationMs) {
+        try {
+            lyricData = lyricsRepository.getLyrics(
+                track = title, artist = artist, album = albumName, durationMs = durationMs
+            )
+        } catch (_: Exception) { }
+    }
+    val activeLineIndex = if (lyricData != null && lyricData!!.synced && lyricData!!.lines.isNotEmpty()) {
+        findActiveLineIndex(lyricData!!.lines, currentPositionMs)
+    } else -1
+    // The current lyric line text (1 line only)
+    val lyricLineText = if (lyricData != null && lyricData!!.synced && activeLineIndex >= 0) {
+        lyricData!!.lines[activeLineIndex].text.ifBlank { "♪" }
+    } else {
+        "lyrics"  // fallback when no synced lyrics
     }
 
     // ─── Seek bar state (buttery smooth, no thumb, thickens on drag) ──
@@ -676,7 +706,7 @@ fun Spiral2Player(
                             contentDescription = "Menu",
                             tint = Color.White,
                             modifier = Modifier
-                                .size(24.dp)
+                                .size(28.dp)
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null
@@ -706,7 +736,7 @@ fun Spiral2Player(
                             imageVector = CoralIcons.Ellipsis,
                             contentDescription = "Menu",
                             tint = Color.White,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(28.dp)
                         )
                     }
                 } else {
@@ -731,7 +761,7 @@ fun Spiral2Player(
                             contentDescription = "Menu",
                             tint = Color.White,
                             modifier = Modifier
-                                .size(24.dp)
+                                .size(28.dp)
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null
@@ -800,14 +830,25 @@ fun Spiral2Player(
                 .padding(horizontal = 28.dp)
                 .padding(bottom = 32.dp)
         ) {
-            // ─── Lyrics text (sitting exactly on top of the timeline) ──
+            // ─── Lyrics text (1-line synced, sitting on top of timeline) ──
+            // Shows the current lyric line (like Coral but 1 line only).
+            // Tap to open the full lyrics page. CalSans, non-italic,
+            // size = artist size (15sp) + 1 = 16sp.
             Text(
-                text = "lyrics",
-                color = Color.White.copy(alpha = 0.5f),
-                fontSize = 13.sp,
+                text = lyricLineText,
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 16.sp,
                 fontFamily = CalSansFamily,
-                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                modifier = Modifier.fillMaxWidth(),
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = TextStyle(shadow = textShadow),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { showLyrics = true },
                 textAlign = TextAlign.Start
             )
 
@@ -1104,6 +1145,26 @@ private fun InkBackground(
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────
+
+/** Binary search for the active lyric line at the given position. */
+private fun findActiveLineIndex(lines: List<com.rajatxo.coral.data.lyrics.LyricLine>, positionMs: Long): Int {
+    if (lines.isEmpty()) return -1
+    var lo = 0
+    var hi = lines.lastIndex
+    var result = -1
+    while (lo <= hi) {
+        val mid = (lo + hi) / 2
+        if (lines[mid].timeMs in 0..positionMs) {
+            result = mid
+            lo = mid + 1
+        } else if (lines[mid].timeMs > positionMs) {
+            hi = mid - 1
+        } else {
+            lo = mid + 1
+        }
+    }
+    return result
+}
 
 /** m:ss formatter — used for both elapsed and remaining times. */
 private fun formatTime(ms: Long): String {
