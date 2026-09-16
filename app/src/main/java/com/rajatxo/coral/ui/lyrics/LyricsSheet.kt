@@ -892,8 +892,8 @@ private fun CinematicLine(
                 indication = null
             ) { if (line.timeMs >= 0) onSeek(line.timeMs) }
     ) {
-        if (isActive && line.hasWordSync && line.words != null) {
-            // ─── Word-by-word karaoke line ──────────────────────────
+        if (line.hasWordSync && line.words != null) {
+            // ─── Word-by-word karaoke line (active + past + future) ──
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center
@@ -904,6 +904,8 @@ private fun CinematicLine(
                         currentPositionMs = currentPositionMs,
                         fontSize = fontSize,
                         fontWeight = fontWeight,
+                        isLineActive = isActive,
+                        isLinePast = isPast,
                         modifier = Modifier.padding(end = 4.dp)
                     )
                 }
@@ -940,6 +942,8 @@ private fun AnimatedWord(
     currentPositionMs: Long,
     fontSize: androidx.compose.ui.unit.TextUnit,
     fontWeight: FontWeight,
+    isLineActive: Boolean = false,
+    isLinePast: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val density = LocalDensity.current
@@ -949,8 +953,8 @@ private fun AnimatedWord(
     val isWordActive = currentPositionMs >= wordStartMs && currentPositionMs < wordEndMs
 
     // Sweep fill 0→1
-    val sweepAnimatable = remember(word) { Animatable(if (isWordComplete) 1f else 0f) }
-    LaunchedEffect(isWordActive, isWordComplete, wordStartMs, wordEndMs, currentPositionMs) {
+    val sweepAnimatable = remember(word) { Animatable(0f) }
+    LaunchedEffect(isWordActive, isWordComplete, wordStartMs, wordEndMs) {
         when {
             isWordComplete && sweepAnimatable.value < 1f -> {
                 sweepAnimatable.animateTo(1f, tween(80, easing = LinearEasing))
@@ -1021,8 +1025,9 @@ private fun AnimatedWord(
             modifier = Modifier.padding(glowPadding)
         )
 
-        // Overlay layer (fill) — only if word is active/complete/past
-        if (progress > 0f) {
+        // Overlay layer (fill) — show if word is complete/active, or line is past
+        if (progress > 0f || isWordComplete || isLinePast) {
+            val showFullFill = isWordComplete || isLinePast || (isLineActive && !isWordActive && !isWordComplete)
             if (isWordActive && !isWordComplete) {
                 // Karaoke sweep wipe with soft edge
                 Text(
@@ -1046,7 +1051,7 @@ private fun AnimatedWord(
                         }
                 )
             } else {
-                // Complete or past — full fill
+                // Complete, past, or line active but word not started — full fill
                 Text(
                     text = word.text,
                     style = fillTextStyle,

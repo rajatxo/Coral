@@ -177,12 +177,20 @@ object LrcParser {
      */
     private fun parseTtml(ttml: String): List<LyricLine> {
         val result = mutableListOf<LyricLine>()
-        val pRegex = Regex("""<p[^>]*begin="([^"]+)"[^>]*end="([^"]+)"[^>]*>(.*?)</p>""", RegexOption.DOT_MATCHES_ALL)
-        val spanRegex = Regex("""<span[^>]*begin="([^"]+)"[^>]*end="([^"]+)"[^>]*>(.*?)</span>""", RegexOption.DOT_MATCHES_ALL)
+        // Match <p> tags with begin and end attributes (any order)
+        val pRegex = Regex("""<p\s[^>]*?(?:begin|end)="([^"]+)"[^>]*?(?:begin|end)="([^"]+)"[^>]*?>(.*?)</p>""", RegexOption.DOT_MATCHES_ALL)
+        val spanRegex = Regex("""<span\s[^>]*?(?:begin|end)="([^"]+)"[^>]*?(?:begin|end)="([^"]+)"[^>]*?>(.*?)</span>""", RegexOption.DOT_MATCHES_ALL)
 
         pRegex.findAll(ttml).forEach { pMatch ->
-            val lineStart = parseTtmlTime(pMatch.groupValues[1])
-            val lineEnd = parseTtmlTime(pMatch.groupValues[2])
+            // Determine which group is begin and which is end based on the full match
+            val pFullText = pMatch.value
+            val beginIdx = pFullText.indexOf("begin=\"")
+            val endIdx = pFullText.indexOf("end=\"")
+            val (lineStart, lineEnd) = if (beginIdx < endIdx && beginIdx >= 0) {
+                parseTtmlTime(pMatch.groupValues[1]) to parseTtmlTime(pMatch.groupValues[2])
+            } else {
+                parseTtmlTime(pMatch.groupValues[2]) to parseTtmlTime(pMatch.groupValues[1])
+            }
             val pContent = pMatch.groupValues[3]
 
             val spanMatches = spanRegex.findAll(pContent).toList()
@@ -190,9 +198,17 @@ object LrcParser {
             if (spanMatches.isNotEmpty()) {
                 // Word-by-word timing from spans
                 val words = spanMatches.map { spanMatch ->
-                    val wordStart = parseTtmlTime(spanMatch.groupValues[1])
-                    val wordEnd = parseTtmlTime(spanMatch.groupValues[2])
-                    val wordText = spanMatch.groupValues[3].trim()
+                    val spanFullText = spanMatch.value
+                    val sBeginIdx = spanFullText.indexOf("begin=\"")
+                    val sEndIdx = spanFullText.indexOf("end=\"")
+                    val (wordStart, wordEnd) = if (sBeginIdx < sEndIdx && sBeginIdx >= 0) {
+                        parseTtmlTime(spanMatch.groupValues[1]) to parseTtmlTime(spanMatch.groupValues[2])
+                    } else {
+                        parseTtmlTime(spanMatch.groupValues[2]) to parseTtmlTime(spanMatch.groupValues[1])
+                    }
+                    val wordText = spanMatch.groupValues[3]
+                        .replace(Regex("<[^>]+>"), "")  // strip nested tags
+                        .trim()
                     WordTimestamp(
                         text = wordText,
                         startTime = wordStart,
@@ -223,13 +239,31 @@ object LrcParser {
     }
 
     /**
-     * Parse a TTML time string like "12.345s" or "12345ms" to milliseconds.
+     * Parse a TTML time string to MILLISECONDS.
+     * Supports: "12.345s", "12345ms", "12.345" (seconds), "0:12.345" (mm:ss.ms)
      */
     private fun parseTtmlTime(timeStr: String): Long {
         return when {
-            timeStr.endsWith("ms") -> timeStr.dropLast(2).toLongOrNull() ?: 0L
-            timeStr.endsWith("s") -> (timeStr.dropLast(1).toDoubleOrNull() ?: 0.0 * 1000).toLong()
-            else -> (timeStr.toDoubleOrNull() ?: 0.0 * 1000).toLong()
+            timeStr.endsWith("ms") -> {
+                timeStr.dropLast(2).toLongOrNull() ?: 0L
+            }
+            timeStr.endsWith("s") -> {
+                val seconds = timeStr.dropLast(1).toDoubleOrNull() ?: 0.0
+                (seconds * 1000).toLong()
+            }
+            timeStr.contains(":") -> {
+                // mm:ss.ms format
+                val parts = timeStr.split(":")
+                if (parts.size == 2) {
+                    val minutes = parts[0].toLongOrNull() ?: 0L
+                    val seconds = parts[1].toDoubleOrNull() ?: 0.0
+                    (minutes * 60_000L + (seconds * 1000).toLong())
+                } else 0L
+            }
+            else -> {
+                val seconds = timeStr.toDoubleOrNull() ?: 0.0
+                (seconds * 1000).toLong()
+            }
         }
     }
 }
