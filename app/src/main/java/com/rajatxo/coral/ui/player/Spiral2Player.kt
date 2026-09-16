@@ -458,22 +458,56 @@ fun Spiral2Player(
             )
         } catch (_: Exception) { }
     }
-    // ─── Embedded lyrics extraction (for the full lyrics sheet) ───
-    // Uses the AUDIO file URI from mediaController (NOT albumArtUri which
-    // is just the thumbnail). Extracts lyrics from the file's metadata.
+    // ─── Embedded lyrics + sidecar file extraction ────────────────
+    // Priority: 1. Embedded in metadata (MediaMetadataRetriever)
+    //           2. Sidecar .lrc/.ttml file next to the audio file
     LaunchedEffect(mediaController, albumArtUri) {
         embeddedLyrics = null
         try {
             mediaController?.let { controller ->
                 val audioUri = controller.currentMediaItem?.localConfiguration?.uri
                 if (audioUri != null) {
-                    val lyrics = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    // 1. Try embedded metadata
+                    val embedded = withContext(kotlinx.coroutines.Dispatchers.IO) {
                         lyricsRepository.getEmbeddedLyrics(audioUri)
                     }
-                    embeddedLyrics = lyrics
-                    // If embedded lyrics found, also parse them for the strip
-                    if (lyrics != null) {
-                        val parsed = com.rajatxo.coral.data.lyrics.LrcParser.parse(lyrics)
+                    if (embedded != null) {
+                        embeddedLyrics = embedded
+                    } else {
+                        // 2. Try sidecar .lrc/.ttml file next to the audio
+                        val sidecar = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            val uriStr = audioUri.toString()
+                            val baseName = uriStr.substringBeforeLast(".")
+                            var result: String? = null
+                            try {
+                                context.contentResolver.openInputStream(Uri.parse("$baseName.lrc"))?.use { s ->
+                                    result = s.bufferedReader().readText()
+                                }
+                            } catch (_: Exception) { }
+                            if (result == null) {
+                                try {
+                                    context.contentResolver.openInputStream(Uri.parse("$baseName.ttml"))?.use { s ->
+                                        result = s.bufferedReader().readText()
+                                    }
+                                } catch (_: Exception) { }
+                            }
+                            if (result == null && uriStr.startsWith("file://")) {
+                                val basePath = uriStr.removePrefix("file://").substringBeforeLast(".")
+                                val lrcFile = java.io.File("$basePath.lrc")
+                                if (lrcFile.exists()) result = lrcFile.readText()
+                                else {
+                                    val ttmlFile = java.io.File("$basePath.ttml")
+                                    if (ttmlFile.exists()) result = ttmlFile.readText()
+                                }
+                            }
+                            result
+                        }
+                        if (sidecar != null) embeddedLyrics = sidecar
+                    }
+
+                    // Parse whichever lyrics we found
+                    if (embeddedLyrics != null) {
+                        val parsed = com.rajatxo.coral.data.lyrics.LrcParser.parse(embeddedLyrics)
                         if (parsed.isNotEmpty()) {
                             val hasWordSync = parsed.any { it.hasWordSync }
                             lyricData = com.rajatxo.coral.data.lyrics.Lyric(
@@ -488,6 +522,7 @@ fun Spiral2Player(
             }
         } catch (_: Exception) { }
     }
+
     val activeLineIndex = if (lyricData != null && lyricData!!.synced && lyricData!!.lines.isNotEmpty()) {
         findActiveLineIndex(lyricData!!.lines, currentPositionMs)
     } else -1
