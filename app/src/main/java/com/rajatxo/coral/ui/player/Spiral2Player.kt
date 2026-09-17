@@ -451,10 +451,7 @@ fun Spiral2Player(
     // ─── Lyrics (1-line synced preview, like Coral but single line) ──
     val lyricsRepository = remember { com.rajatxo.coral.data.lyrics.LyricsRepository(context) }
     var lyricData by remember { mutableStateOf<com.rajatxo.coral.data.lyrics.Lyric?>(null) }
-    // ─── Embedded lyrics + sidecar file extraction ────────────────
-    // Priority: 1. Embedded in metadata (MediaMetadataRetriever)
-    //           2. Sidecar .lrc file next to the audio file
-    //           3. Previously imported/cached lyrics
+    // ─── Lyrics: embedded → LyricsIndex → imported cache ──────────
     LaunchedEffect(mediaController, albumArtUri) {
         embeddedLyrics = null
         try {
@@ -469,12 +466,12 @@ fun Spiral2Player(
                         embeddedLyrics = embedded
                     }
 
-                    // 2. Try sidecar .lrc file — get the real file path from the URI
+                    // 2. Try LyricsIndex (scanned .lrc/.txt files on device)
                     if (embeddedLyrics == null) {
-                        val sidecar = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            tryFindSidecarLrc(context, audioUri)
+                        val indexed = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            com.rajatxo.coral.data.lyrics.LyricsIndex.findLyrics(title, artist)
                         }
-                        if (sidecar != null) embeddedLyrics = sidecar
+                        if (indexed != null) embeddedLyrics = indexed
                     }
 
                     // 3. Try previously imported/cached lyrics
@@ -483,7 +480,6 @@ fun Spiral2Player(
                             lyricsRepository.getImportedLrc(title, artist)
                         }
                         if (cached != null) {
-                            // Reconstruct raw LRC from cached Lyric
                             val lrcText = cached.lines.joinToString("\n") { line ->
                                 if (line.hasWordSync && line.words != null) {
                                     val wordTags = line.words.joinToString("") { word ->

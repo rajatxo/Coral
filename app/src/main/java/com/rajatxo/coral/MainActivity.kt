@@ -148,6 +148,10 @@ fun CoralApp() {
             val scannedSongs = withContext(Dispatchers.IO) { MusicScanner.scanMusic(context.contentResolver) }
             songs.clear()
             songs.addAll(scannedSongs)
+            // Also scan for lyrics files
+            withContext(Dispatchers.IO) {
+                com.rajatxo.coral.data.lyrics.LyricsIndex.scan(context)
+            }
             isLoading = false
         }
     }
@@ -225,6 +229,10 @@ fun CoralApp() {
             val scannedSongs = withContext(Dispatchers.IO) { MusicScanner.scanMusic(context.contentResolver) }
             songs.clear()
             songs.addAll(scannedSongs)
+            // Scan for lyrics files (.lrc/.txt) on the device
+            withContext(Dispatchers.IO) {
+                com.rajatxo.coral.data.lyrics.LyricsIndex.scan(context)
+            }
             isLoading = false
         }
     }

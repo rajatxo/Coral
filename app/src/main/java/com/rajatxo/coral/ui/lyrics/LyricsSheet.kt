@@ -120,7 +120,7 @@ fun LyricsSheet(
 
     var lyric by remember { mutableStateOf<Lyric?>(null) }
     var isLoading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
     var palette by remember { mutableStateOf(CoralPalette.Default) }
 
     // Menu + dialog state
@@ -133,7 +133,7 @@ fun LyricsSheet(
         if (uri == null) return@rememberLauncherForActivityResult
         coroutineScope.launch {
             isLoading = true
-            error = null
+            errorMessage = null
             try {
                 val lrcText = withContext(Dispatchers.IO) {
                     context.contentResolver.openInputStream(uri)?.use {
@@ -141,50 +141,18 @@ fun LyricsSheet(
                     }
                 }
                 if (lrcText.isNullOrBlank()) {
-                    error = "Could not read the file"
+                    errorMessage = "Could not read the file"
                 } else {
                     val saved = repository.saveImportedLrc(trackName, artistName, lrcText)
                     if (saved != null) {
                         lyric = saved
-                        error = null
+                        errorMessage = null
                     } else {
-                        error = "Failed to parse lyrics. Make sure it's a valid LRC file."
+                        errorMessage = "Failed to parse lyrics. Make sure it's a valid LRC file."
                     }
                 }
             } catch (e: Exception) {
-                error = "Failed to import: ${e.message ?: "unknown error"}"
-            }
-            isLoading = false
-        }
-    }
-
-    // TTML file picker — same logic, just a separate launcher for the TTML menu item
-    val ttmlPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        coroutineScope.launch {
-            isLoading = true
-            error = null
-            try {
-                val ttmlText = withContext(Dispatchers.IO) {
-                    context.contentResolver.openInputStream(uri)?.use {
-                        it.bufferedReader(Charsets.UTF_8).readText()
-                    }
-                }
-                if (ttmlText.isNullOrBlank()) {
-                    error = "Could not read the file"
-                } else {
-                    val saved = repository.saveImportedLrc(trackName, artistName, ttmlText)
-                    if (saved != null) {
-                        lyric = saved
-                        error = null
-                    } else {
-                        error = "Failed to parse TTML. Make sure it's a valid TTML file."
-                    }
-                }
-            } catch (e: Exception) {
-                error = "Failed to import: ${e.message ?: "unknown error"}"
+                errorMessage = "Failed to import: ${e.message ?: "unknown error"}"
             }
             isLoading = false
         }
@@ -195,7 +163,7 @@ fun LyricsSheet(
     // trigger Fetch / Search / Import via the menu.
     LaunchedEffect(trackName, artistName, embeddedLyrics) {
         isLoading = false
-        error = null
+        errorMessage = null
         when {
             // 1. Embedded lyrics (from audio metadata) — top priority
             !embeddedLyrics.isNullOrBlank() -> {
@@ -351,133 +319,7 @@ fun LyricsSheet(
                         DropdownMenuItem(
                             text = {
                                 Text(
-                                    "Fetch",
-                                    color = Color.White,
-                                    fontFamily = CalSansFamily
-                                )
-                            },
-                            onClick = {
-                                showMenu = false
-                                /* doFetch removed */
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    CoralIcons.Music,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    "Search",
-                                    color = Color.White,
-                                    fontFamily = CalSansFamily
-                                )
-                            },
-                            onClick = {
-                                showMenu = false
-                                /* showSearchDialog removed */
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    CoralIcons.Music,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    "Import LRC",
-                                    color = Color.White,
-                                    fontFamily = CalSansFamily
-                                )
-                            },
-                            onClick = {
-                                showMenu = false
-                                lrcPicker.launch(arrayOf("*/*"))
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    CoralIcons.FileHeadphone,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    "Import LRC (Multi Person)",
-                                    color = Color.White,
-                                    fontFamily = CalSansFamily
-                                )
-                            },
-                            onClick = {
-                                showMenu = false
-                                lrcPicker.launch(arrayOf("*/*"))
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    CoralIcons.FileHeadphone,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    "Import TTML",
-                                    color = Color.White,
-                                    fontFamily = CalSansFamily
-                                )
-                            },
-                            onClick = {
-                                showMenu = false
-                                ttmlPicker.launch(arrayOf("*/*"))
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    CoralIcons.FileHeadphone,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    "Import ELRC",
-                                    color = Color.White,
-                                    fontFamily = CalSansFamily
-                                )
-                            },
-                            onClick = {
-                                showMenu = false
-                                lrcPicker.launch(arrayOf("*/*"))
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    CoralIcons.FileHeadphone,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    "Import ELRC (Multi Person)",
+                                    "Import LRC File",
                                     color = Color.White,
                                     fontFamily = CalSansFamily
                                 )
@@ -526,7 +368,6 @@ fun LyricsSheet(
                     )
                 }
                 else -> {
-                    // "No lyrics" empty state with prompt to fetch/search/import
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
@@ -543,7 +384,7 @@ fun LyricsSheet(
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
-                                "No lyrics",
+                                "No lyrics found",
                                 color = Color.White,
                                 fontSize = 20.sp,
                                 fontFamily = CalSansFamily,
@@ -552,61 +393,16 @@ fun LyricsSheet(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                "Fetch from LrcLib, search online, or import an .lrc file",
+                                "Use the menu to import an LRC file",
                                 color = Color.White.copy(alpha = 0.6f),
                                 fontSize = 14.sp,
                                 fontFamily = CalSansFamily,
                                 textAlign = TextAlign.Center
                             )
-                            Spacer(modifier = Modifier.height(24.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(24.dp))
-                                        .background(Color.White.copy(alpha = 0.2f))
-                                        
-                                        .padding(horizontal = 20.dp, vertical = 12.dp)
-                                ) {
-                                    Text(
-                                        "Fetch",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontFamily = CalSansFamily
-                                    )
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(24.dp))
-                                        .background(Color.White.copy(alpha = 0.2f))
-                                        
-                                        .padding(horizontal = 20.dp, vertical = 12.dp)
-                                ) {
-                                    Text(
-                                        "Search",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontFamily = CalSansFamily
-                                    )
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(24.dp))
-                                        .background(Color.White.copy(alpha = 0.2f))
-                                        .clickable { lrcPicker.launch(arrayOf("*/*")) }
-                                        .padding(horizontal = 20.dp, vertical = 12.dp)
-                                ) {
-                                    Text(
-                                        "Import LRC",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontFamily = CalSansFamily
-                                    )
-                                }
-                            }
-                            if (error != null) {
+                            if (errorMessage != null) {
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
-                                    error!!,
+                                    errorMessage!!,
                                     color = Color.White.copy(alpha = 0.7f),
                                     fontSize = 13.sp,
                                     fontFamily = CalSansFamily,
@@ -615,156 +411,6 @@ fun LyricsSheet(
                             }
                         }
                     }
-                }
-            }
-        }
-    }
-
-    // ─── Search dialog (floating card) ──────────────────────────────
-}
-
-// ═══ Search lyrics dialog — ArchiveTune-style floating card ════════════
-
-@Composable
-private fun SearchLyricsDialog(
-    initialTrack: String,
-    initialArtist: String,
-    onDismiss: () -> Unit,
-    onSearch: (String, String) -> Unit
-) {
-    var track by remember { mutableStateOf(initialTrack) }
-    var artist by remember { mutableStateOf(initialArtist) }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.6f))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) { onDismiss() },
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(horizontal = 24.dp)
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(24.dp))
-                .background(Color(0xFF1A1A1A))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) {} // consume clicks so tapping the card doesn't dismiss
-                .padding(24.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = CoralIcons.Search,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    "Search lyrics",
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = CalSansFamily
-                )
-            }
-            Spacer(modifier = Modifier.height(20.dp))
-            Text(
-                "Song title",
-                color = Color.White.copy(alpha = 0.7f),
-                fontSize = 13.sp,
-                fontFamily = CalSansFamily
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            OutlinedTextField(
-                value = track,
-                onValueChange = { track = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                textStyle = TextStyle(
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    fontFamily = CalSansFamily
-                ),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color.White.copy(alpha = 0.5f),
-                    unfocusedBorderColor = Color.White.copy(alpha = 0.3f),
-                    cursorColor = Color.White,
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent
-                )
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                "Song artists",
-                color = Color.White.copy(alpha = 0.7f),
-                fontSize = 13.sp,
-                fontFamily = CalSansFamily
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            OutlinedTextField(
-                value = artist,
-                onValueChange = { artist = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                textStyle = TextStyle(
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    fontFamily = CalSansFamily
-                ),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color.White.copy(alpha = 0.5f),
-                    unfocusedBorderColor = Color.White.copy(alpha = 0.3f),
-                    cursorColor = Color.White,
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent
-                )
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { onDismiss() }
-                        .padding(horizontal = 16.dp, vertical = 10.dp)
-                ) {
-                    Text(
-                        "Cancel",
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontFamily = CalSansFamily,
-                        fontSize = 14.sp
-                    )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Color.White.copy(alpha = 0.22f))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { onSearch(track, artist) }
-                        .padding(horizontal = 20.dp, vertical = 10.dp)
-                ) {
-                    Text(
-                        "Search online",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = CalSansFamily,
-                        fontSize = 14.sp
-                    )
                 }
             }
         }
