@@ -168,14 +168,35 @@ fun LyricsSheet(
         }
     }
 
-    // ─── Initial load: embedded > imported .lrc > cached fetched lyrics ───
+    // ─── Initial load: imported (pasted/manual) > embedded > cached fetched ───
+    // Priority order rationale:
+    //   1. IMPORTED (.imported.json) — user explicitly pasted or .lrc-imported
+    //      lyrics. This is the highest-authority source: the user picked
+    //      these lyrics on purpose, so they should always win over anything
+    //      auto-fetched from the network. Without this priority, pasting
+    //      new lyrics would update the strip (via onLyricsFetched) but the
+    //      sheet would still show the old LrcLib lyrics from embeddedLyrics.
+    //   2. EMBEDDED (passed in from the player's auto-fetch) — LrcLib /
+    //      NetEase / KuGou result, or actual file-embedded ID3 lyrics.
+    //   3. CACHED fetched — fallback if neither imported nor embedded exist.
+    //
     // Auto-fetch from LrcLib is intentionally NOT done here. The user must
-    // trigger Fetch / Search / Import via the menu.
+    // trigger Fetch / Search / Import / Paste via the menu.
     LaunchedEffect(trackName, artistName, embeddedLyrics) {
         isLoading = false
         errorMessage = null
+
+        // 1. Imported (pasted / .lrc file) — top priority
+        val imported = withContext(Dispatchers.IO) {
+            repository.getImportedLrc(trackName, artistName)
+        }
+        if (imported != null) {
+            lyric = imported
+            return@LaunchedEffect
+        }
+
+        // 2. Embedded lyrics (from audio metadata or player auto-fetch)
         when {
-            // 1. Embedded lyrics (from audio metadata) — top priority
             !embeddedLyrics.isNullOrBlank() -> {
                 val lines = withContext(Dispatchers.IO) { LrcParser.parse(embeddedLyrics) }
                 if (lines.isNotEmpty()) {
@@ -193,20 +214,12 @@ fun LyricsSheet(
                     lyric = null
                 }
             }
-            // 2. Manually imported .lrc file
+            // 3. Cached fetched lyrics (from a previous Fetch/Search action)
             else -> {
-                val imported = withContext(Dispatchers.IO) {
-                    repository.getImportedLrc(trackName, artistName)
+                val cached = withContext(Dispatchers.IO) {
+                    repository.getCachedLyrics(trackName, artistName)
                 }
-                if (imported != null) {
-                    lyric = imported
-                } else {
-                    // 3. Cached fetched lyrics (from a previous Fetch/Search action)
-                    val cached = withContext(Dispatchers.IO) {
-                        repository.getCachedLyrics(trackName, artistName)
-                    }
-                    lyric = cached
-                }
+                lyric = cached
             }
         }
     }
