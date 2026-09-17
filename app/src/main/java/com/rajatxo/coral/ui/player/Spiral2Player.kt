@@ -1226,7 +1226,7 @@ fun Spiral2Player(
                             .basicMarquee(
                                 // Smooth, slow scroll. Delay before restart
                                 // gives the reader time to read the start.
-                                delayMillis = 1_200,
+                                initialDelayMillis = 1_200,
                                 velocity = 40.dp
                             )
                     )
