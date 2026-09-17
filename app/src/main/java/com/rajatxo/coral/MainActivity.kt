@@ -108,7 +108,6 @@ fun CoralApp() {
     val scope = rememberCoroutineScope()
 
     var hasPermission by remember { mutableStateOf(false) }
-    var isLoading by remember { mutableStateOf(false) }
     val songs = remember { mutableStateListOf<Song>() }
 
     var mediaController by remember { mutableStateOf<MediaController?>(null) }
@@ -139,20 +138,22 @@ fun CoralApp() {
         permissionChecked = true
 
         // FIX: If permissions are already granted (returning user, cold-start
-        // from widget, etc.), we need to scan music NOW — otherwise the
-        // HomeScreen shows "No music found" because `songs` is empty.
-        // Previously, music scanning only happened via the PermissionScreen
-        // callback, which is skipped when permissions are already granted.
-        if (hasPermission && songs.isEmpty() && !isLoading) {
-            isLoading = true
-            val scannedSongs = withContext(Dispatchers.IO) { MusicScanner.scanMusic(context.contentResolver) }
-            songs.clear()
-            songs.addAll(scannedSongs)
-            // Also scan for lyrics files
-            withContext(Dispatchers.IO) {
-                com.rajatxo.coral.data.lyrics.LyricsIndex.scan(context)
+        // from widget, etc.), scan music in the BACKGROUND — no loading
+        // screen. The first scan typically takes <200ms (MediaStore query)
+        // and HomeScreen renders instantly with the list populating in
+        // real-time as songs come back. The user can also pull-to-refresh
+        // on the HomeScreen any time to force a rescan (e.g. after adding
+        // new music files to the device).
+        if (hasPermission && songs.isEmpty()) {
+            scope.launch {
+                val scannedSongs = withContext(Dispatchers.IO) { MusicScanner.scanMusic(context.contentResolver) }
+                songs.clear()
+                songs.addAll(scannedSongs)
+                // Also scan for lyrics files
+                withContext(Dispatchers.IO) {
+                    com.rajatxo.coral.data.lyrics.LyricsIndex.scan(context)
+                }
             }
-            isLoading = false
         }
     }
 
@@ -221,10 +222,11 @@ fun CoralApp() {
         }
     }
 
-    // When user grants permissions via PermissionScreen, scan music + load HomeScreen
+    // When user grants permissions via PermissionScreen, scan music in the
+    // background — no loading screen. HomeScreen renders instantly and the
+    // song list populates within ~100-200ms as the MediaStore query returns.
     val onPermissionsGranted: () -> Unit = {
         hasPermission = true
-        isLoading = true
         scope.launch {
             val scannedSongs = withContext(Dispatchers.IO) { MusicScanner.scanMusic(context.contentResolver) }
             songs.clear()
@@ -233,7 +235,20 @@ fun CoralApp() {
             withContext(Dispatchers.IO) {
                 com.rajatxo.coral.data.lyrics.LyricsIndex.scan(context)
             }
-            isLoading = false
+        }
+    }
+
+    // Pull-to-refresh handler — called when the user drags down on the
+    // HomeScreen. Re-runs the MediaStore scan so newly added songs show up.
+    // Also re-scans the lyrics index so new .lrc/.txt sidecars are picked up.
+    // This is a suspend lambda so HomeScreen can await completion before
+    // hiding the refresh spinner.
+    val onRefreshSongs: suspend () -> Unit = {
+        val scannedSongs = withContext(Dispatchers.IO) { MusicScanner.scanMusic(context.contentResolver) }
+        songs.clear()
+        songs.addAll(scannedSongs)
+        withContext(Dispatchers.IO) {
+            com.rajatxo.coral.data.lyrics.LyricsIndex.scan(context)
         }
     }
 
@@ -248,22 +263,6 @@ fun CoralApp() {
                 com.rajatxo.coral.ui.screens.PermissionScreen(
                     onPermissionsGranted = onPermissionsGranted
                 )
-            }
-            isLoading -> {
-                Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    CircularProgressIndicator(color = Color(0xFFFF6B6B))
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(text = "Scanning your music...", color = Color(0xFFB0B0B0))
-                }
-            }
-            songs.isEmpty() -> {
-                Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Text(text = "🎵", fontSize = 64.sp)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(text = "No music found", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(text = "Add some music to your device and try again.", color = Color(0xFFB0B0B0), fontSize = 14.sp)
-                }
             }
             else -> {
                 HomeScreen(
@@ -320,7 +319,8 @@ fun CoralApp() {
                     onMiniPlayerClick = { showFullPlayer = true },
                     showFullPlayer = showFullPlayer,
                     onFullPlayerDismiss = { showFullPlayer = false },
-                    onSongEnded = { mediaController?.pause() }
+                    onSongEnded = { mediaController?.pause() },
+                    onRefresh = onRefreshSongs
                 )
             }
         }

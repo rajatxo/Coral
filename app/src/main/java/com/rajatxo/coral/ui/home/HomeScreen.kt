@@ -33,6 +33,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -92,6 +93,7 @@ import kotlinx.coroutines.launch
  * now-playing screen.
  */
 @androidx.compose.foundation.ExperimentalFoundationApi
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     songs: List<Song>,
@@ -111,7 +113,8 @@ fun HomeScreen(
     onMiniPlayerClick: () -> Unit,
     showFullPlayer: Boolean,
     onFullPlayerDismiss: () -> Unit,
-    onSongEnded: () -> Unit
+    onSongEnded: () -> Unit,
+    onRefresh: suspend () -> Unit = {}
 ) {
     var selectedTab by remember { mutableStateOf(CoralTab.QuickPicks) }
     var selectedPlaylist by remember { mutableStateOf<com.rajatxo.coral.data.model.Playlist?>(null) }
@@ -250,7 +253,30 @@ fun HomeScreen(
 
         // Main content — fills the WHOLE screen (no nav rail anymore)
         // Wrapped with layerBackdrop so the nav bar can sample + blur this.
-        Box(modifier = Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
+        //
+        // Wrapped in PullToRefreshBox so the user can pull down anywhere on
+        // the screen to force a music rescan (e.g. after adding new songs
+        // to the device). Shows a circular spinner while refreshing, then
+        // the new songs appear in the list. This replaces the old "Scanning
+        // your music..." full-screen loading state that used to show on
+        // every cold start.
+        var isRefreshing by remember { mutableStateOf(false) }
+
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                isRefreshing = true
+                homeScope.launch {
+                    try {
+                        onRefresh()
+                    } finally {
+                        isRefreshing = false
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(modifier = Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
 
                 when (selectedTab) {
                     CoralTab.QuickPicks -> QuickPicksScreen(
@@ -305,6 +331,7 @@ fun HomeScreen(
                     CoralTab.SoundLab -> com.rajatxo.coral.ui.screens.SoundLabScreen()
                 }
             }
+        }
 
         // --- Mini player (bottom, above the tab capsule) ---
         AnimatedVisibility(
