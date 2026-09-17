@@ -542,15 +542,25 @@ fun Spiral2Player(
     } else -1
     // The current lyric line text (1 line only)
     // - Loading (cache or network in flight): "Loading..."
-    // - Synced lyrics available: show current line (or ♪ if line is blank)
+    // - Synced lyrics available, active line found: show current line (or ♪ if blank)
+    // - Synced lyrics available but position is before first line: show the
+    //   first upcoming line (so the strip isn't empty/"♪" for songs whose
+    //   lyrics start late, e.g. 22 seconds in)
+    // - Synced lyrics available but position is after last line: show last line
     // - Lyrics available but not synced: show ♪ (lyrics exist)
     // - No lyrics at all (and loading finished): "No Lyrics Available"
     val lyricLineText = when {
         isLyricsLoading && lyricData == null -> "Loading..."
         lyricData != null && lyricData!!.synced && activeLineIndex >= 0 ->
             lyricData!!.lines[activeLineIndex].text.ifBlank { "♪" }
+        lyricData != null && lyricData!!.synced && lyricData!!.lines.isNotEmpty() -> {
+            // Position is before the first lyric line (or after the last).
+            // Show the nearest line so the strip isn't empty.
+            val nearestIndex = activeLineIndex.coerceAtLeast(0)
+                .coerceAtMost(lyricData!!.lines.lastIndex)
+            lyricData!!.lines[nearestIndex].text.ifBlank { "♪" }
+        }
         lyricData != null && !lyricData!!.synced && lyricData!!.lines.isNotEmpty() -> "♪"
-        lyricData != null && lyricData!!.synced -> "♪"
         else -> "No Lyrics Available"
     }
 
