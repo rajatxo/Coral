@@ -119,23 +119,33 @@ class LyricsRepository(private val context: Context) {
     suspend fun getEmbeddedLyrics(uri: Uri): String? = withContext(Dispatchers.IO) {
         if (uri == Uri.EMPTY) return@withContext null
 
-        // Use MediaMetadataRetriever ONLY — it's safe to use alongside
-        // ExoPlayer. MediaExtractor and raw file reading can conflict
-        // with ExoPlayer's file handles, causing playback to stop.
         val retriever = MediaMetadataRetriever()
         try {
             retriever.setDataSource(context, uri)
 
-            // Try all possible metadata keys that might contain lyrics.
-            // Key 30 = METADATA_KEY_LYRICS (Android 13+ / API 33+)
-            // Key 19 = hidden METADATA_KEY_LYRICS (some older devices)
-            // Key 15 = METADATA_KEY_WRITER (sometimes stores lyrics)
-            val possibleKeys = intArrayOf(30, 19, 15)
-            for (key in possibleKeys) {
+            // Try ALL metadata keys from 0 to 35. Different devices/Android
+            // versions store lyrics under different key numbers.
+            // Known: 30=LYRICS(API33+), 19=hidden LYRICS, 15=WRITER,
+            //         20=COMPILATION, 23=NUM_TRACKS etc.
+            // We try them all and check if the value looks like lyrics.
+            for (key in 0..35) {
                 try {
                     val value = retriever.extractMetadata(key)
-                    if (!value.isNullOrBlank() && looksLikeLyrics(value)) {
-                        return@withContext value
+                    if (!value.isNullOrBlank() && value.length > 10) {
+                        // Check if it contains LRC timestamps or is multi-line text
+                        if (value.contains("[") && Regex("""\[\d{1,2}:\d{2}""").containsMatchIn(value)) {
+                            // Has LRC timestamps — definitely lyrics
+                            return@withContext value
+                        }
+                        if (value.contains("<tt") || value.contains("<span")) {
+                            // TTML — definitely lyrics
+                            return@withContext value
+                        }
+                        val lineCount = value.lines().filter { it.isNotBlank() }.size
+                        if (lineCount >= 4 && value.length > 50) {
+                            // Multi-line text — likely lyrics
+                            return@withContext value
+                        }
                     }
                 } catch (_: Exception) { }
             }

@@ -456,11 +456,23 @@ fun Spiral3Player(
         embeddedLyrics = null
         try {
             mediaController?.let { controller ->
-                val audioUri = controller.currentMediaItem?.localConfiguration?.uri
+                val mediaItem = controller.currentMediaItem
+                var audioUri = mediaItem?.localConfiguration?.uri
+                if (audioUri == null && mediaItem != null) {
+                    val mediaId = mediaItem.mediaId.toLongOrNull()
+                    if (mediaId != null) {
+                        audioUri = android.content.ContentUris.withAppendedId(
+                            android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                            mediaId
+                        )
+                    }
+                }
                 if (audioUri != null) {
+                    android.util.Log.d("CoralLyrics", "S3 Trying embedded for: $audioUri")
                     val embedded = withContext(kotlinx.coroutines.Dispatchers.IO) {
                         lyricsRepository.getEmbeddedLyrics(audioUri)
                     }
+                    android.util.Log.d("CoralLyrics", "S3 Embedded result: ${embedded?.take(50) ?: "null"}")
                     if (embedded != null) embeddedLyrics = embedded
 
                     if (embeddedLyrics == null) {

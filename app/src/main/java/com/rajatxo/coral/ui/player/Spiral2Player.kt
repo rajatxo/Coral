@@ -456,12 +456,29 @@ fun Spiral2Player(
         embeddedLyrics = null
         try {
             mediaController?.let { controller ->
-                val audioUri = controller.currentMediaItem?.localConfiguration?.uri
+                val mediaItem = controller.currentMediaItem
+                var audioUri = mediaItem?.localConfiguration?.uri
+
+                // Fallback: if localConfiguration?.uri is null, try to
+                // reconstruct from the mediaId (which is the song ID)
+                if (audioUri == null && mediaItem != null) {
+                    val mediaId = mediaItem.mediaId.toLongOrNull()
+                    if (mediaId != null) {
+                        audioUri = android.content.ContentUris.withAppendedId(
+                            android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                            mediaId
+                        )
+                    }
+                }
+
                 if (audioUri != null) {
-                    // 1. Try embedded metadata
+                    android.util.Log.d("CoralLyrics", "Trying embedded lyrics for URI: $audioUri")
+
+                    // 1. Try embedded metadata — scan ALL keys
                     val embedded = withContext(kotlinx.coroutines.Dispatchers.IO) {
                         lyricsRepository.getEmbeddedLyrics(audioUri)
                     }
+                    android.util.Log.d("CoralLyrics", "Embedded result: ${embedded?.take(50) ?: "null"}")
                     if (embedded != null) {
                         embeddedLyrics = embedded
                     }
