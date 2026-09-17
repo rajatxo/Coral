@@ -910,7 +910,7 @@ private fun CinematicLine(
                         fontWeight = fontWeight,
                         isLineActive = isActive,
                         isLinePast = isPast,
-                        modifier = Modifier.padding(end = 6.dp)
+                        modifier = Modifier.padding(end = 2.dp)
                     )
                 }
             }

@@ -213,7 +213,7 @@ class LyricsRepository(private val context: Context) {
     private fun readCache(file: File): Lyric? {
         if (!file.exists()) return null
         return try {
-            val text = file.readText()
+            val text = file.readText(Charsets.UTF_8)
             val obj: JsonObject = json.parseToJsonElement(text).jsonObject
             val synced = obj["synced"]?.jsonPrimitive?.contentOrNull == "true"
             val lrc = obj["lrc"]?.jsonPrimitive?.contentOrNull
@@ -257,9 +257,18 @@ class LyricsRepository(private val context: Context) {
 
     private fun writeCache(file: File, lyric: Lyric) {
         try {
+            // If lines have word sync, write as Enhanced LRC (preserve word tags)
             val lrcText = if (lyric.synced) {
                 lyric.lines.joinToString("\n") { line ->
-                    "[${formatTime(line.timeMs)}]${line.text}"
+                    if (line.hasWordSync && line.words != null) {
+                        // Enhanced LRC: [mm:ss.xx]<mm:ss.xx>word <mm:ss.xx>word
+                        val wordTags = line.words.joinToString("") { word ->
+                            "<${formatTime(word.startTime)}>${word.text} "
+                        }
+                        "[${formatTime(line.timeMs)}]$wordTags"
+                    } else {
+                        "[${formatTime(line.timeMs)}]${line.text}"
+                    }
                 }
             } else {
                 lyric.lines.joinToString("\n") { it.text }
@@ -273,7 +282,7 @@ class LyricsRepository(private val context: Context) {
                 append("\"artistName\":${jsonPrimitiveEscape(lyric.artistName ?: "")}")
                 append("}")
             }
-            file.writeText(jsonStr)
+            file.writeText(jsonStr, Charsets.UTF_8)
         } catch (_: Exception) { /* best-effort */ }
     }
 

@@ -460,7 +460,8 @@ fun Spiral2Player(
     }
     // ─── Embedded lyrics + sidecar file extraction ────────────────
     // Priority: 1. Embedded in metadata (MediaMetadataRetriever)
-    //           2. Sidecar .lrc/.ttml file next to the audio file
+    //           2. Sidecar .lrc file next to the audio file
+    //           3. Previously imported/cached lyrics
     LaunchedEffect(mediaController, albumArtUri) {
         embeddedLyrics = null
         try {
@@ -473,36 +474,35 @@ fun Spiral2Player(
                     }
                     if (embedded != null) {
                         embeddedLyrics = embedded
-                    } else {
-                        // 2. Try sidecar .lrc/.ttml file next to the audio
+                    }
+
+                    // 2. Try sidecar .lrc file — get the real file path from the URI
+                    if (embeddedLyrics == null) {
                         val sidecar = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            val uriStr = audioUri.toString()
-                            val baseName = uriStr.substringBeforeLast(".")
-                            var result: String? = null
-                            try {
-                                context.contentResolver.openInputStream(Uri.parse("$baseName.lrc"))?.use { s ->
-                                    result = s.bufferedReader(Charsets.UTF_8).readText()
-                                }
-                            } catch (_: Exception) { }
-                            if (result == null) {
-                                try {
-                                    context.contentResolver.openInputStream(Uri.parse("$baseName.ttml"))?.use { s ->
-                                        result = s.bufferedReader(Charsets.UTF_8).readText()
-                                    }
-                                } catch (_: Exception) { }
-                            }
-                            if (result == null && uriStr.startsWith("file://")) {
-                                val basePath = uriStr.removePrefix("file://").substringBeforeLast(".")
-                                val lrcFile = java.io.File("$basePath.lrc")
-                                if (lrcFile.exists()) result = lrcFile.readText(Charsets.UTF_8)
-                                else {
-                                    val ttmlFile = java.io.File("$basePath.ttml")
-                                    if (ttmlFile.exists()) result = ttmlFile.readText(Charsets.UTF_8)
-                                }
-                            }
-                            result
+                            tryFindSidecarLrc(context, audioUri)
                         }
                         if (sidecar != null) embeddedLyrics = sidecar
+                    }
+
+                    // 3. Try previously imported/cached lyrics
+                    if (embeddedLyrics == null) {
+                        val cached = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            lyricsRepository.getImportedLrc(title, artist)
+                        }
+                        if (cached != null) {
+                            // Reconstruct raw LRC from cached Lyric
+                            val lrcText = cached.lines.joinToString("\n") { line ->
+                                if (line.hasWordSync && line.words != null) {
+                                    val wordTags = line.words.joinToString("") { word ->
+                                        "<${formatWordTime(word.startTime)}>${word.text} "
+                                    }
+                                    "[${formatWordTime(line.timeMs)}]$wordTags"
+                                } else {
+                                    "[${formatWordTime(line.timeMs)}]${line.text}"
+                                }
+                            }
+                            embeddedLyrics = lrcText
+                        }
                     }
 
                     // Parse whichever lyrics we found
@@ -1561,6 +1561,69 @@ private fun findActiveLineIndex(lines: List<com.rajatxo.coral.data.lyrics.LyricL
 private fun formatTime(ms: Long): String {
     val s = ms / 1000
     return "%d:%02d".format(s / 60, s % 60)
+}
+
+/** mm:ss.xx formatter — used for LRC word timestamps. */
+private fun formatWordTime(ms: Long): String {
+    val totalSec = ms / 1000
+    val mm = totalSec / 60
+    val ss = totalSec % 60
+    val cs = (ms % 1000) / 10
+    return "%02d:%02d.%02d".format(mm, ss, cs)
+}
+
+/**
+ * Try to find a .lrc sidecar file next to the audio file.
+ * Handles content:// URIs by querying the real file path.
+ */
+private fun tryFindSidecarLrc(context: android.content.Context, audioUri: Uri): String? {
+    return try {
+        val uriStr = audioUri.toString()
+
+        // Method 1: If it's a file:// URI, directly look for .lrc
+        if (uriStr.startsWith("file://")) {
+            val basePath = uriStr.removePrefix("file://").substringBeforeLast(".")
+            val lrcFile = java.io.File("$basePath.lrc")
+            if (lrcFile.exists()) return lrcFile.readText(Charsets.UTF_8)
+        }
+
+        // Method 2: For content:// URIs, query the DISPLAY_NAME and
+        // try to find a .lrc file in the same directory
+        val displayName = context.contentResolver.query(audioUri, null, null, null, null)?.use { cursor ->
+            val nameIdx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            if (nameIdx >= 0 && cursor.moveToFirst()) cursor.getString(nameIdx) else null
+        } ?: return null
+
+        if (displayName.isNullOrEmpty()) return null
+
+        // Replace the extension with .lrc
+        val lrcName = displayName.substringBeforeLast(".") + ".lrc"
+
+        // Try to find the .lrc file in common music directories
+        val musicDirs = listOf(
+            android.os.Environment.getExternalStorageDirectory(),
+            java.io.File(android.os.Environment.getExternalStorageDirectory(), "Music"),
+            java.io.File(android.os.Environment.getExternalStorageDirectory(), "Download"),
+            java.io.File(android.os.Environment.getExternalStorageDirectory(), "Downloads"),
+        )
+
+        for (dir in musicDirs) {
+            val lrcFile = java.io.File(dir, lrcName)
+            if (lrcFile.exists()) return lrcFile.readText(Charsets.UTF_8)
+
+            // Also search subdirectories (one level deep)
+            dir.listFiles()?.forEach { subDir ->
+                if (subDir.isDirectory) {
+                    val subLrc = java.io.File(subDir, lrcName)
+                    if (subLrc.exists()) return subLrc.readText(Charsets.UTF_8)
+                }
+            }
+        }
+
+        null
+    } catch (_: Exception) {
+        null
+    }
 }
 
 /** Linear interpolation between two Colors (for timeline color blend). */
