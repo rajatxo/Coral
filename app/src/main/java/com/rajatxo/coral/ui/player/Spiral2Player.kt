@@ -136,6 +136,7 @@ import kotlin.math.sin
  *  11.  Volume slider: speaker-low · track · speaker-high.
  *  12.  Bottom utility: shuffle · repeat-1 · repeat-∞ · queue.
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun Spiral2Player(
     mediaController: MediaController?,
@@ -451,6 +452,11 @@ fun Spiral2Player(
     // ─── Lyrics (1-line synced preview, like Coral but single line) ──
     val lyricsRepository = remember { com.rajatxo.coral.data.lyrics.LyricsRepository(context) }
     var lyricData by remember { mutableStateOf<com.rajatxo.coral.data.lyrics.Lyric?>(null) }
+    // Loading state for the strip: true while cache lookup OR network
+    // fetch is in flight. The strip shows "Loading..." while this is true
+    // and lyricData is still null; once loading completes (success or
+    // fail) it shows the actual lyric line or "No Lyrics Available".
+    var isLyricsLoading by remember { mutableStateOf(false) }
 
     // ─── AUTO-FETCH lyrics when song changes ──────────────────────
     // Priority: 1. Cached (from previous fetch, offline-instant)  2. Network fetch
@@ -469,7 +475,13 @@ fun Spiral2Player(
         // shows "No Lyrics Available" (empty), which is what we want.
         lyricData = null
         embeddedLyrics = null
-        if (title.isBlank()) return@LaunchedEffect
+        if (title.isBlank()) {
+            isLyricsLoading = false
+            return@LaunchedEffect
+        }
+        // Mark loading as soon as we start looking. The strip shows
+        // "Loading..." while this is true.
+        isLyricsLoading = true
 
         // 1. Try cache first (instant, fully offline, no file handles)
         val cached = withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -490,6 +502,7 @@ fun Spiral2Player(
                 cached.lines.joinToString("\n") { it.text }
             }
             embeddedLyrics = lrcText
+            isLyricsLoading = false
             return@LaunchedEffect
         }
 
@@ -520,16 +533,20 @@ fun Spiral2Player(
             // If fetched == null (offline / no lyrics found), lyricData
             // stays null → strip shows "No Lyrics Available". Clean.
         } catch (_: Exception) { }
+        // Loading complete — either we have lyrics, or we don't.
+        isLyricsLoading = false
     }
 
     val activeLineIndex = if (lyricData != null && lyricData!!.synced && lyricData!!.lines.isNotEmpty()) {
         findActiveLineIndex(lyricData!!.lines, currentPositionMs)
     } else -1
     // The current lyric line text (1 line only)
+    // - Loading (cache or network in flight): "Loading..."
     // - Synced lyrics available: show current line (or ♪ if line is blank)
     // - Lyrics available but not synced: show ♪ (lyrics exist)
-    // - No lyrics at all: show "No Lyrics Available"
+    // - No lyrics at all (and loading finished): "No Lyrics Available"
     val lyricLineText = when {
+        isLyricsLoading && lyricData == null -> "Loading..."
         lyricData != null && lyricData!!.synced && activeLineIndex >= 0 ->
             lyricData!!.lines[activeLineIndex].text.ifBlank { "♪" }
         lyricData != null && !lyricData!!.synced && lyricData!!.lines.isNotEmpty() -> "♪"
@@ -1170,25 +1187,58 @@ fun Spiral2Player(
             // ─── Lyrics text (1-line synced, sitting on top of timeline) ──
             // Bigger (18sp), pure white, with auto-shadow for readability
             // over bright backgrounds. Tap to open the full lyrics page.
-            Text(
-                text = lyricStripText,
-                fontSize = 18.sp,
-                fontFamily = CalSansFamily,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = TextStyle(shadow = Shadow(
-                    color = Color.Black.copy(alpha = 0.7f),
-                    offset = Offset(1f, 1f),
-                    blurRadius = 4f
-                )),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { showLyrics = true },
-                textAlign = TextAlign.Start
-            )
+            //
+            // Layout: [Text (weight 1, marquee-scrolling) ] [Chevron-right]
+            //   - Text: crossfade-animated between lines (400ms fade in/out)
+            //   - Text: basicMarquee() scrolls horizontally when the line is
+            //     too long to fit. Short lines stay still (auto-detected).
+            //   - Chevron: always at the right edge, fixed, visual cue.
+            //     Sits OUTSIDE the marquee so it never scrolls with text.
+            Crossfade(
+                targetState = lyricStripText,
+                animationSpec = tween(durationMillis = 400),
+                label = "lyricsLineFade"
+            ) { fadedText ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { showLyrics = true },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = fadedText,
+                        fontSize = 18.sp,
+                        fontFamily = CalSansFamily,
+                        maxLines = 1,
+                        // Note: no overflow = Ellipsis here. basicMarquee
+                        // handles long lines by scrolling instead of cutting
+                        // them off. Short lines render normally.
+                        style = TextStyle(shadow = Shadow(
+                            color = Color.Black.copy(alpha = 0.7f),
+                            offset = Offset(1f, 1f),
+                            blurRadius = 4f
+                        )),
+                        modifier = Modifier
+                            .weight(1f)
+                            .basicMarquee(
+                                // Smooth, slow scroll. Delay before restart
+                                // gives the reader time to read the start.
+                                delayMillis = 1_200,
+                                velocity = 40.dp
+                            )
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        imageVector = CoralIcons.ChevronRight,
+                        contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(2.dp))
 
