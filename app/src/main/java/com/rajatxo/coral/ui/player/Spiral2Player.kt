@@ -1578,6 +1578,8 @@ private fun tryFindSidecarLrc(context: android.content.Context, audioUri: Uri): 
             val basePath = uriStr.removePrefix("file://").substringBeforeLast(".")
             val lrcFile = java.io.File("$basePath.lrc")
             if (lrcFile.exists()) return lrcFile.readText(Charsets.UTF_8)
+            val txtFile = java.io.File("$basePath.txt")
+            if (txtFile.exists()) return txtFile.readText(Charsets.UTF_8)
         }
 
         // Method 2: For content:// URIs, query the DISPLAY_NAME and
@@ -1591,6 +1593,7 @@ private fun tryFindSidecarLrc(context: android.content.Context, audioUri: Uri): 
 
         // Replace the extension with .lrc
         val lrcName = displayName.substringBeforeLast(".") + ".lrc"
+        val txtName = displayName.substringBeforeLast(".") + ".txt"
 
         // Try to find the .lrc file in common music directories
         val musicDirs = listOf(

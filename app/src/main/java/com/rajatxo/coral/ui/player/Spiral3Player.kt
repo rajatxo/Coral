@@ -1583,6 +1583,8 @@ private fun tryFindSidecarLrc(context: android.content.Context, audioUri: Uri): 
             val basePath = uriStr.removePrefix("file://").substringBeforeLast(".")
             val lrcFile = java.io.File("$basePath.lrc")
             if (lrcFile.exists()) return lrcFile.readText(Charsets.UTF_8)
+            val txtFile = java.io.File("$basePath.txt")
+            if (txtFile.exists()) return txtFile.readText(Charsets.UTF_8)
         }
         val displayName = context.contentResolver.query(audioUri, null, null, null, null)?.use { cursor ->
             val nameIdx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
@@ -1590,6 +1592,7 @@ private fun tryFindSidecarLrc(context: android.content.Context, audioUri: Uri): 
         } ?: return null
         if (displayName.isNullOrEmpty()) return null
         val lrcName = displayName.substringBeforeLast(".") + ".lrc"
+        val txtName = displayName.substringBeforeLast(".") + ".txt"
         val sdCard = android.os.Environment.getExternalStorageDirectory()
         val musicDirs = listOf(
             sdCard,
@@ -1601,18 +1604,25 @@ private fun tryFindSidecarLrc(context: android.content.Context, audioUri: Uri): 
         for (dir in musicDirs) {
             if (!dir.exists()) continue
             // Search directly in this dir
+            // Try .lrc first, then .txt
             val lrcFile = java.io.File(dir, lrcName)
             if (lrcFile.exists()) return lrcFile.readText(Charsets.UTF_8)
+            val txtFile = java.io.File(dir, txtName)
+            if (txtFile.exists()) return txtFile.readText(Charsets.UTF_8)
             // Search subdirectories (2 levels deep)
             dir.listFiles()?.forEach { subDir ->
                 if (subDir.isDirectory) {
                     val subLrc = java.io.File(subDir, lrcName)
                     if (subLrc.exists()) return subLrc.readText(Charsets.UTF_8)
+                    val subTxt = java.io.File(subDir, txtName)
+                    if (subTxt.exists()) return subTxt.readText(Charsets.UTF_8)
                     // One more level
                     subDir.listFiles()?.forEach { subSubDir ->
                         if (subSubDir.isDirectory) {
                             val subSubLrc = java.io.File(subSubDir, lrcName)
                             if (subSubLrc.exists()) return subSubLrc.readText(Charsets.UTF_8)
+                            val subSubTxt = java.io.File(subSubDir, txtName)
+                            if (subSubTxt.exists()) return subSubTxt.readText(Charsets.UTF_8)
                         }
                     }
                 }
