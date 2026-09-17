@@ -585,7 +585,7 @@ fun Spiral2Player(
     } else {
         androidx.compose.ui.text.buildAnnotatedString {
             withStyle(androidx.compose.ui.text.SpanStyle(
-                color = Color.White.copy(alpha = 0.5f)
+                color = Color.White
             )) { append(lyricLineText) }
         }
     }

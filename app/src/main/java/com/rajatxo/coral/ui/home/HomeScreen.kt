@@ -328,7 +328,6 @@ fun HomeScreen(
                         capsuleRemaining = capsuleRemaining,
                         onExtend = onExtend
                     )
-                    CoralTab.SoundLab -> com.rajatxo.coral.ui.screens.SoundLabScreen()
                 }
             }
         }

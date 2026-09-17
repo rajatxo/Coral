@@ -1,32 +1,22 @@
 package com.rajatxo.coral.service
 
 import android.app.PendingIntent
-import android.content.Context
 import android.content.Intent
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.rajatxo.coral.MainActivity
 import com.rajatxo.coral.audio.SimpleCrossfadeController
-import com.rajatxo.coral.audio.StudioClarityProcessor
-import com.rajatxo.coral.data.prefs.SoundHapticsManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.launch
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class CoralPlaybackService : MediaSessionService() {
 
     private var mediaSession: MediaSession? = null
-    private val clarityProcessor = StudioClarityProcessor()
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private var clarityObserver: Job? = null
 
     private var playerA: ExoPlayer? = null
     private var playerB: ExoPlayer? = null
@@ -39,22 +29,19 @@ class CoralPlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
 
-        val renderersFactory = object : DefaultRenderersFactory(this) {
-            override fun buildAudioSink(
-                context: Context,
-                enableFloatOutput: Boolean,
-                enableAudioTrackPlaybackParams: Boolean
-            ): androidx.media3.exoplayer.audio.AudioSink {
-                return DefaultAudioSink.Builder(context)
-                    .setEnableFloatOutput(enableFloatOutput)
-                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-                    .setAudioProcessors(arrayOf(clarityProcessor))
-                    .build()
-            }
-        }
-
-        playerA = buildPlayer(renderersFactory, ownsSession = true)
-        playerB = buildPlayer(renderersFactory, ownsSession = false)
+        // NOTE: The StudioClarityProcessor (8-band DSP) was previously
+        // wired into both players' audio sinks via a custom renderers
+        // factory. It was the root cause of:
+        //   1. Crossfade glitches — the DSP's internal filter + limiter
+        //      state didn't reset cleanly on player swap, causing
+        //      audible discontinuities (clicks/pops) during handoff.
+        //   2. Auto-next failing — the processor's flush() returned an
+        //      empty ByteBuffer which briefly stalled the audio pipeline
+        //      at end-of-track, preventing the next track from starting.
+        // Both players now use the DEFAULT renderers factory (no custom
+        // audio processors). The SoundLab tab has also been removed.
+        playerA = buildPlayer(ownsSession = true)
+        playerB = buildPlayer(ownsSession = false)
 
         activePlayer = playerA
         standbyPlayer = playerB
@@ -87,19 +74,10 @@ class CoralPlaybackService : MediaSessionService() {
             }
         )
         crossfadeController?.start()
-
-        clarityObserver = serviceScope.launch {
-            SoundHapticsManager.studioClarityEnabled.collect { enabled ->
-                clarityProcessor.flush()
-            }
-        }
     }
 
-    private fun buildPlayer(
-        renderersFactory: DefaultRenderersFactory,
-        ownsSession: Boolean
-    ): ExoPlayer {
-        val player = ExoPlayer.Builder(this, renderersFactory)
+    private fun buildPlayer(ownsSession: Boolean): ExoPlayer {
+        val player = ExoPlayer.Builder(this)
             .setAudioAttributes(
                 androidx.media3.common.AudioAttributes.Builder()
                     .setUsage(androidx.media3.common.C.USAGE_MEDIA)
@@ -125,7 +103,6 @@ class CoralPlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
-        clarityObserver?.cancel()
         crossfadeController?.stop()
         playerA?.release()
         playerB?.release()
