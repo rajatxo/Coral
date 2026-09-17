@@ -13,6 +13,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -513,11 +515,37 @@ fun HomeScreen(
         // Conditionally renders CoralPlayer (immersive blurred-bg style)
         // or FullPlayer (dating-app profile style) based on the user's
         // Player Design Style preference in Settings → Appearance.
+        //
+        // SMOOTH OPEN/CLOSE TRANSITION:
+        // Open  — slides up from the bottom (off-screen) with a gentle
+        //         spring-like easing + fade-in. 380ms feels like a
+        //         natural continuation of the user's swipe-up gesture
+        //         on the mini player. The player appears to grow out
+        //         of the mini player's position.
+        // Close — slides down off-screen with fade-out, matching the
+        //         Spiral2Player's internal drag-down dismiss. 320ms.
+        // Both use tween with FastOutSlowInEasing for that buttery
+        // deceleration curve Apple/Google use for sheet transitions.
         val playerStyle by com.rajatxo.coral.data.prefs.PlayerStyleManager.playerStyle.collectAsState()
         AnimatedVisibility(
             visible = showFullPlayer,
-            enter = slideInVertically { it } + fadeIn(),
-            exit = fadeOut(animationSpec = tween(200))
+            enter = slideInVertically(
+                animationSpec = tween(
+                    durationMillis = 380,
+                    delayMillis = 0,
+                    easing = androidx.compose.animation.core.FastOutSlowInEasing
+                )
+            ) { fullHeight -> fullHeight } + fadeIn(
+                animationSpec = tween(220)
+            ),
+            exit = slideOutVertically(
+                animationSpec = tween(
+                    durationMillis = 320,
+                    easing = androidx.compose.animation.core.FastOutSlowInEasing
+                )
+            ) { fullHeight -> fullHeight } + fadeOut(
+                animationSpec = tween(220)
+            )
         ) {
             if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.CORAL) {
                 com.rajatxo.coral.ui.player.CoralPlayer(
@@ -743,6 +771,15 @@ private fun MiniPlayer(
         // readability. Falls back to a flat dark background if the backdrop
         // isn't available (shouldn't happen in practice — HomeScreen always
         // provides one).
+        //
+        // OPEN GESTURES:
+        // 1. Tap anywhere on the pill → opens full player
+        // 2. Quick hold + drag UP → opens full player (feels like the
+        //    player is being pulled out of the mini player)
+        // The drag-up gesture is intentionally lenient: any upward drag
+        // >12px triggers the open. This makes the transition feel like a
+        // continuous motion — the player starts sliding up the moment the
+        // user starts dragging, no second tap needed.
         val bodyModifier = if (backdrop != null) {
             Modifier
                 .fillMaxWidth()
@@ -765,7 +802,28 @@ private fun MiniPlayer(
                     }
                 )
                 .border(1.dp, Color.White.copy(alpha = 0.2f), pillShape)
-                .clickable(onClick = onClick)
+                .pointerInput(Unit) {
+                    // Detect both tap and vertical drag on the same surface.
+                    // Tap → open immediately. Drag up → open immediately.
+                    // (The actual smooth open animation is handled by the
+                    // AnimatedVisibility in HomeScreen — we just trigger it.)
+                    detectTapGestures(onTap = { onClick() })
+                }
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures(
+                        onVerticalDrag = { _, dragAmount ->
+                            // dragAmount is negative when swiping up.
+                            // Threshold: 12px upward swipe opens the player.
+                            // Using a class member to remember the
+                            // accumulated drag is overkill for a one-shot
+                            // trigger — just fire on the first upward
+                            // motion that exceeds ~12px in a single frame.
+                            if (dragAmount < -12f) {
+                                onClick()
+                            }
+                        }
+                    )
+                }
         } else {
             Modifier
                 .fillMaxWidth()
@@ -773,7 +831,18 @@ private fun MiniPlayer(
                 .clip(pillShape)
                 .background(Color.Black.copy(alpha = 0.6f))
                 .border(1.dp, Color.White.copy(alpha = 0.2f), pillShape)
-                .clickable(onClick = onClick)
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = { onClick() })
+                }
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures(
+                        onVerticalDrag = { _, dragAmount ->
+                            if (dragAmount < -12f) {
+                                onClick()
+                            }
+                        }
+                    )
+                }
         }
         Box(
             modifier = bodyModifier
