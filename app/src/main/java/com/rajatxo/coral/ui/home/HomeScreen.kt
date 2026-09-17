@@ -3,9 +3,6 @@ package com.rajatxo.coral.ui.home
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -16,8 +13,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -49,7 +44,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -344,141 +338,33 @@ fun HomeScreen(
             }
         }
 
-        // ─── EXPANDING PLAYER CONTAINER (YumaPlayer/ArchiveTune style) ──
-        // ONE container that grows from mini player size to full screen.
-        // The mini player's bottom edge stays FIXED at its position while
-        // the top edge grows upward. Content crossfades: mini player
-        // content fades out as full player content fades in. No spring
-        // bounce — smooth ease (FastOutSlowInEasing). No background dim.
-        //
-        // This replaces the old approach of having a separate mini player
-        // and full player with a slide/scale animation between them. The
-        // user explicitly wants the mini player to EXPAND upward into the
-        // full player, not slide or scale.
-        //
-        // Only show when there's a current song.
-        if (currentSongTitle != null) {
-            val screenHeightDp = with(androidx.compose.ui.platform.LocalDensity.current) {
-                androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
-            }
-            // Collapsed: mini player height (64dp) + bottom padding (108dp)
-            // Expanded: full screen height
-            val collapsedHeight = 64.dp + 108.dp
-            val expandedHeight = screenHeightDp
-            // Animate a fraction from 0 (collapsed) to 1 (expanded).
-            // tween with FastOutSlowInEasing = smooth ease, NO bounce.
-            val playerStyle by com.rajatxo.coral.data.prefs.PlayerStyleManager.playerStyle.collectAsState()
-            val expandFraction by animateFloatAsState(
-                targetValue = if (showFullPlayer) 1f else 0f,
-                animationSpec = tween(
-                    durationMillis = 380,
-                    easing = androidx.compose.animation.core.FastOutSlowInEasing
-                ),
-                label = "playerExpand"
+        // --- Mini player (bottom-center, between search FAB above and nav bar below) ---
+        // Stacked vertical layout:
+        //   search FAB (Y≈0.65)  ← above
+        //   mini player (here)   ← middle, padding(bottom=108dp)
+        //   nav bar (Y≈0.87)     ← below, 10dp gap below the mini player
+        AnimatedVisibility(
+            visible = currentSongTitle != null,
+            enter = slideInVertically { it } + fadeIn(),
+            exit = slideOutVertically { it } + fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 108.dp)
+        ) {
+            MiniPlayer(
+                title = currentSongTitle ?: "",
+                artist = currentSongArtist ?: "",
+                albumArtUri = currentSongArt,
+                songId = currentSongId,
+                isPlaying = isPlaying,
+                positionMs = miniPlayerPositionMs,
+                durationMs = miniPlayerDurationMs,
+                onPlayPauseClick = onPlayPauseClick,
+                onNextClick = onNextClick,
+                onClick = onMiniPlayerClick,
+                backdrop = glassBackdrop
             )
-            // Interpolate height: collapsed → expanded
-            val containerHeight = androidx.compose.ui.unit.lerp(
-                collapsedHeight, expandedHeight, expandFraction
-            )
-            // Bottom padding: 108dp when collapsed → 0dp when expanded
-            val containerBottomPadding = (108.dp * (1f - expandFraction))
-
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(containerHeight)
-                    .padding(bottom = containerBottomPadding)
-                    .navigationBarsPadding()
-                    .clipToBounds()
-            ) {
-                // Mini player content — alpha fades out as expandFraction → 1
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer { alpha = (1f - expandFraction).coerceIn(0f, 1f) }
-                ) {
-                    MiniPlayer(
-                        title = currentSongTitle ?: "",
-                        artist = currentSongArtist ?: "",
-                        albumArtUri = currentSongArt,
-                        songId = currentSongId,
-                        isPlaying = isPlaying,
-                        positionMs = miniPlayerPositionMs,
-                        durationMs = miniPlayerDurationMs,
-                        onPlayPauseClick = onPlayPauseClick,
-                        onNextClick = onNextClick,
-                        onClick = onMiniPlayerClick,
-                        backdrop = glassBackdrop
-                    )
-                }
-                // Full player content — alpha fades in as expandFraction → 1.
-                // Only composed when expandFraction > 0.01 to avoid running
-                // the heavy full player when fully collapsed.
-                if (expandFraction > 0.01f) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer { alpha = expandFraction.coerceIn(0f, 1f) }
-                    ) {
-                        if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.SPIRAL_2) {
-                            com.rajatxo.coral.ui.player.Spiral2Player(
-                                mediaController = mediaController,
-                                songId = currentSongId,
-                                title = currentSongTitle ?: "",
-                                artist = currentSongArtist ?: "",
-                                albumName = currentSongAlbum,
-                                albumArtUri = currentSongArt,
-                                isPlaying = isPlaying,
-                                onPlayPauseClick = onPlayPauseClick,
-                                onNextClick = onNextClick,
-                                onPrevClick = onPrevClick,
-                                onSeek = onSeek,
-                                onDismiss = onFullPlayerDismiss,
-                                onAddToPlaylist = { songId ->
-                                    songToAddToPlaylist = songId
-                                }
-                            )
-                        } else if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.CORAL) {
-                            com.rajatxo.coral.ui.player.CoralPlayer(
-                                mediaController = mediaController,
-                                songId = currentSongId,
-                                title = currentSongTitle ?: "",
-                                artist = currentSongArtist ?: "",
-                                albumName = currentSongAlbum,
-                                albumArtUri = currentSongArt,
-                                isPlaying = isPlaying,
-                                onPlayPauseClick = onPlayPauseClick,
-                                onNextClick = onNextClick,
-                                onPrevClick = onPrevClick,
-                                onSeek = onSeek,
-                                onDismiss = onFullPlayerDismiss,
-                                onAddToPlaylist = { songId ->
-                                    songToAddToPlaylist = songId
-                                }
-                            )
-                        } else {
-                            FullPlayer(
-                                mediaController = mediaController,
-                                songId = currentSongId,
-                                title = currentSongTitle ?: "",
-                                artist = currentSongArtist ?: "",
-                                albumName = currentSongAlbum,
-                                albumArtUri = currentSongArt,
-                                isPlaying = isPlaying,
-                                onPlayPauseClick = onPlayPauseClick,
-                                onNextClick = onNextClick,
-                                onPrevClick = onPrevClick,
-                                onSeek = onSeek,
-                                onDismiss = onFullPlayerDismiss,
-                                onAddToPlaylist = { songId ->
-                                    songToAddToPlaylist = songId
-                                }
-                            )
-                        }
-                    }
-                }
-            }
         }
 
         // --- Draggable Floating Search Button ---
@@ -617,6 +503,109 @@ fun HomeScreen(
             )
         }
 
+        // Full-screen now-playing screen
+        // Conditionally renders CoralPlayer (immersive blurred-bg style)
+        // or FullPlayer (dating-app profile style) based on the user's
+        // Player Design Style preference in Settings → Appearance.
+        val playerStyle by com.rajatxo.coral.data.prefs.PlayerStyleManager.playerStyle.collectAsState()
+        AnimatedVisibility(
+            visible = showFullPlayer,
+            enter = slideInVertically { it } + fadeIn(),
+            exit = fadeOut(animationSpec = tween(200))
+        ) {
+            if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.CORAL) {
+                com.rajatxo.coral.ui.player.CoralPlayer(
+                    mediaController = mediaController,
+                    songId = currentSongId,
+                    title = currentSongTitle ?: "",
+                    artist = currentSongArtist ?: "",
+                    albumName = currentSongAlbum,
+                    albumArtUri = currentSongArt,
+                    isPlaying = isPlaying,
+                    onPlayPauseClick = onPlayPauseClick,
+                    onNextClick = onNextClick,
+                    onPrevClick = onPrevClick,
+                    onSeek = onSeek,
+                    onDismiss = onFullPlayerDismiss,
+                    onAddToPlaylist = { songId ->
+                        songToAddToPlaylist = songId
+                    }
+                )
+            } else if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.SPIRAL) {
+                com.rajatxo.coral.ui.player.SpiralPlayer(
+                    mediaController = mediaController,
+                    songId = currentSongId,
+                    title = currentSongTitle ?: "",
+                    artist = currentSongArtist ?: "",
+                    albumName = currentSongAlbum,
+                    albumArtUri = currentSongArt,
+                    isPlaying = isPlaying,
+                    onPlayPauseClick = onPlayPauseClick,
+                    onNextClick = onNextClick,
+                    onPrevClick = onPrevClick,
+                    onSeek = onSeek,
+                    onDismiss = onFullPlayerDismiss,
+                    onAddToPlaylist = { songId ->
+                        songToAddToPlaylist = songId
+                    }
+                )
+            } else if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.SPIRAL_2) {
+                com.rajatxo.coral.ui.player.Spiral2Player(
+                    mediaController = mediaController,
+                    songId = currentSongId,
+                    title = currentSongTitle ?: "",
+                    artist = currentSongArtist ?: "",
+                    albumName = currentSongAlbum,
+                    albumArtUri = currentSongArt,
+                    isPlaying = isPlaying,
+                    onPlayPauseClick = onPlayPauseClick,
+                    onNextClick = onNextClick,
+                    onPrevClick = onPrevClick,
+                    onSeek = onSeek,
+                    onDismiss = onFullPlayerDismiss,
+                    onAddToPlaylist = { songId ->
+                        songToAddToPlaylist = songId
+                    }
+                )
+            } else if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.SPIRAL_3) {
+                com.rajatxo.coral.ui.player.Spiral3Player(
+                    mediaController = mediaController,
+                    songId = currentSongId,
+                    title = currentSongTitle ?: "",
+                    artist = currentSongArtist ?: "",
+                    albumName = currentSongAlbum,
+                    albumArtUri = currentSongArt,
+                    isPlaying = isPlaying,
+                    onPlayPauseClick = onPlayPauseClick,
+                    onNextClick = onNextClick,
+                    onPrevClick = onPrevClick,
+                    onSeek = onSeek,
+                    onDismiss = onFullPlayerDismiss,
+                    onAddToPlaylist = { songId ->
+                        songToAddToPlaylist = songId
+                    }
+                )
+            } else {
+                FullPlayer(
+                    mediaController = mediaController,
+                    songId = currentSongId,
+                    title = currentSongTitle ?: "",
+                    artist = currentSongArtist ?: "",
+                    albumName = currentSongAlbum,
+                    albumArtUri = currentSongArt,
+                    isPlaying = isPlaying,
+                    onPlayPauseClick = onPlayPauseClick,
+                    onNextClick = onNextClick,
+                    onPrevClick = onPrevClick,
+                    onSeek = onSeek,
+                    onDismiss = onFullPlayerDismiss,
+                    onAddToPlaylist = { songId ->
+                        songToAddToPlaylist = songId
+                    }
+                )
+            }
+        }
+
         // Full-screen playlist detail overlay (covers nav rail + everything)
         AnimatedVisibility(
             visible = selectedPlaylist != null,
@@ -748,11 +737,6 @@ private fun MiniPlayer(
         // readability. Falls back to a flat dark background if the backdrop
         // isn't available (shouldn't happen in practice — HomeScreen always
         // provides one).
-        //
-        // TAP TO OPEN: simple clickable — reliable, no gesture conflicts.
-        // (Previous version used detectTapGestures + detectVerticalDragGestures
-        // in two separate pointerInput blocks, which competed for events and
-        // caused the mini player to stop responding after a few opens.)
         val bodyModifier = if (backdrop != null) {
             Modifier
                 .fillMaxWidth()
