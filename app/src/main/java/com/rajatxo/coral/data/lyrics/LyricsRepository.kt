@@ -12,6 +12,8 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
 import java.net.URLEncoder
 
 /**
@@ -216,6 +218,278 @@ class LyricsRepository(private val context: Context) {
         if (track.isBlank() || artist.isBlank()) return@withContext null
         val importedFile = File(cacheDir, "${cacheKey(track, artist)}.imported.json")
         readCache(importedFile)?.copy(source = LyricSource.MANUAL)
+    }
+
+    // ---------- Network Fetch (LrcLib → NetEase → KuGou) ----------
+
+    /**
+     * Fetch lyrics from network providers. Tries LrcLib first (best sync),
+     * then NetEase, then KuGou. Uses duration matching for sync accuracy.
+     * Results are cached for offline use.
+     *
+     * @param track       Song title
+     * @param artist      Artist name
+     * @param album       Album name (optional, improves LrcLib match)
+     * @param durationMs  Song duration in ms (CRITICAL for sync matching)
+     * @return Lyric or null if all providers fail
+     */
+    suspend fun fetchFromNetwork(
+        track: String,
+        artist: String,
+        album: String? = null,
+        durationMs: Long? = null
+    ): Lyric? = withContext(Dispatchers.IO) {
+        if (track.isBlank()) return@withContext null
+
+        // 1. LrcLib — best source for synced lyrics, uses duration for matching
+        val lrcLibResult = fetchFromLrcLib(track, artist, album, durationMs)
+        if (lrcLibResult != null) {
+            cacheLyrics(track, artist, lrcLibResult)
+            return@withContext lrcLibResult
+        }
+
+        // 2. NetEase Cloud Music — large Chinese lyrics database
+        val netEaseResult = fetchFromNetEase(track, artist, durationMs)
+        if (netEaseResult != null) {
+            cacheLyrics(track, artist, netEaseResult)
+            return@withContext netEaseResult
+        }
+
+        // 3. KuGou — another large lyrics database
+        val kuGouResult = fetchFromKuGou(track, artist, durationMs)
+        if (kuGouResult != null) {
+            cacheLyrics(track, artist, kuGouResult)
+            return@withContext kuGouResult
+        }
+
+        null
+    }
+
+    /**
+     * Fetch from LrcLib API.
+     * Uses duration parameter for exact timeline matching.
+     * https://lrclib.net/api/get?track_name=X&artist_name=Y&duration=Z
+     */
+    private fun fetchFromLrcLib(
+        track: String,
+        artist: String,
+        album: String?,
+        durationMs: Long?
+    ): Lyric? {
+        return try {
+            val urlBuilder = StringBuilder("https://lrclib.net/api/get?")
+            urlBuilder.append("track_name=").append(encode(track))
+            urlBuilder.append("&artist_name=").append(encode(artist))
+            if (!album.isNullOrBlank()) {
+                urlBuilder.append("&album_name=").append(encode(album))
+            }
+            // Duration is CRITICAL — it ensures we get the exact version
+            // of the lyrics that matches the user's song timeline
+            if (durationMs != null && durationMs > 0) {
+                val durationSec = durationMs / 1000
+                urlBuilder.append("&duration=").append(durationSec)
+            }
+
+            val url = URL(urlBuilder.toString())
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.setRequestProperty("Accept", "application/json")
+            conn.connectTimeout = 8000
+            conn.readTimeout = 8000
+            conn.instanceFollowRedirects = true
+
+            val code = conn.responseCode
+            if (code != 200) return null
+
+            val body = conn.inputStream.bufferedReader().use { it.readText() }
+            val obj: JsonObject = json.parseToJsonElement(body).jsonObject
+            val syncedLyrics = obj["syncedLyrics"]?.jsonPrimitive?.contentOrNull
+            val plainLyrics = obj["plainLyrics"]?.jsonPrimitive?.contentOrNull
+            val returnedDuration = obj["duration"]?.jsonPrimitive?.contentOrNull?.toIntOrNull()
+
+            // Verify duration matches (within 2 seconds tolerance) for sync accuracy
+            if (durationMs != null && returnedDuration != null) {
+                val expectedSec = durationMs / 1000
+                if (kotlin.math.abs(returnedDuration - expectedSec) > 2) {
+                    // Duration mismatch — these lyrics won't sync correctly
+                    return null
+                }
+            }
+
+            if (!syncedLyrics.isNullOrBlank()) {
+                val lines = LrcParser.parse(syncedLyrics)
+                if (lines.isNotEmpty()) {
+                    return Lyric(
+                        synced = true,
+                        lines = lines,
+                        source = LyricSource.NETWORK,
+                        trackName = track,
+                        artistName = artist,
+                        hasWordSync = lines.any { it.hasWordSync }
+                    )
+                }
+            }
+            if (!plainLyrics.isNullOrBlank()) {
+                val lines = LrcParser.parse(plainLyrics)
+                if (lines.isNotEmpty()) {
+                    return Lyric(
+                        synced = false,
+                        lines = lines,
+                        source = LyricSource.NETWORK,
+                        trackName = track,
+                        artistName = artist
+                    )
+                }
+            }
+            null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Fetch from NetEase Cloud Music API.
+     * Searches by keyword (artist + title), returns synced LRC.
+     */
+    private fun fetchFromNetEase(track: String, artist: String, durationMs: Long?): Lyric? {
+        return try {
+            // Search for the song
+            val keyword = encode("$artist $track")
+            val searchUrl = URL("https://music.xianqiao.wang/neteaseapiv2/search?keywords=$keyword&limit=5&type=1")
+            val searchConn = searchUrl.openConnection() as HttpURLConnection
+            searchConn.requestMethod = "GET"
+            searchConn.connectTimeout = 8000
+            searchConn.readTimeout = 8000
+            if (searchConn.responseCode != 200) return null
+
+            val searchBody = searchConn.inputStream.bufferedReader().use { it.readText() }
+            val searchObj = json.parseToJsonElement(searchBody).jsonObject
+            val songs = searchObj["result"]?.jsonObject?.get("songs")
+                ?: return null
+
+            // Find the best matching song by duration
+            val songsArray = songs.toString()
+            // Extract song IDs from the JSON
+            val idRegex = Regex(""""id"\s*:\s*(\d+)""")
+            val durRegex = Regex(""""dt"\s*:\s*(\d+)""")
+            val ids = idRegex.findAll(songsArray).map { it.groupValues[1] }.toList()
+            val durs = durRegex.findAll(songsArray).map { it.groupValues[1].toLongOrNull() ?: 0L }.toList()
+
+            var bestId: String? = null
+            if (durationMs != null && durs.isNotEmpty()) {
+                // Find the song with the closest duration
+                var minDiff = Long.MAX_VALUE
+                for (i in ids.indices) {
+                    if (i < durs.size) {
+                        val diff = kotlin.math.abs(durs[i] - durationMs)
+                        if (diff < minDiff && diff < 3000) {  // 3 second tolerance
+                            minDiff = diff
+                            bestId = ids[i]
+                        }
+                    }
+                }
+            }
+            if (bestId == null && ids.isNotEmpty()) bestId = ids[0]
+            if (bestId == null) return null
+
+            // Fetch lyrics for the matched song
+            val lrcUrl = URL("https://music.xianqiao.wang/neteaseapiv2/lyric?id=$bestId")
+            val lrcConn = lrcUrl.openConnection() as HttpURLConnection
+            lrcConn.requestMethod = "GET"
+            lrcConn.connectTimeout = 8000
+            lrcConn.readTimeout = 8000
+            if (lrcConn.responseCode != 200) return null
+
+            val lrcBody = lrcConn.inputStream.bufferedReader().use { it.readText() }
+            val lrcObj = json.parseToJsonElement(lrcBody).jsonObject
+            val synced = lrcObj["lrc"]?.jsonObject?.get("lyric")?.jsonPrimitive?.contentOrNull
+            val unsynced = lrcObj["tlyric"]?.let { null } ?: synced
+
+            if (!synced.isNullOrBlank()) {
+                val lines = LrcParser.parse(synced)
+                if (lines.isNotEmpty()) {
+                    return Lyric(
+                        synced = lines.any { it.timeMs >= 0 },
+                        lines = lines,
+                        source = LyricSource.NETWORK,
+                        trackName = track,
+                        artistName = artist,
+                        hasWordSync = lines.any { it.hasWordSync }
+                    )
+                }
+            }
+            null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Fetch from KuGou API.
+     * Searches by keyword, returns synced LRC.
+     */
+    private fun fetchFromKuGou(track: String, artist: String, durationMs: Long?): Lyric? {
+        return try {
+            val keyword = encode("$artist $track")
+            // Search for the song
+            val searchUrl = URL("https://krcs.kugou.com/search?ver=1&man=yes&client=mobi&hash=&src_app=&duration=${durationMs?.div(1000) ?: 0}&album_audio_id=0&keyword=$keyword&pagesize=5&area_code=1&page=1")
+            val searchConn = searchUrl.openConnection() as HttpURLConnection
+            searchConn.requestMethod = "GET"
+            searchConn.connectTimeout = 8000
+            searchConn.readTimeout = 8000
+            if (searchConn.responseCode != 200) return null
+
+            val searchBody = searchConn.inputStream.bufferedReader().use { it.readText() }
+            val searchObj = json.parseToJsonElement(searchBody).jsonObject
+            val candidates = searchObj["candidates"]
+                ?: return null
+
+            // Extract the first candidate's ID and accesskey
+            val idRegex = Regex(""""id"\s*:\s*"?(\d+)"?""")
+            val accesskeyRegex = Regex(""""accesskey"\s*:\s*"([^"]+)"""")
+            val id = idRegex.find(candidates.toString())?.groupValues?.getOrNull(1) ?: return null
+            val accesskey = accesskeyRegex.find(candidates.toString())?.groupValues?.getOrNull(1) ?: return null
+
+            // Fetch the lyrics
+            val lrcUrl = URL("https://lyrics.kugou.com/download?ver=1&client=pc&id=$id&accesskey=$accesskey&fmt=lrc&charset=utf8")
+            val lrcConn = lrcUrl.openConnection() as HttpURLConnection
+            lrcConn.requestMethod = "GET"
+            lrcConn.connectTimeout = 8000
+            lrcConn.readTimeout = 8000
+            if (lrcConn.responseCode != 200) return null
+
+            val lrcBody = lrcConn.inputStream.bufferedReader().use { it.readText() }
+            val lrcObj = json.parseToJsonElement(lrcBody).jsonObject
+            val encodedContent = lrcObj["content"]?.jsonPrimitive?.contentOrNull ?: return null
+
+            // KuGou returns base64-encoded LRC
+            val lrcText = try {
+                String(android.util.Base64.decode(encodedContent, android.util.Base64.DEFAULT), Charsets.UTF_8)
+            } catch (_: Exception) { return null }
+
+            if (lrcText.isNotBlank()) {
+                val lines = LrcParser.parse(lrcText)
+                if (lines.isNotEmpty()) {
+                    return Lyric(
+                        synced = lines.any { it.timeMs >= 0 },
+                        lines = lines,
+                        source = LyricSource.NETWORK,
+                        trackName = track,
+                        artistName = artist,
+                        hasWordSync = lines.any { it.hasWordSync }
+                    )
+                }
+            }
+            null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** Cache lyrics for offline use. */
+    private fun cacheLyrics(track: String, artist: String, lyric: Lyric) {
+        val cacheFile = File(cacheDir, "${cacheKey(track, artist)}.json")
+        writeCache(cacheFile, lyric)
     }
 
     // ---------- Cache ----------

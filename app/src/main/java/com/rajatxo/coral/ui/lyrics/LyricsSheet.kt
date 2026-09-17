@@ -319,6 +319,43 @@ fun LyricsSheet(
                         DropdownMenuItem(
                             text = {
                                 Text(
+                                    "Fetch Lyrics",
+                                    color = Color.White,
+                                    fontFamily = CalSansFamily
+                                )
+                            },
+                            onClick = {
+                                showMenu = false
+                                coroutineScope.launch {
+                                    isLoading = true
+                                    errorMessage = null
+                                    try {
+                                        val fetched = repository.fetchFromNetwork(
+                                            trackName, artistName, albumName, durationMs
+                                        )
+                                        if (fetched != null) {
+                                            lyric = fetched
+                                        } else {
+                                            errorMessage = "No lyrics found online"
+                                        }
+                                    } catch (e: Exception) {
+                                        errorMessage = "Failed to fetch: ${e.message}"
+                                    }
+                                    isLoading = false
+                                }
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    CoralIcons.Music,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text(
                                     "Import LRC File",
                                     color = Color.White,
                                     fontFamily = CalSansFamily
