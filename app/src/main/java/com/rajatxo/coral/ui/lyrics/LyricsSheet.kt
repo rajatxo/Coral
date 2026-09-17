@@ -109,7 +109,8 @@ fun LyricsSheet(
     onDismiss: () -> Unit,
     onSeek: (Long) -> Unit,
     albumArtUri: Uri? = null,
-    embeddedLyrics: String? = null
+    embeddedLyrics: String? = null,
+    onLyricsFetched: ((Lyric?) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val repository = remember { LyricsRepository(context) }
@@ -146,6 +147,7 @@ fun LyricsSheet(
                     val saved = repository.saveImportedLrc(trackName, artistName, lrcText)
                     if (saved != null) {
                         lyric = saved
+                        onLyricsFetched?.invoke(saved)
                         errorMessage = null
                     } else {
                         errorMessage = "Failed to parse lyrics. Make sure it's a valid LRC file."
@@ -335,6 +337,7 @@ fun LyricsSheet(
                                         )
                                         if (fetched != null) {
                                             lyric = fetched
+                                            onLyricsFetched?.invoke(fetched)
                                         } else {
                                             errorMessage = "No lyrics found online"
                                         }

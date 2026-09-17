@@ -1423,7 +1423,12 @@ fun Spiral3Player(
                 onDismiss = { showLyrics = false },
                 onSeek = onSeek,
                 albumArtUri = albumArtUri,
-                embeddedLyrics = embeddedLyrics
+                embeddedLyrics = embeddedLyrics,
+                onLyricsFetched = { fetchedLyric ->
+                    if (fetchedLyric != null) {
+                        lyricData = fetchedLyric
+                    }
+                }
             )
         }
 
