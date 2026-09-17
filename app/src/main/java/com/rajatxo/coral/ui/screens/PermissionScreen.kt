@@ -103,16 +103,6 @@ fun PermissionScreen(
             }
         )
     }
-    var filesGranted by remember {
-        mutableStateOf(
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                android.os.Environment.isExternalStorageManager()
-            } else {
-                context.checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) ==
-                    android.content.pm.PackageManager.PERMISSION_GRANTED
-            }
-        )
-    }
 
     // Hint state: shows when user denies a permission
     var showHint by remember { mutableStateOf(false) }
@@ -127,8 +117,8 @@ fun PermissionScreen(
     )
 
     // When all granted, wait 800ms then trigger fade-out, then call onGranted
-    LaunchedEffect(notifGranted, musicGranted, filesGranted) {
-        if (notifGranted && musicGranted && filesGranted) {
+    LaunchedEffect(notifGranted, musicGranted) {
+        if (notifGranted && musicGranted) {
             delay(800)
             fadingOut = true
             delay(600)
@@ -189,47 +179,6 @@ fun PermissionScreen(
         }
         context.startActivity(intent)
     }
-
-    /** Request MANAGE_EXTERNAL_STORAGE (All files access) for reading lyrics files. */
-    fun requestAllFiles() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            // On Android 11+, MANAGE_EXTERNAL_STORAGE requires opening system settings
-            try {
-                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                    data = Uri.fromParts("package", context.packageName, null)
-                }
-                context.startActivity(intent)
-            } catch (_: Exception) {
-                // Fallback: open general all-files settings
-                try {
-                    context.startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
-                } catch (_: Exception) {
-                    openAppSettings()
-                }
-            }
-        } else {
-            // Pre-Android 11: just request READ_EXTERNAL_STORAGE
-            musicLauncher.launch(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE))
-        }
-    }
-
-    // Re-check filesGranted when the app resumes (user returns from settings)
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                filesGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    android.os.Environment.isExternalStorageManager()
-                } else {
-                    context.checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) ==
-                        android.content.pm.PackageManager.PERMISSION_GRANTED
-                }
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
 
     Box(
         modifier = Modifier
@@ -322,24 +271,6 @@ fun PermissionScreen(
                     onClick = {
                         if (musicGranted) openAppSettings()
                         else requestMusic()
-                    }
-                )
-
-                GlassPermissionCard(
-                    icon = {
-                        Icon(
-                            imageVector = CoralIcons.ListMusic,
-                            contentDescription = null,
-                            tint = Color.Black,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    },
-                    title = "All files access",
-                    subtitle = "To find lyrics files",
-                    isOn = filesGranted,
-                    onClick = {
-                        if (filesGranted) openAppSettings()
-                        else requestAllFiles()
                     }
                 )
             }

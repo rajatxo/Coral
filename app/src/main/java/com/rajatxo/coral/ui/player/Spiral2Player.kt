@@ -451,80 +451,90 @@ fun Spiral2Player(
     // ─── Lyrics (1-line synced preview, like Coral but single line) ──
     val lyricsRepository = remember { com.rajatxo.coral.data.lyrics.LyricsRepository(context) }
     var lyricData by remember { mutableStateOf<com.rajatxo.coral.data.lyrics.Lyric?>(null) }
-    // ─── Lyrics: embedded → LyricsIndex → imported cache ──────────
-    LaunchedEffect(mediaController, albumArtUri) {
-        embeddedLyrics = null
+
+    // ─── AUTO-FETCH lyrics when song changes ──────────────────────
+    // Priority: 1. Embedded metadata  2. Cached (from previous fetch)  3. Network fetch
+    LaunchedEffect(title, artist, durationMs) {
+        lyricData = null  // reset for new song
+        if (title.isBlank()) return@LaunchedEffect
+
+        // 1. Try cache first (instant, offline)
+        val cached = withContext(kotlinx.coroutines.Dispatchers.IO) {
+            lyricsRepository.getLyrics(title, artist, albumName, durationMs)
+        }
+        if (cached != null) {
+            lyricData = cached
+            // Also set embeddedLyrics for the lyrics sheet
+            val lrcText = if (cached.synced) {
+                cached.lines.joinToString("\n") { line ->
+                    if (line.hasWordSync && line.words != null) {
+                        val wordTags = line.words.joinToString("") { w -> "<${formatWordTime(w.startTime)}>${w.text} " }
+                        "[${formatWordTime(line.timeMs)}]$wordTags"
+                    } else {
+                        "[${formatWordTime(line.timeMs)}]${line.text}"
+                    }
+                }
+            } else {
+                cached.lines.joinToString("\n") { it.text }
+            }
+            embeddedLyrics = lrcText
+            return@LaunchedEffect
+        }
+
+        // 2. Try embedded metadata
         try {
             mediaController?.let { controller ->
                 val mediaItem = controller.currentMediaItem
                 var audioUri = mediaItem?.localConfiguration?.uri
-
-                // Fallback: if localConfiguration?.uri is null, try to
-                // reconstruct from the mediaId (which is the song ID)
                 if (audioUri == null && mediaItem != null) {
                     val mediaId = mediaItem.mediaId.toLongOrNull()
                     if (mediaId != null) {
                         audioUri = android.content.ContentUris.withAppendedId(
-                            android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-                            mediaId
+                            android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, mediaId
                         )
                     }
                 }
-
                 if (audioUri != null) {
-                    android.util.Log.d("CoralLyrics", "Trying embedded lyrics for URI: $audioUri")
-
-                    // 1. Try embedded metadata — scan ALL keys
                     val embedded = withContext(kotlinx.coroutines.Dispatchers.IO) {
                         lyricsRepository.getEmbeddedLyrics(audioUri)
                     }
-                    android.util.Log.d("CoralLyrics", "Embedded result: ${embedded?.take(50) ?: "null"}")
                     if (embedded != null) {
                         embeddedLyrics = embedded
-                    }
-
-                    // 2. Try LyricsIndex (scanned .lrc/.txt files on device)
-                    if (embeddedLyrics == null) {
-                        val indexed = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            com.rajatxo.coral.data.lyrics.LyricsIndex.findLyrics(title, artist)
-                        }
-                        if (indexed != null) embeddedLyrics = indexed
-                    }
-
-                    // 3. Try previously imported/cached lyrics
-                    if (embeddedLyrics == null) {
-                        val cached = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            lyricsRepository.getImportedLrc(title, artist)
-                        }
-                        if (cached != null) {
-                            val lrcText = cached.lines.joinToString("\n") { line ->
-                                if (line.hasWordSync && line.words != null) {
-                                    val wordTags = line.words.joinToString("") { word ->
-                                        "<${formatWordTime(word.startTime)}>${word.text} "
-                                    }
-                                    "[${formatWordTime(line.timeMs)}]$wordTags"
-                                } else {
-                                    "[${formatWordTime(line.timeMs)}]${line.text}"
-                                }
-                            }
-                            embeddedLyrics = lrcText
-                        }
-                    }
-
-                    // Parse whichever lyrics we found
-                    if (embeddedLyrics != null) {
-                        val parsed = com.rajatxo.coral.data.lyrics.LrcParser.parse(embeddedLyrics)
+                        val parsed = com.rajatxo.coral.data.lyrics.LrcParser.parse(embedded)
                         if (parsed.isNotEmpty()) {
-                            val hasWordSync = parsed.any { it.hasWordSync }
                             lyricData = com.rajatxo.coral.data.lyrics.Lyric(
                                 synced = parsed.any { it.timeMs >= 0 },
                                 lines = parsed,
                                 source = com.rajatxo.coral.data.lyrics.LyricSource.EMBEDDED,
-                                hasWordSync = hasWordSync
+                                hasWordSync = parsed.any { it.hasWordSync }
                             )
                         }
+                        return@LaunchedEffect
                     }
                 }
+            }
+        } catch (_: Exception) { }
+
+        // 3. Auto-fetch from network (LrcLib → NetEase → KuGou)
+        try {
+            val fetched = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                lyricsRepository.fetchFromNetwork(title, artist, albumName, durationMs)
+            }
+            if (fetched != null) {
+                lyricData = fetched
+                val lrcText = if (fetched.synced) {
+                    fetched.lines.joinToString("\n") { line ->
+                        if (line.hasWordSync && line.words != null) {
+                            val wordTags = line.words.joinToString("") { w -> "<${formatWordTime(w.startTime)}>${w.text} " }
+                            "[${formatWordTime(line.timeMs)}]$wordTags"
+                        } else {
+                            "[${formatWordTime(line.timeMs)}]${line.text}"
+                        }
+                    }
+                } else {
+                    fetched.lines.joinToString("\n") { it.text }
+                }
+                embeddedLyrics = lrcText
             }
         } catch (_: Exception) { }
     }
