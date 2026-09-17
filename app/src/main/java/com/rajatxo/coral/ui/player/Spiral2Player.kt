@@ -1188,12 +1188,17 @@ fun Spiral2Player(
             // Bigger (18sp), pure white, with auto-shadow for readability
             // over bright backgrounds. Tap to open the full lyrics page.
             //
-            // Layout: [Text (weight 1, marquee-scrolling) ] [Chevron-right]
+            // Layout: [Text (marquee-scrolling, hugs content) ] [Chevron-right]
             //   - Text: crossfade-animated between lines (400ms fade in/out)
             //   - Text: basicMarquee() scrolls horizontally when the line is
             //     too long to fit. Short lines stay still (auto-detected).
-            //   - Chevron: always at the right edge, fixed, visual cue.
-            //     Sits OUTSIDE the marquee so it never scrolls with text.
+            //   - Chevron: hugs the END of the text — sits right after the
+            //     last visible word, not pinned to the right edge. So a short
+            //     line like "Yeah" shows "Yeah›" near the left edge, while a
+            //     long line shows "…long lyrics text…›" further right.
+            //     The chevron scrolls WITH the marquee (it's part of the
+            //     marquee's content), so on long lines it appears at the end
+            //     of the scrolling text rather than staying anchored.
             Crossfade(
                 targetState = lyricStripText,
                 animationSpec = tween(durationMillis = 400),
@@ -1208,19 +1213,11 @@ fun Spiral2Player(
                         ) { showLyrics = true },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = fadedText,
-                        fontSize = 18.sp,
-                        fontFamily = CalSansFamily,
-                        maxLines = 1,
-                        // Note: no overflow = Ellipsis here. basicMarquee
-                        // handles long lines by scrolling instead of cutting
-                        // them off. Short lines render normally.
-                        style = TextStyle(shadow = Shadow(
-                            color = Color.Black.copy(alpha = 0.7f),
-                            offset = Offset(1f, 1f),
-                            blurRadius = 4f
-                        )),
+                    // Marquee holds Text + Chevron together so the chevron
+                    // scrolls with the text and always sits at its end.
+                    // No weight() on either — the Row hugs its content, and
+                    // marquee takes over when the content exceeds the width.
+                    Row(
                         modifier = Modifier
                             .weight(1f)
                             .basicMarquee(
@@ -1228,15 +1225,31 @@ fun Spiral2Player(
                                 // gives the reader time to read the start.
                                 initialDelayMillis = 1_200,
                                 velocity = 40.dp
-                            )
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Icon(
-                        imageVector = CoralIcons.ChevronRight,
-                        contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.7f),
-                        modifier = Modifier.size(18.dp)
-                    )
+                            ),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = fadedText,
+                            fontSize = 18.sp,
+                            fontFamily = CalSansFamily,
+                            maxLines = 1,
+                            // No overflow = Ellipsis — basicMarquee handles
+                            // long lines by scrolling instead of cutting
+                            // them off. Short lines render normally.
+                            style = TextStyle(shadow = Shadow(
+                                color = Color.Black.copy(alpha = 0.7f),
+                                offset = Offset(1f, 1f),
+                                blurRadius = 4f
+                            ))
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = CoralIcons.ChevronRight,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.7f),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
 
