@@ -1244,7 +1244,7 @@ fun Spiral2Player(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Icon(
-                            imageVector = CoralIcons.ChevronRight,
+                            imageVector = CoralIcons.ChevronRightThick,
                             contentDescription = null,
                             tint = Color.White.copy(alpha = 0.7f),
                             modifier = Modifier.size(18.dp)

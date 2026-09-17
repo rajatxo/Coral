@@ -549,6 +549,34 @@ object CoralIcons {
     }
 
     /**
+     * Right-pointing chevron, THICKER variant (strokeLineWidth = 2.8f vs
+     * the default 2f). Used in the Spiral 2.0 lyrics strip where the
+     * chevron hugs the end of the lyric line — the extra weight makes it
+     * read clearly as a visual cue at small sizes (18dp).
+     */
+    val ChevronRightThick: ImageVector = ImageVector.Builder(
+        name = "ChevronRightThick",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).apply {
+        path(
+            fill = null,
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 2.8f,
+            strokeLineCap = StrokeCap.Round,
+            strokeLineJoin = StrokeJoin.Round,
+            strokeLineMiter = 4f,
+            pathBuilder = {
+                moveTo(9f, 6f)
+                lineToRelative(6f, 6f)
+                lineToRelative(-6f, 6f)
+            }
+        )
+    }.build()
+
+    /**
      * Lucide rewind (MIT licensed) — two left-pointing triangles.
      * FILLED solid version. Used for the "previous track" button.
      */
