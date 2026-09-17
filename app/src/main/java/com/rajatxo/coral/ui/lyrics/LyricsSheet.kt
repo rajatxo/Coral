@@ -127,6 +127,14 @@ fun LyricsSheet(
     // Menu + dialog state
     var showMenu by remember { mutableStateOf(false) }
 
+    // Paste-lyrics dialog state — when the user picks "Paste Lyrics"
+    // from the menu, this dialog opens with a multi-line text field
+    // where they can paste LRC-formatted lyrics (with [mm:ss.xxx]
+    // timestamps). On confirm, the text is saved via saveImportedLrc
+    // (same path as importing an .lrc file).
+    var showPasteDialog by remember { mutableStateOf(false) }
+    var pasteText by remember { mutableStateOf("") }
+
     // File picker for LRC import — accepts any text file, tries to parse as LRC
     val lrcPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -377,6 +385,28 @@ fun LyricsSheet(
                                 )
                             }
                         )
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "Paste Lyrics",
+                                    color = Color.White,
+                                    fontFamily = CalSansFamily
+                                )
+                            },
+                            onClick = {
+                                showMenu = false
+                                pasteText = ""
+                                showPasteDialog = true
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    CoralIcons.ClipboardPaste,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        )
                     }
                 }
             }
@@ -453,6 +483,110 @@ fun LyricsSheet(
                     }
                 }
             }
+        }
+
+        // ─── Paste Lyrics dialog ─────────────────────────────────────
+        // Opens when the user picks "Paste Lyrics" from the 3-dot menu.
+        // Multi-line text field where they can paste LRC-formatted lyrics
+        // (with [mm:ss.xxx] timestamps). On Save, the text is parsed and
+        // stored via saveImportedLrc — same path as importing an .lrc
+        // file, so the lyrics show up immediately and persist for
+        // offline use on future plays of this song.
+        if (showPasteDialog) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = {
+                    showPasteDialog = false
+                    pasteText = ""
+                },
+                containerColor = Color(0xFF1F1F1F),
+                titleContentColor = Color.White,
+                title = {
+                    Text(
+                        "Paste Lyrics",
+                        color = Color.White,
+                        fontFamily = CalSansFamily,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Column {
+                        Text(
+                            "Paste LRC-formatted lyrics below. Lines with [mm:ss.xxx] timestamps will be synced.",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 12.sp,
+                            fontFamily = CalSansFamily
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = pasteText,
+                            onValueChange = { pasteText = it },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(280.dp),
+                            placeholder = {
+                                Text(
+                                    "[00:22.170]Mon eke eke dui\n[00:26.370]Ekakar ami-tui\n...",
+                                    color = Color.White.copy(alpha = 0.35f),
+                                    fontSize = 13.sp,
+                                    fontFamily = CalSansFamily
+                                )
+                            },
+                            textStyle = TextStyle(
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontFamily = CalSansFamily
+                            ),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = Color(0xFF2A2A2A),
+                                unfocusedContainerColor = Color(0xFF2A2A2A),
+                                focusedBorderColor = Color.White.copy(alpha = 0.5f),
+                                unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
+                                cursorColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+                },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(
+                        onClick = {
+                            if (pasteText.isNotBlank()) {
+                                val textToSave = pasteText
+                                showPasteDialog = false
+                                pasteText = ""
+                                coroutineScope.launch {
+                                    isLoading = true
+                                    errorMessage = null
+                                    try {
+                                        val saved = repository.saveImportedLrc(trackName, artistName, textToSave)
+                                        if (saved != null) {
+                                            lyric = saved
+                                            onLyricsFetched?.invoke(saved)
+                                        } else {
+                                            errorMessage = "Failed to parse lyrics. Make sure lines have [mm:ss.xxx] timestamps."
+                                        }
+                                    } catch (e: Exception) {
+                                        errorMessage = "Failed to save: ${e.message}"
+                                    }
+                                    isLoading = false
+                                }
+                            }
+                        }
+                    ) {
+                        Text("Save", color = Color.White, fontFamily = CalSansFamily)
+                    }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(
+                        onClick = {
+                            showPasteDialog = false
+                            pasteText = ""
+                        }
+                    ) {
+                        Text("Cancel", color = Color.White.copy(alpha = 0.6f), fontFamily = CalSansFamily)
+                    }
+                }
+            )
         }
     }
 }

@@ -508,6 +508,35 @@ object CoralIcons {
         verticalLineToRelative(-3f)
     }
 
+    /**
+     * Clipboard with a paste arrow — lucide clipboard-paste style.
+     * Used by the "Paste Lyrics" menu item in the lyrics sheet.
+     */
+    val ClipboardPaste: ImageVector = stroke("ClipboardPaste") {
+        // Clipboard body (rounded rectangle outline)
+        moveTo(8f, 4f)
+        arcToRelative(2f, 2f, 0f, false, false, -2f, 2f)
+        verticalLineTo(20f)
+        arcToRelative(2f, 2f, 0f, false, false, 2f, 2f)
+        horizontalLineToRelative(6f)
+        // Clipboard clip (tab at top)
+        moveTo(8f, 4f)
+        horizontalLineToRelative(4f)
+        arcToRelative(1f, 1f, 0f, false, true, 1f, 1f)
+        verticalLineToRelative(2f)
+        arcToRelative(1f, 1f, 0f, false, true, -1f, 1f)
+        horizontalLineToRelative(-6f)
+        arcToRelative(1f, 1f, 0f, false, true, -1f, -1f)
+        verticalLineTo(5f)
+        arcToRelative(1f, 1f, 0f, false, true, 1f, -1f)
+        // Paste arrow (downward) to the right of the clipboard
+        moveTo(15f, 11f)
+        verticalLineToRelative(6f)
+        moveTo(12f, 15f)
+        lineToRelative(3f, 3f)
+        lineToRelative(3f, -3f)
+    }
+
     /** Speaker with one small wave — low volume. */
     val VolumeLow: ImageVector = stroke("VolumeLow") {
         // Speaker body (trapezoid pointing right)
