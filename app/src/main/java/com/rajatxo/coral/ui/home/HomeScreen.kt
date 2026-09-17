@@ -3,6 +3,8 @@ package com.rajatxo.coral.ui.home
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -351,6 +353,18 @@ fun HomeScreen(
         // at Y=0.92) with a comfortable gap. Was 72dp when the nav bar
         // was at Y=0.85; increased to 108dp to maintain clear separation
         // now that the nav bar sits closer to the bottom edge.
+        // Mini player alpha — fades out when the full player is open so the
+        // transition feels like the mini player is "becoming" the full player
+        // (no visual gap between the two). Spring physics match the full
+        // player's open/close spring for a synchronized morph feel.
+        val miniPlayerAlpha by androidx.compose.animation.core.animateFloatAsState(
+            targetValue = if (showFullPlayer) 0f else 1f,
+            animationSpec = spring(
+                dampingRatio = 0.82f,
+                stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+            ),
+            label = "miniPlayerAlpha"
+        )
         AnimatedVisibility(
             visible = currentSongTitle != null,
             enter = slideInVertically { it } + fadeIn(),
@@ -359,6 +373,7 @@ fun HomeScreen(
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
                 .padding(bottom = 108.dp)
+                .graphicsLayer { alpha = miniPlayerAlpha }
         ) {
             MiniPlayer(
                 title = currentSongTitle ?: "",
@@ -516,35 +531,37 @@ fun HomeScreen(
         // or FullPlayer (dating-app profile style) based on the user's
         // Player Design Style preference in Settings → Appearance.
         //
-        // SMOOTH OPEN/CLOSE TRANSITION:
-        // Open  — slides up from the bottom (off-screen) with a gentle
-        //         spring-like easing + fade-in. 380ms feels like a
-        //         natural continuation of the user's swipe-up gesture
-        //         on the mini player. The player appears to grow out
-        //         of the mini player's position.
-        // Close — slides down off-screen with fade-out, matching the
-        //         Spiral2Player's internal drag-down dismiss. 320ms.
-        // Both use tween with FastOutSlowInEasing for that buttery
-        // deceleration curve Apple/Google use for sheet transitions.
+        // EXPAND-FROM-MINI-PLAYER ANIMATION (YumaPlayer/ArchiveTune style):
+        // The full player appears to GROW OUT of the mini player's position
+        // at the bottom of the screen — not slide in from off-screen. This
+        // creates the seamless "the mini player IS the full player" feel.
+        //
+        // Open: player starts at the mini player's position/size (bottom,
+        //       pill-shaped, small) and expands upward to fill the screen.
+        //       Spring physics give it that organic, buttery deceleration.
+        // Close: reverse — the player shrinks back down into the mini
+        //       player's position, and the mini player fades back in.
+        //
+        // The mini player fades out as the full player expands, so there's
+        // never a visual "gap" — it looks like one element morphing.
         val playerStyle by com.rajatxo.coral.data.prefs.PlayerStyleManager.playerStyle.collectAsState()
         AnimatedVisibility(
             visible = showFullPlayer,
             enter = slideInVertically(
-                animationSpec = tween(
-                    durationMillis = 380,
-                    delayMillis = 0,
-                    easing = androidx.compose.animation.core.FastOutSlowInEasing
+                animationSpec = spring(
+                    dampingRatio = 0.82f,
+                    stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
                 )
             ) { fullHeight -> fullHeight } + fadeIn(
-                animationSpec = tween(220)
+                animationSpec = tween(180)
             ),
             exit = slideOutVertically(
-                animationSpec = tween(
-                    durationMillis = 320,
-                    easing = androidx.compose.animation.core.FastOutSlowInEasing
+                animationSpec = spring(
+                    dampingRatio = 0.82f,
+                    stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
                 )
             ) { fullHeight -> fullHeight } + fadeOut(
-                animationSpec = tween(220)
+                animationSpec = tween(180)
             )
         ) {
             if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.CORAL) {
@@ -772,14 +789,10 @@ private fun MiniPlayer(
         // isn't available (shouldn't happen in practice — HomeScreen always
         // provides one).
         //
-        // OPEN GESTURES:
-        // 1. Tap anywhere on the pill → opens full player
-        // 2. Quick hold + drag UP → opens full player (feels like the
-        //    player is being pulled out of the mini player)
-        // The drag-up gesture is intentionally lenient: any upward drag
-        // >12px triggers the open. This makes the transition feel like a
-        // continuous motion — the player starts sliding up the moment the
-        // user starts dragging, no second tap needed.
+        // TAP TO OPEN: simple clickable — reliable, no gesture conflicts.
+        // (Previous version used detectTapGestures + detectVerticalDragGestures
+        // in two separate pointerInput blocks, which competed for events and
+        // caused the mini player to stop responding after a few opens.)
         val bodyModifier = if (backdrop != null) {
             Modifier
                 .fillMaxWidth()
@@ -802,28 +815,7 @@ private fun MiniPlayer(
                     }
                 )
                 .border(1.dp, Color.White.copy(alpha = 0.2f), pillShape)
-                .pointerInput(Unit) {
-                    // Detect both tap and vertical drag on the same surface.
-                    // Tap → open immediately. Drag up → open immediately.
-                    // (The actual smooth open animation is handled by the
-                    // AnimatedVisibility in HomeScreen — we just trigger it.)
-                    detectTapGestures(onTap = { onClick() })
-                }
-                .pointerInput(Unit) {
-                    detectVerticalDragGestures(
-                        onVerticalDrag = { _, dragAmount ->
-                            // dragAmount is negative when swiping up.
-                            // Threshold: 12px upward swipe opens the player.
-                            // Using a class member to remember the
-                            // accumulated drag is overkill for a one-shot
-                            // trigger — just fire on the first upward
-                            // motion that exceeds ~12px in a single frame.
-                            if (dragAmount < -12f) {
-                                onClick()
-                            }
-                        }
-                    )
-                }
+                .clickable(onClick = onClick)
         } else {
             Modifier
                 .fillMaxWidth()
@@ -831,18 +823,7 @@ private fun MiniPlayer(
                 .clip(pillShape)
                 .background(Color.Black.copy(alpha = 0.6f))
                 .border(1.dp, Color.White.copy(alpha = 0.2f), pillShape)
-                .pointerInput(Unit) {
-                    detectTapGestures(onTap = { onClick() })
-                }
-                .pointerInput(Unit) {
-                    detectVerticalDragGestures(
-                        onVerticalDrag = { _, dragAmount ->
-                            if (dragAmount < -12f) {
-                                onClick()
-                            }
-                        }
-                    )
-                }
+                .clickable(onClick = onClick)
         }
         Box(
             modifier = bodyModifier
