@@ -453,18 +453,30 @@ fun Spiral2Player(
     var lyricData by remember { mutableStateOf<com.rajatxo.coral.data.lyrics.Lyric?>(null) }
 
     // ─── AUTO-FETCH lyrics when song changes ──────────────────────
-    // Priority: 1. Embedded metadata  2. Cached (from previous fetch)  3. Network fetch
+    // Priority: 1. Cached (from previous fetch, offline-instant)  2. Network fetch
+    //
+    // NOTE: We intentionally DO NOT call getEmbeddedLyrics() here.
+    // That uses MediaMetadataRetriever.setDataSource() on the same URI
+    // ExoPlayer is currently playing. On many devices the retriever grabs
+    // a native handle on the file, which conflicts with the player's audio
+    // track → audio goes silent while the position keeps ticking, then the
+    // player auto-pauses. This is exactly the "song randomly stops" bug.
+    // Embedded lyrics are still picked up when the user opens the lyrics
+    // sheet (passive interaction, no playback interference).
     LaunchedEffect(title, artist, durationMs) {
-        lyricData = null  // reset for new song
+        // Hard reset for every song change — no stale lyrics from the
+        // previous track can leak through. If nothing is found, the strip
+        // shows "No Lyrics Available" (empty), which is what we want.
+        lyricData = null
+        embeddedLyrics = null
         if (title.isBlank()) return@LaunchedEffect
 
-        // 1. Try cache first (instant, offline)
+        // 1. Try cache first (instant, fully offline, no file handles)
         val cached = withContext(kotlinx.coroutines.Dispatchers.IO) {
             lyricsRepository.getLyrics(title, artist, albumName, durationMs)
         }
         if (cached != null) {
             lyricData = cached
-            // Also set embeddedLyrics for the lyrics sheet
             val lrcText = if (cached.synced) {
                 cached.lines.joinToString("\n") { line ->
                     if (line.hasWordSync && line.words != null) {
@@ -481,41 +493,10 @@ fun Spiral2Player(
             return@LaunchedEffect
         }
 
-        // 2. Try embedded metadata
-        try {
-            mediaController?.let { controller ->
-                val mediaItem = controller.currentMediaItem
-                var audioUri = mediaItem?.localConfiguration?.uri
-                if (audioUri == null && mediaItem != null) {
-                    val mediaId = mediaItem.mediaId.toLongOrNull()
-                    if (mediaId != null) {
-                        audioUri = android.content.ContentUris.withAppendedId(
-                            android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, mediaId
-                        )
-                    }
-                }
-                if (audioUri != null) {
-                    val embedded = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        lyricsRepository.getEmbeddedLyrics(audioUri)
-                    }
-                    if (embedded != null) {
-                        embeddedLyrics = embedded
-                        val parsed = com.rajatxo.coral.data.lyrics.LrcParser.parse(embedded)
-                        if (parsed.isNotEmpty()) {
-                            lyricData = com.rajatxo.coral.data.lyrics.Lyric(
-                                synced = parsed.any { it.timeMs >= 0 },
-                                lines = parsed,
-                                source = com.rajatxo.coral.data.lyrics.LyricSource.EMBEDDED,
-                                hasWordSync = parsed.any { it.hasWordSync }
-                            )
-                        }
-                        return@LaunchedEffect
-                    }
-                }
-            }
-        } catch (_: Exception) { }
-
-        // 3. Auto-fetch from network (LrcLib → NetEase → KuGou)
+        // 2. Auto-fetch from network (LrcLib → NetEase → KuGou).
+        //    fetchFromNetwork() caches every successful result to disk
+        //    (filesDir/lyrics/*.json) so the next play of this song is
+        //    instant and works offline — no re-fetch needed.
         try {
             val fetched = withContext(kotlinx.coroutines.Dispatchers.IO) {
                 lyricsRepository.fetchFromNetwork(title, artist, albumName, durationMs)
@@ -536,6 +517,8 @@ fun Spiral2Player(
                 }
                 embeddedLyrics = lrcText
             }
+            // If fetched == null (offline / no lyrics found), lyricData
+            // stays null → strip shows "No Lyrics Available". Clean.
         } catch (_: Exception) { }
     }
 
