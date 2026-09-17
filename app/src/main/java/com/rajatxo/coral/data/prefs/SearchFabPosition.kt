@@ -11,19 +11,23 @@ import kotlinx.coroutines.flow.asStateFlow
  * Stores X and Y as fractions of screen size (0.0 - 1.0) so the position
  * scales correctly across different screen resolutions.
  *
- * Default position: (0.85, 0.75) — bottom-right area, above where the
- * mini player appears. This roughly aligns with the center between the
- * "Albums" and "Folders" rail labels.
+ * Default position: (0.85, 0.65) — right side, ABOVE the mini player.
+ * Stacked vertically: search FAB (top) → mini player (middle) → nav bar
+ * (bottom). Previous default (0.75) overlapped with the mini player;
+ * moved up to 0.65 for clear vertical separation.
+ *
+ * NOTE: Keys are versioned (_v2) so changes to defaults are picked up
+ * by existing users who have stale saved positions from the old layout.
  */
 object SearchFabPosition {
 
     private const val PREFS_NAME = "coral_prefs"
-    private const val KEY_X = "search_fab_x"
-    private const val KEY_Y = "search_fab_y"
+    private const val KEY_X = "search_fab_x_v2"
+    private const val KEY_Y = "search_fab_y_v2"
 
-    /** Default: 85% from left (right side), 75% from top (above mini player) */
+    /** Default: 85% from left (right side), 65% from top (above mini player) */
     private const val DEFAULT_X = 0.85f
-    private const val DEFAULT_Y = 0.75f
+    private const val DEFAULT_Y = 0.65f
 
     private lateinit var prefs: android.content.SharedPreferences
 

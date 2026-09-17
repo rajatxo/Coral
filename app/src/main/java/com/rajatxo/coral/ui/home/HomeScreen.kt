@@ -332,7 +332,17 @@ fun HomeScreen(
             }
         }
 
-        // --- Mini player (bottom, above the tab capsule) ---
+        // --- Mini player (bottom-center, between search FAB above and nav bar below) ---
+        // Stacked vertical layout:
+        //   search FAB (Y≈0.65)  ← above
+        //   mini player (here)   ← middle
+        //   nav bar (Y≈0.92)     ← below
+        //
+        // Padding bottom=108dp nudges the mini player UP just a little
+        // from the old 72dp so it clears the nav bar (which is now lower
+        // at Y=0.92) with a comfortable gap. Was 72dp when the nav bar
+        // was at Y=0.85; increased to 108dp to maintain clear separation
+        // now that the nav bar sits closer to the bottom edge.
         AnimatedVisibility(
             visible = currentSongTitle != null,
             enter = slideInVertically { it } + fadeIn(),
@@ -340,7 +350,7 @@ fun HomeScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(bottom = 72.dp)  // sit above the tab capsule (52dp + 16dp + 4dp gap)
+                .padding(bottom = 108.dp)
         ) {
             MiniPlayer(
                 title = currentSongTitle ?: "",
