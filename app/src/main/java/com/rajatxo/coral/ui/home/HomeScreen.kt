@@ -46,6 +46,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -59,6 +60,11 @@ import coil3.compose.AsyncImage
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.data.store.PlaylistStore
 import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.colorControls
+import com.kyant.backdrop.effects.vibrancy
 import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.components.CoralNavRail
 import com.rajatxo.coral.ui.components.CoralTab
@@ -362,7 +368,8 @@ fun HomeScreen(
                 durationMs = miniPlayerDurationMs,
                 onPlayPauseClick = onPlayPauseClick,
                 onNextClick = onNextClick,
-                onClick = onMiniPlayerClick
+                onClick = onMiniPlayerClick,
+                backdrop = glassBackdrop
             )
         }
 
@@ -698,7 +705,8 @@ private fun MiniPlayer(
     durationMs: Long,
     onPlayPauseClick: () -> Unit,
     onNextClick: () -> Unit,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    backdrop: LayerBackdrop? = null
 ) {
     // Notched mini player — pill with a U-shaped concave notch at the
     // bottom-center, and the search capsule nested inside that notch.
@@ -710,9 +718,18 @@ private fun MiniPlayer(
     // The NotchedPillShape clips the entire body so the bottom edge has
     // the U-curve cutout. The search capsule is positioned at the bottom,
     // overlapping the notch — top half recessed, bottom half hanging below.
+    //
+    // BACKGROUND: Real frosted-glass blur via the same kyant/backdrop
+    // library the nav bar uses (drawBackdrop + AGSL blur). The mini player
+    // now samples whatever is behind it on the home screen — song list,
+    // album art, etc. — and blurs it in real time. Replaces the old
+    // 'blurred album cover + dark tint' background. Shape is unchanged
+    // (still a 32dp rounded pill, same border).
 
     val favorites by com.rajatxo.coral.data.store.PlaylistStore.favorites.collectAsState()
     val isFavorite = songId != null && songId in favorites.songIds
+
+    val pillShape: Shape = RoundedCornerShape(32.dp)
 
     Box(
         modifier = Modifier
@@ -720,32 +737,47 @@ private fun MiniPlayer(
             .navigationBarsPadding()
     ) {
         // --- Main player body (standard pill) ---
-        Box(
-            modifier = Modifier
+        // Frosted-glass background: same drawBackdrop mechanism as the nav
+        // bar. Samples the home-screen content behind the mini player and
+        // applies AGSL-based blur + vibrancy + subtle dark tint for
+        // readability. Falls back to a flat dark background if the backdrop
+        // isn't available (shouldn't happen in practice — HomeScreen always
+        // provides one).
+        val bodyModifier = if (backdrop != null) {
+            Modifier
                 .fillMaxWidth()
                 .height(64.dp)
-                .clip(RoundedCornerShape(32.dp))
-                .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(32.dp))
-                .clickable(onClick = onClick)
-        ) {
-            // Blurred album cover background
-            if (albumArtUri != null) {
-                AsyncImage(
-                    model = albumArtUri,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .blur(25.dp)
+                .clip(pillShape)
+                .drawBackdrop(
+                    backdrop = backdrop,
+                    shape = { pillShape },
+                    effects = {
+                        vibrancy()
+                        colorControls(
+                            brightness = 0.05f,
+                            contrast = 1f,
+                            saturation = 1.3f
+                        )
+                        blur(18f.dp.toPx())  // AGSL real-time backdrop blur
+                    },
+                    onDrawSurface = {
+                        drawRect(Color.Black.copy(alpha = 0.35f))
+                    }
                 )
-            }
-            // Dark tint overlay
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.55f))
-            )
-
+                .border(1.dp, Color.White.copy(alpha = 0.2f), pillShape)
+                .clickable(onClick = onClick)
+        } else {
+            Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .clip(pillShape)
+                .background(Color.Black.copy(alpha = 0.6f))
+                .border(1.dp, Color.White.copy(alpha = 0.2f), pillShape)
+                .clickable(onClick = onClick)
+        }
+        Box(
+            modifier = bodyModifier
+        ) {
             // Content row (album art + title + heart)
             Row(
                 modifier = Modifier.fillMaxSize(),
