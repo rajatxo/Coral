@@ -451,13 +451,6 @@ fun Spiral2Player(
     // ─── Lyrics (1-line synced preview, like Coral but single line) ──
     val lyricsRepository = remember { com.rajatxo.coral.data.lyrics.LyricsRepository(context) }
     var lyricData by remember { mutableStateOf<com.rajatxo.coral.data.lyrics.Lyric?>(null) }
-    LaunchedEffect(title, artist, durationMs) {
-        try {
-            lyricData = lyricsRepository.getLyrics(
-                track = title, artist = artist, album = albumName, durationMs = durationMs
-            )
-        } catch (_: Exception) { }
-    }
     // ─── Embedded lyrics + sidecar file extraction ────────────────
     // Priority: 1. Embedded in metadata (MediaMetadataRetriever)
     //           2. Sidecar .lrc file next to the audio file

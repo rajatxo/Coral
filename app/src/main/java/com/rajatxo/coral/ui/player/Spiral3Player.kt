@@ -451,13 +451,6 @@ fun Spiral3Player(
     // ─── Lyrics (1-line synced preview, like Coral but single line) ──
     val lyricsRepository = remember { com.rajatxo.coral.data.lyrics.LyricsRepository(context) }
     var lyricData by remember { mutableStateOf<com.rajatxo.coral.data.lyrics.Lyric?>(null) }
-    LaunchedEffect(title, artist, durationMs) {
-        try {
-            lyricData = lyricsRepository.getLyrics(
-                track = title, artist = artist, album = albumName, durationMs = durationMs
-            )
-        } catch (_: Exception) { }
-    }
     // ─── Embedded lyrics + sidecar file extraction ────────────────
     LaunchedEffect(mediaController, albumArtUri) {
         embeddedLyrics = null
@@ -1597,19 +1590,31 @@ private fun tryFindSidecarLrc(context: android.content.Context, audioUri: Uri): 
         } ?: return null
         if (displayName.isNullOrEmpty()) return null
         val lrcName = displayName.substringBeforeLast(".") + ".lrc"
+        val sdCard = android.os.Environment.getExternalStorageDirectory()
         val musicDirs = listOf(
-            android.os.Environment.getExternalStorageDirectory(),
-            java.io.File(android.os.Environment.getExternalStorageDirectory(), "Music"),
-            java.io.File(android.os.Environment.getExternalStorageDirectory(), "Download"),
-            java.io.File(android.os.Environment.getExternalStorageDirectory(), "Downloads"),
+            sdCard,
+            java.io.File(sdCard, "Music"),
+            java.io.File(sdCard, "Download"),
+            java.io.File(sdCard, "Downloads"),
+            java.io.File(sdCard, "Documents"),
         )
         for (dir in musicDirs) {
+            if (!dir.exists()) continue
+            // Search directly in this dir
             val lrcFile = java.io.File(dir, lrcName)
             if (lrcFile.exists()) return lrcFile.readText(Charsets.UTF_8)
+            // Search subdirectories (2 levels deep)
             dir.listFiles()?.forEach { subDir ->
                 if (subDir.isDirectory) {
                     val subLrc = java.io.File(subDir, lrcName)
                     if (subLrc.exists()) return subLrc.readText(Charsets.UTF_8)
+                    // One more level
+                    subDir.listFiles()?.forEach { subSubDir ->
+                        if (subSubDir.isDirectory) {
+                            val subSubLrc = java.io.File(subSubDir, lrcName)
+                            if (subSubLrc.exists()) return subSubLrc.readText(Charsets.UTF_8)
+                        }
+                    }
                 }
             }
         }
