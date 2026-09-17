@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
@@ -532,38 +533,48 @@ fun HomeScreen(
         // Player Design Style preference in Settings → Appearance.
         //
         // EXPAND-FROM-MINI-PLAYER ANIMATION (YumaPlayer/ArchiveTune style):
-        // The full player appears to GROW OUT of the mini player's position
-        // at the bottom of the screen — not slide in from off-screen. This
-        // creates the seamless "the mini player IS the full player" feel.
+        // The full player GROWS OUT of the mini player's position at the
+        // bottom of the screen. Not a slide-in overlay — an actual scale-up
+        // from the mini player's size to full screen, anchored at the
+        // bottom-center. This is the key difference from a slide animation:
+        // the player's bottom edge stays FIXED at the mini player's position
+        // while the top edge grows upward.
         //
-        // Open: player starts at the mini player's position/size (bottom,
-        //       pill-shaped, small) and expands upward to fill the screen.
-        //       Spring physics give it that organic, buttery deceleration.
-        // Close: reverse — the player shrinks back down into the mini
-        //       player's position, and the mini player fades back in.
+        // Implementation: fadeIn + scaleIn via graphicsLayer on the content.
+        // We use AnimatedVisibility's fadeIn/fadeOut for the alpha, and a
+        // separate animateFloatAsState drives the scaleY. transformOrigin
+        // is set to BottomCenter so the player grows upward from the bottom.
         //
-        // The mini player fades out as the full player expands, so there's
-        // never a visual "gap" — it looks like one element morphing.
+        // Mini player alpha is driven separately (see below) and fades out
+        // in sync — so there's never a visual gap. The mini player literally
+        // appears to BECOME the full player.
         val playerStyle by com.rajatxo.coral.data.prefs.PlayerStyleManager.playerStyle.collectAsState()
+        // scaleY animates from ~0.08 (mini player height ratio: 64dp / ~800dp)
+        // up to 1.0 (full screen). Spring gives the organic buttery feel.
+        val playerScaleY by animateFloatAsState(
+            targetValue = if (showFullPlayer) 1f else 0.08f,
+            animationSpec = spring(
+                dampingRatio = 0.82f,
+                stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+            ),
+            label = "playerScaleY"
+        )
         AnimatedVisibility(
             visible = showFullPlayer,
-            enter = slideInVertically(
-                animationSpec = spring(
-                    dampingRatio = 0.82f,
-                    stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
-                )
-            ) { fullHeight -> fullHeight } + fadeIn(
-                animationSpec = tween(180)
-            ),
-            exit = slideOutVertically(
-                animationSpec = spring(
-                    dampingRatio = 0.82f,
-                    stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
-                )
-            ) { fullHeight -> fullHeight } + fadeOut(
-                animationSpec = tween(180)
-            )
+            enter = fadeIn(animationSpec = tween(220)),
+            exit = fadeOut(animationSpec = tween(180))
         ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        // Scale Y from bottom — the player grows upward out
+                        // of the mini player's position. X stays at 1 so the
+                        // player keeps its full width throughout.
+                        scaleY = playerScaleY
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
+                    }
+            ) {
             if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.CORAL) {
                 com.rajatxo.coral.ui.player.CoralPlayer(
                     mediaController = mediaController,
@@ -655,6 +666,7 @@ fun HomeScreen(
                     }
                 )
             }
+            } // end Box (graphicsLayer scaleY wrapper)
         }
 
         // Full-screen playlist detail overlay (covers nav rail + everything)
