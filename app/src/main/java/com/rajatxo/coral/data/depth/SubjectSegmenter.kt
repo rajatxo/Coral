@@ -5,10 +5,11 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.net.Uri
-import com.google.mlkit.subjectsegmentation.Subject
-import com.google.mlkit.subjectsegmentation.SubjectSegmentation
-import com.google.mlkit.subjectsegmentation.SubjectSegmenter
-import com.google.mlkit.subjectsegmentation.SubjectSegmenterOptions
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.subject.Subject
+import com.google.mlkit.vision.subject.SubjectSegmentation
+import com.google.mlkit.vision.subject.SubjectSegmenter
+import com.google.mlkit.vision.subject.SubjectSegmenterOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -128,7 +129,8 @@ class SubjectSegmenter(private val context: Context) {
     /** Run ML Kit segmentation and await the result */
     private suspend fun segmentSubjects(bitmap: Bitmap): List<Subject>? {
         return suspendCancellableCoroutine { cont ->
-            segmenter.process(bitmap)
+            val image = InputImage.fromBitmap(bitmap, 0)
+            segmenter.process(image)
                 .addOnSuccessListener { result ->
                     cont.resume(result.subjects)
                 }
