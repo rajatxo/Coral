@@ -82,13 +82,4 @@ dependencies {
     // Version 1.0.0 has minCompileSdk=1 (works with compileSdk 35)
     // Later versions (1.0.6, 2.0.0) require SDK 36/37 + AGP 9.x
     implementation("io.github.kyant0:backdrop:1.0.0")
-
-    // ML Kit Subject Segmentation — on-device neural network that
-    // extracts the foreground subject from ANY photo (people, pets,
-    // objects). Free, no API key, ~200ms on a phone NPU. This powers
-    // the Quick Picks 3D depth effect cutout.
-    // Uses the play-services variant (bundled via Google Play Services)
-    // which is the correct artifact name. The standalone com.google.mlkit
-    // variant doesn't exist for subject-segmentation.
-    implementation("com.google.android.gms:play-services-mlkit-subject-segmentation:16.0.0-beta1")
 }

@@ -5,45 +5,28 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.net.Uri
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.subject.Subject
-import com.google.mlkit.vision.subject.SubjectSegmentation
-import com.google.mlkit.vision.subject.SubjectSegmenter
-import com.google.mlkit.vision.subject.SubjectSegmenterOptions
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
-import kotlin.coroutines.resume
 
 /**
- * SubjectSegmenter — uses ML Kit Subject Segmentation to extract the
- * foreground subject from ANY photo and return a cutout Bitmap with a
- * transparent background.
+ * SubjectSegmenter — extracts the foreground subject from a photo.
  *
- * HOW IT WORKS:
- * 1. Load the photo from the Uri into a Bitmap
- * 2. Pass it to ML Kit's SubjectSegmenter (on-device neural network)
- * 3. ML Kit returns a list of Subject objects, each with a Bitmap mask
- *    (white = subject, black = background)
- * 4. We apply the mask to the original Bitmap: where the mask is white,
- *    keep the original pixel; where black, set alpha to 0 (transparent)
- * 5. Return the cutout Bitmap
+ * CURRENT IMPLEMENTATION (v1): Color-based background removal.
+ * Samples the corners of the image to detect the background color,
+ * then removes all pixels that are close to that color. Uses
+ * flood-fill from the borders so only the OUTER background is removed
+ * (interior pixels that match the background color stay, preserving
+ * shadows on the subject).
  *
- * The ML model is the same one Google Photos uses for "Select subject"
- * long-press. Works on people, pets, objects, food — anything that's
- * recognizably a "subject" against a background.
+ * This works well for photos with a relatively uniform background
+ * (studio shots, plain walls, sky, etc.). For complex backgrounds
+ * (busy scenes, forests, crowds) the cutout will be rough.
  *
- * Runs on-device, ~200-500ms on a typical phone. No API key, no network.
+ * FUTURE: Replace with ML Kit Subject Segmentation once the correct
+ * artifact/package names are verified on-device. ML Kit uses a neural
+ * network that works on ANY photo regardless of background complexity.
  */
 class SubjectSegmenter(private val context: Context) {
-
-    private val segmenter: SubjectSegmenter by lazy {
-        SubjectSegmentation.getClient(
-            SubjectSegmenterOptions.Builder()
-                .enableMultipleSubjects()
-                .build()
-        )
-    }
 
     /**
      * Extract the foreground subject from [photoUri] and return a cutout
@@ -51,51 +34,120 @@ class SubjectSegmenter(private val context: Context) {
      */
     suspend fun extractSubject(photoUri: Uri): Bitmap? = withContext(Dispatchers.IO) {
         try {
-            // 1. Load the photo
             val original = loadBitmap(photoUri) ?: return@withContext null
-
-            // 2. Run ML Kit subject segmentation
-            val subjects = segmentSubjects(original) ?: return@withContext null
-            if (subjects.isEmpty()) return@withContext null
-
-            // 3. Merge all detected subjects into a single mask.
-            val width = original.width
-            val height = original.height
-            val mergedMask = IntArray(width * height) { 0 }
-
-            for (subject in subjects) {
-                val maskBitmap = subject.bitmap
-                if (maskBitmap.width != width || maskBitmap.height != height) continue
-                val maskPixels = IntArray(width * height)
-                maskBitmap.getPixels(maskPixels, 0, width, 0, 0, width, height)
-                for (i in maskPixels.indices) {
-                    val confidence = Color.red(maskPixels[i])
-                    if (confidence > 0) {
-                        mergedMask[i] = 255
-                    }
-                }
-            }
-
-            // 4. Apply the merged mask to the original bitmap
-            val originalPixels = IntArray(width * height)
-            original.getPixels(originalPixels, 0, width, 0, 0, width, height)
-            for (i in originalPixels.indices) {
-                val alpha = mergedMask[i]
-                if (alpha == 0) {
-                    originalPixels[i] = 0
-                } else {
-                    originalPixels[i] = (alpha shl 24) or (originalPixels[i] and 0x00FFFFFF)
-                }
-            }
-            val result = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-            result.setPixels(originalPixels, 0, width, 0, 0, width, height)
-
+            val cutout = removeBackground(original)
             original.recycle()
-            result
+            cutout
         } catch (e: Exception) {
             android.util.Log.e("SubjectSegmenter", "Extraction failed", e)
             null
         }
+    }
+
+    /**
+     * Remove the background from [bitmap] using color-based detection.
+     * Samples the 4 corners to determine the background color, then
+     * flood-fills from the borders to remove only the outer background.
+     */
+    private fun removeBackground(bitmap: Bitmap): Bitmap {
+        val width = bitmap.width
+        val height = bitmap.height
+        val pixels = IntArray(width * height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        // Sample the 4 corners + edge midpoints to get the background color
+        val samplePoints = listOf(
+            0 to 0,
+            width - 1 to 0,
+            0 to height - 1,
+            width - 1 to height - 1,
+            width / 2 to 0,
+            width / 2 to height - 1,
+            0 to height / 2,
+            width - 1 to height / 2
+        )
+        var avgR = 0; var avgG = 0; var avgB = 0
+        for ((x, y) in samplePoints) {
+            val pixel = pixels[y * width + x]
+            avgR += Color.red(pixel)
+            avgG += Color.green(pixel)
+            avgB += Color.blue(pixel)
+        }
+        avgR /= samplePoints.size
+        avgG /= samplePoints.size
+        avgB /= samplePoints.size
+
+        // Tolerance: pixels within this distance of the background color
+        // are considered background. 40 is a reasonable default that
+        // handles slight gradients in the background.
+        val tolerance = 40
+
+        // Mark background pixels (flood fill from borders)
+        val isBackground = BooleanArray(width * height) { false }
+        val queue = ArrayDeque<Int>()
+
+        // Seed: all border pixels that match the background color
+        for (x in 0 until width) {
+            seedIfBackground(pixels, isBackground, x, 0, width, avgR, avgG, avgB, tolerance, queue)
+            seedIfBackground(pixels, isBackground, x, height - 1, width, avgR, avgG, avgB, tolerance, queue)
+        }
+        for (y in 0 until height) {
+            seedIfBackground(pixels, isBackground, 0, y, width, avgR, avgG, avgB, tolerance, queue)
+            seedIfBackground(pixels, isBackground, width - 1, y, width, avgR, avgG, avgB, tolerance, queue)
+        }
+
+        // BFS flood fill
+        while (queue.isNotEmpty()) {
+            val idx = queue.removeFirst()
+            val x = idx % width
+            val y = idx / width
+            // Check 4 neighbors
+            val neighbors = listOf(
+                x - 1 to y, x + 1 to y, x to y - 1, x to y + 1
+            )
+            for ((nx, ny) in neighbors) {
+                if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue
+                val nidx = ny * width + nx
+                if (isBackground[nidx]) continue
+                if (colorMatches(pixels[nidx], avgR, avgG, avgB, tolerance)) {
+                    isBackground[nidx] = true
+                    queue.add(nidx)
+                }
+            }
+        }
+
+        // Apply: set background pixels to transparent
+        for (i in pixels.indices) {
+            if (isBackground[i]) {
+                pixels[i] = 0 // fully transparent
+            }
+        }
+
+        val result = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        result.setPixels(pixels, 0, width, 0, 0, width, height)
+        return result
+    }
+
+    private fun seedIfBackground(
+        pixels: IntArray, isBackground: BooleanArray,
+        x: Int, y: Int, width: Int,
+        bgR: Int, bgG: Int, bgB: Int, tolerance: Int,
+        queue: ArrayDeque<Int>
+    ) {
+        val idx = y * width + x
+        if (!isBackground[idx] && colorMatches(pixels[idx], bgR, bgG, bgB, tolerance)) {
+            isBackground[idx] = true
+            queue.add(idx)
+        }
+    }
+
+    private fun colorMatches(pixel: Int, r: Int, g: Int, b: Int, tolerance: Int): Boolean {
+        val pr = Color.red(pixel)
+        val pg = Color.green(pixel)
+        val pb = Color.blue(pixel)
+        return kotlin.math.abs(pr - r) <= tolerance &&
+               kotlin.math.abs(pg - g) <= tolerance &&
+               kotlin.math.abs(pb - b) <= tolerance
     }
 
     /** Load a Bitmap from a Uri, downscaled if too large */
@@ -124,20 +176,5 @@ class SubjectSegmenter(private val context: Context) {
         val scaled = Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
         if (scaled != bitmap) bitmap.recycle()
         return scaled
-    }
-
-    /** Run ML Kit segmentation and await the result */
-    private suspend fun segmentSubjects(bitmap: Bitmap): List<Subject>? {
-        return suspendCancellableCoroutine { cont ->
-            val image = InputImage.fromBitmap(bitmap, 0)
-            segmenter.process(image)
-                .addOnSuccessListener { result ->
-                    cont.resume(result.subjects)
-                }
-                .addOnFailureListener { e ->
-                    android.util.Log.e("SubjectSegmenter", "ML Kit failed", e)
-                    cont.resume(null)
-                }
-        }
     }
 }
