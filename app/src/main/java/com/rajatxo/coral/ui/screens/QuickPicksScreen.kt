@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import com.rajatxo.coral.R
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.components.SleepTimerCapsule
 import com.rajatxo.coral.ui.theme.NyghtSerifFamily
@@ -178,78 +179,46 @@ fun QuickPicksScreen(
                 if (capsuleVisible && capsuleRemaining > 0) {
                     Spacer(modifier = Modifier.height(20.dp))
                 }
-                Text(
-                    text = "Quick picks",
-                    color = Color.White,
-                    fontSize = 34.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = QuirkFontFamily
-                )
             }
 
-            // Toggle capsule
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
-                    .height(40.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color.White.copy(alpha = 0.08f))
-                    .padding(4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(32.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(if (!isRandomMode) Color.White else Color.Transparent)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { isRandomMode = false }
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Based on last played",
-                        color = if (!isRandomMode) Color.Black else Color.White.copy(alpha = 0.5f),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(32.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(if (isRandomMode) Color.White else Color.Transparent)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { isRandomMode = true }
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Random picks",
-                        color = if (isRandomMode) Color.Black else Color.White.copy(alpha = 0.5f),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1
-                    )
-                }
-            }
-
-            // --- CoverFlow arc ---
+            // --- CoverFlow arc + figure overlay ---
+            // Cards rotate BEHIND the figure. The figure sits centered
+            // in the foreground, giving a layered depth effect.
             if (quickPicksSongs.isNotEmpty()) {
-                CoverFlowArc(
-                    songs = quickPicksSongs,
-                    scrollOffset = scrollOffset,
-                    onPlayClick = { onSongClick(it) },
+                Box(
                     modifier = Modifier.weight(1f)
-                )
+                ) {
+                    // Layer 1: rotational song cards (BEHIND the figure)
+                    CoverFlowArc(
+                        songs = quickPicksSongs,
+                        scrollOffset = scrollOffset,
+                        onPlayClick = { onSongClick(it) },
+                        modifier = Modifier.fillMaxSize()
+                    )
+
+                    // Layer 2: the figure (FOREGROUND, on top of the cards)
+                    // Centered, with a drop shadow for depth.
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(R.drawable.quick_picks_figure)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = "Quick picks figure",
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier
+                                .size(280.dp)
+                                .shadow(
+                                    elevation = 20.dp,
+                                    shape = RoundedCornerShape(20.dp),
+                                    clip = false
+                                )
+                        )
+                    }
+                }
 
                 // Footer: title + artist
                 if (activeSong != null) {
