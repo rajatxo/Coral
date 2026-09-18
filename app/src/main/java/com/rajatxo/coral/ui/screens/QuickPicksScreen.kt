@@ -1,29 +1,33 @@
 package com.rajatxo.coral.ui.screens
 
-import android.view.HapticFeedbackConstants
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.exponentialDecay
-import androidx.compose.animation.core.spring
+import android.graphics.Bitmap
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,33 +36,55 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.AsyncImage
-import coil3.request.ImageRequest
-import coil3.request.crossfade
 import com.rajatxo.coral.R
+import com.rajatxo.coral.data.depth.QuickPicksFigureStore
+import com.rajatxo.coral.data.depth.rememberGyroscopeTilt
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.components.SleepTimerCapsule
-import com.rajatxo.coral.ui.theme.NyghtSerifFamily
-import com.rajatxo.coral.ui.theme.PlayfairItalicFamily
-import com.rajatxo.coral.ui.theme.QuirkFontFamily
-import kotlin.math.abs
-import kotlin.math.sin
+import com.rajatxo.coral.ui.icons.CoralIcons
+import com.rajatxo.coral.ui.theme.CalSansFamily
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
+/**
+ * QuickPicksScreen — 3D depth composition with ML Kit subject cutout
+ * and gyroscope parallax.
+ *
+ * LAYOUT (3 layers, back → front):
+ *   1. Dark gradient background (fills screen)
+ *   2. Clock text (large, centered — the depth reference point)
+ *   3. Cut-out subject figure (foreground, shifts with gyroscope)
+ *
+ * HOW THE 3D EFFECT WORKS:
+ * - The subject is extracted from the user's photo via ML Kit Subject
+ *   Segmentation (works on ANY photo — people, pets, objects)
+ * - The cutout is saved as a transparent PNG and persists across launches
+ * - The phone's gyroscope reports the tilt angle in real time
+ * - The subject shifts in the direction of the tilt (moves WITH the phone)
+ * - The clock shifts in the OPPOSITE direction (moves against the phone)
+ * - This creates real parallax — the subject feels closer to the viewer
+ *   than the clock, because it moves more when you tilt the phone
+ *
+ * USER FLOW:
+ * - First launch: no figure → shows a "Pick a photo" button
+ * - User picks a photo → ML Kit runs (~200-500ms) → cutout appears
+ * - The cutout persists → loads instantly on every subsequent launch
+ * - Tilt the phone → subject and clock shift in opposite directions
+ *
+ * The old CoverFlowArc card animation has been COMPLETELY REMOVED.
+ */
 @Composable
 fun QuickPicksScreen(
     songs: List<Song>,
@@ -69,371 +95,230 @@ fun QuickPicksScreen(
     onSongClick: (Song) -> Unit = {},
     onBackClick: () -> Unit = {}
 ) {
-    var isRandomMode by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
-    val quickPicksSongs = remember(songs, currentSongId, isRandomMode) {
-        if (songs.isEmpty()) return@remember emptyList()
-        if (isRandomMode) {
-            songs.shuffled().take(15)
-        } else {
-            val currentSong = songs.firstOrNull { it.id == currentSongId }
-            if (currentSong != null) {
-                val sameArtist = songs.filter {
-                    it.artist == currentSong.artist && it.id != currentSong.id
-                }
-                val sameAlbum = songs.filter {
-                    it.album == currentSong.album && it.id != currentSong.id &&
-                    it.id !in sameArtist.map { s -> s.id }
-                }
-                val related = (listOf(currentSong) + sameArtist + sameAlbum).distinct().take(15)
-                if (related.size < 5) {
-                    val fillers = songs.filter { it.id !in related.map { s -> s.id } }
-                        .shuffled().take(15 - related.size)
-                    (related + fillers).distinct()
-                } else related
-            } else {
-                songs.shuffled().take(15)
+    // ─── Figure store + ML Kit cutout ───────────────────────────────
+    val figureStore = remember { QuickPicksFigureStore.get(context) }
+    val cutoutBitmap by figureStore.cutoutBitmap.collectAsState()
+    val isProcessing by figureStore.isProcessing.collectAsState()
+
+    // ─── Gyroscope parallax ─────────────────────────────────────────
+    // tilt.x = -1..1 (left-right), tilt.y = -1..1 (up-down)
+    val tilt by rememberGyroscopeTilt()
+
+    // ─── Photo picker ───────────────────────────────────────────────
+    val photoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            coroutineScope.launch {
+                figureStore.processAndSave(uri)
             }
         }
     }
 
-    val context = LocalContext.current
-    val view = LocalView.current
-    val scope = rememberCoroutineScope()
-
-    val scrollOffset = remember { Animatable(0f) }
-    var lastActiveIndex by remember { mutableStateOf(0) }
-
-    val totalSongs = quickPicksSongs.size
-    val activeIndex = scrollOffset.value.toInt().coerceIn(0, (totalSongs - 1).coerceAtLeast(0))
-    val activeSong = quickPicksSongs.getOrNull(activeIndex)
-
-    LaunchedEffect(activeIndex) {
-        if (activeIndex != lastActiveIndex && totalSongs > 0) {
-            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-            lastActiveIndex = activeIndex
+    // ─── Clock (updates every second) ───────────────────────────────
+    var currentTime by remember { mutableStateOf(getCurrentTime()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            currentTime = getCurrentTime()
+            kotlinx.coroutines.delay(1000L)
         }
     }
 
-    var bgUri by remember { mutableStateOf<android.net.Uri?>(null) }
-    LaunchedEffect(activeIndex, quickPicksSongs) {
-        bgUri = quickPicksSongs.getOrNull(activeIndex)?.albumArtUri
-    }
-
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-
-        // --- Blurred album art bg (immersive, dynamic) ---
-        if (bgUri != null) {
-            AsyncImage(
-                model = ImageRequest.Builder(context)
-                    .data(bgUri)
-                    .crossfade(600)
-                    .build(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        alpha = 0.4f
-                        scaleX = 1.2f
-                        scaleY = 1.2f
-                    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF1A1A2E),
+                        Color(0xFF16213E),
+                        Color(0xFF0F0F1A)
+                    )
+                )
             )
-        }
+    ) {
+        // ═══════════════════════════════════════════════════════════════
+        // LAYER 2: Clock text (BACKGROUND layer — shifts OPPOSITE to tilt)
+        // ═══════════════════════════════════════════════════════════════
+        // The clock is behind the subject. It shifts in the opposite
+        // direction of the phone tilt, so when you tilt the phone right,
+        // the subject moves right (with the phone) and the clock moves
+        // left (against the phone). This creates real parallax depth —
+        // the subject feels closer to the viewer than the clock.
+        val clockShiftX = -tilt.x * 40f  // px, opposite direction
+        val clockShiftY = -tilt.y * 25f  // px, opposite direction
 
-        // --- Dark gradient overlay ---
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0f to Color.Black.copy(alpha = 0.6f),
-                            0.4f to Color.Black.copy(alpha = 0.3f),
-                            0.7f to Color.Black.copy(alpha = 0.5f),
-                            1f to Color.Black.copy(alpha = 0.85f)
+                .graphicsLayer {
+                    translationX = clockShiftX
+                    translationY = clockShiftY
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            // Large clock — the depth reference point. The subject
+            // occludes this clock, then shifts to reveal it when you tilt.
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = currentTime,
+                    color = Color.White.copy(alpha = 0.15f),
+                    fontSize = 96.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = CalSansFamily,
+                    style = androidx.compose.ui.text.TextStyle(
+                        shadow = Shadow(
+                            color = Color.Black.copy(alpha = 0.5f),
+                            blurRadius = 20f
                         )
                     )
                 )
-        )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "QUICK PICKS",
+                    color = Color.White.copy(alpha = 0.08f),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = CalSansFamily,
+                    letterSpacing = 4.sp
+                )
+            }
+        }
 
-        // --- Content ---
-        Column(
+        // ═══════════════════════════════════════════════════════════════
+        // LAYER 3: Cut-out subject (FOREGROUND — shifts WITH the tilt)
+        // ═══════════════════════════════════════════════════════════════
+        // The subject moves in the SAME direction as the phone tilt,
+        // making it feel closer to the viewer (real parallax).
+        val subjectShiftX = tilt.x * 30f  // px, same direction
+        val subjectShiftY = tilt.y * 20f  // px, same direction
+
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
+                .graphicsLayer {
+                    translationX = subjectShiftX
+                    translationY = subjectShiftY
+                },
+            contentAlignment = Alignment.Center
         ) {
-            // Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, end = 20.dp, top = 16.dp, bottom = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            when {
+                // Processing — show spinner
+                isProcessing -> {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+                // Cutout ready — show the figure
+                cutoutBitmap != null -> {
+                    Image(
+                        bitmap = cutoutBitmap!!.asImageBitmap(),
+                        contentDescription = "Quick picks figure",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxHeight(0.85f)
+                            .graphicsLayer {
+                                // Drop shadow for depth
+                                shadowElevation = 30f
+                            }
+                    )
+                }
+                // No figure yet — show the default rabbit + a "pick photo" hint
+                else -> {
+                    // Default figure (the rabbit) so the screen isn't empty
+                    Image(
+                        bitmap = android.graphics.BitmapFactory.decodeResource(
+                            context.resources,
+                            R.drawable.quick_picks_figure
+                        ).asImageBitmap(),
+                        contentDescription = "Default figure",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxHeight(0.7f)
+                            .graphicsLayer { alpha = 0.4f }
+                    )
+                }
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // LAYER 4: Photo picker button (top-right, below status bar)
+        // ═══════════════════════════════════════════════════════════════
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(start = 16.dp, end = 16.dp, top = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Sleep timer capsule (only visible when a timer is active)
+            if (capsuleVisible && capsuleRemaining > 0) {
                 SleepTimerCapsule(
                     visible = capsuleVisible,
                     remainingMs = capsuleRemaining,
                     onExtend = onExtend,
                     modifier = Modifier.weight(1f)
                 )
-                if (capsuleVisible && capsuleRemaining > 0) {
-                    Spacer(modifier = Modifier.height(20.dp))
-                }
+            } else {
+                Spacer(modifier = Modifier.weight(1f))
             }
 
-            // ─── 3-LAYER DEPTH COMPOSITION ─────────────────────────────
-            // The figure is CUT OUT (transparent PNG) and covers the full
-            // screen height. The rotational song cards pass BEHIND the
-            // figure (between the background and the figure), giving the
-            // Apple-Music-lock-screen-style layered depth effect.
-            //
-            // Layer order (back → front):
-            //   1. Dark gradient background (fills the screen)
-            //   2. Rotational song cards (CoverFlowArc) — pass behind figure
-            //   3. Cut-out figure (fills screen height, on top of cards)
-            if (quickPicksSongs.isNotEmpty()) {
-                Box(
-                    modifier = Modifier.weight(1f)
-                ) {
-                    // Layer 1: dark gradient background
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color(0xFF1A1A2E),
-                                        Color(0xFF16213E),
-                                        Color(0xFF0F0F1A)
-                                    )
-                                )
-                            )
-                    )
-
-                    // Layer 2: rotational song cards (BEHIND the figure)
-                    // The cards pass through this layer — they're visible
-                    // in the gaps around the figure (left, right, top).
-                    CoverFlowArc(
-                        songs = quickPicksSongs,
-                        scrollOffset = scrollOffset,
-                        onPlayClick = { onSongClick(it) },
-                        modifier = Modifier.fillMaxSize()
-                    )
-
-                    // Layer 3: the cut-out figure (FOREGROUND, on top of cards)
-                    // Fills the full screen height so the figure feels like
-                    // a 3D model standing in front of the cards. The
-                    // transparent PNG means only the figure itself is drawn
-                    // — cards in the background show through the transparent
-                    // areas around it.
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(R.drawable.quick_picks_figure)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = "Quick picks figure",
-                        contentScale = ContentScale.FillHeight,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer {
-                                // Subtle drop shadow for depth — makes the
-                                // figure feel like it's floating in front
-                                // of the cards.
-                                shadowElevation = 24f
-                            }
-                    )
-                }
-
-                // Footer: title + artist
-                if (activeSong != null) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 120.dp, start = 32.dp, end = 32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+            // Photo picker button — lets the user pick any photo from
+            // their gallery. ML Kit will extract the subject automatically.
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.12f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
                     ) {
-                        Text(
-                            text = activeSong.title,
-                            color = Color.White,
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Medium,
-                            fontFamily = PlayfairItalicFamily,
-                            textAlign = TextAlign.Center,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = activeSong.artist,
-                            color = Color.White.copy(alpha = 0.65f),
-                            fontSize = 14.sp,
-                            fontFamily = NyghtSerifFamily,
-                            textAlign = TextAlign.Center,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            } else {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(text = "🎵", fontSize = 56.sp)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "No songs found",
-                            color = Color.White,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
+                        photoPicker.launch(androidx.activity.result.PickVisualMediaRequest(
+                            ActivityResultContracts.PickVisualMedia.ImageOnly
+                        ))
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = CoralIcons.HeartPlus,
+                    contentDescription = "Pick photo for cutout",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // LAYER 5: "Pick a photo" hint (only when no cutout is set)
+        // ═══════════════════════════════════════════════════════════════
+        if (cutoutBitmap == null && !isProcessing) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = 160.dp),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                Text(
+                    text = "Tap + to pick a photo\nML Kit will extract the subject",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 13.sp,
+                    fontFamily = CalSansFamily,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
             }
         }
     }
 }
 
-@Composable
-private fun CoverFlowArc(
-    songs: List<Song>,
-    scrollOffset: Animatable<Float, *>,
-    onPlayClick: (Song) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-
-    val totalSongs = songs.size
-    val currentOffset = scrollOffset.value
-    var velocityTracker by remember { mutableStateOf(VelocityTracker()) }
-
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .pointerInput(totalSongs) {
-                detectHorizontalDragGestures(
-                    onDragStart = {
-                        velocityTracker = VelocityTracker()
-                    },
-                    onDragEnd = {
-                        val velocity = velocityTracker.calculateVelocity().x
-                        scope.launch {
-                            scrollOffset.animateDecay(
-                                initialVelocity = -velocity * 0.5f,
-                                animationSpec = exponentialDecay(frictionMultiplier = 0.95f)
-                            )
-                            val nearest = scrollOffset.value.toInt()
-                                .coerceIn(0, totalSongs - 1).toFloat()
-                            scrollOffset.animateTo(
-                                targetValue = nearest,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                    stiffness = Spring.StiffnessMedium
-                                )
-                            )
-                        }
-                    },
-                    onHorizontalDrag = { change, dragAmount ->
-                        scope.launch {
-                            scrollOffset.snapTo(
-                                (scrollOffset.value - dragAmount / 200f)
-                                    .coerceIn(0f, (totalSongs - 1).toFloat())
-                            )
-                        }
-                        velocityTracker.addPosition(change.uptimeMillis, change.position)
-                        change.consume()
-                    }
-                )
-            }
-    ) {
-        val activeIndex = currentOffset.toInt().coerceIn(0, (totalSongs - 1).coerceAtLeast(0))
-
-        val coversToRender = (-2..2).mapNotNull { offset ->
-            val index = activeIndex + offset
-            if (index in songs.indices) {
-                val fractionalOffset = currentOffset - index
-                Triple(index, offset, fractionalOffset)
-            } else null
-        }.sortedByDescending { abs(it.third) }
-
-        coversToRender.forEach { (index, _, fractionalOffset) ->
-            val song = songs[index]
-            val isActive = index == activeIndex
-
-            val absOffset = abs(fractionalOffset)
-            val scale = (1f - absOffset * 0.4f).coerceIn(0.4f, 1f)
-            val xFraction = sin(fractionalOffset.toDouble() * 0.6).toFloat() * 0.45f
-            val yFraction = -(1f - kotlin.math.cos(fractionalOffset.toDouble() * 0.6).toFloat()) * 0.12f
-            val rotation = fractionalOffset * 25f
-            val alpha = (1f - absOffset * 0.6f).coerceIn(0.2f, 1f)
-
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        translationX = xFraction * size.width
-                        translationY = yFraction * size.height
-                        scaleX = scale
-                        scaleY = scale
-                        rotationZ = rotation
-                        this.alpha = alpha
-                        rotationY = -fractionalOffset * 35f
-                        cameraDistance = size.width * 2f
-                    }
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = {
-                            if (isActive) {
-                                onPlayClick(song)
-                            } else {
-                                scope.launch {
-                                    scrollOffset.animateTo(
-                                        targetValue = index.toFloat(),
-                                        animationSpec = spring(
-                                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                                            stiffness = Spring.StiffnessMedium
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                    )
-            ) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .size(if (isActive) 200.dp else 160.dp)
-                        .shadow(
-                            elevation = if (isActive) 24.dp else 8.dp,
-                            shape = RoundedCornerShape(20.dp),
-                            clip = false
-                        )
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Color(0xFF1A1A1A))
-                ) {
-                    if (song.albumArtUri != null) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(context)
-                                .data(song.albumArtUri)
-                                .crossfade(300)
-                                .build(),
-                            contentDescription = "Album art for ${song.title}",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(text = "🎵", fontSize = 48.sp)
-                        }
-                    }
-                }
-            }
-        }
-    }
+/** Returns the current time as "HH:mm" */
+private fun getCurrentTime(): String {
+    return SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
 }
