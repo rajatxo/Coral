@@ -365,14 +365,16 @@ fun HomeScreen(
                     onNextClick = onNextClick,
                     onPrevClick = onPrevClick,
                     onSeek = onSeek,
-                    onDismiss = { showFullPlayer = false },
+                    onDismiss = onFullPlayerDismiss,
                     onAddToPlaylist = { songId ->
                         songToAddToPlaylist = songId
                     },
                     positionMs = miniPlayerPositionMs,
                     durationMs = miniPlayerDurationMs,
                     isExpanded = showFullPlayer,
-                    onExpandChange = { showFullPlayer = it },
+                    onExpandChange = { expanded ->
+                        if (expanded) onMiniPlayerClick() else onFullPlayerDismiss()
+                    },
                     backdrop = glassBackdrop
                 )
             }
