@@ -87,5 +87,8 @@ dependencies {
     // extracts the foreground subject from ANY photo (people, pets,
     // objects). Free, no API key, ~200ms on a phone NPU. This powers
     // the Quick Picks 3D depth effect cutout.
-    implementation("com.google.mlkit:subject-segmentation:16.0.0-beta1")
+    // Uses the play-services variant (bundled via Google Play Services)
+    // which is the correct artifact name. The standalone com.google.mlkit
+    // variant doesn't exist for subject-segmentation.
+    implementation("com.google.android.gms:play-services-mlkit-subject-segmentation:16.0.0-beta1")
 }
