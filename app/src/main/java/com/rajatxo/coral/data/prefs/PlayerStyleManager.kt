@@ -23,7 +23,6 @@ object PlayerStyleManager {
     const val SPIRAL = "Spiral"
     const val SPIRAL_2 = "Spiral 2.0"
     const val SPIRAL_3 = "Spiral 3.0"
-    const val SPIRAL_EXPANDED = "Spiral Expanded"
 
     private val _playerStyle = MutableStateFlow(SPIRAL_2)
     val playerStyle: StateFlow<String> = _playerStyle.asStateFlow()

@@ -338,71 +338,33 @@ fun HomeScreen(
             }
         }
 
-        // --- Player area ---
-        // When playerStyle == SPIRAL_EXPANDED, render the unified
-        // SpiralExpandedPlayer (handles both mini + full player with
-        // expand animation). Otherwise, render the separate MiniPlayer
-        // + full player AnimatedVisibility (original behavior).
-        val playerStyle by com.rajatxo.coral.data.prefs.PlayerStyleManager.playerStyle.collectAsState()
-
-        if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.SPIRAL_EXPANDED && currentSongTitle != null) {
-            // ═══ SpiralExpandedPlayer — unified mini+full with expand ═══
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(bottom = 108.dp)
-            ) {
-                com.rajatxo.coral.ui.player.SpiralExpandedPlayer(
-                    mediaController = mediaController,
-                    songId = currentSongId,
-                    title = currentSongTitle ?: "",
-                    artist = currentSongArtist ?: "",
-                    albumName = currentSongAlbum,
-                    albumArtUri = currentSongArt,
-                    isPlaying = isPlaying,
-                    onPlayPauseClick = onPlayPauseClick,
-                    onNextClick = onNextClick,
-                    onPrevClick = onPrevClick,
-                    onSeek = onSeek,
-                    onDismiss = onFullPlayerDismiss,
-                    onAddToPlaylist = { songId ->
-                        songToAddToPlaylist = songId
-                    },
-                    positionMs = miniPlayerPositionMs,
-                    durationMs = miniPlayerDurationMs,
-                    isExpanded = showFullPlayer,
-                    onExpandChange = { expanded ->
-                        if (expanded) onMiniPlayerClick() else onFullPlayerDismiss()
-                    },
-                    backdrop = glassBackdrop
-                )
-            }
-        } else {
-            // ═══ Original separate MiniPlayer + full player ═══
-            AnimatedVisibility(
-                visible = currentSongTitle != null,
-                enter = slideInVertically { it } + fadeIn(),
-                exit = slideOutVertically { it } + fadeOut(),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(bottom = 108.dp)
-            ) {
-                MiniPlayer(
-                    title = currentSongTitle ?: "",
-                    artist = currentSongArtist ?: "",
-                    albumArtUri = currentSongArt,
-                    songId = currentSongId,
-                    isPlaying = isPlaying,
-                    positionMs = miniPlayerPositionMs,
-                    durationMs = miniPlayerDurationMs,
-                    onPlayPauseClick = onPlayPauseClick,
-                    onNextClick = onNextClick,
-                    onClick = onMiniPlayerClick,
-                    backdrop = glassBackdrop
-                )
-            }
+        // --- Mini player (bottom-center, between search FAB above and nav bar below) ---
+        // Stacked vertical layout:
+        //   search FAB (Y≈0.65)  ← above
+        //   mini player (here)   ← middle, padding(bottom=108dp)
+        //   nav bar (Y≈0.87)     ← below, 10dp gap below the mini player
+        AnimatedVisibility(
+            visible = currentSongTitle != null,
+            enter = slideInVertically { it } + fadeIn(),
+            exit = slideOutVertically { it } + fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 108.dp)
+        ) {
+            MiniPlayer(
+                title = currentSongTitle ?: "",
+                artist = currentSongArtist ?: "",
+                albumArtUri = currentSongArt,
+                songId = currentSongId,
+                isPlaying = isPlaying,
+                positionMs = miniPlayerPositionMs,
+                durationMs = miniPlayerDurationMs,
+                onPlayPauseClick = onPlayPauseClick,
+                onNextClick = onNextClick,
+                onClick = onMiniPlayerClick,
+                backdrop = glassBackdrop
+            )
         }
 
         // --- Draggable Floating Search Button ---
@@ -545,16 +507,12 @@ fun HomeScreen(
         // Conditionally renders CoralPlayer (immersive blurred-bg style)
         // or FullPlayer (dating-app profile style) based on the user's
         // Player Design Style preference in Settings → Appearance.
-        //
-        // SKIPPED when playerStyle == SPIRAL_EXPANDED — in that mode the
-        // SpiralExpandedPlayer (rendered above) handles both the mini and
-        // full player states with the expand animation.
-        if (playerStyle != com.rajatxo.coral.data.prefs.PlayerStyleManager.SPIRAL_EXPANDED) {
-            AnimatedVisibility(
-                visible = showFullPlayer,
-                enter = slideInVertically { it } + fadeIn(),
-                exit = fadeOut(animationSpec = tween(200))
-            ) {
+        val playerStyle by com.rajatxo.coral.data.prefs.PlayerStyleManager.playerStyle.collectAsState()
+        AnimatedVisibility(
+            visible = showFullPlayer,
+            enter = slideInVertically { it } + fadeIn(),
+            exit = fadeOut(animationSpec = tween(200))
+        ) {
             if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.CORAL) {
                 com.rajatxo.coral.ui.player.CoralPlayer(
                     mediaController = mediaController,
@@ -645,7 +603,6 @@ fun HomeScreen(
                         songToAddToPlaylist = songId
                     }
                 )
-            }
             }
         }
 
