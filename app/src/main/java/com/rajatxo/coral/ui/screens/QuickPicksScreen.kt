@@ -181,14 +181,38 @@ fun QuickPicksScreen(
                 }
             }
 
-            // --- CoverFlow arc + figure overlay ---
-            // Cards rotate BEHIND the figure. The figure sits centered
-            // in the foreground, giving a layered depth effect.
+            // ─── 3-LAYER DEPTH COMPOSITION ─────────────────────────────
+            // The figure is CUT OUT (transparent PNG) and covers the full
+            // screen height. The rotational song cards pass BEHIND the
+            // figure (between the background and the figure), giving the
+            // Apple-Music-lock-screen-style layered depth effect.
+            //
+            // Layer order (back → front):
+            //   1. Dark gradient background (fills the screen)
+            //   2. Rotational song cards (CoverFlowArc) — pass behind figure
+            //   3. Cut-out figure (fills screen height, on top of cards)
             if (quickPicksSongs.isNotEmpty()) {
                 Box(
                     modifier = Modifier.weight(1f)
                 ) {
-                    // Layer 1: rotational song cards (BEHIND the figure)
+                    // Layer 1: dark gradient background
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color(0xFF1A1A2E),
+                                        Color(0xFF16213E),
+                                        Color(0xFF0F0F1A)
+                                    )
+                                )
+                            )
+                    )
+
+                    // Layer 2: rotational song cards (BEHIND the figure)
+                    // The cards pass through this layer — they're visible
+                    // in the gaps around the figure (left, right, top).
                     CoverFlowArc(
                         songs = quickPicksSongs,
                         scrollOffset = scrollOffset,
@@ -196,28 +220,28 @@ fun QuickPicksScreen(
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    // Layer 2: the figure (FOREGROUND, on top of the cards)
-                    // Centered, with a drop shadow for depth.
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(LocalContext.current)
-                                .data(R.drawable.quick_picks_figure)
-                                .crossfade(true)
-                                .build(),
-                            contentDescription = "Quick picks figure",
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier
-                                .size(280.dp)
-                                .shadow(
-                                    elevation = 20.dp,
-                                    shape = RoundedCornerShape(20.dp),
-                                    clip = false
-                                )
-                        )
-                    }
+                    // Layer 3: the cut-out figure (FOREGROUND, on top of cards)
+                    // Fills the full screen height so the figure feels like
+                    // a 3D model standing in front of the cards. The
+                    // transparent PNG means only the figure itself is drawn
+                    // — cards in the background show through the transparent
+                    // areas around it.
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(R.drawable.quick_picks_figure)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = "Quick picks figure",
+                        contentScale = ContentScale.FillHeight,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                // Subtle drop shadow for depth — makes the
+                                // figure feel like it's floating in front
+                                // of the cards.
+                                shadowElevation = 24f
+                            }
+                    )
                 }
 
                 // Footer: title + artist
