@@ -200,44 +200,12 @@ fun QuickPicksScreen(
                 )
             }
 
-            // ═══ Hero grid ═══
-            item {
-                if (heroSongs.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(280.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        if (heroSongs.size >= 1) {
-                            EditorialCard(
-                                song = heroSongs[0],
-                                isCurrent = heroSongs[0].id == currentSongId,
-                                onClick = { onSongClick(heroSongs[0]) },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                            )
-                        }
-                        if (heroSongs.size >= 2) {
-                            EditorialCard(
-                                song = heroSongs[1],
-                                isCurrent = heroSongs[1].id == currentSongId,
-                                onClick = { onSongClick(heroSongs[1]) },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight(0.85f)
-                                    .align(Alignment.Bottom)
-                            )
-                        }
-                    }
-                }
-            }
-
-            // ═══ Speed Dial ═══
+            // ═══ Speed Dial (first row) ═══
             // A paginated grid of square song cards + a "randomize" dice
             // button as the last slot. Tap a card to play that song.
             // Tap the dice → plays a random song.
+            // The hero grid (EditorialCard row) has been removed — the
+            // Speed Dial is now the first row on Quick Picks.
             item {
                 SpeedDialSection(
                     songs = songs,
@@ -399,16 +367,7 @@ private fun EditorialCard(
             }
         }
 
-        // Layer 3: Glossy border (subtle white edge — makes the card feel 3D)
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .border(
-                    width = 1.dp,
-                    color = Color.White.copy(alpha = 0.25f),
-                    shape = cardShape
-                )
-        )
+        // Layer 3: (border removed per user request)
 
         if (isCurrent) {
             Box(
@@ -542,16 +501,7 @@ private fun SquareCard(
             }
         }
 
-        // Layer 3: Glossy border
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .border(
-                    width = 1.dp,
-                    color = Color.White.copy(alpha = 0.25f),
-                    shape = cardShape
-                )
-        )
+        // Layer 3: (border removed per user request)
 
         // Text on the blurred bottom part
         Text(
@@ -667,16 +617,7 @@ private fun LandscapeCard(
             }
         }
 
-        // Layer 3: Glossy border
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .border(
-                    width = 1.dp,
-                    color = Color.White.copy(alpha = 0.25f),
-                    shape = cardShape
-                )
-        )
+        // Layer 3: (border removed per user request)
 
         // Text on the blurred bottom part
         Column(
@@ -920,16 +861,7 @@ private fun SpeedDialCard(
                 )
         )
 
-        // Glossy border
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .border(
-                    width = 1.dp,
-                    color = Color.White.copy(alpha = 0.2f),
-                    shape = cardShape
-                )
-        )
+        // (border removed per user request)
 
         // Title at the bottom
         Text(
@@ -980,11 +912,6 @@ private fun RandomizeGridItem(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
             .background(Color.White.copy(alpha = 0.08f))
-            .border(
-                width = 1.dp,
-                color = Color.White.copy(alpha = 0.2f),
-                shape = RoundedCornerShape(16.dp)
-            )
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
