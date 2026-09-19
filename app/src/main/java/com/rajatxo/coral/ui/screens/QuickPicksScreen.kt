@@ -182,29 +182,13 @@ fun QuickPicksScreen(
                 .fillMaxSize()
                 .statusBarsPadding(),
             contentPadding = PaddingValues(
-                top = 16.dp,
+                top = 100.dp,      // clear the fixed header (status bar + 56dp + margin)
                 bottom = 200.dp,
                 start = 20.dp,
                 end = 20.dp
             ),
             verticalArrangement = Arrangement.spacedBy(28.dp)
         ) {
-            // ═══ Header ═══
-            // "Quick picks" title — centered, CalSans, not italic.
-            // User icon is on the left (HomeScreen), settings on the
-            // right (HomeScreen), this text is centered between them.
-            item {
-                Text(
-                    text = "Quick picks",
-                    color = textPrimary,
-                    fontSize = 34.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = CalSansFamily,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
             // ═══ Speed Dial (first row) ═══
             // A paginated grid of square song cards + a "randomize" dice
             // button as the last slot. Tap a card to play that song.

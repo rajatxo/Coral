@@ -376,47 +376,131 @@ fun HomeScreen(
         // --- Draggable Floating Search Button ---
         DraggableSearchFab()
 
-        // --- Floating Settings Button (top-right) ---
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .statusBarsPadding()
-                .padding(end = 16.dp, top = 16.dp)
-                .size(40.dp)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = { showSettings = true }
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = CoralIcons.Cog,
-                contentDescription = "Settings",
-                tint = Color.White,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-
-        // --- User icon (top-left, Quick Picks page only) ---
-        // Just the icon for now — no functionality yet.
+        // ─── FIXED HEADER (Quick Picks page only) ───────────────────
+        // A fixed header bar that stays at the top when scrolling.
+        // Contains: user icon (left) | "Quick picks" text (center) |
+        // settings icon (right). All three are aligned and DON'T scroll.
+        // A clean frosted-glass blur sits behind the header with a
+        // smooth gradient edge (no hard line).
         if (selectedTab == CoralTab.QuickPicks) {
+            // The blur layer — behind the header content
             Box(
                 modifier = Modifier
-                    .align(Alignment.TopStart)
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
                     .statusBarsPadding()
-                    .padding(start = 16.dp, top = 16.dp)
+                    .height(56.dp)
+                    .graphicsLayer {
+                        compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
+                    }
+                    .drawWithContent {
+                        drawContent()
+                        // DstIn gradient: full at top → transparent at bottom
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colorStops = arrayOf(
+                                    0.0f to Color.Black,
+                                    0.5f to Color.Black,
+                                    1.0f to Color.Transparent
+                                ),
+                                startY = 0f,
+                                endY = size.height
+                            ),
+                            blendMode = androidx.compose.ui.graphics.BlendMode.DstIn
+                        )
+                    }
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .drawBackdrop(
+                            backdrop = glassBackdrop,
+                            shape = { androidx.compose.ui.graphics.RectangleShape },
+                            effects = {
+                                vibrancy()
+                                blur(20f.dp.toPx())
+                            }
+                        )
+                )
+            }
+
+            // The header content — ON TOP of the blur, NOT blurred
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .height(56.dp)
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // User icon (left)
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { /* TODO: account screen */ }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = CoralIcons.CircleUser,
+                        contentDescription = "Account",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                // "Quick picks" title (center)
+                Text(
+                    text = "Quick picks",
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = CalSansFamily,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.weight(1f)
+                )
+
+                // Settings icon (right)
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { showSettings = true }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = CoralIcons.Cog,
+                        contentDescription = "Settings",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        } else {
+            // --- Settings icon for non-QuickPicks pages (top-right) ---
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(end = 16.dp, top = 16.dp)
                     .size(40.dp)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                        onClick = { /* TODO: account/user screen */ }
+                        onClick = { showSettings = true }
                     ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = CoralIcons.CircleUser,
-                    contentDescription = "Account",
+                    imageVector = CoralIcons.Cog,
+                    contentDescription = "Settings",
                     tint = Color.White,
                     modifier = Modifier.size(24.dp)
                 )
