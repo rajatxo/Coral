@@ -65,6 +65,7 @@ import com.rajatxo.coral.util.CoralPalette
 import com.rajatxo.coral.util.PaletteCache
 import com.rajatxo.coral.util.extractPalette
 import kotlin.random.Random
+import kotlinx.coroutines.launch
 
 /**
  * QuickPicksScreen — "Editorial Gallery" edition.
