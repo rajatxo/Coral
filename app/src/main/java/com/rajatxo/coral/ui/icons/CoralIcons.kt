@@ -164,6 +164,66 @@ object CoralIcons {
         close()
     }
 
+    /**
+     * Lucide "cog" icon — settings gear with spokes + two concentric
+     * circles. Used for the settings button (replaces the old Gear icon
+     * which had a filled gear body). This is the cleaner line-art version
+     * the user requested.
+     */
+    val Cog: ImageVector = stroke("Cog") {
+        // Spokes (lines radiating from center)
+        // Top-left spoke: (11,10.27) to (7,3.34)
+        moveTo(11f, 10.27f)
+        lineTo(7f, 3.34f)
+        // Bottom-left spoke: (11,13.73) to (7,20.07)  [m11 13.73 -4 6.93]
+        moveTo(11f, 13.73f)
+        lineTo(7f, 20.66f)
+        // Top vertical spoke: (12,2) to (12,4)
+        moveTo(12f, 2f)
+        lineTo(12f, 4f)
+        // Bottom vertical spoke: (12,20) to (12,22)
+        moveTo(12f, 20f)
+        lineTo(12f, 22f)
+        // Right horizontal spoke: (14,12) to (22,12)
+        moveTo(14f, 12f)
+        lineTo(22f, 12f)
+        // Top-right spoke: (17,3.34) to (16,5.07)
+        moveTo(17f, 3.34f)
+        lineTo(16f, 5.07f)
+        // Bottom-right spoke: (17,20.66) to (16,18.93)
+        moveTo(17f, 20.66f)
+        lineTo(16f, 18.93f)
+        // Left horizontal spoke: (2,12) to (4,12)
+        moveTo(2f, 12f)
+        lineTo(4f, 12f)
+        // Upper-right diagonal spoke: (20.66,17) to (18.93,16)
+        moveTo(20.66f, 17f)
+        lineTo(18.93f, 16f)
+        // Lower-right diagonal spoke: (20.66,7) to (18.93,8)
+        moveTo(20.66f, 7f)
+        lineTo(18.93f, 8f)
+        // Lower-left diagonal spoke: (3.34,17) to (5.07,16)
+        moveTo(3.34f, 17f)
+        lineTo(5.07f, 16f)
+        // Upper-left diagonal spoke: (3.34,7) to (5.07,8)
+        moveTo(3.34f, 7f)
+        lineTo(5.07f, 8f)
+        // Inner circle (radius 2 at center 12,12)
+        moveTo(14f, 12f)
+        curveTo(14f, 13.105f, 13.105f, 14f, 12f, 14f)
+        curveTo(10.895f, 14f, 10f, 13.105f, 10f, 12f)
+        curveTo(10f, 10.895f, 10.895f, 10f, 12f, 10f)
+        curveTo(13.105f, 10f, 14f, 10.895f, 14f, 12f)
+        close()
+        // Outer circle (radius 8 at center 12,12)
+        moveTo(20f, 12f)
+        curveTo(20f, 16.418f, 16.418f, 20f, 12f, 20f)
+        curveTo(7.582f, 20f, 4f, 16.418f, 4f, 12f)
+        curveTo(4f, 7.582f, 7.582f, 4f, 12f, 4f)
+        curveTo(16.418f, 4f, 20f, 7.582f, 20f, 12f)
+        close()
+    }
+
     /** Filled play triangle. */
     val Play: ImageVector = filled("Play") {
         moveTo(7f, 4f)

@@ -1,5 +1,7 @@
 package com.rajatxo.coral.ui.screens
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -24,14 +26,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,6 +47,9 @@ import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
 import com.rajatxo.coral.ui.theme.QuirkFontFamily
+import com.rajatxo.coral.util.CoralPalette
+import com.rajatxo.coral.util.PaletteCache
+import com.rajatxo.coral.util.extractPalette
 import kotlin.random.Random
 
 /**
@@ -54,14 +63,43 @@ import kotlin.random.Random
 fun QuickPicksScreen(
     songs: List<Song>,
     currentSongId: Long?,
+    currentSongArt: android.net.Uri? = null,
     capsuleVisible: Boolean = false,
     capsuleRemaining: Long = 0L,
     onExtend: () -> Unit = {},
     onSongClick: (Song) -> Unit = {},
     onBackClick: () -> Unit = {}
 ) {
-    // Dark theme colors (the only theme — Light/Dynamic removed)
-    val bgColor = Color(0xFF0A0A12)
+    val context = LocalContext.current
+
+    // ─── Current song's palette → dark gradient background ──────────
+    // The background is a dark gradient using the current song's palette
+    // colors. If no song is playing, use a default dark palette.
+    var palette by remember { mutableStateOf(CoralPalette.Default) }
+    LaunchedEffect(currentSongArt) {
+        if (currentSongArt != null) {
+            PaletteCache.get(currentSongArt)?.let { palette = it }
+            extractPalette(context, currentSongArt)?.let {
+                palette = it
+                PaletteCache.put(currentSongArt, it)
+            }
+        }
+    }
+    // Animate the gradient colors smoothly when the song changes
+    val animatedTop by animateColorAsState(
+        targetValue = palette.primary.copy(alpha = 0.6f),
+        animationSpec = tween(800), label = "bgTop"
+    )
+    val animatedMid by animateColorAsState(
+        targetValue = palette.secondary.copy(alpha = 0.8f),
+        animationSpec = tween(800), label = "bgMid"
+    )
+    val animatedBottom by animateColorAsState(
+        targetValue = Color(0xFF05050A),  // near-black at the bottom
+        animationSpec = tween(800), label = "bgBottom"
+    )
+
+    // Dark text colors (always white on the dark gradient)
     val textPrimary = Color.White
     val textSecondary = Color.White.copy(alpha = 0.6f)
 
@@ -110,7 +148,11 @@ fun QuickPicksScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(bgColor)
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(animatedTop, animatedMid, animatedBottom)
+                )
+            )
     ) {
         LazyColumn(
             modifier = Modifier

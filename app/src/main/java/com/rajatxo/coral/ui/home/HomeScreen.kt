@@ -292,6 +292,7 @@ fun HomeScreen(
                     CoralTab.QuickPicks -> QuickPicksScreen(
                         songs = songs,
                         currentSongId = currentSongId,
+                        currentSongArt = currentSongArt,
                         capsuleVisible = capsuleVisible,
                         capsuleRemaining = capsuleRemaining,
                         onExtend = onExtend,
@@ -374,33 +375,15 @@ fun HomeScreen(
         // --- Draggable Floating Search Button ---
         DraggableSearchFab()
 
-        // --- Draggable Floating Shuffle Button ---
-        // Only visible on Quick Picks + Songs tabs. Same drag pattern as
-        // the search FAB: long-press 3 seconds → drag → release to pin.
-        // Position persists across app restarts via ShuffleFabPosition.
-        if (selectedTab == CoralTab.QuickPicks || selectedTab == CoralTab.Songs) {
-            DraggableShuffleFab(
-                onShuffle = {
-                    if (songs.isNotEmpty()) {
-                        val randomSong = songs.random()
-                        onSongClick(randomSong)
-                    }
-                }
-            )
-        }
-
-        // --- Floating Settings Button (top-right, on every page) ---
-        // The ONLY button at the top-right. Settings is always visible.
-        // The shuffle button is a separate draggable FAB (above) that
-        // only shows on Quick Picks + Songs.
+        // --- Floating Settings Button (top-right, no circle background) ---
+        // Uses the new Cog icon (spokes + two concentric circles).
+        // No circle background — just the icon, clean and minimal.
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .statusBarsPadding()
                 .padding(end = 16.dp, top = 16.dp)
                 .size(40.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.12f))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -409,10 +392,10 @@ fun HomeScreen(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = CoralIcons.Gear,
+                imageVector = CoralIcons.Cog,
                 contentDescription = "Settings",
                 tint = Color.White,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(24.dp)
             )
         }
 
