@@ -1,6 +1,7 @@
 package com.rajatxo.coral.ui.screens
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -23,7 +25,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -224,6 +230,20 @@ fun QuickPicksScreen(
                         }
                     }
                 }
+            }
+
+            // ═══ Speed Dial ═══
+            // A paginated grid of square song cards + a "randomize" dice
+            // button as the last slot. Tap a card to play that song.
+            // Tap the dice → plays a random song.
+            item {
+                SpeedDialSection(
+                    songs = songs,
+                    currentSongId = currentSongId,
+                    onSongClick = onSongClick,
+                    textPrimary = textPrimary,
+                    textSecondary = textSecondary
+                )
             }
 
             // ═══ Recent ═══
@@ -678,6 +698,353 @@ private fun LandscapeCard(
                 fontFamily = CalSansFamily,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// SPEED DIAL SECTION
+// ════════════════════════════════════════════════════════════════════
+// A paginated grid of square song cards + a "randomize" dice button.
+// Based on vivi-music's SpeedDial feature:
+//   - HorizontalPager with pages of a 3-column grid
+//   - Each page shows up to 9 songs (3x3)
+//   - The last slot on the first page is a "randomize" dice button
+//   - Tap a song card → plays that song
+//   - Tap the dice → picks a random song and plays it
+// ════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun SpeedDialSection(
+    songs: List<Song>,
+    currentSongId: Long?,
+    onSongClick: (Song) -> Unit,
+    textPrimary: Color,
+    textSecondary: Color
+) {
+    val scope = rememberCoroutineScope()
+    var isRandomizing by remember { mutableStateOf(false) }
+
+    // Use up to 17 songs for the speed dial (leaves room for the dice)
+    val speedDialSongs = remember(songs.size) {
+        if (songs.isEmpty()) emptyList()
+        else songs.shuffled().take(17)
+    }
+
+    if (speedDialSongs.isEmpty()) return
+
+    // Section header
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "Speed dial",
+            color = textPrimary,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = CalSansFamily
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "${speedDialSongs.size}",
+                color = textSecondary,
+                fontSize = 14.sp,
+                fontFamily = CalSansFamily
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Icon(
+                imageVector = CoralIcons.ChevronRight,
+                contentDescription = null,
+                tint = textSecondary,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+    }
+
+    Spacer(modifier = Modifier.height(12.dp))
+
+    // Grid layout: 3 columns, paginated
+    val targetItemSize = 110.dp
+    val columns = 3
+    val rows = 3
+    val itemsPerPage = columns * rows // 9 per page
+    val totalSlots = speedDialSongs.size + 1 // +1 for the dice
+    val pageCount = (totalSlots + itemsPerPage - 1) / itemsPerPage
+    val pagerState = rememberPagerState(pageCount = { pageCount.coerceAtLeast(1) })
+
+    val itemWidth = targetItemSize
+
+    Column(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        HorizontalPager(
+            state = pagerState,
+            contentPadding = PaddingValues(horizontal = 0.dp),
+            pageSpacing = 12.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(itemWidth * rows + 16.dp)  // 3 rows + padding
+        ) { page ->
+            Column(modifier = Modifier.fillMaxSize()) {
+                for (row in 0 until rows) {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        for (col in 0 until columns) {
+                            val itemIndex = row * columns + col
+                            val globalItemIndex = page * itemsPerPage + itemIndex
+
+                            // The dice button is the last slot on the first page
+                            val isDiceSlot = (globalItemIndex == itemsPerPage - 1)
+
+                            if (isDiceSlot) {
+                                RandomizeGridItem(
+                                    isLoading = isRandomizing,
+                                    onClick = {
+                                        if (isRandomizing) {
+                                            isRandomizing = false
+                                        } else {
+                                            isRandomizing = true
+                                            scope.launch {
+                                                kotlinx.coroutines.delay(800)  // dice animation
+                                                val randomSong = songs.random()
+                                                isRandomizing = false
+                                                onSongClick(randomSong)
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .width(itemWidth)
+                                        .height(itemWidth)
+                                        .padding(4.dp)
+                                )
+                            } else {
+                                val actualIndex = if (globalItemIndex < itemsPerPage - 1) {
+                                    globalItemIndex
+                                } else {
+                                    globalItemIndex - 1
+                                }
+                                val song = speedDialSongs.getOrNull(actualIndex)
+                                if (song != null) {
+                                    SpeedDialCard(
+                                        song = song,
+                                        isCurrent = song.id == currentSongId,
+                                        onClick = { onSongClick(song) },
+                                        modifier = Modifier
+                                            .width(itemWidth)
+                                            .height(itemWidth)
+                                            .padding(4.dp)
+                                    )
+                                } else {
+                                    Spacer(
+                                        modifier = Modifier
+                                            .width(itemWidth)
+                                            .height(itemWidth)
+                                            .padding(4.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// SPEED DIAL CARD — square card with album art + title
+// ════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun SpeedDialCard(
+    song: Song,
+    isCurrent: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val cardShape = RoundedCornerShape(16.dp)
+    Box(
+        modifier = modifier
+            .shadow(
+                elevation = 4.dp,
+                shape = cardShape,
+                clip = false
+            )
+            .clip(cardShape)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+    ) {
+        // Album art
+        if (song.albumArtUri != null) {
+            AsyncImage(
+                model = song.albumArtUri,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF3A3A3C)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = CoralIcons.Music,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.5f),
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+
+        // Gradient overlay for text readability
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.7f)
+                        ),
+                        startY = 0.5f
+                    )
+                )
+        )
+
+        // Glossy border
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .border(
+                    width = 1.dp,
+                    color = Color.White.copy(alpha = 0.2f),
+                    shape = cardShape
+                )
+        )
+
+        // Title at the bottom
+        Text(
+            text = song.title,
+            color = Color.White,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium,
+            fontFamily = CalSansFamily,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(6.dp)
+        )
+
+        // Now-playing dot
+        if (isCurrent) {
+            Box(
+                modifier = Modifier
+                    .padding(6.dp)
+                    .size(6.dp)
+                    .align(Alignment.TopEnd)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(Color(0xFFFF6B6B))
+            )
+        }
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// RANDOMIZE GRID ITEM — dice button with 5-dot pattern
+// ════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun RandomizeGridItem(
+    isLoading: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    // When loading, dots collapse to center. When idle, dots spread to corners.
+    val dotOffsetMultiplier by animateFloatAsState(
+        targetValue = if (isLoading) 0f else 1f,
+        animationSpec = tween(durationMillis = 600),
+        label = "dotOffset"
+    )
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White.copy(alpha = 0.08f))
+            .border(
+                width = 1.dp,
+                color = Color.White.copy(alpha = 0.2f),
+                shape = RoundedCornerShape(16.dp)
+            )
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        val dotColor = Color.White
+        val dotSize = 10.dp
+        val padding = 16.dp
+
+        // 5-dot dice pattern (top-left, top-right, center, bottom-left, bottom-right)
+        // Top Left
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .offset(x = -padding * dotOffsetMultiplier, y = -padding * dotOffsetMultiplier)
+                .size(dotSize)
+                .clip(CircleShape)
+                .background(dotColor)
+        )
+        // Top Right
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .offset(x = padding * dotOffsetMultiplier, y = -padding * dotOffsetMultiplier)
+                .size(dotSize)
+                .clip(CircleShape)
+                .background(dotColor)
+        )
+        // Center
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .size(dotSize)
+                .clip(CircleShape)
+                .background(dotColor)
+        )
+        // Bottom Left
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .offset(x = -padding * dotOffsetMultiplier, y = padding * dotOffsetMultiplier)
+                .size(dotSize)
+                .clip(CircleShape)
+                .background(dotColor)
+        )
+        // Bottom Right
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .offset(x = padding * dotOffsetMultiplier, y = padding * dotOffsetMultiplier)
+                .size(dotSize)
+                .clip(CircleShape)
+                .background(dotColor)
+        )
+
+        // Loading spinner overlay (Coral accent color)
+        if (isLoading) {
+            CircularProgressIndicator(
+                color = Color(0xFFFF6B6B),
+                modifier = Modifier.size(32.dp)
             )
         }
     }
