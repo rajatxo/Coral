@@ -1710,14 +1710,14 @@ private fun TopFadeBlur(
 ) {
     if (backdrop == null) return
 
-    // Total height: covers status bar + ~80dp of fade
     val totalHeight = 128.dp
     val rectShape: androidx.compose.ui.graphics.Shape = androidx.compose.ui.graphics.RectangleShape
 
-    // The key to the smooth edge: we draw the blurred backdrop, then
-    // mask it with a DstIn gradient that goes from opaque (top) to
-    // transparent (bottom). With CompositingStrategy.Offscreen, the
-    // DstIn blend mode erases the blur progressively — no hard edge.
+    // Clean frosted glass blur — NO dark tint, NO smokey overlay.
+    // The blur samples whatever is behind it and shows the colors
+    // through, just softened. A very light white tint (5%) gives the
+    // "frosted" quality without darkening. The DstIn gradient fades
+    // the blur smoothly to zero — no hard edge.
     Box(
         modifier = modifier
             .height(totalHeight)
@@ -1727,15 +1727,14 @@ private fun TopFadeBlur(
             .drawWithContent {
                 drawContent()
                 // DstIn mask: opaque at top → transparent at bottom.
-                // This erases the blur gradually so there's NO hard
-                // edge — the blur fades smoothly into nothing.
+                // Smooth fade — NO hard edge.
                 drawRect(
                     brush = androidx.compose.ui.graphics.Brush.verticalGradient(
                         colorStops = arrayOf(
-                            0.0f to Color.Black,        // full blur at top
-                            0.35f to Color.Black,        // still full blur (status bar area)
-                            0.7f to Color.Black.copy(alpha = 0.5f),  // half blur
-                            1.0f to Color.Transparent    // zero blur at bottom
+                            0.0f to Color.Black,
+                            0.35f to Color.Black,
+                            0.7f to Color.Black.copy(alpha = 0.5f),
+                            1.0f to Color.Transparent
                         ),
                         startY = 0f,
                         endY = size.height
@@ -1744,7 +1743,7 @@ private fun TopFadeBlur(
                 )
             }
     ) {
-        // Layer 1: The blurred backdrop
+        // The blurred backdrop — clean, no dark tint
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -1754,31 +1753,17 @@ private fun TopFadeBlur(
                     effects = {
                         vibrancy()
                         colorControls(
-                            brightness = 0.05f,
+                            brightness = 0f,
                             contrast = 1f,
-                            saturation = 1.2f
+                            saturation = 1.1f
                         )
-                        blur(24f.dp.toPx())
+                        blur(20f.dp.toPx())
                     },
                     onDrawSurface = {
-                        drawRect(Color.Black.copy(alpha = 0.15f))
+                        // Very light white tint for the frosted quality
+                        // (NOT dark — this keeps the blur clear)
+                        drawRect(Color.White.copy(alpha = 0.05f))
                     }
-                )
-        )
-
-        // Layer 2: Subtle dark scrim for text readability (settings icon)
-        // This also fades out smoothly — no hard edge
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    androidx.compose.ui.graphics.Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0.0f to Color.Black.copy(alpha = 0.2f),
-                            0.35f to Color.Black.copy(alpha = 0.1f),
-                            1.0f to Color.Transparent
-                        )
-                    )
                 )
         )
     }
