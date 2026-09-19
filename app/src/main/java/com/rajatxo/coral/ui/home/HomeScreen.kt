@@ -72,6 +72,7 @@ import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.components.CoralNavRail
 import com.rajatxo.coral.ui.components.CoralTab
 import com.rajatxo.coral.ui.icons.CoralIcons
+import com.rajatxo.coral.ui.theme.CalSansFamily
 import com.rajatxo.coral.ui.player.FullPlayer
 import com.rajatxo.coral.ui.screens.PlaceholderScreen
 import com.rajatxo.coral.ui.screens.PlaylistDetailScreen
