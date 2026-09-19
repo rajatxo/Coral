@@ -224,6 +224,35 @@ object CoralIcons {
         close()
     }
 
+    /**
+     * Lucide "circle-user" icon — a circle with a person silhouette
+     * (head + shoulders). Used for the account/user button on the
+     * top-left of the Quick Picks page.
+     */
+    val CircleUser: ImageVector = stroke("CircleUser") {
+        // Outer circle (radius 10 at center 12,12)
+        moveTo(22f, 12f)
+        curveTo(22f, 17.523f, 17.523f, 22f, 12f, 22f)
+        curveTo(6.477f, 22f, 2f, 17.523f, 2f, 12f)
+        curveTo(2f, 6.477f, 6.477f, 2f, 12f, 2f)
+        curveTo(17.523f, 2f, 22f, 6.477f, 22f, 12f)
+        close()
+        // Head circle (radius 3 at center 12,10)
+        moveTo(15f, 10f)
+        curveTo(15f, 11.657f, 13.657f, 13f, 12f, 13f)
+        curveTo(10.343f, 13f, 9f, 11.657f, 9f, 10f)
+        curveTo(9f, 8.343f, 10.343f, 7f, 12f, 7f)
+        curveTo(13.657f, 7f, 15f, 8.343f, 15f, 10f)
+        close()
+        // Shoulders path: M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662
+        moveTo(7f, 20.662f)
+        lineTo(7f, 19f)
+        curveTo(7f, 17.895f, 7.895f, 17f, 9f, 17f)
+        lineTo(15f, 17f)
+        curveTo(16.105f, 17f, 17f, 17.895f, 17f, 19f)
+        lineTo(17f, 20.662f)
+    }
+
     /** Filled play triangle. */
     val Play: ImageVector = filled("Play") {
         moveTo(7f, 4f)

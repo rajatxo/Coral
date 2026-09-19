@@ -376,20 +376,7 @@ fun HomeScreen(
         // --- Draggable Floating Search Button ---
         DraggableSearchFab()
 
-        // ─── Top Fade Blur (Quick Picks page only) ──────────────────
-        // Only shown when the user is on the Quick Picks tab. Other
-        // pages (Songs, Playlists, etc.) don't have the blur.
-        if (selectedTab == CoralTab.QuickPicks) {
-            TopFadeBlur(
-                backdrop = glassBackdrop,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth()
-            )
-        }
-
-        // --- Floating Settings Button (top-right, on top of the blur) ---
-        // The settings icon renders ON TOP of the blur — it's not blurred.
+        // --- Floating Settings Button (top-right) ---
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -409,6 +396,31 @@ fun HomeScreen(
                 tint = Color.White,
                 modifier = Modifier.size(24.dp)
             )
+        }
+
+        // --- User icon (top-left, Quick Picks page only) ---
+        // Just the icon for now — no functionality yet.
+        if (selectedTab == CoralTab.QuickPicks) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .statusBarsPadding()
+                    .padding(start = 16.dp, top = 16.dp)
+                    .size(40.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { /* TODO: account/user screen */ }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = CoralIcons.CircleUser,
+                    contentDescription = "Account",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
         }
 
         // --- Draggable Tab Capsule (nav bar — long-press to drag anywhere) ---
