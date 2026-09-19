@@ -1,7 +1,6 @@
 package com.rajatxo.coral.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -10,7 +9,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,7 +29,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -40,26 +37,20 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.rajatxo.coral.data.prefs.ThemeManager
+import com.rajatxo.coral.data.prefs.currentThemeColors
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
 import com.rajatxo.coral.ui.theme.QuirkFontFamily
+import kotlin.random.Random
 
 /**
  * QuickPicksScreen — "Editorial Gallery" edition.
  *
- * Inspired by high-fashion gallery apps: light off-white background,
- * asymmetric hero grid, editorial cards with image + dark gradient
- * overlay + text on top. Minimalist, monochromatic, sophisticated.
- *
- * LAYOUT:
- *   - Header: "Quick picks" (large, bold) + sort icon
- *   - Hero grid: 2 cards, asymmetric (tall left, short right)
- *   - "Recent" section: horizontal carousel of square cards
- *   - "More" section: horizontal carousel of landscape cards
- *
- * Each card: album art fills the card, dark gradient at the bottom,
- * song title + artist on top of the gradient.
+ * Light/dark theme-aware. Asymmetric hero grid + horizontal carousels.
+ * Songs are randomized on each app launch. Carousels are infinite
+ * (repeat the song list so you can swipe forever).
  */
 @Composable
 fun QuickPicksScreen(
@@ -71,30 +62,54 @@ fun QuickPicksScreen(
     onSongClick: (Song) -> Unit = {},
     onBackClick: () -> Unit = {}
 ) {
-    // ─── Prepare song groups ────────────────────────────────────────
-    val heroSongs = remember(songs, currentSongId) {
+    val theme = currentThemeColors()
+
+    // ─── Random seed — changes on every app launch ─────────────────
+    // This ensures the song selection is different each time the user
+    // opens the app. The seed is remembered for the lifetime of this
+    // composable (which is tied to the app session).
+    val launchSeed = remember { Random.nextInt() }
+
+    // ─── Prepare song groups (randomized per launch) ────────────────
+    // BUG FIX: previously used remember(songs, currentSongId) which
+    // didn't recompute when songs loaded async after the screen was
+    // already shown. Now we key on songs.size so it recomputes when
+    // songs actually arrive. Also use launchSeed for randomization so
+    // the selection changes on every app open.
+    val heroSongs = remember(songs.size, currentSongId, launchSeed) {
         if (songs.isEmpty()) emptyList()
         else {
             val current = songs.firstOrNull { it.id == currentSongId }
+            val pool = songs.shuffled(Random(launchSeed))
             if (current != null) {
-                listOf(current, songs.filter { it.id != current.id }.randomOrNull() ?: songs.first())
+                listOf(current, pool.firstOrNull { it.id != current.id } ?: songs.first())
             } else {
-                songs.take(2)
+                pool.take(2)
             }
         }
     }
-    val recentSongs = remember(songs) {
-        if (songs.size > 2) songs.shuffled().take(6) else songs
+    val recentSongs = remember(songs.size, launchSeed) {
+        if (songs.isEmpty()) emptyList()
+        else songs.shuffled(Random(launchSeed + 1)).take(10)
     }
-    val moreSongs = remember(songs) {
-        if (songs.size > 4) songs.shuffled().take(6) else songs
+    val moreSongs = remember(songs.size, launchSeed) {
+        if (songs.isEmpty()) emptyList()
+        else songs.shuffled(Random(launchSeed + 2)).take(10)
     }
 
-    // ─── Light editorial background ─────────────────────────────────
+    // Infinite-repeat versions for the carousels (repeat 10x so you
+    // can swipe essentially forever)
+    val infiniteRecent = remember(recentSongs) {
+        if (recentSongs.isEmpty()) emptyList() else List(10) { recentSongs }.flatten()
+    }
+    val infiniteMore = remember(moreSongs) {
+        if (moreSongs.isEmpty()) emptyList() else List(10) { moreSongs }.flatten()
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF2F2F7))  // iOS System Gray 6 — light off-white
+            .background(theme.background)
     ) {
         LazyColumn(
             modifier = Modifier
@@ -102,49 +117,24 @@ fun QuickPicksScreen(
                 .statusBarsPadding(),
             contentPadding = PaddingValues(
                 top = 16.dp,
-                bottom = 200.dp,  // room for mini player + nav bar
+                bottom = 200.dp,
                 start = 20.dp,
                 end = 20.dp
             ),
             verticalArrangement = Arrangement.spacedBy(28.dp)
         ) {
-            // ═══ Header ═══
+            // ═══ Header (no shuffle button — moved to floating FAB) ═══
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Quick picks",
-                        color = Color(0xFF1C1C1E),  // near-black
-                        fontSize = 34.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = QuirkFontFamily
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(Color(0xFFE5E5EA))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = { /* future: sort/shuffle */ }
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = CoralIcons.ShuffleLucide,
-                            contentDescription = "Shuffle",
-                            tint = Color(0xFF1C1C1E),
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
+                Text(
+                    text = "Quick picks",
+                    color = theme.textPrimary,
+                    fontSize = 34.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = QuirkFontFamily
+                )
             }
 
-            // ═══ Hero grid — 2 asymmetric cards ═══
+            // ═══ Hero grid ═══
             item {
                 if (heroSongs.isNotEmpty()) {
                     Row(
@@ -153,7 +143,6 @@ fun QuickPicksScreen(
                             .height(280.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // Left card — taller (3:4 ratio)
                         if (heroSongs.size >= 1) {
                             EditorialCard(
                                 song = heroSongs[0],
@@ -164,7 +153,6 @@ fun QuickPicksScreen(
                                     .fillMaxHeight()
                             )
                         }
-                        // Right card — shorter (4:5 ratio, slightly shorter height)
                         if (heroSongs.size >= 2) {
                             EditorialCard(
                                 song = heroSongs[1],
@@ -180,16 +168,16 @@ fun QuickPicksScreen(
                 }
             }
 
-            // ═══ "Recent" section — horizontal carousel ═══
+            // ═══ Recent ═══
             item {
-                SectionHeader(title = "Recent", count = recentSongs.size)
+                SectionHeader(title = "Recent", count = recentSongs.size, theme = theme)
             }
             item {
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(horizontal = 0.dp)
                 ) {
-                    items(recentSongs) { song ->
+                    items(infiniteRecent) { song ->
                         SquareCard(
                             song = song,
                             isCurrent = song.id == currentSongId,
@@ -200,16 +188,16 @@ fun QuickPicksScreen(
                 }
             }
 
-            // ═══ "More" section — horizontal carousel of landscape cards ═══
+            // ═══ More ═══
             item {
-                SectionHeader(title = "More picks", count = moreSongs.size)
+                SectionHeader(title = "More picks", count = moreSongs.size, theme = theme)
             }
             item {
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(horizontal = 0.dp)
                 ) {
-                    items(moreSongs) { song ->
+                    items(infiniteMore) { song ->
                         LandscapeCard(
                             song = song,
                             isCurrent = song.id == currentSongId,
@@ -226,7 +214,7 @@ fun QuickPicksScreen(
 }
 
 // ════════════════════════════════════════════════════════════════════
-// EDITORIAL CARD — image fills card, dark gradient bottom, text on top
+// EDITORIAL CARD
 // ════════════════════════════════════════════════════════════════════
 
 @Composable
@@ -245,7 +233,6 @@ private fun EditorialCard(
                 onClick = onClick
             )
     ) {
-        // Album art fills the card
         if (song.albumArtUri != null) {
             AsyncImage(
                 model = song.albumArtUri,
@@ -269,22 +256,17 @@ private fun EditorialCard(
             }
         }
 
-        // Dark gradient overlay at the bottom for text readability
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.Black.copy(alpha = 0.7f)
-                        ),
-                        startY = 0.4f  // gradient starts at 40% from top
+                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f)),
+                        startY = 0.4f
                     )
                 )
         )
 
-        // Badge (top-left) — "NOW" if current song, else a play icon
         if (isCurrent) {
             Box(
                 modifier = Modifier
@@ -303,7 +285,6 @@ private fun EditorialCard(
             }
         }
 
-        // Text at the bottom (title + artist)
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
@@ -331,7 +312,7 @@ private fun EditorialCard(
 }
 
 // ════════════════════════════════════════════════════════════════════
-// SQUARE CARD — for the "Recent" horizontal carousel
+// SQUARE CARD
 // ════════════════════════════════════════════════════════════════════
 
 @Composable
@@ -350,7 +331,6 @@ private fun SquareCard(
                 onClick = onClick
             )
     ) {
-        // Album art
         if (song.albumArtUri != null) {
             AsyncImage(
                 model = song.albumArtUri,
@@ -374,22 +354,17 @@ private fun SquareCard(
             }
         }
 
-        // Dark gradient at bottom
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.Black.copy(alpha = 0.6f)
-                        ),
+                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)),
                         startY = 0.5f
                     )
                 )
         )
 
-        // Title at the bottom
         Text(
             text = song.title,
             color = Color.White,
@@ -403,7 +378,6 @@ private fun SquareCard(
                 .padding(10.dp)
         )
 
-        // Now-playing accent dot
         if (isCurrent) {
             Box(
                 modifier = Modifier
@@ -418,7 +392,7 @@ private fun SquareCard(
 }
 
 // ════════════════════════════════════════════════════════════════════
-// LANDSCAPE CARD — for the "More picks" horizontal carousel
+// LANDSCAPE CARD
 // ════════════════════════════════════════════════════════════════════
 
 @Composable
@@ -437,7 +411,6 @@ private fun LandscapeCard(
                 onClick = onClick
             )
     ) {
-        // Album art
         if (song.albumArtUri != null) {
             AsyncImage(
                 model = song.albumArtUri,
@@ -461,22 +434,17 @@ private fun LandscapeCard(
             }
         }
 
-        // Dark gradient
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.Black.copy(alpha = 0.65f)
-                        ),
+                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.65f)),
                         startY = 0.4f
                     )
                 )
         )
 
-        // Text
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
@@ -504,11 +472,15 @@ private fun LandscapeCard(
 }
 
 // ════════════════════════════════════════════════════════════════════
-// SECTION HEADER — title on left, count on right
+// SECTION HEADER
 // ════════════════════════════════════════════════════════════════════
 
 @Composable
-private fun SectionHeader(title: String, count: Int) {
+private fun SectionHeader(
+    title: String,
+    count: Int,
+    theme: com.rajatxo.coral.data.prefs.ThemeColors
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -516,7 +488,7 @@ private fun SectionHeader(title: String, count: Int) {
     ) {
         Text(
             text = title,
-            color = Color(0xFF1C1C1E),
+            color = theme.textPrimary,
             fontSize = 20.sp,
             fontWeight = FontWeight.SemiBold,
             fontFamily = CalSansFamily
@@ -524,7 +496,7 @@ private fun SectionHeader(title: String, count: Int) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = "$count",
-                color = Color(0xFF8E8E93),
+                color = theme.textSecondary,
                 fontSize = 14.sp,
                 fontFamily = CalSansFamily
             )
@@ -532,7 +504,7 @@ private fun SectionHeader(title: String, count: Int) {
             Icon(
                 imageVector = CoralIcons.ChevronRight,
                 contentDescription = null,
-                tint = Color(0xFF8E8E93),
+                tint = theme.textSecondary,
                 modifier = Modifier.size(16.dp)
             )
         }

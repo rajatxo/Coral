@@ -20,6 +20,7 @@ class CoralApplication : Application() {
         com.rajatxo.coral.data.prefs.TabCapsulePosition.init(this)
         com.rajatxo.coral.data.prefs.SoundHapticsManager.init(this)
         com.rajatxo.coral.data.prefs.CrossfadeManager.init(this)
+        com.rajatxo.coral.data.prefs.ThemeManager.init(this)
         com.rajatxo.coral.data.premium.SleepTimer.init(this) {
             // onComplete callback — we can't call MediaController directly
             // from the Application class, so we just set the flag. The

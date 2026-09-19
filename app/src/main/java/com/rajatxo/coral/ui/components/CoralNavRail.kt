@@ -259,17 +259,25 @@ private fun RailLabel(
  * and gives the "infinite depth" look ViTune is known for.
  */
 object CoralColors {
-    /** Main app surface — pure black, matches ViTune's background. */
-    val Surface: Color = Color(0xFF000000)
+    /** Main app surface — black in dark theme, light gray in light theme. */
+    val Surface: Color
+        get() = if (com.rajatxo.coral.data.prefs.ThemeManager.isLight())
+            Color(0xFFF2F2F7) else Color(0xFF000000)
 
     /** Slightly lighter for cards / mini player / nav rail pills. */
-    val SurfaceVariant: Color = Color(0xFF1A1A1A)
+    val SurfaceVariant: Color
+        get() = if (com.rajatxo.coral.data.prefs.ThemeManager.isLight())
+            Color(0xFFFFFFFF) else Color(0xFF1A1A1A)
 
-    /** Primary text — pure white. */
-    val TextPrimary: Color = Color.White
+    /** Primary text — white in dark theme, near-black in light theme. */
+    val TextPrimary: Color
+        get() = if (com.rajatxo.coral.data.prefs.ThemeManager.isLight())
+            Color(0xFF1C1C1E) else Color.White
 
     /** Secondary text — muted gray for inactive items, subtitles, etc. */
-    val TextMuted: Color = Color(0xFF888888)
+    val TextMuted: Color
+        get() = if (com.rajatxo.coral.data.prefs.ThemeManager.isLight())
+            Color(0xFF8E8E93) else Color(0xFF888888)
 
     /** Coral accent — the brand color, used for active states + buttons. */
     val Coral: Color = Color(0xFFFF6B6B)

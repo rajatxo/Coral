@@ -370,14 +370,52 @@ fun HomeScreen(
         // --- Draggable Floating Search Button ---
         DraggableSearchFab()
 
-        // --- Floating Settings Button (top-left, on every page) ---
-        // Lucide "settings" gear icon in a small white-tinted circle.
-        // Tapping it opens the SettingsScreen as a full-screen overlay.
+        // --- Floating Shuffle Button (only on Quick Picks + Songs tabs) ---
+        // Sits ABOVE the search FAB. Only visible when the user is on
+        // the Quick Picks or Songs tab. Tapping it shuffles all songs.
+        if (selectedTab == CoralTab.QuickPicks || selectedTab == CoralTab.Songs) {
+            val savedSearchPos by com.rajatxo.coral.data.prefs.SearchFabPosition.position.collectAsState()
+            // Place the shuffle FAB directly above the search FAB.
+            // The search FAB's default Y is 0.65; shuffle sits at 0.55.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(end = 16.dp, top = 16.dp)
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.12f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {
+                            // Shuffle: play a random song from the library
+                            if (songs.isNotEmpty()) {
+                                val randomSong = songs.random()
+                                onSongClick(randomSong)
+                            }
+                        }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = CoralIcons.ShuffleLucide,
+                    contentDescription = "Shuffle",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        // --- Floating Settings Button (top-right, on every page) ---
+        // Moved from top-left to top-right per user request. The shuffle
+        // button (above) only shows on Quick Picks + Songs, but settings
+        // is always visible.
         Box(
             modifier = Modifier
-                .align(Alignment.TopStart)
+                .align(Alignment.TopEnd)
                 .statusBarsPadding()
-                .padding(start = 16.dp, top = 16.dp)
+                .padding(end = 16.dp, top = 72.dp)  // below the shuffle button
                 .size(40.dp)
                 .clip(CircleShape)
                 .background(Color.White.copy(alpha = 0.12f))
