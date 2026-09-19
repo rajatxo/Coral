@@ -36,9 +36,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -303,13 +307,18 @@ private fun EditorialCard(
                 onClick = onClick
             )
     ) {
-        // Layer 1: Album art (filling the card)
+        // ═══ Spiral 2.0-style album art blur-blend ═══
+        //
+        // Layer 1 (bottom): BLURRED album art — fills the entire card.
+        // This is the "down" part. Heavy blur so it's just soft colors.
         if (song.albumArtUri != null) {
             AsyncImage(
                 model = song.albumArtUri,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(48.dp)
             )
         } else {
             Box(
@@ -327,29 +336,47 @@ private fun EditorialCard(
             }
         }
 
-        // Layer 2: Frosted glass overlay — white tint (the "frost")
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.White.copy(alpha = 0.12f))
-        )
-
-        // Layer 3: Bottom gradient (white-ish at the bottom for text readability)
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.Black.copy(alpha = 0.6f)
-                        ),
-                        startY = 0.35f
-                    )
+        // Layer 2 (top): SHARP album art — covers the top ~60% of the card.
+        // A DstIn gradient at its bottom edge dissolves the sharp image
+        // into the blurred layer behind it (the "blend point").
+        // NO black gradient, NO white frost — just sharp→blur transition.
+        if (song.albumArtUri != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.6f)
+                    .align(Alignment.TopCenter)
+                    .graphicsLayer {
+                        compositingStrategy = CompositingStrategy.Offscreen
+                    }
+                    .drawWithContent {
+                        drawContent()
+                        // DstIn mask: opaque at top → transparent at bottom.
+                        // This dissolves the sharp image into the blurred
+                        // layer behind it — the "blend point."
+                        val blendHeightPx = 80.dp.toPx()
+                        val imageHeight = size.height
+                        val blendStartY = (imageHeight - blendHeightPx).coerceAtLeast(0f)
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color.Black, Color.Transparent),
+                                startY = blendStartY,
+                                endY = imageHeight
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
+            ) {
+                AsyncImage(
+                    model = song.albumArtUri,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
                 )
-        )
+            }
+        }
 
-        // Layer 4: Glossy border (subtle white gradient edge)
+        // Layer 3: Glossy border (subtle white edge — makes the card feel 3D)
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -378,6 +405,7 @@ private fun EditorialCard(
             }
         }
 
+        // Text sits on top of the blurred bottom part
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
@@ -430,13 +458,16 @@ private fun SquareCard(
                 onClick = onClick
             )
     ) {
-        // Layer 1: Album art
+        // ═══ Spiral 2.0-style album art blur-blend ═══
+        // Layer 1 (bottom): BLURRED album art — fills entire card
         if (song.albumArtUri != null) {
             AsyncImage(
                 model = song.albumArtUri,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(36.dp)
             )
         } else {
             Box(
@@ -454,26 +485,41 @@ private fun SquareCard(
             }
         }
 
-        // Layer 2: Frosted glass overlay
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.White.copy(alpha = 0.12f))
-        )
-
-        // Layer 3: Bottom gradient
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.5f)),
-                        startY = 0.45f
-                    )
+        // Layer 2 (top): SHARP album art — top 60%, DstIn blend at bottom
+        if (song.albumArtUri != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.6f)
+                    .align(Alignment.TopCenter)
+                    .graphicsLayer {
+                        compositingStrategy = CompositingStrategy.Offscreen
+                    }
+                    .drawWithContent {
+                        drawContent()
+                        val blendHeightPx = 60.dp.toPx()
+                        val imageHeight = size.height
+                        val blendStartY = (imageHeight - blendHeightPx).coerceAtLeast(0f)
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color.Black, Color.Transparent),
+                                startY = blendStartY,
+                                endY = imageHeight
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
+            ) {
+                AsyncImage(
+                    model = song.albumArtUri,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
                 )
-        )
+            }
+        }
 
-        // Layer 4: Glossy border
+        // Layer 3: Glossy border
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -484,6 +530,7 @@ private fun SquareCard(
                 )
         )
 
+        // Text on the blurred bottom part
         Text(
             text = song.title,
             color = Color.White,
@@ -536,13 +583,16 @@ private fun LandscapeCard(
                 onClick = onClick
             )
     ) {
-        // Layer 1: Album art
+        // ═══ Spiral 2.0-style album art blur-blend ═══
+        // Layer 1 (bottom): BLURRED album art — fills entire card
         if (song.albumArtUri != null) {
             AsyncImage(
                 model = song.albumArtUri,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(36.dp)
             )
         } else {
             Box(
@@ -560,26 +610,41 @@ private fun LandscapeCard(
             }
         }
 
-        // Layer 2: Frosted glass overlay
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.White.copy(alpha = 0.12f))
-        )
-
-        // Layer 3: Bottom gradient
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)),
-                        startY = 0.35f
-                    )
+        // Layer 2 (top): SHARP album art — top 60%, DstIn blend at bottom
+        if (song.albumArtUri != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.6f)
+                    .align(Alignment.TopCenter)
+                    .graphicsLayer {
+                        compositingStrategy = CompositingStrategy.Offscreen
+                    }
+                    .drawWithContent {
+                        drawContent()
+                        val blendHeightPx = 60.dp.toPx()
+                        val imageHeight = size.height
+                        val blendStartY = (imageHeight - blendHeightPx).coerceAtLeast(0f)
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color.Black, Color.Transparent),
+                                startY = blendStartY,
+                                endY = imageHeight
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
+            ) {
+                AsyncImage(
+                    model = song.albumArtUri,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
                 )
-        )
+            }
+        }
 
-        // Layer 4: Glossy border
+        // Layer 3: Glossy border
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -590,6 +655,7 @@ private fun LandscapeCard(
                 )
         )
 
+        // Text on the blurred bottom part
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
