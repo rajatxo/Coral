@@ -85,13 +85,16 @@ fun QuickPicksScreen(
             }
         }
     }
-    // Animate the gradient colors smoothly when the song changes
+    // Animate the gradient colors smoothly when the song changes.
+    // Low alpha values — the palette colors are just subtle hints over
+    // a dark base. The background stays predominantly dark/black so
+    // it doesn't feel bright.
     val animatedTop by animateColorAsState(
-        targetValue = palette.primary.copy(alpha = 0.6f),
+        targetValue = palette.primary.copy(alpha = 0.25f),
         animationSpec = tween(800), label = "bgTop"
     )
     val animatedMid by animateColorAsState(
-        targetValue = palette.secondary.copy(alpha = 0.8f),
+        targetValue = palette.secondary.copy(alpha = 0.15f),
         animationSpec = tween(800), label = "bgMid"
     )
     val animatedBottom by animateColorAsState(
@@ -145,9 +148,14 @@ fun QuickPicksScreen(
         if (moreSongs.isEmpty()) emptyList() else List(10) { moreSongs }.flatten()
     }
 
+    // Solid dark base — the gradient's low-alpha palette colors composite
+    // over this, so the background is always predominantly dark/black.
+    val darkBase = Color(0xFF05050A)
+
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(darkBase)
             .background(
                 Brush.verticalGradient(
                     colors = listOf(animatedTop, animatedMid, animatedBottom)
