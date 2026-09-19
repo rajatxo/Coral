@@ -245,7 +245,9 @@ fun QuickPicksScreen(
                             song = song,
                             isCurrent = song.id == currentSongId,
                             onClick = { onSongClick(song) },
-                            modifier = Modifier.size(140.dp)
+                            modifier = Modifier
+                                .width(140.dp)
+                                .height(200.dp)
                         )
                     }
                 }
@@ -271,8 +273,8 @@ fun QuickPicksScreen(
                             isCurrent = song.id == currentSongId,
                             onClick = { onSongClick(song) },
                             modifier = Modifier
-                                .width(220.dp)
-                                .height(140.dp)
+                                .width(160.dp)
+                                .height(220.dp)
                         )
                     }
                 }
@@ -336,15 +338,15 @@ private fun EditorialCard(
             }
         }
 
-        // Layer 2 (top): SHARP album art — covers the top ~60% of the card.
+        // Layer 2 (top): SHARP album art — covers the top ~75% of the card.
         // A DstIn gradient at its bottom edge dissolves the sharp image
         // into the blurred layer behind it (the "blend point").
-        // NO black gradient, NO white frost — just sharp→blur transition.
+        // Smaller blend height = less gap, more of the sharp cover shows.
         if (song.albumArtUri != null) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight(0.6f)
+                    .fillMaxHeight(0.75f)
                     .align(Alignment.TopCenter)
                     .graphicsLayer {
                         compositingStrategy = CompositingStrategy.Offscreen
@@ -352,9 +354,8 @@ private fun EditorialCard(
                     .drawWithContent {
                         drawContent()
                         // DstIn mask: opaque at top → transparent at bottom.
-                        // This dissolves the sharp image into the blurred
-                        // layer behind it — the "blend point."
-                        val blendHeightPx = 80.dp.toPx()
+                        // Smaller blend height (40dp) for a tighter blend.
+                        val blendHeightPx = 40.dp.toPx()
                         val imageHeight = size.height
                         val blendStartY = (imageHeight - blendHeightPx).coerceAtLeast(0f)
                         drawRect(
@@ -485,19 +486,19 @@ private fun SquareCard(
             }
         }
 
-        // Layer 2 (top): SHARP album art — top 60%, DstIn blend at bottom
+        // Layer 2 (top): SHARP album art — top 75%, DstIn blend at bottom
         if (song.albumArtUri != null) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight(0.6f)
+                    .fillMaxHeight(0.75f)
                     .align(Alignment.TopCenter)
                     .graphicsLayer {
                         compositingStrategy = CompositingStrategy.Offscreen
                     }
                     .drawWithContent {
                         drawContent()
-                        val blendHeightPx = 60.dp.toPx()
+                        val blendHeightPx = 30.dp.toPx()
                         val imageHeight = size.height
                         val blendStartY = (imageHeight - blendHeightPx).coerceAtLeast(0f)
                         drawRect(
@@ -610,19 +611,19 @@ private fun LandscapeCard(
             }
         }
 
-        // Layer 2 (top): SHARP album art — top 60%, DstIn blend at bottom
+        // Layer 2 (top): SHARP album art — top 75%, DstIn blend at bottom
         if (song.albumArtUri != null) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight(0.6f)
+                    .fillMaxHeight(0.75f)
                     .align(Alignment.TopCenter)
                     .graphicsLayer {
                         compositingStrategy = CompositingStrategy.Offscreen
                     }
                     .drawWithContent {
                         drawContent()
-                        val blendHeightPx = 60.dp.toPx()
+                        val blendHeightPx = 30.dp.toPx()
                         val imageHeight = size.height
                         val blendStartY = (imageHeight - blendHeightPx).coerceAtLeast(0f)
                         drawRect(
