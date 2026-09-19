@@ -384,24 +384,26 @@ fun HomeScreen(
         // A clean frosted-glass blur sits behind the header with a
         // smooth gradient edge (no hard line).
         if (selectedTab == CoralTab.QuickPicks) {
-            // The blur layer — behind the header content
+            // The blur layer — starts from the VERY TOP of the screen
+            // (no statusBarsPadding) so it covers the status bar area.
+            // Height = status bar (~24dp) + 56dp header + 40dp fade = ~120dp
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
-                    .statusBarsPadding()
-                    .height(56.dp)
+                    .height(120.dp)
                     .graphicsLayer {
                         compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
                     }
                     .drawWithContent {
                         drawContent()
                         // DstIn gradient: full at top → transparent at bottom
+                        // Smooth fade over the bottom 40% so there's no hard edge
                         drawRect(
                             brush = Brush.verticalGradient(
                                 colorStops = arrayOf(
                                     0.0f to Color.Black,
-                                    0.5f to Color.Black,
+                                    0.6f to Color.Black,
                                     1.0f to Color.Transparent
                                 ),
                                 startY = 0f,
@@ -425,7 +427,10 @@ fun HomeScreen(
                 )
             }
 
-            // The header content — ON TOP of the blur, NOT blurred
+            // The header content — ON TOP of the blur, NOT blurred.
+            // statusBarsPadding pushes the icons/text below the status
+            // bar so they're visible, but the blur behind them extends
+            // up behind the status bar (transparent).
             Row(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
