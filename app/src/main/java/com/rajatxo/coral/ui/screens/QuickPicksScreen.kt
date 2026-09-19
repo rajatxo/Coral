@@ -3,6 +3,7 @@ package com.rajatxo.coral.ui.screens
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -33,7 +34,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -285,15 +288,22 @@ private fun EditorialCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val cardShape = RoundedCornerShape(24.dp)
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
+            .shadow(
+                elevation = 8.dp,
+                shape = cardShape,
+                clip = false
+            )
+            .clip(cardShape)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
             )
     ) {
+        // Layer 1: Album art (filling the card)
         if (song.albumArtUri != null) {
             AsyncImage(
                 model = song.albumArtUri,
@@ -317,14 +327,36 @@ private fun EditorialCard(
             }
         }
 
+        // Layer 2: Frosted glass overlay — white tint (the "frost")
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White.copy(alpha = 0.12f))
+        )
+
+        // Layer 3: Bottom gradient (white-ish at the bottom for text readability)
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f)),
-                        startY = 0.4f
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.6f)
+                        ),
+                        startY = 0.35f
                     )
+                )
+        )
+
+        // Layer 4: Glossy border (subtle white gradient edge)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .border(
+                    width = 1.dp,
+                    color = Color.White.copy(alpha = 0.25f),
+                    shape = cardShape
                 )
         )
 
@@ -383,15 +415,22 @@ private fun SquareCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val cardShape = RoundedCornerShape(20.dp)
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
+            .shadow(
+                elevation = 6.dp,
+                shape = cardShape,
+                clip = false
+            )
+            .clip(cardShape)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
             )
     ) {
+        // Layer 1: Album art
         if (song.albumArtUri != null) {
             AsyncImage(
                 model = song.albumArtUri,
@@ -415,14 +454,33 @@ private fun SquareCard(
             }
         }
 
+        // Layer 2: Frosted glass overlay
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White.copy(alpha = 0.12f))
+        )
+
+        // Layer 3: Bottom gradient
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)),
-                        startY = 0.5f
+                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.5f)),
+                        startY = 0.45f
                     )
+                )
+        )
+
+        // Layer 4: Glossy border
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .border(
+                    width = 1.dp,
+                    color = Color.White.copy(alpha = 0.25f),
+                    shape = cardShape
                 )
         )
 
@@ -463,15 +521,22 @@ private fun LandscapeCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val cardShape = RoundedCornerShape(20.dp)
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
+            .shadow(
+                elevation = 6.dp,
+                shape = cardShape,
+                clip = false
+            )
+            .clip(cardShape)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
             )
     ) {
+        // Layer 1: Album art
         if (song.albumArtUri != null) {
             AsyncImage(
                 model = song.albumArtUri,
@@ -495,14 +560,33 @@ private fun LandscapeCard(
             }
         }
 
+        // Layer 2: Frosted glass overlay
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White.copy(alpha = 0.12f))
+        )
+
+        // Layer 3: Bottom gradient
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.65f)),
-                        startY = 0.4f
+                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)),
+                        startY = 0.35f
                     )
+                )
+        )
+
+        // Layer 4: Glossy border
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .border(
+                    width = 1.dp,
+                    color = Color.White.copy(alpha = 0.25f),
+                    shape = cardShape
                 )
         )
 
