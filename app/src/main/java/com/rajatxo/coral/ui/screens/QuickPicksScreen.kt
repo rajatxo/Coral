@@ -1,15 +1,11 @@
 package com.rajatxo.coral.ui.screens
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -55,7 +51,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -88,21 +83,9 @@ fun QuickPicksScreen(
     capsuleRemaining: Long = 0L,
     onExtend: () -> Unit = {},
     onSongClick: (Song) -> Unit = {},
-    onBackClick: () -> Unit = {},
-    onRefresh: () -> Unit = {}
+    onBackClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-
-    // ─── Curtain pull-to-refresh state ─────────────────────────────
-    // The "curtain" is the current song's album art, hidden above the
-    // screen. When the user pulls down, the curtain + all content
-    // translate down together (like pulling a tablecloth). On release,
-    // spring back up.
-    val curtainOffset = remember { Animatable(0f) }  // px, 0 = resting
-    var isPulling by remember { mutableStateOf(false) }
-    var refreshTriggered by remember { mutableStateOf(false) }
-    val pullThreshold = 300f  // px — pull this far to trigger refresh
 
     // ─── Current song's palette → dark gradient background ──────────
     // The background is a dark gradient using the current song's palette
@@ -180,7 +163,8 @@ fun QuickPicksScreen(
         if (moreSongs.isEmpty()) emptyList() else List(10) { moreSongs }.flatten()
     }
 
-    // Solid dark base
+    // Solid dark base — the gradient's low-alpha palette colors composite
+    // over this, so the background is always predominantly dark/black.
     val darkBase = Color(0xFF05050A)
 
     Box(
@@ -192,107 +176,10 @@ fun QuickPicksScreen(
                     colors = listOf(animatedTop, animatedMid, animatedBottom)
                 )
             )
-            // Pull-to-refresh gesture: detect vertical drag on the
-            // entire screen. Only triggers when pulling DOWN (positive
-            // dragAmount). The content + curtain translate together.
-            .pointerInput(Unit) {
-                detectVerticalDragGestures(
-                    onDragStart = { isPulling = true },
-                    onDragEnd = {
-                        isPulling = false
-                        // Spring back to 0
-                        coroutineScope.launch {
-                            if (curtainOffset.value > pullThreshold && !refreshTriggered) {
-                                // Triggered! Animate back then refresh
-                                refreshTriggered = true
-                                curtainOffset.animateTo(
-                                    targetValue = 0f,
-                                    animationSpec = spring(
-                                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                                        stiffness = Spring.StiffnessMedium
-                                    )
-                                )
-                                onRefresh()
-                                refreshTriggered = false
-                            } else {
-                                // Not enough pull — just spring back
-                                curtainOffset.animateTo(
-                                    targetValue = 0f,
-                                    animationSpec = spring(
-                                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                                        stiffness = Spring.StiffnessMedium
-                                    )
-                                )
-                            }
-                        }
-                    },
-                    onDragCancel = {
-                        isPulling = false
-                        coroutineScope.launch {
-                            curtainOffset.animateTo(
-                                targetValue = 0f,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                    stiffness = Spring.StiffnessMedium
-                                )
-                            )
-                        }
-                    },
-                    onVerticalDrag = { _, dragAmount ->
-                        // Only respond to downward drags (positive = down)
-                        // Apply rubber-band resistance: the further you pull,
-                        // the more resistance (divide by a growing factor)
-                        if (dragAmount > 0) {
-                            val currentOffset = curtainOffset.value
-                            val resistance = 1f - (currentOffset / 1000f).coerceIn(0f, 0.6f)
-                            coroutineScope.launch {
-                                curtainOffset.snapTo(
-                                    (currentOffset + dragAmount * resistance).coerceAtLeast(0f)
-                                )
-                            }
-                        }
-                    }
-                )
-            }
     ) {
-        // ═══ THE CURTAIN ═══
-        // The current song's album art, hidden ABOVE the screen.
-        // As the content pulls down, this is revealed — like pulling
-        // a tablecloth. The curtain sits BEHIND the content.
-        if (currentSongArt != null && curtainOffset.value > 0f) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(400.dp)
-                    .graphicsLayer {
-                        // Position the curtain so it's hidden above the screen
-                        // and revealed as curtainOffset increases
-                        translationY = -400.dp.toPx() + curtainOffset.value
-                    }
-            ) {
-                AsyncImage(
-                    model = currentSongArt,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-                // Dark overlay so the curtain blends with the dark background
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.4f))
-                )
-            }
-        }
-
-        // ═══ THE CONTENT (rides on top of the curtain) ═══
-        // Everything translates down together with the curtain.
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer {
-                    translationY = curtainOffset.value
-                }
                 .statusBarsPadding(),
             contentPadding = PaddingValues(
                 top = 100.dp,      // clear the fixed header (status bar + 56dp + margin)

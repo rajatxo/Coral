@@ -298,13 +298,7 @@ fun HomeScreen(
                         capsuleVisible = capsuleVisible,
                         capsuleRemaining = capsuleRemaining,
                         onExtend = onExtend,
-                        onSongClick = onSongClick,
-                        onRefresh = {
-                            isRefreshing = true
-                            homeScope.launch {
-                                try { onRefresh() } finally { isRefreshing = false }
-                            }
-                        }
+                        onSongClick = onSongClick
                     )
                     CoralTab.Discover -> PlaceholderScreen(
                         tabName = "Discover",
