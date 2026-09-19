@@ -37,7 +37,6 @@ import androidx.compose.ui.unit.sp
 import com.rajatxo.coral.data.premium.PremiumManager
 import com.rajatxo.coral.data.prefs.CrossfadeManager
 import com.rajatxo.coral.data.prefs.PlayerStyleManager
-import com.rajatxo.coral.data.prefs.ThemeManager
 import com.rajatxo.coral.data.prefs.SoundHapticsManager
 import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.icons.CoralIcons
@@ -67,7 +66,6 @@ fun SettingsScreen(
     val soundsEnabled by SoundHapticsManager.soundsEnabled.collectAsState()
     val soundVolume by SoundHapticsManager.soundVolume.collectAsState()
     val playerStyle by PlayerStyleManager.playerStyle.collectAsState()
-    val theme by ThemeManager.theme.collectAsState()
     val crossfadeDuration by CrossfadeManager.crossfadeDuration.collectAsState()
     var versionTapCount by remember { mutableIntStateOf(0) }
 
@@ -174,19 +172,6 @@ fun SettingsScreen(
                 value = currentFont.displayName,
                 onClick = onOpenFontPicker
             )
-            // Theme — Dark / Light / Dynamic
-            SettingsRow(
-                icon = CoralIcons.Gear,
-                title = "Theme",
-                subtitle = "Dark, Light, or Dynamic",
-                value = theme,
-                onClick = {
-                    val themes = listOf(ThemeManager.DARK, ThemeManager.LIGHT, ThemeManager.DYNAMIC)
-                    val currentIdx = themes.indexOf(theme)
-                    ThemeManager.setTheme(themes[(currentIdx + 1) % themes.size])
-                }
-            )
-
             // Player Design Style — toggle between Coral (immersive blurred
             // bg) and Profile (dating-app style with vertical pill + chips)
             SettingsRow(

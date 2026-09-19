@@ -13,6 +13,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -370,52 +373,30 @@ fun HomeScreen(
         // --- Draggable Floating Search Button ---
         DraggableSearchFab()
 
-        // --- Floating Shuffle Button (only on Quick Picks + Songs tabs) ---
-        // Sits ABOVE the search FAB. Only visible when the user is on
-        // the Quick Picks or Songs tab. Tapping it shuffles all songs.
+        // --- Draggable Floating Shuffle Button ---
+        // Only visible on Quick Picks + Songs tabs. Same drag pattern as
+        // the search FAB: long-press 3 seconds → drag → release to pin.
+        // Position persists across app restarts via ShuffleFabPosition.
         if (selectedTab == CoralTab.QuickPicks || selectedTab == CoralTab.Songs) {
-            val savedSearchPos by com.rajatxo.coral.data.prefs.SearchFabPosition.position.collectAsState()
-            // Place the shuffle FAB directly above the search FAB.
-            // The search FAB's default Y is 0.65; shuffle sits at 0.55.
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .statusBarsPadding()
-                    .padding(end = 16.dp, top = 16.dp)
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.12f))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = {
-                            // Shuffle: play a random song from the library
-                            if (songs.isNotEmpty()) {
-                                val randomSong = songs.random()
-                                onSongClick(randomSong)
-                            }
-                        }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = CoralIcons.ShuffleLucide,
-                    contentDescription = "Shuffle",
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
+            DraggableShuffleFab(
+                onShuffle = {
+                    if (songs.isNotEmpty()) {
+                        val randomSong = songs.random()
+                        onSongClick(randomSong)
+                    }
+                }
+            )
         }
 
         // --- Floating Settings Button (top-right, on every page) ---
-        // Moved from top-left to top-right per user request. The shuffle
-        // button (above) only shows on Quick Picks + Songs, but settings
-        // is always visible.
+        // The ONLY button at the top-right. Settings is always visible.
+        // The shuffle button is a separate draggable FAB (above) that
+        // only shows on Quick Picks + Songs.
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .statusBarsPadding()
-                .padding(end = 16.dp, top = 72.dp)  // below the shuffle button
+                .padding(end = 16.dp, top = 16.dp)
                 .size(40.dp)
                 .clip(CircleShape)
                 .background(Color.White.copy(alpha = 0.12f))
@@ -1191,6 +1172,213 @@ private fun DraggableSearchFab() {
                     imageVector = CoralIcons.Search,
                     contentDescription = "Search",
                     tint = Color.Black,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+    }
+}
+
+// =============================================================================
+// DraggableShuffleFab
+// =============================================================================
+// Same drag pattern as DraggableSearchFab:
+//   1. Hold for 3 seconds → countdown bubble (3→2→1) → enter drag mode
+//   2. In drag mode: FAB follows finger anywhere on screen
+//   3. Release → pin to new position (persists via ShuffleFabPosition)
+//
+// The shuffle FAB plays a random song from the library on tap.
+// Default position: right side, ABOVE the search FAB (Y=0.55 vs 0.75).
+// =============================================================================
+
+@Composable
+private fun DraggableShuffleFab(
+    onShuffle: () -> Unit
+) {
+    val savedPosition by com.rajatxo.coral.data.prefs.ShuffleFabPosition.position.collectAsState()
+    val density = androidx.compose.ui.platform.LocalDensity.current
+
+    var screenSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+    var currentYpx by remember { mutableStateOf(0f) }
+    var isDragging by remember { mutableStateOf(false) }
+    var isLongPressActivated by remember { mutableStateOf(false) }
+    var pressStartTime by remember { mutableStateOf(0L) }
+
+    // --- Countdown speech bubble state ---
+    var showBubble by remember { mutableStateOf(false) }
+    var countdownNumber by remember { mutableStateOf(3) }
+    var countdownJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    val countdownScope = rememberCoroutineScope()
+
+    // Pop-up animation for the bubble
+    val bubbleScale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (showBubble) 1f else 0f,
+        animationSpec = androidx.compose.animation.core.spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+        ),
+        label = "shuffleBubbleScale"
+    )
+    val bubbleAlpha by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (showBubble) 1f else 0f,
+        animationSpec = androidx.compose.animation.core.tween(250),
+        label = "shuffleBubbleAlpha"
+    )
+
+    // FAB scale for drag-mode feedback
+    val fabScale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (isDragging) 1.15f else 1f,
+        animationSpec = androidx.compose.animation.core.spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+        ),
+        label = "shuffleFabScale"
+    )
+
+    val fabSize = 56.dp
+    val fabSizePx = with(density) { fabSize.toPx() }
+    val (savedX, _) = savedPosition
+    val fixedXpx = if (screenSize.width > 0) savedX * screenSize.width else 0f
+
+    androidx.compose.runtime.LaunchedEffect(savedPosition, screenSize) {
+        if (screenSize.height > 0) {
+            currentYpx = savedPosition.second * screenSize.height
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .onSizeChanged { screenSize = it }
+    ) {
+        if (screenSize.width > 0 && screenSize.height > 0) {
+
+            // --- Countdown speech bubble (LEFT of the FAB) ---
+            if (bubbleAlpha > 0.01f) {
+                Row(
+                    modifier = Modifier
+                        .offset {
+                            androidx.compose.ui.unit.IntOffset(
+                                (fixedXpx - fabSizePx / 2f - with(density) { 210.dp.toPx() }).toInt(),
+                                (currentYpx - with(density) { 24.dp.toPx() }).toInt()
+                            )
+                        }
+                        .graphicsLayer {
+                            scaleX = bubbleScale
+                            scaleY = bubbleScale
+                            alpha = bubbleAlpha
+                        },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFF1F1F1F))
+                            .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = if (countdownNumber > 0) "Hold to move in $countdownNumber"
+                                   else "Release to pin",
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontFamily = CalSansFamily
+                        )
+                    }
+                    // Tail (pointed right → toward the FAB)
+                    Box(
+                        modifier = Modifier
+                            .size(0.dp)
+                            .graphicsLayer {
+                                translationX = -6f * density.density
+                            }
+                    )
+                }
+            }
+
+            // --- The FAB itself ---
+            Box(
+                modifier = Modifier
+                    .offset {
+                        androidx.compose.ui.unit.IntOffset(
+                            (fixedXpx - fabSizePx / 2f).toInt(),
+                            (currentYpx - fabSizePx / 2f).toInt()
+                        )
+                    }
+                    .size(fabSize)
+                    .graphicsLayer {
+                        scaleX = fabScale
+                        scaleY = fabScale
+                    }
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onPress = {
+                                pressStartTime = System.currentTimeMillis()
+                                isLongPressActivated = false
+                                showBubble = true
+                                countdownNumber = 3
+                                countdownJob?.cancel()
+                                countdownJob = countdownScope.launch {
+                                    for (i in 3 downTo 1) {
+                                        countdownNumber = i
+                                        delay(1000)
+                                    }
+                                    countdownNumber = 0
+                                    isLongPressActivated = true
+                                    showBubble = false
+                                }
+                                tryAwaitRelease()
+                                countdownJob?.cancel()
+                                showBubble = false
+                                if (!isLongPressActivated) {
+                                    // Short tap → shuffle
+                                    onShuffle()
+                                }
+                            }
+                        )
+                    }
+                    .pointerInput(isLongPressActivated) {
+                        if (isLongPressActivated) {
+                            detectDragGestures(
+                                onDragEnd = {
+                                    isDragging = false
+                                    isLongPressActivated = false
+                                    // Save position
+                                    if (screenSize.height > 0) {
+                                        val yFraction = currentYpx / screenSize.height
+                                        com.rajatxo.coral.data.prefs.ShuffleFabPosition.setPosition(
+                                            savedX, yFraction
+                                        )
+                                    }
+                                },
+                                onDragCancel = {
+                                    isDragging = false
+                                    isLongPressActivated = false
+                                },
+                                onDrag = { _, dragAmount ->
+                                    isDragging = true
+                                    currentYpx = (currentYpx + dragAmount.y)
+                                        .coerceIn(fabSizePx / 2f, screenSize.height - fabSizePx / 2f)
+                                }
+                            )
+                        }
+                    }
+                    .clip(CircleShape)
+                    .background(
+                        if (isDragging) Color(0xFFFF6B6B)
+                        else Color.White.copy(alpha = 0.12f)
+                    )
+                    .border(
+                        1.dp,
+                        if (isDragging) Color.White else Color.White.copy(alpha = 0.15f),
+                        CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = CoralIcons.ShuffleLucide,
+                    contentDescription = "Shuffle",
+                    tint = Color.White,
                     modifier = Modifier.size(24.dp)
                 )
             }

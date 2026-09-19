@@ -37,8 +37,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import com.rajatxo.coral.data.prefs.ThemeManager
-import com.rajatxo.coral.data.prefs.currentThemeColors
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
@@ -62,7 +60,10 @@ fun QuickPicksScreen(
     onSongClick: (Song) -> Unit = {},
     onBackClick: () -> Unit = {}
 ) {
-    val theme = currentThemeColors()
+    // Dark theme colors (the only theme — Light/Dynamic removed)
+    val bgColor = Color(0xFF0A0A12)
+    val textPrimary = Color.White
+    val textSecondary = Color.White.copy(alpha = 0.6f)
 
     // ─── Random seed — changes on every app launch ─────────────────
     // This ensures the song selection is different each time the user
@@ -109,7 +110,7 @@ fun QuickPicksScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(theme.background)
+            .background(bgColor)
     ) {
         LazyColumn(
             modifier = Modifier
@@ -127,7 +128,7 @@ fun QuickPicksScreen(
             item {
                 Text(
                     text = "Quick picks",
-                    color = theme.textPrimary,
+                    color = textPrimary,
                     fontSize = 34.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = QuirkFontFamily
@@ -170,7 +171,12 @@ fun QuickPicksScreen(
 
             // ═══ Recent ═══
             item {
-                SectionHeader(title = "Recent", count = recentSongs.size, theme = theme)
+                SectionHeader(
+                    title = "Recent",
+                    count = recentSongs.size,
+                    textPrimary = textPrimary,
+                    textSecondary = textSecondary
+                )
             }
             item {
                 LazyRow(
@@ -190,7 +196,12 @@ fun QuickPicksScreen(
 
             // ═══ More ═══
             item {
-                SectionHeader(title = "More picks", count = moreSongs.size, theme = theme)
+                SectionHeader(
+                    title = "More picks",
+                    count = moreSongs.size,
+                    textPrimary = textPrimary,
+                    textSecondary = textSecondary
+                )
             }
             item {
                 LazyRow(
@@ -479,7 +490,8 @@ private fun LandscapeCard(
 private fun SectionHeader(
     title: String,
     count: Int,
-    theme: com.rajatxo.coral.data.prefs.ThemeColors
+    textPrimary: Color,
+    textSecondary: Color
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -488,7 +500,7 @@ private fun SectionHeader(
     ) {
         Text(
             text = title,
-            color = theme.textPrimary,
+            color = textPrimary,
             fontSize = 20.sp,
             fontWeight = FontWeight.SemiBold,
             fontFamily = CalSansFamily
@@ -496,7 +508,7 @@ private fun SectionHeader(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = "$count",
-                color = theme.textSecondary,
+                color = textSecondary,
                 fontSize = 14.sp,
                 fontFamily = CalSansFamily
             )
@@ -504,7 +516,7 @@ private fun SectionHeader(
             Icon(
                 imageVector = CoralIcons.ChevronRight,
                 contentDescription = null,
-                tint = theme.textSecondary,
+                tint = textSecondary,
                 modifier = Modifier.size(16.dp)
             )
         }
