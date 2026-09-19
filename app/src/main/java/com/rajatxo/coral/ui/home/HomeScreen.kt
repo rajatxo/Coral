@@ -375,6 +375,24 @@ fun HomeScreen(
         // --- Draggable Floating Search Button ---
         DraggableSearchFab()
 
+        // ─── Top Fade Blur ──────────────────────────────────────────
+        // A blended-edge blur at the top of every page. Content that
+        // scrolls behind it gets blurred, but the blur fades out
+        // smoothly (no hard boundary). Based on the BitChord approach
+        // but using Coral's existing kyant/backdrop library.
+        //
+        // The blur is full-strength at the very top (behind the status
+        // bar + settings icon), then ramps down to zero over ~80dp
+        // using an EaseOutCubic curve so the eye can't find where it
+        // ends. A subtle dark scrim over the blur keeps white text
+        // (settings icon) readable against bright album art.
+        TopFadeBlur(
+            backdrop = glassBackdrop,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+        )
+
         // --- Floating Settings Button (top-right, no circle background) ---
         // Uses the new Cog icon (spokes + two concentric circles).
         // No circle background — just the icon, clean and minimal.
@@ -1678,5 +1696,73 @@ private fun DraggableTabCapsule(
             }
         }
     }
+}
+
+// =============================================================================
+// TopFadeBlur — blended-edge blur at the top of every page
+// =============================================================================
+
+@Composable
+private fun TopFadeBlur(
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop?,
+    modifier: Modifier = Modifier
+) {
+    if (backdrop == null) return
+
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val statusBarHeight = androidx.compose.foundation.layout.WindowInsets.statusBars
+        .asPaddingValues()
+        .calculateTopPadding()
+    val fadeRun = 80.dp
+    val totalHeight = statusBarHeight + fadeRun
+
+    Box(
+        modifier = modifier
+            .height(totalHeight)
+            .drawBackdrop(
+                backdrop = backdrop,
+                effects = {
+                    vibrancy()
+                    colorControls(
+                        brightness = 0.05f,
+                        contrast = 1f,
+                        saturation = 1.2f
+                    )
+                    blur(24f.dp.toPx())
+                },
+                onDrawSurface = {
+                    val totalHeightPx = size.height
+                    val statusBarPx = with(density) { statusBarHeight.toPx() }
+                    val statusBarFraction = (statusBarPx / totalHeightPx).coerceIn(0f, 1f)
+
+                    // Progressive alpha mask: full at top → transparent at bottom
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.0f to Color.Black,
+                                statusBarFraction to Color.Black,
+                                1.0f to Color.Transparent
+                            ),
+                            startY = 0f,
+                            endY = totalHeightPx
+                        ),
+                        blendMode = androidx.compose.ui.graphics.BlendMode.DstIn
+                    )
+
+                    // Dark scrim for text readability
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.0f to Color.Black.copy(alpha = 0.3f),
+                                statusBarFraction to Color.Black.copy(alpha = 0.2f),
+                                1.0f to Color.Transparent
+                            ),
+                            startY = 0f,
+                            endY = totalHeightPx
+                        )
+                    )
+                }
+            )
+    )
 }
 
