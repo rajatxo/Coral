@@ -1709,60 +1709,70 @@ private fun TopFadeBlur(
 ) {
     if (backdrop == null) return
 
-    val density = androidx.compose.ui.platform.LocalDensity.current
     val statusBarHeight = androidx.compose.foundation.layout.WindowInsets.statusBars
         .asPaddingValues()
         .calculateTopPadding()
     val fadeRun = 80.dp
     val totalHeight = statusBarHeight + fadeRun
+    val rectShape: Shape = androidx.compose.ui.graphics.RectangleShape
 
     Box(
         modifier = modifier
             .height(totalHeight)
-            .drawBackdrop(
-                backdrop = backdrop,
-                effects = {
-                    vibrancy()
-                    colorControls(
-                        brightness = 0.05f,
-                        contrast = 1f,
-                        saturation = 1.2f
-                    )
-                    blur(24f.dp.toPx())
-                },
-                onDrawSurface = {
-                    val totalHeightPx = size.height
-                    val statusBarPx = with(density) { statusBarHeight.toPx() }
-                    val statusBarFraction = (statusBarPx / totalHeightPx).coerceIn(0f, 1f)
+    ) {
+        // Layer 1: The blurred backdrop (fills the full height)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .drawBackdrop(
+                    backdrop = backdrop,
+                    shape = { rectShape },
+                    effects = {
+                        vibrancy()
+                        colorControls(
+                            brightness = 0.05f,
+                            contrast = 1f,
+                            saturation = 1.2f
+                        )
+                        blur(24f.dp.toPx())
+                    },
+                    onDrawSurface = {
+                        drawRect(Color.Black.copy(alpha = 0.2f))
+                    }
+                )
+        )
 
-                    // Progressive alpha mask: full at top → transparent at bottom
-                    drawRect(
-                        brush = Brush.verticalGradient(
-                            colorStops = arrayOf(
-                                0.0f to Color.Black,
-                                statusBarFraction to Color.Black,
-                                1.0f to Color.Transparent
-                            ),
-                            startY = 0f,
-                            endY = totalHeightPx
-                        ),
-                        blendMode = androidx.compose.ui.graphics.BlendMode.DstIn
-                    )
-
-                    // Dark scrim for text readability
-                    drawRect(
-                        brush = Brush.verticalGradient(
-                            colorStops = arrayOf(
-                                0.0f to Color.Black.copy(alpha = 0.3f),
-                                statusBarFraction to Color.Black.copy(alpha = 0.2f),
-                                1.0f to Color.Transparent
-                            ),
-                            startY = 0f,
-                            endY = totalHeightPx
+        // Layer 2: Gradient mask that fades the blur from full opacity
+        // at the top to transparent at the bottom — no hard edge.
+        // Uses a simple vertical gradient overlay.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f to Color.Transparent,
+                            0.4f to Color.Transparent,
+                            1.0f to CoralColors.Surface
                         )
                     )
-                }
-            )
-    )
+                )
+        )
+
+        // Layer 3: Subtle dark scrim for text readability (settings icon)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f to Color.Black.copy(alpha = 0.25f),
+                            0.4f to Color.Black.copy(alpha = 0.1f),
+                            1.0f to Color.Transparent
+                        )
+                    )
+                )
+        )
+    }
 }
 
