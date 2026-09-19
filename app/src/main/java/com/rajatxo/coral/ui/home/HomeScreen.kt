@@ -1709,12 +1709,9 @@ private fun TopFadeBlur(
 ) {
     if (backdrop == null) return
 
-    val statusBarHeight = androidx.compose.foundation.layout.WindowInsets.statusBars
-        .asPaddingValues()
-        .calculateTopPadding()
-    val fadeRun = 80.dp
-    val totalHeight = statusBarHeight + fadeRun
-    val rectShape: Shape = androidx.compose.ui.graphics.RectangleShape
+    // Use a fixed height: 48dp (typical status bar) + 80dp fade = 128dp
+    val totalHeight = 128.dp
+    val rectShape: androidx.compose.ui.graphics.Shape = androidx.compose.ui.graphics.RectangleShape
 
     Box(
         modifier = modifier
@@ -1742,32 +1739,31 @@ private fun TopFadeBlur(
                 )
         )
 
-        // Layer 2: Gradient mask that fades the blur from full opacity
-        // at the top to transparent at the bottom — no hard edge.
-        // Uses a simple vertical gradient overlay.
+        // Layer 2: Gradient that fades the blur into the background
+        // (transparent at top → surface color at bottom = no hard edge)
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
-                    Brush.verticalGradient(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
                         colorStops = arrayOf(
                             0.0f to Color.Transparent,
-                            0.4f to Color.Transparent,
+                            0.35f to Color.Transparent,
                             1.0f to CoralColors.Surface
                         )
                     )
                 )
         )
 
-        // Layer 3: Subtle dark scrim for text readability (settings icon)
+        // Layer 3: Dark scrim for text readability
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
-                    Brush.verticalGradient(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
                         colorStops = arrayOf(
                             0.0f to Color.Black.copy(alpha = 0.25f),
-                            0.4f to Color.Black.copy(alpha = 0.1f),
+                            0.35f to Color.Black.copy(alpha = 0.1f),
                             1.0f to Color.Transparent
                         )
                     )
