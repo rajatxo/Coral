@@ -376,27 +376,20 @@ fun HomeScreen(
         // --- Draggable Floating Search Button ---
         DraggableSearchFab()
 
-        // ─── Top Fade Blur ──────────────────────────────────────────
-        // A blended-edge blur at the top of every page. Content that
-        // scrolls behind it gets blurred, but the blur fades out
-        // smoothly (no hard boundary). Based on the BitChord approach
-        // but using Coral's existing kyant/backdrop library.
-        //
-        // The blur is full-strength at the very top (behind the status
-        // bar + settings icon), then ramps down to zero over ~80dp
-        // using an EaseOutCubic curve so the eye can't find where it
-        // ends. A subtle dark scrim over the blur keeps white text
-        // (settings icon) readable against bright album art.
-        TopFadeBlur(
-            backdrop = glassBackdrop,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-        )
+        // ─── Top Fade Blur (Quick Picks page only) ──────────────────
+        // Only shown when the user is on the Quick Picks tab. Other
+        // pages (Songs, Playlists, etc.) don't have the blur.
+        if (selectedTab == CoralTab.QuickPicks) {
+            TopFadeBlur(
+                backdrop = glassBackdrop,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+            )
+        }
 
-        // --- Floating Settings Button (top-right, no circle background) ---
-        // Uses the new Cog icon (spokes + two concentric circles).
-        // No circle background — just the icon, clean and minimal.
+        // --- Floating Settings Button (top-right, on top of the blur) ---
+        // The settings icon renders ON TOP of the blur — it's not blurred.
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -1743,7 +1736,10 @@ private fun TopFadeBlur(
                 )
             }
     ) {
-        // The blurred backdrop — clean, no dark tint
+        // The blurred backdrop — pure clean blur, NO tint at all.
+        // The onDrawSurface is removed entirely to prevent the dark
+        // hard block that appeared when the backdrop couldn't sample
+        // content (e.g. during tab switches or empty states).
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -1758,11 +1754,6 @@ private fun TopFadeBlur(
                             saturation = 1.1f
                         )
                         blur(20f.dp.toPx())
-                    },
-                    onDrawSurface = {
-                        // Very light white tint for the frosted quality
-                        // (NOT dark — this keeps the blur clear)
-                        drawRect(Color.White.copy(alpha = 0.05f))
                     }
                 )
         )

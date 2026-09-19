@@ -189,14 +189,17 @@ fun QuickPicksScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(28.dp)
         ) {
-            // ═══ Header (no shuffle button — moved to floating FAB) ═══
+            // ═══ Header ═══
+            // The "Quick picks" title uses CalSans, not italic.
+            // This text renders ON TOP of the TopFadeBlur — it's not
+            // blurred because it's drawn after the blur layer.
             item {
                 Text(
                     text = "Quick picks",
                     color = textPrimary,
                     fontSize = 34.sp,
                     fontWeight = FontWeight.Bold,
-                    fontFamily = QuirkFontFamily
+                    fontFamily = CalSansFamily
                 )
             }
 
