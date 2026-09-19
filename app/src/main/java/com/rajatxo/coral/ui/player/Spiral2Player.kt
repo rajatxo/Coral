@@ -483,7 +483,33 @@ fun Spiral2Player(
         // "Loading..." while this is true.
         isLyricsLoading = true
 
-        // 1. Try cache first (instant, fully offline, no file handles)
+        // 1. Try IMPORTED lyrics first (user pasted or .lrc-imported).
+        //    These are the highest priority — the user explicitly chose
+        //    them, so they override any auto-fetched network lyrics.
+        //    This matches the lyrics sheet's priority order.
+        val imported = withContext(kotlinx.coroutines.Dispatchers.IO) {
+            lyricsRepository.getImportedLrc(title, artist)
+        }
+        if (imported != null) {
+            lyricData = imported
+            val lrcText = if (imported.synced) {
+                imported.lines.joinToString("\n") { line ->
+                    if (line.hasWordSync && line.words != null) {
+                        val wordTags = line.words.joinToString("") { w -> "<${formatWordTime(w.startTime)}>${w.text} " }
+                        "[${formatWordTime(line.timeMs)}]$wordTags"
+                    } else {
+                        "[${formatWordTime(line.timeMs)}]${line.text}"
+                    }
+                }
+            } else {
+                imported.lines.joinToString("\n") { it.text }
+            }
+            embeddedLyrics = lrcText
+            isLyricsLoading = false
+            return@LaunchedEffect
+        }
+
+        // 2. Try network-fetched cache (instant, fully offline, no file handles)
         val cached = withContext(kotlinx.coroutines.Dispatchers.IO) {
             lyricsRepository.getLyrics(title, artist, albumName, durationMs)
         }

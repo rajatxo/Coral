@@ -43,7 +43,15 @@ class SimpleCrossfadeController(
         job = scope.launch {
             while (true) {
                 val crossfadeSeconds = CrossfadeManager.crossfadeDuration.value
-                if (crossfadeSeconds > 0 && !transitioning) {
+                // If crossfade is OFF (0), do absolutely nothing. The
+                // active player's REPEAT_MODE_ALL handles song-to-song
+                // transitions automatically. We must NOT interfere —
+                // no volume changes, no stop/clear, nothing.
+                if (crossfadeSeconds <= 0) {
+                    delay(1000)  // sleep 1s, re-check the setting
+                    continue
+                }
+                if (!transitioning) {
                     val player = active() ?: run { delay(200); continue }
                     val duration = player.duration
                     val position = player.currentPosition
