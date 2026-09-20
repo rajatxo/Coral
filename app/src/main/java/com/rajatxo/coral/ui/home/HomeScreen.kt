@@ -70,6 +70,11 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.vibrancy
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.HazeProgressive
+import dev.chrisbanes.haze.ExperimentalHazeApi
 import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.components.CoralNavRail
 import com.rajatxo.coral.ui.components.CoralTab
@@ -265,6 +270,10 @@ fun HomeScreen(
             drawContent()
         }
 
+        // Haze state — connects the content (hazeSource) to the blur
+        // overlay (hazeEffect). Used for the Quick Picks top blur.
+        val hazeState = remember { HazeState() }
+
         // Main content — fills the WHOLE screen (no nav rail anymore)
         // Wrapped with layerBackdrop so the nav bar can sample + blur this.
         //
@@ -291,6 +300,15 @@ fun HomeScreen(
             modifier = Modifier.fillMaxSize()
         ) {
             Box(modifier = Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
+                // Inner Box with hazeSource — this is what the haze blur
+                // samples. It's on a SEPARATE Box from layerBackdrop to
+                // avoid the crash that happened when both were on the
+                // same element.
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .hazeSource(hazeState)
+                ) {
 
                 when (selectedTab) {
                     CoralTab.QuickPicks -> QuickPicksScreen(
@@ -344,7 +362,8 @@ fun HomeScreen(
                         onExtend = onExtend
                     )
                 }
-            }
+                } // end hazeSource inner Box
+            } // end layerBackdrop Box
         }
 
         // --- Mini player (bottom-center, between search FAB above and nav bar below) ---
@@ -388,66 +407,27 @@ fun HomeScreen(
         // A clean frosted-glass blur sits behind the header with a
         // smooth gradient edge (no hard line).
         if (selectedTab == CoralTab.QuickPicks && !showSearch) {
-            // ─── Blur header — direct drawBackdrop, no DstIn mask ──
-            // The previous DstIn + CompositingStrategy.Offscreen approach
-            // was incompatible with drawBackdrop's internal rendering.
-            // Now: drawBackdrop renders the blur directly, and a separate
-            // gradient overlay (transparent → dark base) fades the bottom
-            // edge smoothly.
-            //
-            // Two layers:
-            // 1. drawBackdrop — renders the blurred content (full rectangle)
-            // 2. Gradient overlay — transparent at top, dark base color at
-            //    bottom, fading the blur out smoothly
+            // ─── Haze progressive blur (BitChord approach) ──────────
+            // hazeSource is on the inner content Box (separate from
+            // layerBackdrop to avoid the crash). hazeEffect renders
+            // a true progressive blur — full at top, fading to zero
+            // at the bottom. No hard edge.
+            @OptIn(ExperimentalHazeApi::class)
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
                     .height(120.dp)
-            ) {
-                // Layer 1: The blurred backdrop (full rectangle, no mask)
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .drawBackdrop(
-                            backdrop = glassBackdrop,
-                            shape = { androidx.compose.ui.graphics.RectangleShape },
-                            effects = {
-                                vibrancy()
-                                blur(24f.dp.toPx())
-                            }
+                    .hazeEffect(
+                        state = hazeState,
+                    ) {
+                        progressive = HazeProgressive.verticalGradient(
+                            easing = androidx.compose.animation.core.EaseOutCubic,
+                            startIntensity = 1f,
+                            endIntensity = 0f,
                         )
-                )
-
-                // Layer 2: Gradient fade — transparent at top (blur fully
-                // visible, strong behind status bar) → dark base at bottom
-                // (blur fully covered/faded). The transition spans the
-                // ENTIRE bottom half with 8 small steps so there's NO
-                // straight line — just a smooth, gradual fade.
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colorStops = arrayOf(
-                                    0.0f to Color.Transparent,
-                                    0.45f to Color.Transparent,
-                                    0.5f to Color(0xFF05050A).copy(alpha = 0.05f),
-                                    0.55f to Color(0xFF05050A).copy(alpha = 0.1f),
-                                    0.6f to Color(0xFF05050A).copy(alpha = 0.2f),
-                                    0.65f to Color(0xFF05050A).copy(alpha = 0.3f),
-                                    0.7f to Color(0xFF05050A).copy(alpha = 0.4f),
-                                    0.75f to Color(0xFF05050A).copy(alpha = 0.55f),
-                                    0.8f to Color(0xFF05050A).copy(alpha = 0.7f),
-                                    0.85f to Color(0xFF05050A).copy(alpha = 0.82f),
-                                    0.9f to Color(0xFF05050A).copy(alpha = 0.9f),
-                                    0.95f to Color(0xFF05050A).copy(alpha = 0.97f),
-                                    1.0f to Color(0xFF05050A)
-                                )
-                            )
-                        )
-                )
-            }
+                    }
+            )
 
             // The header content — ON TOP of the blur, NOT blurred.
             // statusBarsPadding pushes the icons/text below the status
