@@ -698,16 +698,16 @@ private fun SpeedDialSection(
 
     Spacer(modifier = Modifier.height(12.dp))
 
-    // Grid layout: 3 columns, paginated
-    val targetItemSize = 110.dp
-    val columns = 3
+    // Grid layout: 2 columns of horizontal pills, paginated
+    // Each pill is wider than tall (horizontal capsule shape)
+    val itemWidth = 160.dp
+    val itemHeight = 56.dp
+    val columns = 2
     val rows = 3
-    val itemsPerPage = columns * rows // 9 per page
+    val itemsPerPage = columns * rows // 6 per page
     val totalSlots = speedDialSongs.size + 1 // +1 for the dice
     val pageCount = (totalSlots + itemsPerPage - 1) / itemsPerPage
     val pagerState = rememberPagerState(pageCount = { pageCount.coerceAtLeast(1) })
-
-    val itemWidth = targetItemSize
 
     Column(
         modifier = Modifier.fillMaxWidth()
@@ -718,7 +718,7 @@ private fun SpeedDialSection(
             pageSpacing = 12.dp,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(itemWidth * rows + 16.dp)  // 3 rows + padding
+                .height(itemHeight * rows + 24.dp)  // 3 rows + padding
         ) { page ->
             Column(modifier = Modifier.fillMaxSize()) {
                 for (row in 0 until rows) {
@@ -748,7 +748,7 @@ private fun SpeedDialSection(
                                     },
                                     modifier = Modifier
                                         .width(itemWidth)
-                                        .height(itemWidth)
+                                        .height(itemHeight)
                                         .padding(4.dp)
                                 )
                             } else {
@@ -765,14 +765,14 @@ private fun SpeedDialSection(
                                         onClick = { onSongClick(song) },
                                         modifier = Modifier
                                             .width(itemWidth)
-                                            .height(itemWidth)
+                                            .height(itemHeight)
                                             .padding(4.dp)
                                     )
                                 } else {
                                     Spacer(
                                         modifier = Modifier
                                             .width(itemWidth)
-                                            .height(itemWidth)
+                                            .height(itemHeight)
                                             .padding(4.dp)
                                     )
                                 }
@@ -796,28 +796,31 @@ private fun SpeedDialCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val cardShape = RoundedCornerShape(16.dp)
+    // Pill/capsule shape — fully rounded ends (height/2 radius)
+    val pillShape = RoundedCornerShape(28.dp)
     Box(
         modifier = modifier
             .shadow(
                 elevation = 4.dp,
-                shape = cardShape,
+                shape = pillShape,
                 clip = false
             )
-            .clip(cardShape)
+            .clip(pillShape)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
             )
     ) {
-        // Album art
+        // Layer 1: Blurred album art fills the pill
         if (song.albumArtUri != null) {
             AsyncImage(
                 model = song.albumArtUri,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(20.dp)
             )
         } else {
             Box(
@@ -830,49 +833,39 @@ private fun SpeedDialCard(
                     imageVector = CoralIcons.Music,
                     contentDescription = null,
                     tint = Color.White.copy(alpha = 0.5f),
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
 
-        // Gradient overlay for text readability
+        // Layer 2: Dark tint for text readability
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.Black.copy(alpha = 0.7f)
-                        ),
-                        startY = 0.5f
-                    )
-                )
+                .background(Color.Black.copy(alpha = 0.35f))
         )
 
-        // (border removed per user request)
-
-        // Title at the bottom
+        // Layer 3: Song name centered on top of the blur
         Text(
             text = song.title,
             color = Color.White,
-            fontSize = 10.sp,
+            fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
             fontFamily = CalSansFamily,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(6.dp)
+                .align(Alignment.Center)
+                .padding(horizontal = 16.dp)
         )
 
         // Now-playing dot
         if (isCurrent) {
             Box(
                 modifier = Modifier
-                    .padding(6.dp)
+                    .padding(8.dp)
                     .size(6.dp)
-                    .align(Alignment.TopEnd)
+                    .align(Alignment.CenterEnd)
                     .clip(RoundedCornerShape(3.dp))
                     .background(Color(0xFFFF6B6B))
             )
@@ -899,7 +892,7 @@ private fun RandomizeGridItem(
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(28.dp))
             .background(Color.White.copy(alpha = 0.08f))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
