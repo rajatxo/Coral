@@ -387,7 +387,7 @@ fun HomeScreen(
         // settings icon (right). All three are aligned and DON'T scroll.
         // A clean frosted-glass blur sits behind the header with a
         // smooth gradient edge (no hard line).
-        if (selectedTab == CoralTab.QuickPicks) {
+        if (selectedTab == CoralTab.QuickPicks && !showSearch) {
             // The blur layer — starts from the VERY TOP of the screen
             // (no statusBarsPadding) so it covers the status bar area.
             // Height = status bar (~24dp) + 56dp header + 40dp fade = ~120dp
@@ -401,13 +401,17 @@ fun HomeScreen(
                     }
                     .drawWithContent {
                         drawContent()
-                        // DstIn gradient: full at top → transparent at bottom
-                        // Smooth fade over the bottom 40% so there's no hard edge
+                        // DstIn gradient: full opacity for the top half
+                        // (status bar + header area), then smooth fade to
+                        // transparent in the bottom half. This ensures
+                        // the blur is EQUALLY STRONG behind the status
+                        // bar as it is in the middle — no weak spot at
+                        // the top.
                         drawRect(
                             brush = Brush.verticalGradient(
                                 colorStops = arrayOf(
                                     0.0f to Color.Black,
-                                    0.75f to Color.Black,
+                                    0.5f to Color.Black,
                                     1.0f to Color.Transparent
                                 ),
                                 startY = 0f,
@@ -493,7 +497,7 @@ fun HomeScreen(
                     )
                 }
             }
-        } else {
+        } else if (!showSearch) {
             // --- Settings icon for non-QuickPicks pages (top-right) ---
             Box(
                 modifier = Modifier

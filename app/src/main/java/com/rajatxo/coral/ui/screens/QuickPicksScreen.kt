@@ -887,6 +887,7 @@ private fun SpeedDialCard(
         // (border removed per user request)
 
         // Title at the bottom (on the blurred part) — increased by 2sp
+        // Moved down slightly (padding 8dp, was 6dp)
         Text(
             text = song.title,
             color = Color.White,
@@ -897,7 +898,7 @@ private fun SpeedDialCard(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(6.dp)
+                .padding(start = 8.dp, bottom = 8.dp)
         )
 
         // Now-playing dot
