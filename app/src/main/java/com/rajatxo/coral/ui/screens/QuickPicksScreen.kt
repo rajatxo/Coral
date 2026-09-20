@@ -67,6 +67,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.colorControls
+import com.kyant.backdrop.effects.vibrancy
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
@@ -93,7 +97,8 @@ fun QuickPicksScreen(
     capsuleRemaining: Long = 0L,
     onExtend: () -> Unit = {},
     onSongClick: (Song) -> Unit = {},
-    onBackClick: () -> Unit = {}
+    onBackClick: () -> Unit = {},
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null
 ) {
     val context = LocalContext.current
 
@@ -219,7 +224,8 @@ fun QuickPicksScreen(
                     currentSongId = currentSongId,
                     onSongClick = onSongClick,
                     textPrimary = textPrimary,
-                    textSecondary = textSecondary
+                    textSecondary = textSecondary,
+                    backdrop = backdrop
                 )
             }
 
@@ -698,8 +704,12 @@ private fun LandscapeCard(
 @Composable
 private fun SpeedDialModeCapsule(
     textPrimary: Color,
-    textSecondary: Color
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null,
+    modifier: Modifier = Modifier
 ) {
+    val view = androidx.compose.ui.platform.LocalView.current
+    val context = LocalContext.current
+
     val modes = remember {
         listOf(
             "Based on most played songs",
@@ -710,37 +720,154 @@ private fun SpeedDialModeCapsule(
     var currentIndex by remember { mutableIntStateOf(0) }
     var slideDirection by remember { mutableIntStateOf(1) }
     var dragAccumulator by remember { mutableFloatStateOf(0f) }
+    // TRUE one-swipe-per-touch: once a snap happens, no more snaps until
+    // the finger lifts (onDragEnd resets this flag).
+    var hasSnappedThisDrag by remember { mutableStateOf(false) }
     val dragThreshold = 60f
 
+    // ─── Haptics + Sound (same as nav bar TabCapsule) ──
+    val vibrator = remember {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            val vm = context.getSystemService(android.content.Context.VIBRATOR_MANAGER_SERVICE)
+                    as? android.os.VibratorManager
+            vm?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(android.content.Context.VIBRATOR_SERVICE)
+                    as? android.os.Vibrator
+        }
+    }
+    val soundPool = remember {
+        android.media.SoundPool.Builder()
+            .setMaxStreams(2)
+            .setAudioAttributes(
+                android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            .build()
+    }
+    var soundLoaded by remember { mutableStateOf(false) }
+    val tickSoundId = remember {
+        soundPool.setOnLoadCompleteListener { _, _, status ->
+            if (status == 0) soundLoaded = true
+        }
+        soundPool.load(context, com.rajatxo.coral.R.raw.wheel_tick, 1)
+    }
+
+    fun tickHaptic() {
+        val hapticsOn = com.rajatxo.coral.data.prefs.SoundHapticsManager.hapticsEnabled.value
+        val soundsOn = com.rajatxo.coral.data.prefs.SoundHapticsManager.soundsEnabled.value
+        val volume = com.rajatxo.coral.data.prefs.SoundHapticsManager.soundVolume.value / 100f
+
+        if (hapticsOn) {
+            var hapticPerformed = false
+            try {
+                hapticPerformed = view.performHapticFeedback(
+                    android.view.HapticFeedbackConstants.VIRTUAL_KEY,
+                    android.view.HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING or
+                    android.view.HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+                )
+            } catch (_: Exception) { }
+            if (!hapticPerformed) {
+                try {
+                    val v = vibrator
+                    if (v != null) {
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                            v.vibrate(
+                                android.os.VibrationEffect.createPredefined(
+                                    android.os.VibrationEffect.EFFECT_CLICK
+                                )
+                            )
+                        } else {
+                            @Suppress("DEPRECATION")
+                            v.vibrate(30)
+                        }
+                    }
+                } catch (_: Exception) { }
+            }
+        }
+        if (soundsOn && soundLoaded) {
+            try {
+                soundPool.play(tickSoundId, volume, volume, 1, 0, 1f)
+            } catch (_: Exception) { }
+        }
+    }
+
+    // Thinner than nav bar (36dp vs 52dp). Fixed width via weight(1f)
+    // passed from the caller.
     val capsuleShape = RoundedCornerShape(18.dp)
 
-    Box(
-        modifier = Modifier
-            .wrapContentSize(Alignment.Center)
+    val glassModifier = if (backdrop != null) {
+        modifier
+            .height(36.dp)
             .clip(capsuleShape)
-            .background(Color.Black.copy(alpha = 0.4f))
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { capsuleShape },
+                effects = {
+                    vibrancy()
+                    colorControls(
+                        brightness = 0.05f,
+                        contrast = 1f,
+                        saturation = 1.5f
+                    )
+                    blur(12f.dp.toPx())
+                },
+                onDrawSurface = {
+                    drawRect(Color.Black.copy(alpha = 0.25f))
+                }
+            )
+    } else {
+        modifier
+            .height(36.dp)
+            .clip(capsuleShape)
+            .background(Color.Black.copy(alpha = 0.5f))
+    }
+
+    Box(
+        modifier = glassModifier
             .pointerInput(modes) {
                 detectHorizontalDragGestures(
-                    onDragEnd = {
+                    onDragStart = {
+                        // Reset the one-snap lock at the start of each touch
+                        hasSnappedThisDrag = false
                         dragAccumulator = 0f
                     },
+                    onDragEnd = {
+                        dragAccumulator = 0f
+                        hasSnappedThisDrag = false
+                    },
+                    onDragCancel = {
+                        dragAccumulator = 0f
+                        hasSnappedThisDrag = false
+                    },
                     onHorizontalDrag = { _, dragAmount ->
+                        // If we already snapped this touch, ignore all further
+                        // drag until the finger lifts. This is the TRUE
+                        // one-swipe-per-touch behavior.
+                        if (hasSnappedThisDrag) return@detectHorizontalDragGestures
+
                         dragAccumulator += dragAmount
                         if (dragAccumulator < -dragThreshold) {
                             // Swipe left → next mode
                             slideDirection = 1
                             currentIndex = (currentIndex + 1) % modes.size
+                            tickHaptic()
+                            hasSnappedThisDrag = true  // lock until finger lifts
                             dragAccumulator = 0f
                         } else if (dragAccumulator > dragThreshold) {
                             // Swipe right → previous mode
                             slideDirection = -1
                             currentIndex = if (currentIndex - 1 < 0) modes.size - 1 else currentIndex - 1
+                            tickHaptic()
+                            hasSnappedThisDrag = true  // lock until finger lifts
                             dragAccumulator = 0f
                         }
                     }
                 )
             }
-            .padding(horizontal = 14.dp, vertical = 8.dp)
     ) {
         AnimatedContent(
             targetState = currentIndex,
@@ -753,17 +880,18 @@ private fun SpeedDialModeCapsule(
                         slideOutHorizontally(animationSpec = tween(250)) { fullWidth -> fullWidth }
                 }
             },
+            modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp),
             contentAlignment = Alignment.Center,
             label = "modeText"
         ) { index ->
             Text(
                 text = modes[index],
                 color = textPrimary,
-                fontSize = 12.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
                 fontFamily = CalSansFamily,
                 maxLines = 1,
-                overflow = TextOverflow.Visible
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
@@ -787,7 +915,8 @@ private fun SpeedDialSection(
     currentSongId: Long?,
     onSongClick: (Song) -> Unit,
     textPrimary: Color,
-    textSecondary: Color
+    textSecondary: Color,
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null
 ) {
     val scope = rememberCoroutineScope()
     var isRandomizing by remember { mutableStateOf(false) }
@@ -800,10 +929,12 @@ private fun SpeedDialSection(
 
     if (speedDialSongs.isEmpty()) return
 
-    // Section header — "Speed dial" text + chevron (count number removed)
+    // Section header — "Speed dial" text + thin swipeable capsule + chevron.
+    // The capsule sits BETWEEN the text and the chevron, with a fixed width
+    // (weight 1f fills available space) and glass morphism (same as nav bar).
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -813,7 +944,14 @@ private fun SpeedDialSection(
             fontWeight = FontWeight.SemiBold,
             fontFamily = CalSansFamily
         )
-        // Chevron only — the song count number was removed per user request
+        // Thin swipeable glass capsule — cycles through 3 modes.
+        // weight(1f) gives it a fixed width (fills available space).
+        SpeedDialModeCapsule(
+            textPrimary = textPrimary,
+            backdrop = backdrop,
+            modifier = Modifier.weight(1f)
+        )
+        // Chevron (song count number removed per user request)
         Icon(
             imageVector = CoralIcons.ChevronRight,
             contentDescription = null,
@@ -821,14 +959,6 @@ private fun SpeedDialSection(
             modifier = Modifier.size(16.dp)
         )
     }
-
-    Spacer(modifier = Modifier.height(8.dp))
-
-    // ═══ Thin swipeable capsule (Speed Dial mode picker) ═══
-    // A small glass capsule below the "Speed dial" header. Swipe left/right
-    // to cycle through 3 modes. One swipe = one step (60px drag threshold
-    // prevents fast multi-step swipes in a single gesture).
-    SpeedDialModeCapsule(textPrimary = textPrimary, textSecondary = textSecondary)
 
     Spacer(modifier = Modifier.height(12.dp))
 
