@@ -1,12 +1,16 @@
 package com.rajatxo.coral.ui.screens
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -52,6 +56,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
@@ -709,12 +714,16 @@ private fun SpeedDialSection(
 
     if (speedDialSongs.isEmpty()) return
 
-    // Section header — "Speed dial" text + thin swipeable capsule + chevron.
-    // The capsule sits BETWEEN the text and the chevron, with a fixed width
-    // (weight 1f fills available space) and glass morphism (same as nav bar).
+    // Section header — "Speed dial" text + chevron right beside it.
+    // Aligned with the first card: the LazyColumn has start=20dp padding,
+    // and each card has 4dp padding, so the first card's content starts at
+    // 24dp. To align the text with the first card's content, add 4dp start
+    // padding to the Row.
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 4.dp),  // align with first card's content
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -724,8 +733,7 @@ private fun SpeedDialSection(
             fontWeight = FontWeight.SemiBold,
             fontFamily = CalSansFamily
         )
-        Spacer(modifier = Modifier.weight(1f))
-        // Chevron (song count number removed per user request)
+        // Chevron right beside the text (no spacer, no weight)
         Icon(
             imageVector = CoralIcons.ChevronRight,
             contentDescription = null,
@@ -956,11 +964,38 @@ private fun RandomizeGridItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // When loading, dots collapse to center. When idle, dots spread to corners.
-    val dotOffsetMultiplier by animateFloatAsState(
-        targetValue = if (isLoading) 0f else 1f,
-        animationSpec = tween(durationMillis = 600),
-        label = "dotOffset"
+    // ═══ Vinyl spin randomize button ═══
+    // Replaces the old 5-dot ludo dice with a spinning vinyl record.
+    //   • Idle: slow rotation (8s per loop, very subtle)
+    //   • Loading: fast rotation (0.8s per loop, like a record scratching)
+    //   • Always: 3 concentric ring grooves + center label dot
+    //   • Loading: also shows a small accent-colored progress ring overlay
+    //
+    // The rotation is always running (infiniteRepeatable). When loading
+    // starts, we just switch to the fast animation spec. When loading
+    // ends, we switch back to slow. The rotation continues seamlessly
+    // across the transition because both animations use the same
+    // 'rotation' state value as their target.
+    //
+    // The vinyl visual is drawn with a Canvas:
+    //   - Outer circle (the record edge)
+    //   - 3 concentric ring grooves (subtle, white at low alpha)
+    //   - Center label (accent color circle)
+    //   - Center hole (small dark circle)
+
+    val infiniteRotation by androidx.compose.animation.core.rememberInfiniteTransition(
+        label = "vinylRotation"
+    ).animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = if (isLoading) 800 else 8000,
+                easing = LinearEasing
+            ),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
     )
 
     Box(
@@ -974,61 +1009,59 @@ private fun RandomizeGridItem(
             ),
         contentAlignment = Alignment.Center
     ) {
-        val dotColor = Color.White
-        val dotSize = 10.dp
-        val padding = 16.dp
+        // Vinyl record canvas — rotates continuously
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize(0.7f)
+                .rotate(infiniteRotation)
+        ) {
+            val canvasSize = size.minDimension
+            val center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
+            val recordRadius = canvasSize / 2f
+            val labelRadius = recordRadius * 0.32f
+            val holeRadius = recordRadius * 0.08f
 
-        // 5-dot dice pattern (top-left, top-right, center, bottom-left, bottom-right)
-        // Top Left
-        Box(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .offset(x = -padding * dotOffsetMultiplier, y = -padding * dotOffsetMultiplier)
-                .size(dotSize)
-                .clip(CircleShape)
-                .background(dotColor)
-        )
-        // Top Right
-        Box(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .offset(x = padding * dotOffsetMultiplier, y = -padding * dotOffsetMultiplier)
-                .size(dotSize)
-                .clip(CircleShape)
-                .background(dotColor)
-        )
-        // Center
-        Box(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .size(dotSize)
-                .clip(CircleShape)
-                .background(dotColor)
-        )
-        // Bottom Left
-        Box(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .offset(x = -padding * dotOffsetMultiplier, y = padding * dotOffsetMultiplier)
-                .size(dotSize)
-                .clip(CircleShape)
-                .background(dotColor)
-        )
-        // Bottom Right
-        Box(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .offset(x = padding * dotOffsetMultiplier, y = padding * dotOffsetMultiplier)
-                .size(dotSize)
-                .clip(CircleShape)
-                .background(dotColor)
-        )
+            // Outer record circle (dark)
+            drawCircle(
+                color = Color.Black.copy(alpha = 0.85f),
+                radius = recordRadius,
+                center = center
+            )
 
-        // Loading spinner overlay (Coral accent color)
+            // 3 concentric ring grooves (subtle white rings)
+            for (i in 1..3) {
+                val grooveRadius = recordRadius * (1f - i * 0.15f)
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.08f),
+                    radius = grooveRadius,
+                    center = center,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(
+                        width = 1f
+                    )
+                )
+            }
+
+            // Center label (accent color)
+            drawCircle(
+                color = Color(0xFFFF6B6B),
+                radius = labelRadius,
+                center = center
+            )
+
+            // Center hole (dark)
+            drawCircle(
+                color = Color.Black,
+                radius = holeRadius,
+                center = center
+            )
+        }
+
+        // Loading spinner overlay (accent color) — shown on top of the vinyl
         if (isLoading) {
             CircularProgressIndicator(
                 color = Color(0xFFFF6B6B),
-                modifier = Modifier.size(32.dp)
+                strokeWidth = 2.dp,
+                modifier = Modifier.size(40.dp)
             )
         }
     }
