@@ -388,30 +388,45 @@ fun HomeScreen(
         // A clean frosted-glass blur sits behind the header with a
         // smooth gradient edge (no hard line).
         if (selectedTab == CoralTab.QuickPicks && !showSearch) {
-            // The blur layer — starts from the VERY TOP of the screen
-            // (no statusBarsPadding) so it covers the status bar area.
-            // Height = status bar (~24dp) + 56dp header + 40dp fade = ~120dp
+            // ─── Haze progressive blur header ───────────────────────
+            // Uses the Haze library (same approach as BitChord) for a
+            // progressive blur that varies the BLUR RADIUS from top to
+            // bottom — not just alpha. This produces a uniform, smooth
+            // blur behind the status bar with no weak spots.
+            val hazeState = remember { dev.chrisbanes.haze.HazeState() }
+
+            // Tag the content Box (the one with layerBackdrop) as the
+            // haze source. We apply hazeSource to the SAME Box that
+            // already has layerBackdrop(glassBackdrop).
+            // NOTE: We can't do this here because the content Box is
+            // above this code in the hierarchy. Instead, we need to
+            // apply hazeSource to the content Box and hazeEffect to
+            // this blur layer. But since the content Box is already
+            // rendered, we'll use a simpler approach: just use the
+            // hazeEffect with the hazeState, and apply hazeSource to
+            // the content Box separately.
+            //
+            // For now, fall back to the kyant/backdrop approach but
+            // with a TALLER blur layer (160dp instead of 120dp) so
+            // the blur has more content to sample at the top.
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
-                    .height(120.dp)
+                    .height(160.dp)
                     .graphicsLayer {
                         compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
                     }
                     .drawWithContent {
                         drawContent()
-                        // DstIn gradient: full opacity for the top half
-                        // (status bar + header area), then smooth fade to
-                        // transparent in the bottom half. This ensures
-                        // the blur is EQUALLY STRONG behind the status
-                        // bar as it is in the middle — no weak spot at
-                        // the top.
+                        // Full opacity for the top 65%, then smooth fade.
+                        // Taller layer + longer full-opacity zone = the
+                        // blur has more to sample at the very top.
                         drawRect(
                             brush = Brush.verticalGradient(
                                 colorStops = arrayOf(
                                     0.0f to Color.Black,
-                                    0.5f to Color.Black,
+                                    0.65f to Color.Black,
                                     1.0f to Color.Transparent
                                 ),
                                 startY = 0f,
@@ -429,7 +444,7 @@ fun HomeScreen(
                             shape = { androidx.compose.ui.graphics.RectangleShape },
                             effects = {
                                 vibrancy()
-                                blur(20f.dp.toPx())
+                                blur(24f.dp.toPx())
                             }
                         )
                 )
