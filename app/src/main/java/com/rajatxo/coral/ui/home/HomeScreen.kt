@@ -388,41 +388,24 @@ fun HomeScreen(
         // A clean frosted-glass blur sits behind the header with a
         // smooth gradient edge (no hard line).
         if (selectedTab == CoralTab.QuickPicks && !showSearch) {
-            // ─── Blur header ──────────────────────────────────────
-            // The blur layer is moved UP by 40dp (negative offset) so it
-            // extends above the screen edge. This means the visible part
-            // (from y=0 down) has content to sample from BOTH above and
-            // below — fixing the weak blur at the very top (behind the
-            // status bar). The blur layer is 200dp tall but offset up by
-            // 40dp, so 160dp is visible.
+            // ─── Blur header — direct drawBackdrop, no DstIn mask ──
+            // The previous DstIn + CompositingStrategy.Offscreen approach
+            // was incompatible with drawBackdrop's internal rendering.
+            // Now: drawBackdrop renders the blur directly, and a separate
+            // gradient overlay (transparent → dark base) fades the bottom
+            // edge smoothly.
+            //
+            // Two layers:
+            // 1. drawBackdrop — renders the blurred content (full rectangle)
+            // 2. Gradient overlay — transparent at top, dark base color at
+            //    bottom, fading the blur out smoothly
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
-                    .height(200.dp)
-                    .graphicsLayer {
-                        compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
-                        translationY = -40.dp.toPx()
-                    }
-                    .drawWithContent {
-                        drawContent()
-                        // Full opacity for the top 55%, then smooth fade.
-                        // The top 40dp is off-screen, so the visible part
-                        // starts at full blur and fades smoothly.
-                        drawRect(
-                            brush = Brush.verticalGradient(
-                                colorStops = arrayOf(
-                                    0.0f to Color.Black,
-                                    0.55f to Color.Black,
-                                    1.0f to Color.Transparent
-                                ),
-                                startY = 0f,
-                                endY = size.height
-                            ),
-                            blendMode = androidx.compose.ui.graphics.BlendMode.DstIn
-                        )
-                    }
+                    .height(120.dp)
             ) {
+                // Layer 1: The blurred backdrop (full rectangle, no mask)
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -433,6 +416,26 @@ fun HomeScreen(
                                 vibrancy()
                                 blur(24f.dp.toPx())
                             }
+                        )
+                )
+
+                // Layer 2: Gradient fade — transparent at top → dark base
+                // at bottom. This fades the blur out smoothly.
+                // Uses multiple color stops for a gradual, smooth transition
+                // (no hard edge).
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colorStops = arrayOf(
+                                    0.0f to Color.Transparent,
+                                    0.4f to Color.Transparent,
+                                    0.6f to Color(0xFF05050A).copy(alpha = 0.3f),
+                                    0.8f to Color(0xFF05050A).copy(alpha = 0.7f),
+                                    1.0f to Color(0xFF05050A)
+                                )
+                            )
                         )
                 )
             }
