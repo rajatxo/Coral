@@ -389,26 +389,31 @@ fun HomeScreen(
         // smooth gradient edge (no hard line).
         if (selectedTab == CoralTab.QuickPicks && !showSearch) {
             // ─── Blur header ──────────────────────────────────────
-            // Taller blur layer (160dp) + stronger blur (24dp) for
-            // uniform strength at the top (behind status bar).
+            // The blur layer is moved UP by 40dp (negative offset) so it
+            // extends above the screen edge. This means the visible part
+            // (from y=0 down) has content to sample from BOTH above and
+            // below — fixing the weak blur at the very top (behind the
+            // status bar). The blur layer is 200dp tall but offset up by
+            // 40dp, so 160dp is visible.
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
-                    .height(160.dp)
+                    .height(200.dp)
                     .graphicsLayer {
                         compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
+                        translationY = -40.dp.toPx()
                     }
                     .drawWithContent {
                         drawContent()
-                        // Full opacity for the top 65%, then smooth fade.
-                        // Taller layer + longer full-opacity zone = the
-                        // blur has more to sample at the very top.
+                        // Full opacity for the top 55%, then smooth fade.
+                        // The top 40dp is off-screen, so the visible part
+                        // starts at full blur and fades smoothly.
                         drawRect(
                             brush = Brush.verticalGradient(
                                 colorStops = arrayOf(
                                     0.0f to Color.Black,
-                                    0.65f to Color.Black,
+                                    0.55f to Color.Black,
                                     1.0f to Color.Transparent
                                 ),
                                 startY = 0f,
