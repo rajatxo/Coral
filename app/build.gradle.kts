@@ -82,4 +82,10 @@ dependencies {
     // Version 1.0.0 has minCompileSdk=1 (works with compileSdk 35)
     // Later versions (1.0.6, 2.0.0) require SDK 36/37 + AGP 9.x
     implementation("io.github.kyant0:backdrop:1.0.0")
+
+    // Haze — true progressive backdrop blur (like iOS Control Center).
+    // Used for the Quick Picks top blur. Varies the BLUR RADIUS from
+    // top to bottom (progressive), not just alpha. This is the same
+    // library BitChord uses for its TopFadeBlur.
+    implementation("dev.chrisbanes.haze:haze:1.3.1")
 }
