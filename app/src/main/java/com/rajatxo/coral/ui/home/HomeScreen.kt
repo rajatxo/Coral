@@ -415,7 +415,6 @@ fun HomeScreen(
                     .height(120.dp)
                     .hazeEffect(
                         state = hazeState,
-                        blurRadius = 24.dp,
                     ) {
                         progressive = HazeProgressive.verticalGradient(
                             easing = androidx.compose.animation.core.EaseOutCubic,
