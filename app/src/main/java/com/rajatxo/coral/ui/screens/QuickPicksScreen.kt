@@ -978,7 +978,7 @@ private fun RandomizeGridItem(
     // dot reappears before the song plays.
 
     // ─── Particle data (precomputed once, stable across recompositions) ──
-    data class Particle(val angle: Float, val color: Color, val sizeMult: Float, val speedMult: Float)
+    data class Particle(val angle: Double, val color: Color, val sizeMult: Float, val speedMult: Float)
     val particles = remember {
         val colors = listOf(
             Color(0xFFFF6B6B),  // coral red
@@ -988,7 +988,7 @@ private fun RandomizeGridItem(
         )
         List(14) { i ->
             Particle(
-                angle = (i * 360f / 14f + kotlin.random.Random.nextFloat() * 20f) * (kotlin.math.PI / 180f),
+                angle = (i * 360.0 / 14.0 + kotlin.random.Random.nextFloat() * 20.0) * (kotlin.math.PI / 180.0),
                 color = colors[i % colors.size],
                 sizeMult = 0.7f + kotlin.random.Random.nextFloat() * 0.6f,
                 speedMult = 0.8f + kotlin.random.Random.nextFloat() * 0.4f
