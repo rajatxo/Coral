@@ -1060,8 +1060,8 @@ private fun RandomizeGridItem(
                 val maxDistance = size.minDimension * 0.45f
                 particles.forEach { p ->
                     val distance = maxDistance * progress * p.speedMult
-                    val x = center.x + kotlin.math.cos(p.angle) * distance
-                    val y = center.y + kotlin.math.sin(p.angle) * distance
+                    val x = (center.x + kotlin.math.cos(p.angle) * distance).toFloat()
+                    val y = (center.y + kotlin.math.sin(p.angle) * distance).toFloat()
                     val particleSize = dotRadius * p.sizeMult * (1f - progress)
                     val alpha = (1f - progress) * 0.9f
 
