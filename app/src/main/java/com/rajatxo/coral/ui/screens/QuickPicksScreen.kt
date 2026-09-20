@@ -433,7 +433,7 @@ private fun SquareCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val cardShape = RoundedCornerShape(20.dp)
+    val cardShape = RoundedCornerShape(14.dp)
     Box(
         modifier = modifier
             .shadow(
@@ -515,7 +515,7 @@ private fun SquareCard(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(10.dp)
+                .padding(8.dp)
         ) {
             Text(
                 text = song.title,
@@ -529,7 +529,7 @@ private fun SquareCard(
             Text(
                 text = song.artist,
                 color = Color.White.copy(alpha = 0.6f),
-                fontSize = 10.sp,
+                fontSize = 12.sp,
                 fontFamily = CalSansFamily,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -560,7 +560,7 @@ private fun LandscapeCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val cardShape = RoundedCornerShape(20.dp)
+    val cardShape = RoundedCornerShape(14.dp)
     Box(
         modifier = modifier
             .shadow(
@@ -642,12 +642,12 @@ private fun LandscapeCard(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(12.dp)
+                .padding(10.dp)
         ) {
             Text(
                 text = song.title,
                 color = Color.White,
-                fontSize = 15.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 fontFamily = CalSansFamily,
                 maxLines = 1,
@@ -656,7 +656,7 @@ private fun LandscapeCard(
             Text(
                 text = song.artist,
                 color = Color.White.copy(alpha = 0.7f),
-                fontSize = 11.sp,
+                fontSize = 13.sp,
                 fontFamily = CalSansFamily,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -921,7 +921,7 @@ private fun SpeedDialCard(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = 8.dp, bottom = 8.dp)
+                .padding(start = 8.dp, bottom = 4.dp)
         )
 
         // Now-playing dot
