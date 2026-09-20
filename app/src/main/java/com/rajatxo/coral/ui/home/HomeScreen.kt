@@ -134,6 +134,7 @@ fun HomeScreen(
     var playlistForPicker by remember { mutableStateOf<com.rajatxo.coral.data.model.Playlist?>(null) }
     var showPremium by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var showSearch by remember { mutableStateOf(false) }
     var showEqualizer by remember { mutableStateOf(false) }
     var showSleepTimer by remember { mutableStateOf(false) }
     var showFontPicker by remember { mutableStateOf(false) }
@@ -149,10 +150,11 @@ fun HomeScreen(
     // the app. Same for the full player, song picker, and other overlays.
     androidx.activity.compose.BackHandler(
         enabled = selectedPlaylist != null || showFullPlayer || showSongPicker ||
-                  showPremium || showSettings || showEqualizer || showSleepTimer || showFontPicker
+                  showPremium || showSettings || showSearch || showEqualizer || showSleepTimer || showFontPicker
     ) {
         when {
             showFullPlayer -> onFullPlayerDismiss()
+            showSearch -> { showSearch = false }
             showSongPicker -> { showSongPicker = false }
             showPremium -> { showPremium = false }
             showSettings -> { showSettings = false }
@@ -375,7 +377,9 @@ fun HomeScreen(
         }
 
         // --- Draggable Floating Search Button ---
-        DraggableSearchFab()
+        DraggableSearchFab(
+            onSearchClick = { showSearch = true }
+        )
 
         // ─── FIXED HEADER (Quick Picks page only) ───────────────────
         // A fixed header bar that stays at the top when scrolling.
@@ -594,6 +598,18 @@ fun HomeScreen(
         if (showFontPicker) {
             com.rajatxo.coral.ui.screens.FontPickerScreen(
                 onBackClick = { showFontPicker = false }
+            )
+        }
+
+        // --- Search screen (full-screen overlay, opened by search FAB) ---
+        if (showSearch) {
+            com.rajatxo.coral.ui.screens.SearchScreen(
+                songs = songs,
+                onSongClick = { song ->
+                    showSearch = false
+                    onSongClick(song)
+                },
+                onDismiss = { showSearch = false }
             )
         }
 
@@ -1053,7 +1069,9 @@ private fun MiniPlayer(
 // =============================================================================
 
 @Composable
-private fun DraggableSearchFab() {
+private fun DraggableSearchFab(
+    onSearchClick: () -> Unit = {}
+) {
     val savedPosition by com.rajatxo.coral.data.prefs.SearchFabPosition.position.collectAsState()
     val density = androidx.compose.ui.platform.LocalDensity.current
 
@@ -1243,6 +1261,9 @@ private fun DraggableSearchFab() {
                                             val newYFraction = (currentYpx / screenSize.height)
                                                 .coerceIn(0.05f, 0.95f)
                                             com.rajatxo.coral.data.prefs.SearchFabPosition.setPosition(savedX, newYFraction)
+                                        } else {
+                                            // Short tap (before 2-second hold) → open search
+                                            onSearchClick()
                                         }
                                         isDragging = false
                                         isLongPressActivated = false
