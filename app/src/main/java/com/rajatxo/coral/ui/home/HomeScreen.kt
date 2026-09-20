@@ -386,28 +386,58 @@ fun HomeScreen(
         // Contains: user icon (left) | "Quick picks" text (center) |
         // settings icon (right). All three are aligned and DON'T scroll.
         // A clean frosted-glass blur sits behind the header with a
-        // smooth gradient edge (no hard line). Restored from build #571.
+        // smooth gradient edge (no hard line).
+        //
+        // Build #571 + top-edge fix from build #577:
+        // The blur layer is 160dp tall and shifted UP by 40dp, so 40dp
+        // of it sits OFF-SCREEN above the visible area. This gives the
+        // blur real content to sample on BOTH sides of the visible top
+        // edge (y=0). Without this offset, the blur at y=0 samples
+        // above the screen edge — where there's no content — and
+        // returns a washed-out / solid-looking result instead of a
+        // proper frosted blur. The visible area is still 120dp tall
+        // (same as build #571), so the bottom fade is unchanged.
         if (selectedTab == CoralTab.QuickPicks && !showSearch) {
-            // The blur layer — starts from the VERY TOP of the screen
-            // (no statusBarsPadding) so it covers the status bar area.
-            // Height = status bar (~24dp) + 56dp header + 40dp fade = ~120dp
+            // Layer total = 160dp (40dp off-screen at top + 120dp visible).
+            // Visible top    = screen y=0   (behind status bar)
+            // Visible bottom = screen y=120 (where the fade ends)
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
-                    .height(120.dp)
+                    .height(160.dp)
                     .graphicsLayer {
                         compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
+                        translationY = -40.dp.toPx()
                     }
                     .drawWithContent {
                         drawContent()
-                        // DstIn gradient: full at top → transparent at bottom
-                        // Smooth fade over the bottom 40% so there's no hard edge
+                        // DstIn gradient mask, computed in layer-space
+                        // coordinates (layer is 160dp tall, from y=0 at
+                        // its own top to y=160 at its own bottom — which
+                        // maps to screen y=-40 to y=120).
+                        //
+                        //   0.0  → layer y=0    (screen y=-40, off-screen)
+                        //   0.7  → layer y=112  (screen y=72,  visible)
+                        //   1.0  → layer y=160  (screen y=120, visible bottom)
+                        //
+                        // So:
+                        //   • Full opacity (Black) from layer 0% → 70%
+                        //     = screen y=-40 → y=72.
+                        //     This covers the off-screen 40dp AND the
+                        //     visible top 72dp (same full-opacity height
+                        //     as build #571, so the header area stays
+                        //     fully blurred just like before).
+                        //   • Smooth fade (Black → Transparent) from
+                        //     layer 70% → 100% = screen y=72 → y=120.
+                        //     This is the same 48dp fade as build #571
+                        //     (which faded from y=72 to y=120), so the
+                        //     bottom edge looks identical to before.
                         drawRect(
                             brush = Brush.verticalGradient(
                                 colorStops = arrayOf(
                                     0.0f to Color.Black,
-                                    0.6f to Color.Black,
+                                    0.7f to Color.Black,
                                     1.0f to Color.Transparent
                                 ),
                                 startY = 0f,
