@@ -407,7 +407,7 @@ fun HomeScreen(
                             brush = Brush.verticalGradient(
                                 colorStops = arrayOf(
                                     0.0f to Color.Black,
-                                    0.6f to Color.Black,
+                                    0.75f to Color.Black,
                                     1.0f to Color.Transparent
                                 ),
                                 startY = 0f,

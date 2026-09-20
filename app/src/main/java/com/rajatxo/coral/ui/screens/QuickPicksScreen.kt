@@ -181,7 +181,7 @@ fun QuickPicksScreen(
             modifier = Modifier
                 .fillMaxSize(),
             contentPadding = PaddingValues(
-                top = 120.dp,      // exactly where the blur ends (blur is 120dp tall)
+                top = 108.dp,      // just below where the blur ends
                 bottom = 200.dp,
                 start = 20.dp,
                 end = 20.dp
@@ -384,7 +384,7 @@ private fun EditorialCard(
             Text(
                 text = song.title,
                 color = Color.White,
-                fontSize = 15.sp,
+                fontSize = 17.sp,
                 fontWeight = FontWeight.SemiBold,
                 fontFamily = CalSansFamily,
                 maxLines = 1,
@@ -500,7 +500,7 @@ private fun SquareCard(
             Text(
                 text = song.title,
                 color = Color.White,
-                fontSize = 12.sp,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
                 fontFamily = CalSansFamily,
                 maxLines = 1,
@@ -627,7 +627,7 @@ private fun LandscapeCard(
             Text(
                 text = song.title,
                 color = Color.White,
-                fontSize = 13.sp,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 fontFamily = CalSansFamily,
                 maxLines = 1,
@@ -822,7 +822,8 @@ private fun SpeedDialCard(
             )
     ) {
         // ═══ Spiral 2.0-style album art blur-blend ═══
-        // Layer 1 (bottom): BLURRED album art — fills entire card
+        // Layer 1 (bottom): BLURRED album art — fills entire card.
+        // Reduced blur (20dp, was 36dp) so the cover isn't cropped too much.
         if (song.albumArtUri != null) {
             AsyncImage(
                 model = song.albumArtUri,
@@ -830,7 +831,7 @@ private fun SpeedDialCard(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
-                    .blur(36.dp)
+                    .blur(20.dp)
             )
         } else {
             Box(
@@ -848,19 +849,20 @@ private fun SpeedDialCard(
             }
         }
 
-        // Layer 2 (top): SHARP album art — top 75%, DstIn blend at bottom
+        // Layer 2 (top): SHARP album art — top 85%, DstIn blend at bottom.
+        // The blend is only behind the text area (bottom 15%).
         if (song.albumArtUri != null) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight(0.75f)
+                    .fillMaxHeight(0.85f)
                     .align(Alignment.TopCenter)
                     .graphicsLayer {
                         compositingStrategy = CompositingStrategy.Offscreen
                     }
                     .drawWithContent {
                         drawContent()
-                        val blendHeightPx = 30.dp.toPx()
+                        val blendHeightPx = 24.dp.toPx()
                         val imageHeight = size.height
                         val blendStartY = (imageHeight - blendHeightPx).coerceAtLeast(0f)
                         drawRect(
@@ -884,11 +886,11 @@ private fun SpeedDialCard(
 
         // (border removed per user request)
 
-        // Title at the bottom (on the blurred part)
+        // Title at the bottom (on the blurred part) — increased by 2sp
         Text(
             text = song.title,
             color = Color.White,
-            fontSize = 10.sp,
+            fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
             fontFamily = CalSansFamily,
             maxLines = 1,

@@ -253,6 +253,39 @@ object CoralIcons {
         lineTo(17f, 20.662f)
     }
 
+    /**
+     * Lucide "pin" icon — a push pin/thumbtack. Used as a decorative
+     * icon in the search bar (not clickable).
+     */
+    val Pin: ImageVector = stroke("Pin") {
+        // Vertical pin stem: M12 17v5
+        moveTo(12f, 17f)
+        lineTo(12f, 22f)
+        // Pin body path: M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z
+        moveTo(9f, 10.76f)
+        curveTo(9f, 11.864f, 8.381f, 12.874f, 7.39f, 13.37f)
+        lineTo(5.61f, 14.27f)
+        curveTo(4.619f, 14.766f, 4f, 15.776f, 4f, 16.88f)
+        // Simplified: just draw the outline
+        lineTo(4f, 16f)
+        curveTo(4f, 15.448f, 4.448f, 15f, 5f, 15f)
+        lineTo(19f, 15f)
+        curveTo(19.552f, 15f, 20f, 15.448f, 20f, 16f)
+        lineTo(20f, 15.24f)
+        curveTo(20f, 14.136f, 19.381f, 13.126f, 18.39f, 12.63f)
+        lineTo(16.61f, 11.73f)
+        curveTo(15.619f, 11.234f, 15f, 10.224f, 15f, 9.12f)
+        lineTo(15f, 7f)
+        curveTo(15f, 6.448f, 15.448f, 6f, 16f, 6f)
+        curveTo(17.105f, 6f, 18f, 5.105f, 18f, 4f)
+        curveTo(18f, 2.895f, 17.105f, 2f, 16f, 2f)
+        lineTo(8f, 2f)
+        curveTo(6.895f, 2f, 6f, 2.895f, 6f, 4f)
+        curveTo(6f, 5.105f, 6.895f, 6f, 8f, 6f)
+        curveTo(8.552f, 6f, 9f, 6.448f, 9f, 7f)
+        close()
+    }
+
     /** Filled play triangle. */
     val Play: ImageVector = filled("Play") {
         moveTo(7f, 4f)

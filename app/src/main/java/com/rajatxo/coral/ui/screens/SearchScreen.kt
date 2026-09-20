@@ -22,6 +22,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,9 +30,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -56,6 +60,13 @@ fun SearchScreen(
     onDismiss: () -> Unit
 ) {
     var query by remember { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    // Auto-focus the text field + open keyboard when search opens
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
 
     val results = remember(query, songs) {
         if (query.isBlank()) {
@@ -138,16 +149,18 @@ fun SearchScreen(
                         ),
                         cursorBrush = SolidColor(Color.White),
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(focusRequester)
                     )
                 }
 
                 Spacer(modifier = Modifier.size(12.dp))
 
-                // Search icon
+                // Pin icon (decorative, not clickable)
                 Icon(
-                    imageVector = CoralIcons.Search,
-                    contentDescription = "Search",
+                    imageVector = CoralIcons.Pin,
+                    contentDescription = null,
                     tint = Color.White.copy(alpha = 0.6f),
                     modifier = Modifier.size(24.dp)
                 )
