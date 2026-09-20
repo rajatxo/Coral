@@ -52,7 +52,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -388,16 +390,33 @@ fun HomeScreen(
         // A clean frosted-glass blur sits behind the header with a
         // smooth gradient edge (no hard line).
         //
-        // REVERTED to build #571's exact blur implementation.
-        // Builds #590 (translationY=-40dp) and #592 (RenderEffect via
-        // drawLayer) both caused problems:
-        //   • #590 had blur but the top was still weaker than the mid
-        //     (the translationY trick didn't actually fix edge-sampling).
-        //   • #592's drawLayer(graphicsLayer) with a renderEffect set on
-        //     the GraphicsLayer OBJECT didn't render anything → no blur.
-        // Back to the known-working #571 approach: drawBackdrop with
-        // vibrancy + 20dp blur, DstIn gradient mask for the bottom fade.
+        // ─── Uniform blur at the top (this build) ──
+        // Previous builds had a weak blur at y=0 (behind the status bar)
+        // because drawBackdrop's blur kernel samples above y=0 where the
+        // graphicsLayer has no content → returns transparent → ~50%
+        // strength. The user could see scrolling text ("Speed dial")
+        // leaking through unblurred.
+        //
+        // Fix: on API 31+ (Android 12+), bypass drawBackdrop and use
+        // drawLayer(graphicsLayer) to draw the captured screen content,
+        // with a BlurEffect applied via the MODIFIER's graphicsLayer
+        // block (NOT on the graphicsLayer object — that was #592's bug).
+        //
+        // BlurEffect's default edge treatment is CLAMP, which uses the
+        // edge pixel for out-of-bounds samples → full-strength blur at
+        // y=0, matching y=72 (mid). Uniform intensity across the header.
+        //
+        // The renderEffect on the modifier blurs the Box's COMPOSITED
+        // output (the drawLayer content + DstIn mask) with CLAMP. This
+        // is the standard, well-supported pattern for applying a blur
+        // to a Composable in Compose.
+        //
+        // On API < 31: fall back to drawBackdrop (has the edge-sampling
+        // weakness, but most devices are API 31+).
         if (selectedTab == CoralTab.QuickPicks && !showSearch) {
+            val useRenderEffect =
+                android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
+
             // 120dp tall, aligned to TopCenter.
             // Visible top    = screen y=0   (behind status bar)
             // Visible bottom = screen y=120 (where the fade ends)
@@ -408,11 +427,40 @@ fun HomeScreen(
                     .height(120.dp)
                     .graphicsLayer {
                         compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
+                        // Clip to the Box's bounds so drawLayer (which draws
+                        // the full screen-sized graphicsLayer) only shows the
+                        // top 120dp.
+                        clip = true
+                        if (useRenderEffect) {
+                            // Apply CLAMP blur to the Box's composited output.
+                            // 20dp → pixels (matches drawBackdrop's 20dp blur
+                            // strength). CLAMP = full strength at y=0.
+                            renderEffect = BlurEffect(
+                                radiusX = 20.dp.toPx(),
+                                radiusY = 20.dp.toPx()
+                            )
+                        }
                     }
                     .drawWithContent {
-                        drawContent()
-                        // DstIn gradient: full at top → transparent at bottom
-                        // Smooth fade over the bottom 40% so there's no hard edge
+                        if (useRenderEffect) {
+                            // ─── RenderEffect path (API 31+) ──
+                            // Draw the captured screen content (the
+                            // graphicsLayer populated by layerBackdrop on the
+                            // main content Box). The modifier's renderEffect
+                            // (BlurEffect with CLAMP) will blur this with
+                            // full strength at y=0 — fixing the weak top.
+                            drawLayer(graphicsLayer)
+                        } else {
+                            // ─── Fallback path (API < 31) ──
+                            // drawContent() renders the drawBackdrop child
+                            // Box below. Has the edge-sampling weakness at y=0
+                            // but is the best we can do without RenderEffect.
+                            drawContent()
+                        }
+
+                        // DstIn gradient mask — fades the bottom 40% to
+                        // transparent for a smooth bottom edge (no hard line).
+                        // Applied to BOTH paths so the bottom fade is identical.
                         drawRect(
                             brush = Brush.verticalGradient(
                                 colorStops = arrayOf(
@@ -427,18 +475,24 @@ fun HomeScreen(
                         )
                     }
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .drawBackdrop(
-                            backdrop = glassBackdrop,
-                            shape = { androidx.compose.ui.graphics.RectangleShape },
-                            effects = {
-                                vibrancy()
-                                blur(20f.dp.toPx())
-                            }
-                        )
-                )
+                // Inner Box with drawBackdrop — only rendered in the fallback
+                // path (API < 31), when drawContent() is called above.
+                // The RenderEffect path doesn't call drawContent(), so this
+                // child is never drawn on API 31+.
+                if (!useRenderEffect) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .drawBackdrop(
+                                backdrop = glassBackdrop,
+                                shape = { androidx.compose.ui.graphics.RectangleShape },
+                                effects = {
+                                    vibrancy()
+                                    blur(20f.dp.toPx())
+                                }
+                            )
+                    )
+                }
             }
 
             // The header content — ON TOP of the blur, NOT blurred.
