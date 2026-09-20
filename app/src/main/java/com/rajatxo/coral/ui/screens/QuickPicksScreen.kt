@@ -273,7 +273,7 @@ private fun EditorialCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val cardShape = RoundedCornerShape(24.dp)
+    val cardShape = RoundedCornerShape(8.dp)
     Box(
         modifier = modifier
             .shadow(
@@ -414,7 +414,7 @@ private fun SquareCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val cardShape = RoundedCornerShape(20.dp)
+    val cardShape = RoundedCornerShape(8.dp)
     Box(
         modifier = modifier
             .shadow(
@@ -530,7 +530,7 @@ private fun LandscapeCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val cardShape = RoundedCornerShape(20.dp)
+    val cardShape = RoundedCornerShape(8.dp)
     Box(
         modifier = modifier
             .shadow(
@@ -796,7 +796,7 @@ private fun SpeedDialCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val cardShape = RoundedCornerShape(16.dp)
+    val cardShape = RoundedCornerShape(8.dp)
     Box(
         modifier = modifier
             .shadow(
@@ -899,7 +899,7 @@ private fun RandomizeGridItem(
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(8.dp))
             .background(Color.White.copy(alpha = 0.08f))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
