@@ -3,9 +3,14 @@ package com.rajatxo.coral.ui.screens
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,6 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -36,6 +42,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -51,6 +59,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -666,6 +675,101 @@ private fun LandscapeCard(
 }
 
 // ════════════════════════════════════════════════════════════════════
+// SPEED DIAL MODE CAPSULE — thin swipeable text capsule
+// ════════════════════════════════════════════════════════════════════
+// A small glass capsule that sits below the "Speed dial" header.
+// Swipe left/right to cycle through 3 modes:
+//   1. "Based on most played songs"
+//   2. "Based on last Played song"
+//   3. "Based on Random songs"
+// Then loops back to #1.
+//
+// Same interaction model as the nav bar TabCapsule:
+//   • detectHorizontalDragGestures with 60px threshold
+//   • One swipe = one step (dragAccumulator resets after each snap)
+//   • AnimatedContent slides the text in/out horizontally
+//   • Haptic + sound feedback on each snap
+//
+// Sizing: thin (36dp tall, vs nav bar's 52dp). Width wraps the text
+// with horizontal padding so the capsule is just big enough for the
+// current mode string.
+// ════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun SpeedDialModeCapsule(
+    textPrimary: Color,
+    textSecondary: Color
+) {
+    val modes = remember {
+        listOf(
+            "Based on most played songs",
+            "Based on last Played song",
+            "Based on Random songs"
+        )
+    }
+    var currentIndex by remember { mutableIntStateOf(0) }
+    var slideDirection by remember { mutableIntStateOf(1) }
+    var dragAccumulator by remember { mutableFloatStateOf(0f) }
+    val dragThreshold = 60f
+
+    val capsuleShape = RoundedCornerShape(18.dp)
+
+    Box(
+        modifier = Modifier
+            .wrapContentSize(Alignment.Center)
+            .clip(capsuleShape)
+            .background(Color.Black.copy(alpha = 0.4f))
+            .pointerInput(modes) {
+                detectHorizontalDragGestures(
+                    onDragEnd = {
+                        dragAccumulator = 0f
+                    },
+                    onHorizontalDrag = { _, dragAmount ->
+                        dragAccumulator += dragAmount
+                        if (dragAccumulator < -dragThreshold) {
+                            // Swipe left → next mode
+                            slideDirection = 1
+                            currentIndex = (currentIndex + 1) % modes.size
+                            dragAccumulator = 0f
+                        } else if (dragAccumulator > dragThreshold) {
+                            // Swipe right → previous mode
+                            slideDirection = -1
+                            currentIndex = if (currentIndex - 1 < 0) modes.size - 1 else currentIndex - 1
+                            dragAccumulator = 0f
+                        }
+                    }
+                )
+            }
+            .padding(horizontal = 14.dp, vertical = 8.dp)
+    ) {
+        AnimatedContent(
+            targetState = currentIndex,
+            transitionSpec = {
+                if (slideDirection == 1) {
+                    slideInHorizontally(animationSpec = tween(250)) { fullWidth -> fullWidth } togetherWith
+                        slideOutHorizontally(animationSpec = tween(250)) { fullWidth -> -fullWidth }
+                } else {
+                    slideInHorizontally(animationSpec = tween(250)) { fullWidth -> -fullWidth } togetherWith
+                        slideOutHorizontally(animationSpec = tween(250)) { fullWidth -> fullWidth }
+                }
+            },
+            contentAlignment = Alignment.Center,
+            label = "modeText"
+        ) { index ->
+            Text(
+                text = modes[index],
+                color = textPrimary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                fontFamily = CalSansFamily,
+                maxLines = 1,
+                overflow = TextOverflow.Visible
+            )
+        }
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════
 // SPEED DIAL SECTION
 // ════════════════════════════════════════════════════════════════════
 // A paginated grid of square song cards + a "randomize" dice button.
@@ -696,7 +800,7 @@ private fun SpeedDialSection(
 
     if (speedDialSongs.isEmpty()) return
 
-    // Section header
+    // Section header — "Speed dial" text + chevron (count number removed)
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -709,22 +813,22 @@ private fun SpeedDialSection(
             fontWeight = FontWeight.SemiBold,
             fontFamily = CalSansFamily
         )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = "${speedDialSongs.size}",
-                color = textSecondary,
-                fontSize = 14.sp,
-                fontFamily = CalSansFamily
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Icon(
-                imageVector = CoralIcons.ChevronRight,
-                contentDescription = null,
-                tint = textSecondary,
-                modifier = Modifier.size(16.dp)
-            )
-        }
+        // Chevron only — the song count number was removed per user request
+        Icon(
+            imageVector = CoralIcons.ChevronRight,
+            contentDescription = null,
+            tint = textSecondary,
+            modifier = Modifier.size(16.dp)
+        )
     }
+
+    Spacer(modifier = Modifier.height(8.dp))
+
+    // ═══ Thin swipeable capsule (Speed Dial mode picker) ═══
+    // A small glass capsule below the "Speed dial" header. Swipe left/right
+    // to cycle through 3 modes. One swipe = one step (60px drag threshold
+    // prevents fast multi-step swipes in a single gesture).
+    SpeedDialModeCapsule(textPrimary = textPrimary, textSecondary = textSecondary)
 
     Spacer(modifier = Modifier.height(12.dp))
 
