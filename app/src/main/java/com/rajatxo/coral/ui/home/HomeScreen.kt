@@ -419,21 +419,30 @@ fun HomeScreen(
                         )
                 )
 
-                // Layer 2: Gradient fade — dark base at top (behind status
-                // bar = hard/strong blur) → transparent at bottom (blur
-                // fades away going DOWN the screen).
-                // Multiple color stops for a smooth, gradual transition.
+                // Layer 2: Gradient fade — transparent at top (blur fully
+                // visible, strong behind status bar) → dark base at bottom
+                // (blur fully covered/faded). The transition spans the
+                // ENTIRE bottom half with 8 small steps so there's NO
+                // straight line — just a smooth, gradual fade.
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(
                             Brush.verticalGradient(
                                 colorStops = arrayOf(
-                                    0.0f to Color(0xFF05050A),
-                                    0.2f to Color(0xFF05050A).copy(alpha = 0.7f),
-                                    0.4f to Color(0xFF05050A).copy(alpha = 0.3f),
-                                    0.6f to Color.Transparent,
-                                    1.0f to Color.Transparent
+                                    0.0f to Color.Transparent,
+                                    0.45f to Color.Transparent,
+                                    0.5f to Color(0xFF05050A).copy(alpha = 0.05f),
+                                    0.55f to Color(0xFF05050A).copy(alpha = 0.1f),
+                                    0.6f to Color(0xFF05050A).copy(alpha = 0.2f),
+                                    0.65f to Color(0xFF05050A).copy(alpha = 0.3f),
+                                    0.7f to Color(0xFF05050A).copy(alpha = 0.4f),
+                                    0.75f to Color(0xFF05050A).copy(alpha = 0.55f),
+                                    0.8f to Color(0xFF05050A).copy(alpha = 0.7f),
+                                    0.85f to Color(0xFF05050A).copy(alpha = 0.82f),
+                                    0.9f to Color(0xFF05050A).copy(alpha = 0.9f),
+                                    0.95f to Color(0xFF05050A).copy(alpha = 0.97f),
+                                    1.0f to Color(0xFF05050A)
                                 )
                             )
                         )
