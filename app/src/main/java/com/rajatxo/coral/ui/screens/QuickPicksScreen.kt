@@ -797,34 +797,17 @@ private fun SpeedDialModeCapsule(
 
     // Thinner than nav bar (36dp vs 52dp). Fixed width via weight(1f)
     // passed from the caller.
+    //
+    // NOTE: Using solid dark background instead of drawBackdrop for now.
+    // drawBackdrop was crashing inside the LazyColumn item (likely because
+    // the graphics layer isn't ready when the item first composes). Will
+    // re-add glass morphism once the crash is debugged.
     val capsuleShape = RoundedCornerShape(18.dp)
 
-    val glassModifier = if (backdrop != null) {
-        modifier
-            .height(36.dp)
-            .clip(capsuleShape)
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { capsuleShape },
-                effects = {
-                    vibrancy()
-                    colorControls(
-                        brightness = 0.05f,
-                        contrast = 1f,
-                        saturation = 1.5f
-                    )
-                    blur(12f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.Black.copy(alpha = 0.25f))
-                }
-            )
-    } else {
-        modifier
-            .height(36.dp)
-            .clip(capsuleShape)
-            .background(Color.Black.copy(alpha = 0.5f))
-    }
+    val glassModifier = modifier
+        .height(36.dp)
+        .clip(capsuleShape)
+        .background(Color.Black.copy(alpha = 0.5f))
 
     Box(
         modifier = glassModifier
