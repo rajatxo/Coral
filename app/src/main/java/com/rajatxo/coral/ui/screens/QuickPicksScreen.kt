@@ -179,10 +179,9 @@ fun QuickPicksScreen(
     ) {
         LazyColumn(
             modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding(),
+                .fillMaxSize(),
             contentPadding = PaddingValues(
-                top = 100.dp,      // clear the fixed header (status bar + 56dp + margin)
+                top = 120.dp,      // exactly where the blur ends (blur is 120dp tall)
                 bottom = 200.dp,
                 start = 20.dp,
                 end = 20.dp
