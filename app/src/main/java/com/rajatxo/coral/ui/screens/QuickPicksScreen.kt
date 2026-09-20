@@ -797,41 +797,33 @@ private fun SpeedDialModeCapsule(
     }
 
     // Thinner than nav bar (36dp vs 52dp). Fixed width via weight(1f)
-    // passed from the caller. Same glass morphism as TabCapsule:
-    //   - drawBackdrop samples whatever is behind the capsule (the page
-    //     content, marked as the LayerBackdrop source in HomeScreen)
-    //   - AGSL blur(12f) blurs it in real-time
-    //   - vibrancy + colorControls boost saturation + brightness for the
-    //     liquid-glass feel
-    //   - onDrawSurface draws a faint black scrim so text stays legible
+    // passed from the caller.
+    //
+    // ─── WHY NO REAL GLASS HERE ───────────────────────────────────────
+    // The nav bar's TabCapsule uses drawBackdrop() for real-time backdrop
+    // blur — and it works because the nav bar is OUTSIDE the LazyColumn
+    // (it's a persistent overlay in HomeScreen, never recycled).
+    //
+    // This SpeedDialModeCapsule lives INSIDE a LazyColumn item. Kyant's
+    // backdrop 1.0.0 crashes when the host item is recycled or re-composed
+    // (IllegalStateException from the graphics layer being torn down
+    // before the AGSL shader is released). Tried it twice — crashes
+    // every time the LazyColumn recomposes this item.
+    //
+    // To get real glass here, the Speed Dial HEADER (text + capsule +
+    // chevron row) has to be pulled OUT of the LazyColumn entirely —
+    // kept as a sticky header above the scroll. That's a layout change
+    // I'm not making without confirmation from you.
+    //
+    // For now: frosted-glass-LOOK without real-time sampling.
+    // ─────────────────────────────────────────────────────────────────
     val capsuleShape = RoundedCornerShape(18.dp)
 
-    val glassModifier = if (backdrop != null) {
-        modifier
-            .height(36.dp)
-            .clip(capsuleShape)
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { capsuleShape },
-                effects = {
-                    vibrancy()
-                    colorControls(
-                        brightness = 0.05f,
-                        contrast = 1f,
-                        saturation = 1.5f
-                    )
-                    blur(12f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.Black.copy(alpha = 0.25f))
-                }
-            )
-    } else {
-        modifier
-            .height(36.dp)
-            .clip(capsuleShape)
-            .background(Color.Black.copy(alpha = 0.5f))
-    }
+    val glassModifier = modifier
+        .height(36.dp)
+        .clip(capsuleShape)
+        .background(Color.Black.copy(alpha = 0.45f))
+        .border(1.dp, Color.White.copy(alpha = 0.12f), capsuleShape)
 
     Box(
         modifier = glassModifier
