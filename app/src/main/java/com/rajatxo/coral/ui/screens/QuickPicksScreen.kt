@@ -8,7 +8,6 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -63,7 +62,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -98,8 +96,7 @@ fun QuickPicksScreen(
     capsuleRemaining: Long = 0L,
     onExtend: () -> Unit = {},
     onSongClick: (Song) -> Unit = {},
-    onBackClick: () -> Unit = {},
-    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null
+    onBackClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -225,8 +222,7 @@ fun QuickPicksScreen(
                     currentSongId = currentSongId,
                     onSongClick = onSongClick,
                     textPrimary = textPrimary,
-                    textSecondary = textSecondary,
-                    backdrop = backdrop
+                    textSecondary = textSecondary
                 )
             }
 
@@ -681,217 +677,6 @@ private fun LandscapeCard(
     }
 }
 
-// ════════════════════════════════════════════════════════════════════
-// SPEED DIAL MODE CAPSULE — thin swipeable text capsule
-// ════════════════════════════════════════════════════════════════════
-// A small glass capsule that sits below the "Speed dial" header.
-// Swipe left/right to cycle through 3 modes:
-//   1. "Based on most played songs"
-//   2. "Based on last Played song"
-//   3. "Based on Random songs"
-// Then loops back to #1.
-//
-// Same interaction model as the nav bar TabCapsule:
-//   • detectHorizontalDragGestures with 60px threshold
-//   • One swipe = one step (dragAccumulator resets after each snap)
-//   • AnimatedContent slides the text in/out horizontally
-//   • Haptic + sound feedback on each snap
-//
-// Sizing: thin (36dp tall, vs nav bar's 52dp). Width wraps the text
-// with horizontal padding so the capsule is just big enough for the
-// current mode string.
-// ════════════════════════════════════════════════════════════════════
-
-@Composable
-private fun SpeedDialModeCapsule(
-    textPrimary: Color,
-    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null,
-    modifier: Modifier = Modifier
-) {
-    val view = androidx.compose.ui.platform.LocalView.current
-    val context = LocalContext.current
-
-    val modes = remember {
-        listOf(
-            "Based on most played songs",
-            "Based on last Played song",
-            "Based on Random songs"
-        )
-    }
-    var currentIndex by remember { mutableIntStateOf(0) }
-    var slideDirection by remember { mutableIntStateOf(1) }
-    var dragAccumulator by remember { mutableFloatStateOf(0f) }
-    // TRUE one-swipe-per-touch: once a snap happens, no more snaps until
-    // the finger lifts (onDragEnd resets this flag).
-    var hasSnappedThisDrag by remember { mutableStateOf(false) }
-    val dragThreshold = 60f
-
-    // ─── Haptics + Sound (same as nav bar TabCapsule) ──
-    val vibrator = remember {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            val vm = context.getSystemService(android.content.Context.VIBRATOR_MANAGER_SERVICE)
-                    as? android.os.VibratorManager
-            vm?.defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            context.getSystemService(android.content.Context.VIBRATOR_SERVICE)
-                    as? android.os.Vibrator
-        }
-    }
-    val soundPool = remember {
-        android.media.SoundPool.Builder()
-            .setMaxStreams(2)
-            .setAudioAttributes(
-                android.media.AudioAttributes.Builder()
-                    .setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
-                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build()
-            )
-            .build()
-    }
-    var soundLoaded by remember { mutableStateOf(false) }
-    val tickSoundId = remember {
-        soundPool.setOnLoadCompleteListener { _, _, status ->
-            if (status == 0) soundLoaded = true
-        }
-        soundPool.load(context, com.rajatxo.coral.R.raw.wheel_tick, 1)
-    }
-
-    fun tickHaptic() {
-        val hapticsOn = com.rajatxo.coral.data.prefs.SoundHapticsManager.hapticsEnabled.value
-        val soundsOn = com.rajatxo.coral.data.prefs.SoundHapticsManager.soundsEnabled.value
-        val volume = com.rajatxo.coral.data.prefs.SoundHapticsManager.soundVolume.value / 100f
-
-        if (hapticsOn) {
-            var hapticPerformed = false
-            try {
-                hapticPerformed = view.performHapticFeedback(
-                    android.view.HapticFeedbackConstants.VIRTUAL_KEY,
-                    android.view.HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING or
-                    android.view.HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
-                )
-            } catch (_: Exception) { }
-            if (!hapticPerformed) {
-                try {
-                    val v = vibrator
-                    if (v != null) {
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                            v.vibrate(
-                                android.os.VibrationEffect.createPredefined(
-                                    android.os.VibrationEffect.EFFECT_CLICK
-                                )
-                            )
-                        } else {
-                            @Suppress("DEPRECATION")
-                            v.vibrate(30)
-                        }
-                    }
-                } catch (_: Exception) { }
-            }
-        }
-        if (soundsOn && soundLoaded) {
-            try {
-                soundPool.play(tickSoundId, volume, volume, 1, 0, 1f)
-            } catch (_: Exception) { }
-        }
-    }
-
-    // Thinner than nav bar (36dp vs 52dp). Fixed width via weight(1f)
-    // passed from the caller.
-    //
-    // ─── WHY NO REAL GLASS HERE ───────────────────────────────────────
-    // The nav bar's TabCapsule uses drawBackdrop() for real-time backdrop
-    // blur — and it works because the nav bar is OUTSIDE the LazyColumn
-    // (it's a persistent overlay in HomeScreen, never recycled).
-    //
-    // This SpeedDialModeCapsule lives INSIDE a LazyColumn item. Kyant's
-    // backdrop 1.0.0 crashes when the host item is recycled or re-composed
-    // (IllegalStateException from the graphics layer being torn down
-    // before the AGSL shader is released). Tried it twice — crashes
-    // every time the LazyColumn recomposes this item.
-    //
-    // To get real glass here, the Speed Dial HEADER (text + capsule +
-    // chevron row) has to be pulled OUT of the LazyColumn entirely —
-    // kept as a sticky header above the scroll. That's a layout change
-    // I'm not making without confirmation from you.
-    //
-    // For now: frosted-glass-LOOK without real-time sampling.
-    // ─────────────────────────────────────────────────────────────────
-    val capsuleShape = RoundedCornerShape(18.dp)
-
-    val glassModifier = modifier
-        .height(36.dp)
-        .clip(capsuleShape)
-        .background(Color.Black.copy(alpha = 0.45f))
-        .border(1.dp, Color.White.copy(alpha = 0.12f), capsuleShape)
-
-    Box(
-        modifier = glassModifier
-            .pointerInput(modes) {
-                detectHorizontalDragGestures(
-                    onDragStart = {
-                        hasSnappedThisDrag = false
-                        dragAccumulator = 0f
-                    },
-                    onDragEnd = {
-                        dragAccumulator = 0f
-                        hasSnappedThisDrag = false
-                    },
-                    onDragCancel = {
-                        dragAccumulator = 0f
-                        hasSnappedThisDrag = false
-                    },
-                    onHorizontalDrag = { _, dragAmount ->
-                        if (hasSnappedThisDrag) return@detectHorizontalDragGestures
-
-                        dragAccumulator += dragAmount
-                        if (dragAccumulator < -dragThreshold) {
-                            slideDirection = 1
-                            currentIndex = (currentIndex + 1) % modes.size
-                            tickHaptic()
-                            hasSnappedThisDrag = true
-                            dragAccumulator = 0f
-                        } else if (dragAccumulator > dragThreshold) {
-                            slideDirection = -1
-                            currentIndex = if (currentIndex - 1 < 0) modes.size - 1 else currentIndex - 1
-                            tickHaptic()
-                            hasSnappedThisDrag = true
-                            dragAccumulator = 0f
-                        }
-                    }
-                )
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        AnimatedContent(
-            targetState = currentIndex,
-            transitionSpec = {
-                if (slideDirection == 1) {
-                    slideInHorizontally(animationSpec = tween(250)) { fullWidth -> fullWidth } togetherWith
-                        slideOutHorizontally(animationSpec = tween(250)) { fullWidth -> -fullWidth }
-                } else {
-                    slideInHorizontally(animationSpec = tween(250)) { fullWidth -> -fullWidth } togetherWith
-                        slideOutHorizontally(animationSpec = tween(250)) { fullWidth -> fullWidth }
-                }
-            },
-            modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp),
-            contentAlignment = Alignment.Center,
-            label = "modeText"
-        ) { index ->
-            Text(
-                text = modes[index],
-                color = textPrimary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                fontFamily = CalSansFamily,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxSize().wrapContentSize(Alignment.Center)
-            )
-        }
-    }
-}
 
 // ════════════════════════════════════════════════════════════════════
 // SPEED DIAL SECTION
@@ -911,8 +696,7 @@ private fun SpeedDialSection(
     currentSongId: Long?,
     onSongClick: (Song) -> Unit,
     textPrimary: Color,
-    textSecondary: Color,
-    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null
+    textSecondary: Color
 ) {
     val scope = rememberCoroutineScope()
     var isRandomizing by remember { mutableStateOf(false) }
@@ -940,13 +724,7 @@ private fun SpeedDialSection(
             fontWeight = FontWeight.SemiBold,
             fontFamily = CalSansFamily
         )
-        // Thin swipeable glass capsule — cycles through 3 modes.
-        // weight(1f) gives it a fixed width (fills available space).
-        SpeedDialModeCapsule(
-            textPrimary = textPrimary,
-            backdrop = backdrop,
-            modifier = Modifier.weight(1f)
-        )
+        Spacer(modifier = Modifier.weight(1f))
         // Chevron (song count number removed per user request)
         Icon(
             imageVector = CoralIcons.ChevronRight,

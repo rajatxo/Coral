@@ -302,8 +302,7 @@ fun HomeScreen(
                         capsuleVisible = capsuleVisible,
                         capsuleRemaining = capsuleRemaining,
                         onExtend = onExtend,
-                        onSongClick = onSongClick,
-                        backdrop = glassBackdrop
+                        onSongClick = onSongClick
                     )
                     CoralTab.Discover -> PlaceholderScreen(
                         tabName = "Discover",
