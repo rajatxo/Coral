@@ -1,6 +1,7 @@
 package com.rajatxo.coral
 
 import android.app.Application
+import coil3.request.crossfade
 import com.rajatxo.coral.data.prefs.FontManager
 import com.rajatxo.coral.data.store.PlaylistStore
 import kotlinx.coroutines.CoroutineScope
@@ -31,14 +32,13 @@ class CoralApplication : Application() {
             // in HomeScreen via the onSongEnded parameter.
         }
 
-        // ─── Coil image loader with memory + disk cache ──
-        // Critical for fast scrolling. Without explicit configuration,
-        // Coil uses defaults that may be too small for album art-heavy
-        // screens. We set:
+        // ─── Coil image loader with memory cache + crossfade ──
+        // Critical for fast scrolling. We set:
         //   • Memory cache: 50MB (enough for ~500 album arts at once)
-        //   • Disk cache: 100MB (album art is small but there can be
-        //     thousands of unique artworks)
-        //   • Crossfade: 100ms (fast, no jank)
+        //   • Crossfade: enabled (default duration)
+        // Disk cache is left at Coil's default (it auto-creates one
+        // in the app's cache dir). This avoids the okio.Path API
+        // complexity — Coil 3's defaults are sensible.
         // This makes repeated scrolls instant — album art loads from
         // memory cache, no re-decode.
         coil3.SingletonImageLoader.setSafe {
@@ -48,13 +48,7 @@ class CoralApplication : Application() {
                         .maxSizeBytes(50L * 1024 * 1024)  // 50MB
                         .build()
                 }
-                .diskCache {
-                    coil3.disk.DiskCache.Builder()
-                        .directory(cacheDir.resolve("image_cache").absolutePath.let(::okio.Path))
-                        .maxSizeBytes(100L * 1024 * 1024)  // 100MB
-                        .build()
-                }
-                .crossfade(true)
+                .crossfade()
                 .build()
         }
 
