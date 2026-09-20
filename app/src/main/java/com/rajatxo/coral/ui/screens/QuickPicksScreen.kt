@@ -273,7 +273,7 @@ private fun EditorialCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val cardShape = RoundedCornerShape(8.dp)
+    val cardShape = RoundedCornerShape(24.dp)
     Box(
         modifier = modifier
             .shadow(
@@ -414,7 +414,7 @@ private fun SquareCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val cardShape = RoundedCornerShape(8.dp)
+    val cardShape = RoundedCornerShape(20.dp)
     Box(
         modifier = modifier
             .shadow(
@@ -493,18 +493,29 @@ private fun SquareCard(
         // Layer 3: (border removed per user request)
 
         // Text on the blurred bottom part
-        Text(
-            text = song.title,
-            color = Color.White,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            fontFamily = CalSansFamily,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+        Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(10.dp)
-        )
+        ) {
+            Text(
+                text = song.title,
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                fontFamily = CalSansFamily,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = song.artist,
+                color = Color.White.copy(alpha = 0.6f),
+                fontSize = 10.sp,
+                fontFamily = CalSansFamily,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
 
         if (isCurrent) {
             Box(
@@ -530,7 +541,7 @@ private fun LandscapeCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val cardShape = RoundedCornerShape(8.dp)
+    val cardShape = RoundedCornerShape(20.dp)
     Box(
         modifier = modifier
             .shadow(
@@ -811,13 +822,16 @@ private fun SpeedDialCard(
                 onClick = onClick
             )
     ) {
-        // Album art
+        // ═══ Spiral 2.0-style album art blur-blend ═══
+        // Layer 1 (bottom): BLURRED album art — fills entire card
         if (song.albumArtUri != null) {
             AsyncImage(
                 model = song.albumArtUri,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(36.dp)
             )
         } else {
             Box(
@@ -835,24 +849,43 @@ private fun SpeedDialCard(
             }
         }
 
-        // Gradient overlay for text readability
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.Black.copy(alpha = 0.7f)
-                        ),
-                        startY = 0.5f
-                    )
+        // Layer 2 (top): SHARP album art — top 75%, DstIn blend at bottom
+        if (song.albumArtUri != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.75f)
+                    .align(Alignment.TopCenter)
+                    .graphicsLayer {
+                        compositingStrategy = CompositingStrategy.Offscreen
+                    }
+                    .drawWithContent {
+                        drawContent()
+                        val blendHeightPx = 30.dp.toPx()
+                        val imageHeight = size.height
+                        val blendStartY = (imageHeight - blendHeightPx).coerceAtLeast(0f)
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color.Black, Color.Transparent),
+                                startY = blendStartY,
+                                endY = imageHeight
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
+            ) {
+                AsyncImage(
+                    model = song.albumArtUri,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
                 )
-        )
+            }
+        }
 
         // (border removed per user request)
 
-        // Title at the bottom
+        // Title at the bottom (on the blurred part)
         Text(
             text = song.title,
             color = Color.White,
