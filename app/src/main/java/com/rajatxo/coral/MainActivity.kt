@@ -108,7 +108,28 @@ fun CoralApp() {
     val scope = rememberCoroutineScope()
 
     var hasPermission by remember { mutableStateOf(false) }
-    val songs = remember { mutableStateListOf<Song>() }
+
+    // ─── INSTANT LOAD: cached songs populate on the FIRST frame ──
+    // Previous bug: `songs` started empty. On launch, a background
+    // LaunchedEffect scanned MediaStore (200-500ms) and populated
+    // `songs` after. During that window, QuickPicksScreen rendered
+    // with an empty list → only section headers visible on a black
+    // background → the "black screen on app open" bug.
+    //
+    // Fix: load the cached song list SYNCHRONOUSLY here (before the
+    // first compose render). The cache is a JSON file in internal
+    // storage (~5-20ms to read+parse for a typical library). The
+    // background scan then runs and updates the list if MediaStore
+    // has changed (new songs added, removed, etc.).
+    //
+    // On first launch (no cache yet), `load` returns empty → we fall
+    // back to the original scan-then-populate behavior. Acceptable
+    // because first launch is a one-time cost.
+    val songs = remember {
+        mutableStateListOf<Song>().apply {
+            addAll(com.rajatxo.coral.data.scanner.SongCache.load(context))
+        }
+    }
 
     var mediaController by remember { mutableStateOf<MediaController?>(null) }
     var currentSongId by remember { mutableStateOf<Long?>(null) }
@@ -137,19 +158,29 @@ fun CoralApp() {
         hasPermission = notifOk && musicOk
         permissionChecked = true
 
-        // FIX: If permissions are already granted (returning user, cold-start
-        // from widget, etc.), scan music in the BACKGROUND — no loading
-        // screen. The first scan typically takes <200ms (MediaStore query)
-        // and HomeScreen renders instantly with the list populating in
-        // real-time as songs come back. The user can also pull-to-refresh
-        // on the HomeScreen any time to force a rescan (e.g. after adding
-        // new music files to the device).
-        if (hasPermission && songs.isEmpty()) {
+        // ─── Background scan + cache update ──
+        // Even if we already have cached songs (loaded synchronously
+        // above), we still scan MediaStore in the background to pick
+        // up any changes (new songs added since last launch, songs
+        // deleted, metadata edits, etc.). The scanned list replaces
+        // the cached list AND is persisted back to the cache for the
+        // NEXT launch.
+        if (hasPermission) {
             scope.launch {
-                val scannedSongs = withContext(Dispatchers.IO) { MusicScanner.scanMusic(context.contentResolver) }
-                songs.clear()
-                songs.addAll(scannedSongs)
-                // Also scan for lyrics files
+                val scannedSongs = withContext(Dispatchers.IO) {
+                    MusicScanner.scanMusic(context.contentResolver)
+                }
+                // Only update + re-save if the scan result differs from
+                // what we already have (avoids unnecessary UI flicker).
+                if (scannedSongs != songs.toList()) {
+                    songs.clear()
+                    songs.addAll(scannedSongs)
+                    // Persist to cache for next launch's instant load
+                    withContext(Dispatchers.IO) {
+                        com.rajatxo.coral.data.scanner.SongCache.save(context, scannedSongs)
+                    }
+                }
+                // Also scan for lyrics files (independent of song cache)
                 withContext(Dispatchers.IO) {
                     com.rajatxo.coral.data.lyrics.LyricsIndex.scan(context)
                 }
@@ -231,6 +262,10 @@ fun CoralApp() {
             val scannedSongs = withContext(Dispatchers.IO) { MusicScanner.scanMusic(context.contentResolver) }
             songs.clear()
             songs.addAll(scannedSongs)
+            // Persist to cache for next launch's instant load
+            withContext(Dispatchers.IO) {
+                com.rajatxo.coral.data.scanner.SongCache.save(context, scannedSongs)
+            }
             // Scan for lyrics files (.lrc/.txt) on the device
             withContext(Dispatchers.IO) {
                 com.rajatxo.coral.data.lyrics.LyricsIndex.scan(context)
@@ -247,6 +282,10 @@ fun CoralApp() {
         val scannedSongs = withContext(Dispatchers.IO) { MusicScanner.scanMusic(context.contentResolver) }
         songs.clear()
         songs.addAll(scannedSongs)
+        // Persist refreshed list to cache
+        withContext(Dispatchers.IO) {
+            com.rajatxo.coral.data.scanner.SongCache.save(context, scannedSongs)
+        }
         withContext(Dispatchers.IO) {
             com.rajatxo.coral.data.lyrics.LyricsIndex.scan(context)
         }

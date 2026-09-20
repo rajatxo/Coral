@@ -4,6 +4,10 @@ import android.net.Uri
 
 /**
  * Represents a single audio track on the device.
+ *
+ * NOTE: This is NOT @Serializable because Android Uri isn't
+ * serializable. The cache layer (SongCache) uses a separate SongJson
+ * wrapper class to convert Uris to/from strings for disk persistence.
  */
 data class Song(
     val id: Long,

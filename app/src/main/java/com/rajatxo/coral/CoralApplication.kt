@@ -31,6 +31,34 @@ class CoralApplication : Application() {
             // in HomeScreen via the onSongEnded parameter.
         }
 
+        // ─── Coil image loader with memory + disk cache ──
+        // Critical for fast scrolling. Without explicit configuration,
+        // Coil uses defaults that may be too small for album art-heavy
+        // screens. We set:
+        //   • Memory cache: 25% of available app memory (default ok but
+        //     explicit so we know what we have)
+        //   • Disk cache: 100MB for album art (album art is small but
+        //     there can be thousands of unique artworks)
+        //   • Crossfade: 100ms (fast, no jank)
+        // This makes repeated scrolls instant — album art loads from
+        // memory cache, no re-decode.
+        coil3.SingletonImageLoader.setSafe {
+            coil3.ImageLoader.Builder(it)
+                .memoryCache {
+                    coil3.memory.MemoryCache.Builder()
+                        .maxSizePercent(0.25)
+                        .build()
+                }
+                .diskCache {
+                    coil3.disk.DiskCache.Builder()
+                        .directory(cacheDir.resolve("image_cache"))
+                        .maxSizeBytes(100L * 1024 * 1024)  // 100MB
+                        .build()
+                }
+                .crossfade(100)
+                .build()
+        }
+
         // Playlist + favorites JSON files are slightly slower (~50ms),
         // so we read them on a background thread to avoid blocking
         // app launch.
