@@ -385,74 +385,11 @@ fun HomeScreen(
         // A fixed header bar that stays at the top when scrolling.
         // Contains: user icon (left) | "Quick picks" text (center) |
         // settings icon (right). All three are aligned and DON'T scroll.
-        // A clean frosted-glass blur sits behind the header with a
-        // smooth gradient edge (no hard line).
+        // No blur — just the header content on the dark background.
         if (selectedTab == CoralTab.QuickPicks && !showSearch) {
-            // ─── Blur header — direct drawBackdrop, no DstIn mask ──
-            // The previous DstIn + CompositingStrategy.Offscreen approach
-            // was incompatible with drawBackdrop's internal rendering.
-            // Now: drawBackdrop renders the blur directly, and a separate
-            // gradient overlay (transparent → dark base) fades the bottom
-            // edge smoothly.
-            //
-            // Two layers:
-            // 1. drawBackdrop — renders the blurred content (full rectangle)
-            // 2. Gradient overlay — transparent at top, dark base color at
-            //    bottom, fading the blur out smoothly
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth()
-                    .height(120.dp)
-            ) {
-                // Layer 1: The blurred backdrop (full rectangle, no mask)
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .drawBackdrop(
-                            backdrop = glassBackdrop,
-                            shape = { androidx.compose.ui.graphics.RectangleShape },
-                            effects = {
-                                vibrancy()
-                                blur(24f.dp.toPx())
-                            }
-                        )
-                )
 
-                // Layer 2: Gradient fade — transparent at top (blur fully
-                // visible, strong behind status bar) → dark base at bottom
-                // (blur fully covered/faded). The transition spans the
-                // ENTIRE bottom half with 8 small steps so there's NO
-                // straight line — just a smooth, gradual fade.
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colorStops = arrayOf(
-                                    0.0f to Color.Transparent,
-                                    0.45f to Color.Transparent,
-                                    0.5f to Color(0xFF05050A).copy(alpha = 0.05f),
-                                    0.55f to Color(0xFF05050A).copy(alpha = 0.1f),
-                                    0.6f to Color(0xFF05050A).copy(alpha = 0.2f),
-                                    0.65f to Color(0xFF05050A).copy(alpha = 0.3f),
-                                    0.7f to Color(0xFF05050A).copy(alpha = 0.4f),
-                                    0.75f to Color(0xFF05050A).copy(alpha = 0.55f),
-                                    0.8f to Color(0xFF05050A).copy(alpha = 0.7f),
-                                    0.85f to Color(0xFF05050A).copy(alpha = 0.82f),
-                                    0.9f to Color(0xFF05050A).copy(alpha = 0.9f),
-                                    0.95f to Color(0xFF05050A).copy(alpha = 0.97f),
-                                    1.0f to Color(0xFF05050A)
-                                )
-                            )
-                        )
-                )
-            }
-
-            // The header content — ON TOP of the blur, NOT blurred.
-            // statusBarsPadding pushes the icons/text below the status
-            // bar so they're visible, but the blur behind them extends
-            // up behind the status bar (transparent).
+            // The header content — fixed at the top.
+            // statusBarsPadding pushes the icons/text below the status bar.
             Row(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
