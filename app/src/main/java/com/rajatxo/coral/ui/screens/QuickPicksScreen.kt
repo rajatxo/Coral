@@ -58,6 +58,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.transformations
+import com.rajatxo.coral.util.BlurTransformation
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
@@ -433,9 +436,15 @@ private fun SquareCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val cardShape = RoundedCornerShape(20.dp)
     Box(
         modifier = modifier
+            .shadow(
+                elevation = 6.dp,
+                shape = cardShape,
+                clip = false
+            )
             .clip(cardShape)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -443,16 +452,28 @@ private fun SquareCard(
                 onClick = onClick
             )
     ) {
-        // ═══ Single sharp AsyncImage (was: double image + 36dp blur) ═══
-        // Previous: 2 AsyncImage loads per card + RenderEffect blur +
-        // Offscreen compositing + DstIn mask. Caused scrolling jank
-        // when many cards were visible.
-        // Now: 1 sharp image + cheap black gradient scrim at the bottom
-        // for text readability. ~5-10x faster per card. Same visual
-        // style as Spotify / Apple Music cards.
+        // ═══ Spiral 2.0-style album art blur-blend (RESTORED) ═══
+        // User explicitly wants this visual style — do NOT remove.
+        //
+        // PERFORMANCE OPTIMIZATION (kept the visual, made it fast):
+        // The blurred layer now uses a Coil BlurTransformation instead
+        // of Compose's .blur() modifier. The transformation pre-blurs
+        // the bitmap ONCE when Coil decodes the image, then caches it.
+        // Subsequent scrolls just look up the cached blurred bitmap →
+        // no per-frame RenderEffect → smooth scrolling.
+        //
+        // Layer 1 (bottom): BLURRED album art — fills entire card
         if (song.albumArtUri != null) {
+            // Build the ImageRequest with the BlurTransformation.
+            // Remembered so we don't rebuild it on every recomposition.
+            val blurredRequest = remember(song.albumArtUri) {
+                ImageRequest.Builder(context)
+                    .data(song.albumArtUri)
+                    .transformations(BlurTransformation(36.dp))
+                    .build()
+            }
             AsyncImage(
-                model = song.albumArtUri,
+                model = blurredRequest,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
@@ -473,24 +494,43 @@ private fun SquareCard(
             }
         }
 
-        // Bottom gradient scrim — cheap, makes text readable on any image.
-        // Replaces the old blurred-bottom layer.
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .fillMaxHeight(0.5f)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.Black.copy(alpha = 0.7f)
+        // Layer 2 (top): SHARP album art — top 75%, DstIn blend at bottom
+        if (song.albumArtUri != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.75f)
+                    .align(Alignment.TopCenter)
+                    .graphicsLayer {
+                        compositingStrategy = CompositingStrategy.Offscreen
+                    }
+                    .drawWithContent {
+                        drawContent()
+                        val blendHeightPx = 30.dp.toPx()
+                        val imageHeight = size.height
+                        val blendStartY = (imageHeight - blendHeightPx).coerceAtLeast(0f)
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color.Black, Color.Transparent),
+                                startY = blendStartY,
+                                endY = imageHeight
+                            ),
+                            blendMode = BlendMode.DstIn
                         )
-                    )
+                    }
+            ) {
+                AsyncImage(
+                    model = song.albumArtUri,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
                 )
-        )
+            }
+        }
 
-        // Text on the gradient-scrimmed bottom part
+        // Layer 3: (border removed per user request)
+
+        // Text on the blurred bottom part
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
@@ -539,9 +579,15 @@ private fun LandscapeCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val cardShape = RoundedCornerShape(20.dp)
     Box(
         modifier = modifier
+            .shadow(
+                elevation = 6.dp,
+                shape = cardShape,
+                clip = false
+            )
             .clip(cardShape)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -549,11 +595,21 @@ private fun LandscapeCard(
                 onClick = onClick
             )
     ) {
-        // ═══ Single sharp AsyncImage (was: double image + 36dp blur) ═══
-        // See SquareCard for the full explanation of this optimization.
+        // ═══ Spiral 2.0-style album art blur-blend (RESTORED) ═══
+        // User explicitly wants this visual style — do NOT remove.
+        // Uses Coil BlurTransformation for pre-cached blur (see SquareCard
+        // for the full explanation).
+        //
+        // Layer 1 (bottom): BLURRED album art — fills entire card
         if (song.albumArtUri != null) {
+            val blurredRequest = remember(song.albumArtUri) {
+                ImageRequest.Builder(context)
+                    .data(song.albumArtUri)
+                    .transformations(BlurTransformation(36.dp))
+                    .build()
+            }
             AsyncImage(
-                model = song.albumArtUri,
+                model = blurredRequest,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
@@ -574,23 +630,43 @@ private fun LandscapeCard(
             }
         }
 
-        // Bottom gradient scrim — cheap, makes text readable on any image.
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .fillMaxHeight(0.5f)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.Black.copy(alpha = 0.7f)
+        // Layer 2 (top): SHARP album art — top 75%, DstIn blend at bottom
+        if (song.albumArtUri != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.75f)
+                    .align(Alignment.TopCenter)
+                    .graphicsLayer {
+                        compositingStrategy = CompositingStrategy.Offscreen
+                    }
+                    .drawWithContent {
+                        drawContent()
+                        val blendHeightPx = 30.dp.toPx()
+                        val imageHeight = size.height
+                        val blendStartY = (imageHeight - blendHeightPx).coerceAtLeast(0f)
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color.Black, Color.Transparent),
+                                startY = blendStartY,
+                                endY = imageHeight
+                            ),
+                            blendMode = BlendMode.DstIn
                         )
-                    )
+                    }
+            ) {
+                AsyncImage(
+                    model = song.albumArtUri,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
                 )
-        )
+            }
+        }
 
-        // Text on the gradient-scrimmed bottom part
+        // Layer 3: (border removed per user request)
+
+        // Text on the blurred bottom part
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
@@ -782,9 +858,15 @@ private fun SpeedDialCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val cardShape = RoundedCornerShape(8.dp)
     Box(
         modifier = modifier
+            .shadow(
+                elevation = 4.dp,
+                shape = cardShape,
+                clip = false
+            )
             .clip(cardShape)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -792,13 +874,23 @@ private fun SpeedDialCard(
                 onClick = onClick
             )
     ) {
-        // ═══ Single sharp AsyncImage (was: double image + 20dp blur) ═══
-        // See SquareCard for the full explanation of this optimization.
-        // SpeedDialCard is the most critical to optimize because 9 are
-        // visible at once in the 3x3 grid.
+        // ═══ Spiral 2.0-style album art blur-blend (RESTORED) ═══
+        // User explicitly wants this visual style — do NOT remove.
+        // Uses Coil BlurTransformation for pre-cached blur (see SquareCard
+        // for the full explanation). 9 cards visible at once — most
+        // critical to optimize.
+        //
+        // Layer 1 (bottom): BLURRED album art — fills entire card.
+        // Reduced blur (20dp, was 36dp) so the cover isn't cropped too much.
         if (song.albumArtUri != null) {
+            val blurredRequest = remember(song.albumArtUri) {
+                ImageRequest.Builder(context)
+                    .data(song.albumArtUri)
+                    .transformations(BlurTransformation(20.dp))
+                    .build()
+            }
             AsyncImage(
-                model = song.albumArtUri,
+                model = blurredRequest,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
@@ -819,25 +911,44 @@ private fun SpeedDialCard(
             }
         }
 
-        // Bottom gradient scrim — cheap, makes text readable on any image.
-        // Smaller than SquareCard's scrim because SpeedDialCard is smaller
-        // and only has a title (no artist line).
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .fillMaxHeight(0.4f)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.Black.copy(alpha = 0.75f)
+        // Layer 2 (top): SHARP album art — top 85%, DstIn blend at bottom.
+        // The blend is only behind the text area (bottom 15%).
+        if (song.albumArtUri != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.85f)
+                    .align(Alignment.TopCenter)
+                    .graphicsLayer {
+                        compositingStrategy = CompositingStrategy.Offscreen
+                    }
+                    .drawWithContent {
+                        drawContent()
+                        val blendHeightPx = 24.dp.toPx()
+                        val imageHeight = size.height
+                        val blendStartY = (imageHeight - blendHeightPx).coerceAtLeast(0f)
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color.Black, Color.Transparent),
+                                startY = blendStartY,
+                                endY = imageHeight
+                            ),
+                            blendMode = BlendMode.DstIn
                         )
-                    )
+                    }
+            ) {
+                AsyncImage(
+                    model = song.albumArtUri,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
                 )
-        )
+            }
+        }
 
-        // Title at the bottom (on the gradient-scrimmed part)
+        // (border removed per user request)
+
+        // Title at the bottom (on the blurred part)
         Text(
             text = song.title,
             color = Color.White,
