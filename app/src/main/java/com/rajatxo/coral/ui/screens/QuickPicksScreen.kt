@@ -3,6 +3,7 @@ package com.rajatxo.coral.ui.screens
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.tween
@@ -964,39 +965,60 @@ private fun RandomizeGridItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // ═══ Vinyl spin randomize button ═══
-    // Replaces the old 5-dot ludo dice with a spinning vinyl record.
-    //   • Idle: slow rotation (8s per loop, very subtle)
-    //   • Loading: fast rotation (0.8s per loop, like a record scratching)
-    //   • Always: 3 concentric ring grooves + center label dot
-    //   • Loading: also shows a small accent-colored progress ring overlay
+    // ═══ Particle burst randomize button ═══
+    // Idle: a soft glowing dot in the center, gently pulsing.
+    // On tap: 14 particles burst outward in all directions, each with a
+    // gradient color (coral red → orange → pink → gold), shrinking +
+    // fading as they fly. Lasts 600ms.
     //
-    // The rotation is always running (infiniteRepeatable). When loading
-    // starts, we just switch to the fast animation spec. When loading
-    // ends, we switch back to slow. The rotation continues seamlessly
-    // across the transition because both animations use the same
-    // 'rotation' state value as their target.
-    //
-    // The vinyl visual is drawn with a Canvas:
-    //   - Outer circle (the record edge)
-    //   - 3 concentric ring grooves (subtle, white at low alpha)
-    //   - Center label (accent color circle)
-    //   - Center hole (small dark circle)
+    // The burst is triggered by isLoading going false→true (the parent
+    // SpeedDialSection sets isRandomizing=true on tap, waits 800ms,
+    // picks a random song, sets isRandomizing=false). The burst lasts
+    // 600ms — the remaining 200ms is a "settle" moment where the idle
+    // dot reappears before the song plays.
 
-    val infiniteRotation by androidx.compose.animation.core.rememberInfiniteTransition(
-        label = "vinylRotation"
-    ).animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
+    // ─── Particle data (precomputed once, stable across recompositions) ──
+    data class Particle(val angle: Float, val color: Color, val sizeMult: Float, val speedMult: Float)
+    val particles = remember {
+        val colors = listOf(
+            Color(0xFFFF6B6B),  // coral red
+            Color(0xFFFF9F40),  // orange
+            Color(0xFFFF4081),  // pink
+            Color(0xFFFFD700)   // gold
+        )
+        List(14) { i ->
+            Particle(
+                angle = (i * 360f / 14f + kotlin.random.Random.nextFloat() * 20f) * (kotlin.math.PI / 180f),
+                color = colors[i % colors.size],
+                sizeMult = 0.7f + kotlin.random.Random.nextFloat() * 0.6f,
+                speedMult = 0.8f + kotlin.random.Random.nextFloat() * 0.4f
+            )
+        }
+    }
+
+    // ─── Idle pulse animation (always running) ──
+    val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "pulse")
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 0.9f,
+        targetValue = 1.1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(
-                durationMillis = if (isLoading) 800 else 8000,
-                easing = LinearEasing
-            ),
-            repeatMode = RepeatMode.Restart
+            animation = tween(1500, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
         ),
-        label = "rotation"
+        label = "pulseScale"
     )
+
+    // ─── Burst animation (triggered by isLoading) ──
+    val burstProgress = remember { androidx.compose.animation.core.Animatable(0f) }
+    androidx.compose.runtime.LaunchedEffect(isLoading) {
+        if (isLoading) {
+            burstProgress.snapTo(0f)
+            burstProgress.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(600, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+            )
+        }
+    }
 
     Box(
         modifier = modifier
@@ -1009,60 +1031,47 @@ private fun RandomizeGridItem(
             ),
         contentAlignment = Alignment.Center
     ) {
-        // Vinyl record canvas — rotates continuously
-        Canvas(
-            modifier = Modifier
-                .fillMaxSize(0.7f)
-                .rotate(infiniteRotation)
-        ) {
-            val canvasSize = size.minDimension
+        Canvas(modifier = Modifier.fillMaxSize()) {
             val center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
-            val recordRadius = canvasSize / 2f
-            val labelRadius = recordRadius * 0.32f
-            val holeRadius = recordRadius * 0.08f
+            val dotRadius = size.minDimension * 0.12f
 
-            // Outer record circle (dark)
+            // ─── Idle glowing dot (always visible, pulsing) ──
+            // 3 concentric circles for a soft glow effect
+            val glowRadius = dotRadius * pulseScale
             drawCircle(
-                color = Color.Black.copy(alpha = 0.85f),
-                radius = recordRadius,
+                color = Color(0xFFFF6B6B).copy(alpha = 0.08f),
+                radius = glowRadius * 2.8f,
+                center = center
+            )
+            drawCircle(
+                color = Color(0xFFFF6B6B).copy(alpha = 0.15f),
+                radius = glowRadius * 2.0f,
+                center = center
+            )
+            drawCircle(
+                color = Color(0xFFFF6B6B),
+                radius = glowRadius,
                 center = center
             )
 
-            // 3 concentric ring grooves (subtle white rings)
-            for (i in 1..3) {
-                val grooveRadius = recordRadius * (1f - i * 0.15f)
-                drawCircle(
-                    color = Color.White.copy(alpha = 0.08f),
-                    radius = grooveRadius,
-                    center = center,
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(
-                        width = 1f
+            // ─── Burst particles (visible during burst animation) ──
+            val progress = burstProgress.value
+            if (progress > 0f && progress < 1f) {
+                val maxDistance = size.minDimension * 0.45f
+                particles.forEach { p ->
+                    val distance = maxDistance * progress * p.speedMult
+                    val x = center.x + kotlin.math.cos(p.angle) * distance
+                    val y = center.y + kotlin.math.sin(p.angle) * distance
+                    val particleSize = dotRadius * p.sizeMult * (1f - progress)
+                    val alpha = (1f - progress) * 0.9f
+
+                    drawCircle(
+                        color = p.color.copy(alpha = alpha),
+                        radius = particleSize,
+                        center = androidx.compose.ui.geometry.Offset(x, y)
                     )
-                )
+                }
             }
-
-            // Center label (accent color)
-            drawCircle(
-                color = Color(0xFFFF6B6B),
-                radius = labelRadius,
-                center = center
-            )
-
-            // Center hole (dark)
-            drawCircle(
-                color = Color.Black,
-                radius = holeRadius,
-                center = center
-            )
-        }
-
-        // Loading spinner overlay (accent color) — shown on top of the vinyl
-        if (isLoading) {
-            CircularProgressIndicator(
-                color = Color(0xFFFF6B6B),
-                strokeWidth = 2.dp,
-                modifier = Modifier.size(40.dp)
-            )
         }
     }
 }
