@@ -63,6 +63,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -796,25 +797,47 @@ private fun SpeedDialModeCapsule(
     }
 
     // Thinner than nav bar (36dp vs 52dp). Fixed width via weight(1f)
-    // passed from the caller.
-    //
-    // NOTE: Using solid dark background instead of drawBackdrop for now.
-    // drawBackdrop was crashing inside the LazyColumn item (likely because
-    // the graphics layer isn't ready when the item first composes). Will
-    // re-add glass morphism once the crash is debugged.
+    // passed from the caller. Same glass morphism as TabCapsule:
+    //   - drawBackdrop samples whatever is behind the capsule (the page
+    //     content, marked as the LayerBackdrop source in HomeScreen)
+    //   - AGSL blur(12f) blurs it in real-time
+    //   - vibrancy + colorControls boost saturation + brightness for the
+    //     liquid-glass feel
+    //   - onDrawSurface draws a faint black scrim so text stays legible
     val capsuleShape = RoundedCornerShape(18.dp)
 
-    val glassModifier = modifier
-        .height(36.dp)
-        .clip(capsuleShape)
-        .background(Color.Black.copy(alpha = 0.5f))
+    val glassModifier = if (backdrop != null) {
+        modifier
+            .height(36.dp)
+            .clip(capsuleShape)
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { capsuleShape },
+                effects = {
+                    vibrancy()
+                    colorControls(
+                        brightness = 0.05f,
+                        contrast = 1f,
+                        saturation = 1.5f
+                    )
+                    blur(12f.dp.toPx())
+                },
+                onDrawSurface = {
+                    drawRect(Color.Black.copy(alpha = 0.25f))
+                }
+            )
+    } else {
+        modifier
+            .height(36.dp)
+            .clip(capsuleShape)
+            .background(Color.Black.copy(alpha = 0.5f))
+    }
 
     Box(
         modifier = glassModifier
             .pointerInput(modes) {
                 detectHorizontalDragGestures(
                     onDragStart = {
-                        // Reset the one-snap lock at the start of each touch
                         hasSnappedThisDrag = false
                         dragAccumulator = 0f
                     },
@@ -827,30 +850,26 @@ private fun SpeedDialModeCapsule(
                         hasSnappedThisDrag = false
                     },
                     onHorizontalDrag = { _, dragAmount ->
-                        // If we already snapped this touch, ignore all further
-                        // drag until the finger lifts. This is the TRUE
-                        // one-swipe-per-touch behavior.
                         if (hasSnappedThisDrag) return@detectHorizontalDragGestures
 
                         dragAccumulator += dragAmount
                         if (dragAccumulator < -dragThreshold) {
-                            // Swipe left → next mode
                             slideDirection = 1
                             currentIndex = (currentIndex + 1) % modes.size
                             tickHaptic()
-                            hasSnappedThisDrag = true  // lock until finger lifts
+                            hasSnappedThisDrag = true
                             dragAccumulator = 0f
                         } else if (dragAccumulator > dragThreshold) {
-                            // Swipe right → previous mode
                             slideDirection = -1
                             currentIndex = if (currentIndex - 1 < 0) modes.size - 1 else currentIndex - 1
                             tickHaptic()
-                            hasSnappedThisDrag = true  // lock until finger lifts
+                            hasSnappedThisDrag = true
                             dragAccumulator = 0f
                         }
                     }
                 )
-            }
+            },
+        contentAlignment = Alignment.Center
     ) {
         AnimatedContent(
             targetState = currentIndex,
@@ -874,7 +893,9 @@ private fun SpeedDialModeCapsule(
                 fontWeight = FontWeight.Medium,
                 fontFamily = CalSansFamily,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxSize().wrapContentSize(Alignment.Center)
             )
         }
     }
