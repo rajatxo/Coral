@@ -796,12 +796,12 @@ private fun SpeedDialCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Pill/capsule shape — fully rounded ends (height/2 radius)
+    // Pill/capsule shape — fully rounded ends
     val pillShape = RoundedCornerShape(28.dp)
     Box(
         modifier = modifier
             .shadow(
-                elevation = 4.dp,
+                elevation = 6.dp,
                 shape = pillShape,
                 clip = false
             )
@@ -812,15 +812,26 @@ private fun SpeedDialCard(
                 onClick = onClick
             )
     ) {
-        // Layer 1: Blurred album art fills the pill
+        // Layer 1: Blurred album art — VIBRANT (saturation boosted)
+        // Less blur (15dp) so the colors are more visible and alive
         if (song.albumArtUri != null) {
             AsyncImage(
                 model = song.albumArtUri,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.colorMatrix(
+                    androidx.compose.ui.graphics.ColorMatrix(
+                        floatArrayOf(
+                            1.4f, 0f, 0f, 0f, 0f,    // R: boost red 40%
+                            0f, 1.4f, 0f, 0f, 0f,    // G: boost green 40%
+                            0f, 0f, 1.4f, 0f, 0f,    // B: boost blue 40%
+                            0f, 0f, 0f, 1f, 0f       // alpha: unchanged
+                        )
+                    )
+                ),
                 modifier = Modifier
                     .fillMaxSize()
-                    .blur(20.dp)
+                    .blur(15.dp)
             )
         } else {
             Box(
@@ -838,19 +849,45 @@ private fun SpeedDialCard(
             }
         }
 
-        // Layer 2: Dark tint for text readability
+        // Layer 2: Lighter dark tint (20% — was 35%) so the vibrant
+        // colors show through more
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.35f))
+                .background(Color.Black.copy(alpha = 0.2f))
         )
 
-        // Layer 3: Song name centered on top of the blur
+        // Layer 3: GLOSSY EFFECT — white gradient at the top half
+        // (like light reflecting off glass). Transparent at bottom,
+        // white 25% at top. This gives the "alive" glossy look.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.25f),  // glossy top
+                            Color.White.copy(alpha = 0.05f),  // fading
+                            Color.Transparent                 // bottom: clear
+                        )
+                    )
+                )
+        )
+
+        // Layer 4: Glossy border (1dp white 30% — the edge highlight
+        // that makes it feel like a 3D glass pill)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .border(1.dp, Color.White.copy(alpha = 0.3f), pillShape)
+        )
+
+        // Layer 5: Song name centered on top of the blur
         Text(
             text = song.title,
             color = Color.White,
             fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.SemiBold,
             fontFamily = CalSansFamily,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
