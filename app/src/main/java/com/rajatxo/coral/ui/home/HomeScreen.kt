@@ -385,11 +385,56 @@ fun HomeScreen(
         // A fixed header bar that stays at the top when scrolling.
         // Contains: user icon (left) | "Quick picks" text (center) |
         // settings icon (right). All three are aligned and DON'T scroll.
-        // No blur — just the header content on the dark background.
+        // A clean frosted-glass blur sits behind the header with a
+        // smooth gradient edge (no hard line). Restored from build #571.
         if (selectedTab == CoralTab.QuickPicks && !showSearch) {
+            // The blur layer — starts from the VERY TOP of the screen
+            // (no statusBarsPadding) so it covers the status bar area.
+            // Height = status bar (~24dp) + 56dp header + 40dp fade = ~120dp
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .graphicsLayer {
+                        compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
+                    }
+                    .drawWithContent {
+                        drawContent()
+                        // DstIn gradient: full at top → transparent at bottom
+                        // Smooth fade over the bottom 40% so there's no hard edge
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colorStops = arrayOf(
+                                    0.0f to Color.Black,
+                                    0.6f to Color.Black,
+                                    1.0f to Color.Transparent
+                                ),
+                                startY = 0f,
+                                endY = size.height
+                            ),
+                            blendMode = androidx.compose.ui.graphics.BlendMode.DstIn
+                        )
+                    }
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .drawBackdrop(
+                            backdrop = glassBackdrop,
+                            shape = { androidx.compose.ui.graphics.RectangleShape },
+                            effects = {
+                                vibrancy()
+                                blur(20f.dp.toPx())
+                            }
+                        )
+                )
+            }
 
-            // The header content — fixed at the top.
-            // statusBarsPadding pushes the icons/text below the status bar.
+            // The header content — ON TOP of the blur, NOT blurred.
+            // statusBarsPadding pushes the icons/text below the status
+            // bar so they're visible, but the blur behind them extends
+            // up behind the status bar (transparent).
             Row(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
