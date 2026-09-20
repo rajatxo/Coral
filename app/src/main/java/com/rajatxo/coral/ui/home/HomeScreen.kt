@@ -52,7 +52,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -443,13 +445,15 @@ fun HomeScreen(
                             // out-of-bounds samples → full-strength blur at
                             // y=0, matching y=72 (mid). Uniform intensity
                             // across the entire header.
-                            val blurEffect =
-                                androidx.compose.ui.graphics.asComposeRenderEffect(
-                                    android.graphics.RenderEffect.createBlurEffect(
-                                        20f, 20f,
-                                        android.graphics.Shader.TileMode.CLAMP
-                                    )
-                                )
+                            //
+                            // BlurEffect's default edgeTreatment is
+                            // BlurredEdgeTreatment.Rectangle which maps to
+                            // Shader.TileMode.CLAMP — same as
+                            // PermissionScreen.kt's blur.
+                            val blurEffect = BlurEffect(
+                                radiusX = 20f,
+                                radiusY = 20f
+                            )
                             graphicsLayer.renderEffect = blurEffect
                             drawLayer(graphicsLayer)
                             // Reset so the renderEffect doesn't leak into
