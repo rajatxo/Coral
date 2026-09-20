@@ -419,21 +419,21 @@ fun HomeScreen(
                         )
                 )
 
-                // Layer 2: Gradient fade — transparent at top → dark base
-                // at bottom. This fades the blur out smoothly.
-                // Uses multiple color stops for a gradual, smooth transition
-                // (no hard edge).
+                // Layer 2: Gradient fade — dark base at top (behind status
+                // bar = hard/strong blur) → transparent at bottom (blur
+                // fades away going DOWN the screen).
+                // Multiple color stops for a smooth, gradual transition.
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(
                             Brush.verticalGradient(
                                 colorStops = arrayOf(
-                                    0.0f to Color.Transparent,
-                                    0.4f to Color.Transparent,
-                                    0.6f to Color(0xFF05050A).copy(alpha = 0.3f),
-                                    0.8f to Color(0xFF05050A).copy(alpha = 0.7f),
-                                    1.0f to Color(0xFF05050A)
+                                    0.0f to Color(0xFF05050A),
+                                    0.2f to Color(0xFF05050A).copy(alpha = 0.7f),
+                                    0.4f to Color(0xFF05050A).copy(alpha = 0.3f),
+                                    0.6f to Color.Transparent,
+                                    1.0f to Color.Transparent
                                 )
                             )
                         )
