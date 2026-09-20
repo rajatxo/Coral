@@ -35,10 +35,9 @@ class CoralApplication : Application() {
         // Critical for fast scrolling. Without explicit configuration,
         // Coil uses defaults that may be too small for album art-heavy
         // screens. We set:
-        //   • Memory cache: 25% of available app memory (default ok but
-        //     explicit so we know what we have)
-        //   • Disk cache: 100MB for album art (album art is small but
-        //     there can be thousands of unique artworks)
+        //   • Memory cache: 50MB (enough for ~500 album arts at once)
+        //   • Disk cache: 100MB (album art is small but there can be
+        //     thousands of unique artworks)
         //   • Crossfade: 100ms (fast, no jank)
         // This makes repeated scrolls instant — album art loads from
         // memory cache, no re-decode.
@@ -46,16 +45,16 @@ class CoralApplication : Application() {
             coil3.ImageLoader.Builder(it)
                 .memoryCache {
                     coil3.memory.MemoryCache.Builder()
-                        .maxSizePercent(0.25)
+                        .maxSizeBytes(50L * 1024 * 1024)  // 50MB
                         .build()
                 }
                 .diskCache {
                     coil3.disk.DiskCache.Builder()
-                        .directory(cacheDir.resolve("image_cache"))
+                        .directory(cacheDir.resolve("image_cache").absolutePath.let(::okio.Path))
                         .maxSizeBytes(100L * 1024 * 1024)  // 100MB
                         .build()
                 }
-                .crossfade(100)
+                .crossfade(true)
                 .build()
         }
 

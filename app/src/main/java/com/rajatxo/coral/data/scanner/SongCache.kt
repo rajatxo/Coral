@@ -1,9 +1,12 @@
 package com.rajatxo.coral.data.scanner
 
 import android.content.Context
+import android.content.ContentUris
 import android.net.Uri
+import android.provider.MediaStore
 import com.rajatxo.coral.domain.model.Song
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import java.io.File
 
@@ -48,6 +51,10 @@ object SongCache {
         encodeDefaults = true
     }
 
+    // Explicit serializer for List<SongJson> — avoids reified type
+    // inference issues that caused the original build to fail.
+    private val songListSerializer = ListSerializer(SongJson.serializer())
+
     /**
      * Synchronously load the cached song list from disk.
      * Call this on the MAIN thread before the first compose render.
@@ -75,9 +82,9 @@ object SongCache {
                 if (fileAge > maxAgeMillis) return emptyList()
             }
 
-            // Read + parse
+            // Read + parse using the explicit serializer
             val text = file.readText()
-            val cached = json.decodeFromString<List<SongJson>>(text)
+            val cached = json.decodeFromString(songListSerializer, text)
             cached.map { it.toDomain() }
         } catch (_: Exception) {
             // Corrupt cache, IO error, parse error, etc.
@@ -99,7 +106,7 @@ object SongCache {
             val tempFile = File(context.filesDir, "$CACHE_FILE.tmp")
 
             val jsonSongs = songs.map { SongJson.fromDomain(it) }
-            val text = json.encodeToString(jsonSongs)
+            val text = json.encodeToString(songListSerializer, jsonSongs)
 
             tempFile.writeText(text)
             // Atomic rename: temp → real
