@@ -20,7 +20,8 @@ object MusicScanner {
             MediaStore.Audio.Media.ARTIST,
             MediaStore.Audio.Media.ALBUM,
             MediaStore.Audio.Media.DURATION,
-            MediaStore.Audio.Media.ALBUM_ID
+            MediaStore.Audio.Media.ALBUM_ID,
+            MediaStore.Audio.Media.DATE_ADDED
         )
 
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
@@ -33,6 +34,9 @@ object MusicScanner {
             val albumColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
             val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
             val albumIdColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+            // DATE_ADDED may be null on some obscure Android versions — use
+            // getColumnIndex (returns -1 if missing) instead of getColumnIndexOrThrow.
+            val dateAddedColumn = cursor.getColumnIndex(MediaStore.Audio.Media.DATE_ADDED)
 
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
@@ -41,6 +45,7 @@ object MusicScanner {
                 val album = cursor.getString(albumColumn) ?: "Unknown Album"
                 val duration = cursor.getLong(durationColumn)
                 val albumId = cursor.getLong(albumIdColumn)
+                val dateAdded = if (dateAddedColumn >= 0) cursor.getLong(dateAddedColumn) else 0L
 
                 val uri = ContentUris.withAppendedId(
                     MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id
@@ -58,7 +63,8 @@ object MusicScanner {
                         album = album,
                         duration = duration,
                         uri = uri,
-                        albumArtUri = albumArtUri
+                        albumArtUri = albumArtUri,
+                        dateAdded = dateAdded
                     )
                 )
             }

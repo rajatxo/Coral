@@ -16,5 +16,10 @@ data class Song(
     val album: String,
     val duration: Long, // in milliseconds
     val uri: Uri,
-    val albumArtUri: Uri?
+    val albumArtUri: Uri?,
+    // Unix epoch seconds when the file was added to the device's MediaStore.
+    // Used to sort the "Recent" row by most-recently-added (newest first).
+    // Default 0L for backward-compat with cache entries saved before this
+    // field existed (SongCache/SongJson simply default to 0L on read).
+    val dateAdded: Long = 0L
 )

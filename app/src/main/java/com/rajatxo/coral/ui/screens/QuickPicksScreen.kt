@@ -202,32 +202,27 @@ fun QuickPicksScreen(
             }
         }
     }
-    val recentSongs = remember(songs.size, launchSeed) {
+    val recentSongs = remember(songs.size) {
         if (songs.isEmpty()) emptyList()
-        else songs.shuffled(Random(launchSeed + 1)).take(10)
+        else {
+            // 50 most-recently-ADDED songs (newest first). dateAdded is
+            // Unix epoch seconds from MediaStore.Audio.Media.DATE_ADDED.
+            // Falls back to original insertion order if all dateAdded are 0
+            // (cache saved before this field existed -- sort is then a no-op).
+            songs.sortedByDescending { it.dateAdded }.take(50)
+        }
     }
     val moreSongs = remember(songs.size, launchSeed) {
         if (songs.isEmpty()) emptyList()
-        else songs.shuffled(Random(launchSeed + 2)).take(10)
+        else songs.shuffled(Random(launchSeed + 2)).take(50)
     }
 
-    // Infinite-repeat versions for the carousels.
-    //
-    // PERFORMANCE: reduced from 10x repeat (100 items) to 3x repeat
-    // (30 items). 100 items forced LazyRow to manage 100 item slots
-    // + 100 key entries on every recomposition. 30 items still feels
-    // infinite (you'd have to swipe 30 cards to reach the end) but
-    // cuts the slot management overhead by ~3x.
-    //
-    // Keys are added in the items() calls below so LazyRow can reuse
-    // composables across recompositions (was: no key → every item
-    // recomposed on every songs update).
-    val infiniteRecent = remember(recentSongs) {
-        if (recentSongs.isEmpty()) emptyList() else List(3) { recentSongs }.flatten()
-    }
-    val infiniteMore = remember(moreSongs) {
-        if (moreSongs.isEmpty()) emptyList() else List(3) { moreSongs }.flatten()
-    }
+    // Recent and More rows now have 50 unique songs each -- no need to
+    // infinitely repeat the same 10 songs 3x. The LazyRow scrolls through
+    // 50 distinct items directly. Kept the variable names for compat with
+    // the LazyRow items() calls below.
+    val infiniteRecent = recentSongs
+    val infiniteMore = moreSongs
 
     // Solid dark base — the gradient's low-alpha palette colors composite
     // over this, so the background is always predominantly dark/black.
@@ -279,7 +274,8 @@ fun QuickPicksScreen(
                     currentSongId = currentSongId,
                     onSongClick = onSongClick,
                     textPrimary = textPrimary,
-                    textSecondary = textSecondary
+                    textSecondary = textSecondary,
+                    launchSeed = launchSeed
                 )
             }
 
@@ -765,7 +761,8 @@ private fun SpeedDialSection(
     currentSongId: Long?,
     onSongClick: (Song) -> Unit,
     textPrimary: Color,
-    textSecondary: Color
+    textSecondary: Color,
+    launchSeed: Int
 ) {
     val scope = rememberCoroutineScope()
     var isRandomizing by remember { mutableStateOf(false) }
@@ -782,9 +779,12 @@ private fun SpeedDialSection(
     // Then random songs (excluding pinned) fill the rest. 3 pages × 9 slots
     // = 27, minus 1 for the dice = 26 song slots. Pinned + random = 26.
     //
-    // Keyed on (songs.size, pinnedIds) so it recomputes when either the
-    // library changes or a song is pinned/unpinned.
-    val speedDialSongs = remember(songs.size, pinnedIds) {
+    // Keyed on (songs.size, pinnedIds, launchSeed) so it recomputes when:
+    //   - the library changes (songs.size)
+    //   - a song is pinned/unpinned (pinnedIds)
+    //   - the user pulls-to-refresh (launchSeed bumps, rolling a new random
+    //     pool — pinned songs stay, the rest reshuffle)
+    val speedDialSongs = remember(songs.size, pinnedIds, launchSeed) {
         if (songs.isEmpty()) emptyList()
         else {
             // 1. Pinned songs (in pin order), filtered to ones that still
@@ -792,8 +792,10 @@ private fun SpeedDialSection(
             val pinnedSongs = pinnedIds.mapNotNull { id ->
                 songs.firstOrNull { it.id == id }
             }
-            // 2. Random songs, excluding already-pinned ones.
-            val pool = songs.filter { it.id !in pinnedIds }.shuffled()
+            // 2. Random songs, excluding already-pinned ones. Seeded with
+            //    launchSeed so PTR refresh (which bumps launchSeed) reshuffles
+            //    the non-pinned songs on every pull-to-refresh.
+            val pool = songs.filter { it.id !in pinnedIds }.shuffled(Random(launchSeed + 100))
             // 3. Total = 26 (3 pages × 9 slots - 1 for dice)
             val targetCount = 26
             val randomCount = (targetCount - pinnedSongs.size).coerceAtLeast(0)

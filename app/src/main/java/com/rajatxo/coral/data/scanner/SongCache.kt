@@ -139,7 +139,11 @@ object SongCache {
         val album: String,
         val duration: Long,
         val uri: String,
-        val albumArtUri: String?
+        val albumArtUri: String?,
+        // Default 0L for backward-compat with cache files saved before
+        // the dateAdded field existed — kotlinx-serialization fills in the
+        // default when the JSON key is absent.
+        val dateAdded: Long = 0L
     ) {
         fun toDomain(): Song = Song(
             id = id,
@@ -148,7 +152,8 @@ object SongCache {
             album = album,
             duration = duration,
             uri = Uri.parse(uri),
-            albumArtUri = albumArtUri?.let { Uri.parse(it) }
+            albumArtUri = albumArtUri?.let { Uri.parse(it) },
+            dateAdded = dateAdded
         )
 
         companion object {
@@ -159,7 +164,8 @@ object SongCache {
                 album = song.album,
                 duration = song.duration,
                 uri = song.uri.toString(),
-                albumArtUri = song.albumArtUri?.toString()
+                albumArtUri = song.albumArtUri?.toString(),
+                dateAdded = song.dateAdded
             )
         }
     }
