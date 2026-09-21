@@ -653,6 +653,83 @@ fun HomeScreen(
             }
         }
 
+        // ─── BOTTOM BLUR (behind system nav buttons) ──────────────────
+        // A small frosted-glass blur at the very bottom of the screen,
+        // covering just the system navigation area (gesture pill or
+        // 3-button nav). 40dp tall — enough to cover the system nav
+        // (24-48dp depending on device) without being excessive.
+        //
+        // Same technique as the top header blur (RenderEffect + CLAMP +
+        // DstIn mask — see CORAL_BLUR_BLUEPRINT.md), but mirrored:
+        //   • Aligned to BottomCenter
+        //   • 40dp tall (vs 120dp for the top — no status bar to cover)
+        //   • DstIn mask: transparent at top (smooth blend with content)
+        //     → opaque at bottom (full-strength blur behind system nav)
+        //
+        // Does NOT touch the TabCapsule (Coral's nav bar). Default
+        // capsule position is Y=0.89, 52dp tall → bottom edge at ~60dp
+        // from screen bottom. The 40dp blur leaves a ~20dp gap.
+        run {
+            val useRenderEffect =
+                android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .graphicsLayer {
+                        compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
+                        clip = true
+                        if (useRenderEffect) {
+                            renderEffect = BlurEffect(
+                                radiusX = 20.dp.toPx(),
+                                radiusY = 20.dp.toPx()
+                            )
+                        }
+                    }
+                    .drawWithContent {
+                        if (useRenderEffect) {
+                            drawLayer(graphicsLayer)
+                        } else {
+                            drawContent()
+                        }
+
+                        // DstIn mask — inverted from the top header:
+                        //   0.0 → Transparent (top edge, blends with content above)
+                        //   0.5 → Black (fully opaque, covers system nav)
+                        //   1.0 → Black (bottom edge, full-strength blur)
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colorStops = arrayOf(
+                                    0.0f to Color.Transparent,
+                                    0.5f to Color.Black,
+                                    1.0f to Color.Black
+                                ),
+                                startY = 0f,
+                                endY = size.height
+                            ),
+                            blendMode = androidx.compose.ui.graphics.BlendMode.DstIn
+                        )
+                    }
+            ) {
+                if (!useRenderEffect) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .drawBackdrop(
+                                backdrop = glassBackdrop,
+                                shape = { androidx.compose.ui.graphics.RectangleShape },
+                                effects = {
+                                    vibrancy()
+                                    blur(20f.dp.toPx())
+                                }
+                            )
+                    )
+                }
+            }
+        }
+
         // --- Draggable Tab Capsule (nav bar — long-press to drag anywhere) ---
         // Same pattern as the search FAB: hold for 3 seconds → enter drag mode
         // → drag anywhere on screen → release to pin. Position persists.
