@@ -3,7 +3,6 @@ package com.rajatxo.coral.ui.screens
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
@@ -55,12 +54,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
@@ -710,13 +707,6 @@ private fun SpeedDialSection(
     val scope = rememberCoroutineScope()
     var isRandomizing by remember { mutableStateOf(false) }
 
-    // ─── Liquid wave blur state ──
-    // When a card is tapped, this holds the global index of the tapped card.
-    // Other cards calculate their distance from this index and blur
-    // progressively (closer = less blur, further = more blur).
-    // Set to null when no wave is active.
-    var tappedGlobalIndex by remember { mutableStateOf<Int?>(null) }
-
     // Use up to 17 songs for the speed dial (leaves room for the dice)
     val speedDialSongs = remember(songs.size) {
         if (songs.isEmpty()) emptyList()
@@ -823,20 +813,7 @@ private fun SpeedDialSection(
                                     SpeedDialCard(
                                         song = song,
                                         isCurrent = song.id == currentSongId,
-                                        tappedGlobalIndex = tappedGlobalIndex,
-                                        myGlobalIndex = globalItemIndex,
-                                        onClick = {
-                                            // Trigger the liquid wave: set tapped index,
-                                            // wait 350ms for the blur to peak, play the song,
-                                            // wait 300ms, then reset the blur.
-                                            tappedGlobalIndex = globalItemIndex
-                                            scope.launch {
-                                                kotlinx.coroutines.delay(350)
-                                                onSongClick(song)
-                                                kotlinx.coroutines.delay(300)
-                                                tappedGlobalIndex = null
-                                            }
-                                        },
+                                        onClick = { onSongClick(song) },
                                         modifier = Modifier
                                             .width(itemWidth)
                                             .height(itemWidth)
@@ -868,57 +845,11 @@ private fun SpeedDialCard(
     song: Song,
     isCurrent: Boolean,
     onClick: () -> Unit,
-    tappedGlobalIndex: Int? = null,
-    myGlobalIndex: Int = 0,
     modifier: Modifier = Modifier
 ) {
-    // ─── Liquid wave blur calculation ──
-    // When tappedGlobalIndex is set, calculate this card's distance from
-    // the tapped card. The tapped card (distance 0) scales up slightly
-    // and stays sharp. Other cards blur progressively based on distance.
-    val isTapped = tappedGlobalIndex != null && myGlobalIndex == tappedGlobalIndex
-    val distance = if (tappedGlobalIndex != null) {
-        kotlin.math.abs(myGlobalIndex - tappedGlobalIndex)
-    } else 0
-
-    // Blur radius: 0dp for tapped card, distance * 4dp for others, capped at 24dp.
-    // Animated smoothly for the "liquid" feel.
-    val targetBlur = if (tappedGlobalIndex == null) {
-        0.dp
-    } else if (isTapped) {
-        0.dp
-    } else {
-        (distance * 4).dp.coerceAtMost(24.dp)
-    }
-    val blurRadius by animateDpAsState(
-        targetValue = targetBlur,
-        animationSpec = tween(350, easing = androidx.compose.animation.core.FastOutSlowInEasing),
-        label = "waveBlur"
-    )
-
-    // Scale: tapped card scales up to 1.06x, others stay at 1.0x.
-    // Animated smoothly.
-    val targetScale = if (isTapped) 1.06f else 1.0f
-    val scale by animateFloatAsState(
-        targetValue = targetScale,
-        animationSpec = tween(350, easing = androidx.compose.animation.core.FastOutSlowInEasing),
-        label = "waveScale"
-    )
-
-    // Dimming: non-tapped cards dim slightly when a wave is active.
-    val targetAlpha = if (tappedGlobalIndex == null || isTapped) 1.0f else 0.7f
-    val cardAlpha by animateFloatAsState(
-        targetValue = targetAlpha,
-        animationSpec = tween(350, easing = androidx.compose.animation.core.FastOutSlowInEasing),
-        label = "waveAlpha"
-    )
-
     val cardShape = RoundedCornerShape(8.dp)
     Box(
         modifier = modifier
-            .scale(scale)
-            .blur(blurRadius)
-            .alpha(cardAlpha)
             .shadow(
                 elevation = 4.dp,
                 shape = cardShape,
