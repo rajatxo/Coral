@@ -22,10 +22,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -332,11 +335,35 @@ fun HomeScreen(
             }
         }
 
-        // --- Mini player (bottom-center, between search FAB above and nav bar below) ---
-        // Stacked vertical layout:
-        //   search FAB (Y≈0.65)  ← above
-        //   mini player (here)   ← middle, padding(bottom=108dp)
-        //   nav bar (Y≈0.87)     ← below, 10dp gap below the mini player
+        // --- Mini player (bottom-center, TRACKS the nav bar) ---
+        // The mini player sits a fixed 6dp ABOVE the TabCapsule (nav bar).
+        // When the user drags the nav bar, the mini player recomposes and
+        // follows — same 6dp gap maintained at all times.
+        //
+        // Math (in dp, from screen bottom):
+        //   navBarCenterFromBottom = screenHeight * (1 - yFrac)
+        //   navBarTopFromBottom    = navBarCenterFromBottom + 26dp (half of 52dp capsule)
+        //   miniPlayerBottom       = navBarTopFromBottom + 6dp (gap)
+        //   .padding(bottom = miniPlayerBottom - systemNavInset)
+        //     (because .navigationBarsPadding() already adds the system nav inset)
+        //
+        // Default yFrac=0.91 → mini player bottom ≈ 102dp from screen bottom
+        // (was 132dp at the old yFrac=0.87 + 108dp padding). Mini player
+        // moves DOWN ~30dp along with the nav bar.
+        val savedTabPos by com.rajatxo.coral.data.prefs.TabCapsulePosition.position.collectAsState()
+        val tabYFrac = savedTabPos.second
+        val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+        val systemNavInset = androidx.compose.foundation.layout.WindowInsets.navigationBars
+            .asPaddingValues()
+            .calculateBottomPadding()
+        val capsuleHeight = 52.dp
+        val miniPlayerGap = 6.dp  // gap between mini player bottom and nav bar top
+        val navBarCenterFromBottom = configuration.screenHeightDp.dp * (1f - tabYFrac)
+        val navBarTopFromBottom = navBarCenterFromBottom + (capsuleHeight / 2)
+        val miniPlayerBottomFromScreenBottom = navBarTopFromBottom + miniPlayerGap
+        val miniPlayerPaddingBottom = (miniPlayerBottomFromScreenBottom - systemNavInset)
+            .coerceAtLeast(0.dp)
+
         AnimatedVisibility(
             visible = currentSongTitle != null,
             enter = slideInVertically { it } + fadeIn(),
@@ -344,7 +371,7 @@ fun HomeScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(bottom = 108.dp)
+                .padding(bottom = miniPlayerPaddingBottom)
         ) {
             MiniPlayer(
                 title = currentSongTitle ?: "",

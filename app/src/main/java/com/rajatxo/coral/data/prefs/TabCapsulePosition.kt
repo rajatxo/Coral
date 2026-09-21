@@ -10,24 +10,29 @@ import kotlinx.coroutines.flow.asStateFlow
  * Persists the nav bar (TabCapsule) position across app restarts.
  *
  * Position is stored as fractions of screen size (0..1 for both X and Y).
- * Default: X = 0.5 (centered), Y = 0.87 (near the very bottom edge,
- * BELOW the mini player with a 10dp gap).
+ * Default: X = 0.5 (centered), Y = 0.91 (near the very bottom edge,
+ * closer to the system nav buttons than before).
  *
- * Stacked vertical layout:
- *   search FAB (Y≈0.65)  ← above
- *   mini player (fixed)  ← middle, padding(bottom=108dp)
- *   nav bar (Y≈0.87)     ← below, 10dp gap below the mini player
+ * Layout (mini player TRACKS the nav bar — no longer fixed):
+ *   search FAB            ← independent, draggable
+ *   mini player           ← dynamic, sits a fixed 6dp above the nav bar
+ *   nav bar (Y≈0.91)      ← draggable, default closer to system nav
  *
- * The mini player position is FIXED (not draggable) — only the search
- * FAB and nav bar can be dragged. The nav bar's default Y is tuned so
- * that on a typical 780dp screen the gap between the mini player's
- * bottom edge (~132dp from screen bottom) and the nav bar's top edge
- * is exactly 10dp.
+ * Why 0.91 (was 0.87):
+ *   On a 780dp screen, capsule center at Y=0.91 = 780 * (1-0.91) = 70dp
+ *   from bottom. Capsule is 52dp tall → bottom edge at 70-26 = 44dp
+ *   from screen bottom. With gesture nav (~24dp), gap to system nav
+ *   ≈ 20dp. Was 51dp at Y=0.87. Tighter, but not cramped.
  *
- * Math: 132 - 10 = 122dp (nav bar top). Nav bar is 52dp tall, so its
- * center sits at 122 - 26 = 96dp from bottom. Y = 1 - (96/780) ≈ 0.877.
+ * Mini player tracking math (in HomeScreen.kt):
+ *   navBarTopFromBottom = screenHeight * (1 - yFrac) + 26dp
+ *   miniPlayerBottom    = navBarTopFromBottom + 6dp  (gap)
+ *   .padding(bottom = miniPlayerBottom - systemNavInset)
  *
- * NOTE: Keys are versioned (_v5) so changes to defaults are picked up
+ * When the user drags the nav bar, the mini player recomposes and
+ * follows — same 6dp gap maintained at all times.
+ *
+ * NOTE: Keys are versioned (_v6) so changes to defaults are picked up
  * by existing users who have stale saved positions from the old layout.
  *
  * Same pattern as SearchFabPosition — SharedPreferences backed,
@@ -35,10 +40,10 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 object TabCapsulePosition {
     private const val PREFS_NAME = "coral_prefs"
-    private const val KEY_X = "tab_capsule_x_v5"
-    private const val KEY_Y = "tab_capsule_y_v5"
+    private const val KEY_X = "tab_capsule_x_v6"
+    private const val KEY_Y = "tab_capsule_y_v6"
     private const val DEFAULT_X = 0.5f
-    private const val DEFAULT_Y = 0.87f
+    private const val DEFAULT_Y = 0.91f
 
     private lateinit var prefs: android.content.SharedPreferences
 
