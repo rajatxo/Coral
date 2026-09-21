@@ -66,6 +66,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
@@ -1068,10 +1069,9 @@ private fun SpeedDialPinCapsule(
         exit = androidx.compose.animation.fadeOut(
             animationSpec = tween(300)
         ),
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+        modifier = Modifier.fillMaxSize()
     ) {
-        // Dim the card behind the capsule
+        // Dim the card behind the capsule + center the capsule
         Box(
             modifier = Modifier
                 .fillMaxSize()
