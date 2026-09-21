@@ -226,7 +226,7 @@ fun QuickPicksScreen(
                 start = 20.dp,
                 end = 20.dp
             ),
-            verticalArrangement = Arrangement.spacedBy(28.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             // ═══ Speed Dial (first row) ═══
             // A paginated grid of square song cards + a "randomize" dice
@@ -901,7 +901,7 @@ private fun SpeedDialSection(
             pagerState = pagerState,
             modifier = Modifier
                 .align(Alignment.CenterHorizontally)
-                .padding(top = 8.dp)
+                .padding(top = 4.dp)
         )
     }
 }
@@ -940,14 +940,18 @@ private fun LiquidBarPageIndicator(
     // Continuous float: 0.0 = page 0, 1.0 = page 1, 0.5 = halfway swipe
     val scrollPosition = currentPage + offsetFraction
 
-    // ─── Animated flow — gradient shifts left-to-right, loops ─────────
+    // ─── Animated flow — gradient shifts left↔right, loops without snap ──
+    // Restart + LinearEasing causes a visible snap when the value resets
+    // from 1.0 → 0.0 on every loop. Reverse + FastOutSlowInEasing gives
+    // a buttery back-and-forth motion: gradient flows left, decelerates,
+    // reverses, flows right, decelerates, reverses again. Never snaps.
     val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "liquidFlow")
     val flowOffset by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2800, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
+            animation = tween(3200, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
         ),
         label = "flowOffset"
     )
