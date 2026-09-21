@@ -25,7 +25,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import com.rajatxo.coral.ui.components.LeavesOverlay
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -94,7 +93,6 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.vibrancy
 import com.rajatxo.coral.domain.model.Song
-import com.rajatxo.coral.ui.components.WindRefreshIndicator
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
 import com.rajatxo.coral.ui.theme.QuirkFontFamily
@@ -240,10 +238,7 @@ fun QuickPicksScreen(
         onRefresh = {
             // Refresh the Quick Picks page: bump refreshKey, which rolls
             // a new launchSeed → new heroSongs/recentSongs/moreSongs
-            // selections. Hold the refreshing state for ~900ms so the
-            // wind streaks are visibly in motion (otherwise the seed
-            // bump is instant and the indicator snaps away too fast
-            // to register visually).
+            // selections.
             isRefreshing = true
             refreshKey++
             scope.launch {
@@ -259,22 +254,7 @@ fun QuickPicksScreen(
                 Brush.verticalGradient(
                     colors = listOf(animatedTop, animatedMid, animatedBottom)
                 )
-            ),
-        indicator = {
-            // Wind indicator positioned just below the fixed header
-            // (HomeScreen's glass header covers y=0..120dp). Drawing the
-            // wind at y=0 would hide it entirely behind the header's blur.
-            // y=120dp places it in the LazyColumn's top content-padding
-            // area (which is empty), so streaks are visible without
-            // overlapping song cards.
-            WindRefreshIndicator(
-                progress = ptrState.distanceFraction,
-                isRefreshing = isRefreshing,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .offset(y = 120.dp)
             )
-        }
     ) {
         LazyColumn(
             modifier = Modifier
@@ -367,19 +347,6 @@ fun QuickPicksScreen(
                 }
             }
         }
-
-        // ═══ Falling ginkgo leaves overlay (Ghost of Yotei inspired) ═══
-        // Drawn AFTER the LazyColumn so it sits ON TOP in Z-order —
-        // otherwise the LazyColumn's cards would cover the leaves.
-        // Pure Canvas overlay — no nestedScroll, no pointerInput — so it
-        // never conflicts with PullToRefreshBox's pull detection or the
-        // LazyColumn's scroll. PullToRefreshBox above this layer detects
-        // the pull, this layer just renders the leaves.
-        LeavesOverlay(
-            progress = ptrState.distanceFraction,
-            isRefreshing = isRefreshing,
-            modifier = Modifier.fillMaxSize()
-        )
     }
 }
 

@@ -48,7 +48,6 @@ import coil3.compose.AsyncImage
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.components.SleepTimerCapsule
-import com.rajatxo.coral.ui.components.WindRefreshIndicator
 import com.rajatxo.coral.ui.icons.CoralIcons
 import kotlinx.coroutines.launch
 
@@ -122,22 +121,7 @@ fun SongsScreen(
                 }
             },
             state = ptrState,
-            modifier = Modifier.fillMaxSize(),
-            indicator = {
-                // Wind indicator positioned just below the pinned header
-                // (header covers y=0..170dp with solid black + wavy fade).
-                // Drawing the wind at y=0 would hide it entirely behind
-                // the header. y=170dp places it in the LazyColumn's top
-                // content-padding area (which is empty), so streaks are
-                // visible without overlapping song rows.
-                WindRefreshIndicator(
-                    progress = ptrState.distanceFraction,
-                    isRefreshing = isRefreshing,
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .offset(y = 170.dp)
-                )
-            }
+            modifier = Modifier.fillMaxSize()
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
