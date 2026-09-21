@@ -874,12 +874,13 @@ private fun SpeedDialSection(
             fontWeight = FontWeight.SemiBold,
             fontFamily = CalSansFamily
         )
-        // Chevron right beside the text (no spacer, no weight)
+        // Chevron right beside the text (no spacer, no weight).
+        // 20dp — thicker to match the title's visual weight (was 16dp).
         Icon(
             imageVector = CoralIcons.ChevronRight,
             contentDescription = null,
             tint = textSecondary,
-            modifier = Modifier.size(16.dp)
+            modifier = Modifier.size(20.dp)
         )
     }
 
@@ -1528,27 +1529,36 @@ private fun SectionHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = title,
-            color = textPrimary,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.SemiBold,
-            fontFamily = CalSansFamily
-        )
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        // Title + chevron beside it (left side).
+        // Matches the Speed dial header layout: title, then chevron right,
+        // no spacer between them.
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
-                text = "$count",
-                color = textSecondary,
-                fontSize = 14.sp,
+                text = title,
+                color = textPrimary,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
                 fontFamily = CalSansFamily
             )
-            Spacer(modifier = Modifier.width(4.dp))
             Icon(
                 imageVector = CoralIcons.ChevronRight,
                 contentDescription = null,
                 tint = textSecondary,
-                modifier = Modifier.size(16.dp)
+                // 20dp — thicker to match the title's visual weight
+                // (was 16dp, felt too thin next to the 20sp title text).
+                modifier = Modifier.size(20.dp)
             )
         }
+        // Count at the extreme right (no chevron after it — chevron
+        // is now beside the title).
+        Text(
+            text = "$count",
+            color = textSecondary,
+            fontSize = 14.sp,
+            fontFamily = CalSansFamily
+        )
     }
 }
