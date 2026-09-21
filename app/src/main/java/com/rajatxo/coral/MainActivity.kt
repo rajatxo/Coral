@@ -348,6 +348,50 @@ fun CoralApp() {
         }
     }
 
+    // ─── Persistent Queue: save position on app background (#5) ──────
+    // Saves the current queue (song IDs) + current song index + playback
+    // position to SharedPreferences when the app goes to background
+    // (ON_STOP). This ensures that when the user kills the app and
+    // reopens it, the song resumes from where they left off — not from
+    // the start.
+    //
+    // We use LifecycleEventObserver instead of a periodic timer because:
+    //   • It's event-driven (no wasted CPU when the app is foreground)
+    //   • It fires at the right moment (when the user is leaving)
+    //   • It captures the actual current position at that moment
+    //
+    // The queue is ALSO saved on every song click (in onSongClick /
+    // onSongClickWithQueue below), but with position=0L. This ON_STOP
+    // save captures the LIVE position so it survives a mid-song kill.
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(mediaController, lifecycleOwner) {
+        val controller = mediaController ?: return@DisposableEffect onDispose { }
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
+                // Save the current queue + position.
+                // Player interface doesn't expose getMediaItems() as a List
+                // in Media3 1.5.1 — only getMediaItemAt(index) + getMediaItemCount().
+                // We iterate to build the list of song IDs.
+                val player: Player = controller
+                val itemCount = player.mediaItemCount
+                if (itemCount > 0) {
+                    val songIds = (0 until itemCount).mapNotNull {
+                        player.getMediaItemAt(it).mediaId.toLongOrNull()
+                    }
+                    val currentIndex = player.currentMediaItemIndex
+                    val position = player.currentPosition.coerceAtLeast(0L)
+                    com.rajatxo.coral.data.prefs.PlaybackPrefs.saveQueue(
+                        songIds, currentIndex, position
+                    )
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
     // When user grants permissions via PermissionScreen, scan music in the
     // background — no loading screen. HomeScreen renders instantly and the
     // song list populates within ~100-200ms as the MediaStore query returns.
