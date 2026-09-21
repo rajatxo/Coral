@@ -142,10 +142,33 @@ fun QuickPicksScreen(
             }
         }
     }
-    // Animate the gradient colors smoothly when the song changes.
-    // Low alpha values — the palette colors are just subtle hints over
-    // a dark base. The background stays predominantly dark/black so
-    // it doesn't feel bright.
+    // ─── Background gradient ─────────────────────────────────────────
+    // The background is split into TWO zones:
+    //
+    //   ZONE 1 (top, ~0-18% of screen, behind the blur header):
+    //     VIBRANT palette colors at high alpha (0.85 / 0.55). No darkening.
+    //     This makes the frosted-glass blur feel ALIVE — the vibrant
+    //     colors show through the blur, instead of a flat dark smear.
+    //
+    //   ZONE 2 (below ~18%, where the Speed Dial text sits → bottom):
+    //     The existing DARK gradient — palette colors at low alpha
+    //     (0.25 / 0.15) composited over a near-black base. This keeps
+    //     the rest of the page predominantly dark for text legibility
+    //     and the editorial gallery aesthetic.
+    //
+    // The transition happens around the speed dial header position
+    // (LazyColumn contentPadding top = 108dp ≈ 14% of a 780dp screen).
+    // Above that: vibrant. Below: dark.
+    //
+    // All colors animate smoothly when the song changes (tween 800ms).
+    val vibrantTop by animateColorAsState(
+        targetValue = palette.primary.copy(alpha = 0.85f),
+        animationSpec = tween(800), label = "bgVibrantTop"
+    )
+    val vibrantTopMid by animateColorAsState(
+        targetValue = palette.secondary.copy(alpha = 0.55f),
+        animationSpec = tween(800), label = "bgVibrantTopMid"
+    )
     val animatedTop by animateColorAsState(
         targetValue = palette.primary.copy(alpha = 0.25f),
         animationSpec = tween(800), label = "bgTop"
@@ -225,7 +248,9 @@ fun QuickPicksScreen(
     val infiniteMore = moreSongs
 
     // Solid dark base — the gradient's low-alpha palette colors composite
-    // over this, so the background is always predominantly dark/black.
+    // over this, so the background is always predominantly dark/black
+    // EXCEPT in the top zone where the vibrant colors are opaque enough
+    // to fully cover the darkBase.
     val darkBase = Color(0xFF05050A)
 
     PullToRefreshBox(
@@ -246,8 +271,19 @@ fun QuickPicksScreen(
             .fillMaxSize()
             .background(darkBase)
             .background(
+                // Multi-stop gradient: vibrant top → dark below.
+                // Stops are tuned so the vibrant zone covers the blur
+                // header area (~0-15% of screen) and transitions to the
+                // existing dark gradient by ~22% (just below the speed
+                // dial header text at y≈108dp on a 780dp screen).
                 Brush.verticalGradient(
-                    colors = listOf(animatedTop, animatedMid, animatedBottom)
+                    colorStops = arrayOf(
+                        0.0f  to vibrantTop,        // top of screen (behind blur) — vibrant
+                        0.10f to vibrantTopMid,     // still vibrant, transitioning
+                        0.18f to animatedTop,       // existing dark gradient kicks in
+                        0.55f to animatedMid,
+                        1.0f  to animatedBottom
+                    )
                 )
             )
     ) {
