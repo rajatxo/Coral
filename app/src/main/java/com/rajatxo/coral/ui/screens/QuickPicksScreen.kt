@@ -226,7 +226,7 @@ fun QuickPicksScreen(
                 start = 20.dp,
                 end = 20.dp
             ),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             // ═══ Speed Dial (first row) ═══
             // A paginated grid of square song cards + a "randomize" dice
@@ -901,7 +901,7 @@ private fun SpeedDialSection(
             pagerState = pagerState,
             modifier = Modifier
                 .align(Alignment.CenterHorizontally)
-                .padding(top = 4.dp)
+                .padding(top = 2.dp)
         )
     }
 }
