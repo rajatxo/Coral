@@ -25,7 +25,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import com.rajatxo.coral.ui.components.AutumnLeavesRefresh
+import com.rajatxo.coral.ui.components.LeavesOverlay
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -276,28 +276,29 @@ fun QuickPicksScreen(
             )
         }
     ) {
-        // ═══ Pull-to-refresh with autumn ginkgo leaves + wind lines ═══
-        // Wraps the LazyColumn so a pull-down-at-top spawns falling
-        // golden leaves + tapered wind lines that coil across the screen.
-        // On release past threshold, onRefresh fires.
-        AutumnLeavesRefresh(
-            onRefresh = {
-                // TODO: re-scan library + reload Quick Picks.
-                // For now: placeholder — the auto-reset (2.5s) handles
-                // the visual cleanup. Wire up actual refresh in a follow-up.
-            }
+        // ═══ Falling ginkgo leaves overlay (Ghost of Yotei inspired) ═══
+        // Shows when pulling down (progress > 0.1) or while refreshing.
+        // Pure Canvas overlay — no nestedScroll, no pointerInput — so it
+        // never conflicts with PullToRefreshBox's pull detection or the
+        // LazyColumn's scroll. The PullToRefreshBox above this layer
+        // detects the pull, this layer just renders the leaves.
+        LeavesOverlay(
+            progress = ptrState.distanceFraction,
+            isRefreshing = isRefreshing,
+            modifier = Modifier.fillMaxSize()
+        )
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize(),
+            contentPadding = PaddingValues(
+                top = 108.dp,      // just below where the blur ends
+                bottom = 200.dp,
+                start = 20.dp,
+                end = 20.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize(),
-                contentPadding = PaddingValues(
-                    top = 108.dp,      // just below where the blur ends
-                    bottom = 200.dp,
-                    start = 20.dp,
-                    end = 20.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
             // ═══ Speed Dial (first row) ═══
             // A paginated grid of square song cards + a "randomize" dice
             // button as the last slot. Tap a card to play that song.
@@ -376,7 +377,6 @@ fun QuickPicksScreen(
                         )
                     }
                 }
-            }
             }
         }
     }
