@@ -884,14 +884,20 @@ private fun SpeedDialSection(
             }
         }
 
-        // ═══ Liquid blob page indicator ═══
-        // 3 blobs below the grid. As you swipe, the active blob physically
-        // merges into the next blob like liquid (stretching into a pill
-        // between them). When the swipe completes, the merged blob snaps
-        // into the target, which is now bright coral.
-        // Tracks pagerState.currentPage + currentPageOffsetFraction for
-        // real-time finger tracking during swipe.
-        LiquidBlobPageIndicator(
+        // ═══ Liquid bar page indicator ═══
+        // 3 bars below the grid. The active bar has a flowing animated
+        // gradient (coral → orange → pink, cycling per page) that moves
+        // left-to-right over time. Inactive bars are dim gray.
+        //
+        // Both ends of the row fade to transparent — the leftmost bar's
+        // left edge and the rightmost bar's right edge "blend into the
+        // screen", no hard edges.
+        //
+        // As you swipe between pages, the gradient cycle shifts: page 0
+        // shows the coral→orange phase, page 1 shows orange→pink,
+        // page 2 shows pink→coral. The gradient's POSITION follows
+        // the page.
+        LiquidBarPageIndicator(
             pagerState = pagerState,
             modifier = Modifier
                 .align(Alignment.CenterHorizontally)
@@ -901,120 +907,155 @@ private fun SpeedDialSection(
 }
 
 // ════════════════════════════════════════════════════════════════════
-// LIQUID BLOB PAGE INDICATOR — 3 blobs that merge like liquid on swipe
+// LIQUID BAR PAGE INDICATOR — flowing-gradient bars that fade at both ends
 // ════════════════════════════════════════════════════════════════════
-// 3 blobs sit in a row below the Speed Dial grid. The active blob is
-// bright coral; inactive blobs are dull gray.
+// Three thin bars (rounded pills) sit in a row below the Speed Dial grid.
 //
-// As you swipe, the active blob physically MERGES into the next blob:
-//   • The space between them fills with a "bridge" of color
-//   • The bridge stretches from the active blob toward the target
-//   • When the swipe completes, the merged shape snaps into the target
+// Why this looks "liquid", not just another dot indicator:
+//   1. ANIMATED GRADIENT — the active bar's gradient FLOWS left-to-right
+//      continuously, never static. Uses rememberInfiniteTransition.
+//   2. PAGE-DRIVEN COLOR CYCLE — each bar gets its own gradient pair
+//      from the palette. Page 0 = coral→orange, page 1 = orange→pink,
+//      page 2 = pink→coral. As the active page changes, the gradient
+//      you see is different.
+//   3. EDGE FADE — the whole row fades to transparent at both ends
+//      via a BlendMode.DstOut mask. The leftmost bar's left edge and
+//      the rightmost bar's right edge "blend into the screen".
+//   4. ACTIVITY-WEIGHTED OPACITY — when a bar is far from the current
+//      scroll position, its alpha drops so the active one stands out.
 //
-// Implementation:
-//   • Drawn on a Canvas for smooth liquid-like shapes
-//   • Uses pagerState.currentPage + currentPageOffsetFraction for
-//     real-time finger tracking (the blob follows your finger)
-//   • The "bridge" is a rounded rectangle connecting the two blobs,
-//     whose width grows/shrinks with the swipe progress
-//   • Color interpolates from coral (active) to gray (target) across
-//     the bridge for a smooth transition
+// All drawn on a single Canvas — no nested Boxes, no overlays outside.
 // ════════════════════════════════════════════════════════════════════
 
 @Composable
-private fun LiquidBlobPageIndicator(
+private fun LiquidBarPageIndicator(
     pagerState: androidx.compose.foundation.pager.PagerState,
     modifier: Modifier = Modifier
 ) {
     val pageCount = pagerState.pageCount
-    if (pageCount <= 1) return  // no indicator for single page
+    if (pageCount <= 1) return
 
-    // Read current page + swipe progress in real-time.
-    // currentPageOffsetFraction: 0.0 = settled on a page,
-    // negative = swiping toward next page, positive = toward previous.
     val currentPage = pagerState.currentPage
     val offsetFraction = pagerState.currentPageOffsetFraction
-
-    // The "scroll position" — a continuous float representing where we
-    // are in the swipe. E.g. 0.0 = page 0, 1.0 = page 1, 0.5 = halfway.
+    // Continuous float: 0.0 = page 0, 1.0 = page 1, 0.5 = halfway swipe
     val scrollPosition = currentPage + offsetFraction
 
-    val activeColor = Color(0xFFFF6B6B)   // coral
-    val inactiveColor = Color.White.copy(alpha = 0.3f)
+    // ─── Animated flow — gradient shifts left-to-right, loops ─────────
+    val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "liquidFlow")
+    val flowOffset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2800, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "flowOffset"
+    )
+
+    // ─── Per-page color cycle ────────────────────────────────────────
+    // Page 0 → coral→orange,  page 1 → orange→pink,  page 2 → pink→coral
+    val palette = listOf(
+        Color(0xFFFF6B6B),  // coral
+        Color(0xFFFFB36B),  // orange
+        Color(0xFFFF6BE5),  // pink
+        Color(0xFFFF6B6B)   // back to coral (seamless loop)
+    )
 
     Canvas(
         modifier = modifier
-            .width(72.dp)
-            .height(16.dp)
+            .width(120.dp)
+            .height(6.dp)
+            // Offscreen layer is required for BlendMode.DstOut to work —
+            // without it, the edge-fade mask would punch a hole through
+            // the entire screen instead of just through the bars.
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
     ) {
-        val blobRadius = size.minDimension / 2f  // 8dp radius (16dp diameter)
-        val blobSpacing = size.width / pageCount  // even spacing across the canvas
-        val centerY = size.height / 2f
+        val slotWidth = size.width / pageCount
+        val barWidth = slotWidth * 0.7f           // each bar is 70% of its slot
+        val barHeight = size.height
+        val gap = (slotWidth - barWidth) / 2f
+        val cornerRadius = androidx.compose.ui.geometry.CornerRadius(barHeight / 2f, barHeight / 2f)
 
-        // Draw the blobs
+        // (1) DRAW ALL BARS ─────────────────────────────────────────────
         for (i in 0 until pageCount) {
-            val centerX = blobSpacing * (i + 0.5f)
-            // Distance from this blob to the current scroll position
+            val barLeft = slotWidth * i + gap
+            val barRight = barLeft + barWidth
+
+            // Distance from this bar to the current scroll position.
+            // 0.0 = this is the active bar, 1.0+ = far away.
             val distance = kotlin.math.abs(i - scrollPosition)
-            // Color: full active when distance=0, fades to inactive as distance→1
-            val t = distance.coerceIn(0f, 1f)
-            val color = lerpColor(activeColor, inactiveColor, t)
+            val activity = (1f - distance.coerceIn(0f, 1f)).coerceIn(0f, 1f)
 
-            drawCircle(
-                color = color,
-                radius = blobRadius,
-                center = androidx.compose.ui.geometry.Offset(centerX, centerY)
+            // The bar's gradient colors — each bar gets a different pair
+            // from the palette, so as you swipe, the active gradient is
+            // different on each page.
+            val c1 = palette[i % palette.size]
+            val c2 = palette[(i + 1) % palette.size]
+
+            // The animated gradient position — shifts left-to-right over
+            // time, then snaps back (RepeatMode.Restart) to loop seamlessly.
+            // 3-stop gradient (c1, c2, c1) so the loop has no visible seam.
+            val shift = flowOffset * barWidth     // 0 → barWidth over the 2800ms cycle
+            val barBrush = Brush.horizontalGradient(
+                colors = listOf(c1, c2, c1),
+                startX = barLeft - shift,
+                endX = barRight - shift + barWidth  // gradient is 2x bar width so it slides visibly
             )
-        }
 
-        // Draw the liquid "bridge" between blobs during a swipe.
-        // The bridge connects the two blobs that are being merged.
-        // scrollPosition is a float like 0.7 (swiping from page 0 to 1).
-        // The fractional part tells us the merge progress.
-        val fromPage = kotlin.math.floor(scrollPosition.toDouble()).toInt()
-        val toPage = fromPage + 1
-        val mergeProgress = scrollPosition - fromPage  // 0.0 → 1.0
+            // Activity-modulated alpha — active bar is fully opaque,
+            // inactive bars fade down. Drives the visual "spotlight"
+            // effect on the current page.
+            val drawAlpha = 0.25f + 0.75f * activity
 
-        if (toPage in 0 until pageCount && mergeProgress > 0f && mergeProgress < 1f) {
-            val fromX = blobSpacing * (fromPage + 0.5f)
-            val toX = blobSpacing * (toPage + 0.5f)
-            // The bridge fills from `fromX` toward `toX` based on mergeProgress
-            val bridgeLeft = fromX
-            val bridgeRight = fromX + (toX - fromX) * mergeProgress
-            val bridgeWidth = bridgeRight - bridgeLeft
-            val bridgeCenterX = (bridgeLeft + bridgeRight) / 2f
-
-            // Bridge color: coral fading toward the target
-            val bridgeColor = lerpColor(activeColor, inactiveColor, mergeProgress)
-
-            // Draw the bridge as a rounded rectangle (pill shape)
             drawRoundRect(
-                color = bridgeColor,
-                topLeft = androidx.compose.ui.geometry.Offset(
-                    bridgeCenterX - bridgeWidth / 2f,
-                    centerY - blobRadius * 0.6f
-                ),
-                size = androidx.compose.ui.geometry.Size(
-                    bridgeWidth,
-                    blobRadius * 1.2f
-                ),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(
-                    blobRadius * 0.6f,
-                    blobRadius * 0.6f
-                )
+                brush = barBrush,
+                topLeft = androidx.compose.ui.geometry.Offset(barLeft, 0f),
+                size = androidx.compose.ui.geometry.Size(barWidth, barHeight),
+                cornerRadius = cornerRadius,
+                alpha = drawAlpha
             )
-        }
-    }
-}
 
-/** Linear interpolation between two Colors. */
-private fun lerpColor(start: Color, end: Color, t: Float): Color {
-    return Color(
-        red = start.red + (end.red - start.red) * t,
-        green = start.green + (end.green - start.green) * t,
-        blue = start.blue + (end.blue - start.blue) * t,
-        alpha = start.alpha + (end.alpha - start.alpha) * t
-    )
+            // Subtle inner highlight on active bar — a thin lighter
+            // stripe along the top edge to make it feel "glassy"
+            if (activity > 0.5f) {
+                drawRoundRect(
+                    color = Color.White.copy(alpha = 0.15f * (activity - 0.5f) * 2f),
+                    topLeft = androidx.compose.ui.geometry.Offset(barLeft, 0f),
+                    size = androidx.compose.ui.geometry.Size(barWidth, barHeight * 0.5f),
+                    cornerRadius = cornerRadius
+                )
+            }
+        }
+
+        // (2) APPLY EDGE FADE MASK ──────────────────────────────────────
+        // The whole row fades to transparent at both ends. We achieve
+        // this by drawing a horizontal-gradient rect that is opaque
+        // (Color.Black, alpha=1) at the left and right edges, and
+        // transparent in the middle, using BlendMode.DstOut.
+        //
+        // DstOut subtracts the source (our mask) from the destination
+        // (the bars already drawn). Where the mask is opaque, the bars
+        // become fully transparent → "blend into the screen" effect.
+        //
+        // Requires CompositingStrategy.OffscreenLayer (set above),
+        // otherwise DstOut would punch through the entire screen.
+        val edgeFadeBrush = Brush.horizontalGradient(
+            colorStops = arrayOf(
+                0.00f to Color.Black,            // opaque cover at left
+                0.08f to Color.Black,            // solid up to 8%
+                0.20f to Color.Transparent,      // fades out by 20%
+                0.80f to Color.Transparent,      // stays clear until 80%
+                0.92f to Color.Black,            // fades back in
+                1.00f to Color.Black             // opaque cover at right
+            )
+        )
+        drawRect(
+            brush = edgeFadeBrush,
+            topLeft = androidx.compose.ui.geometry.Offset.Zero,
+            size = size,
+            blendMode = BlendMode.DstOut
+        )
+    }
 }
 
 // ════════════════════════════════════════════════════════════════════
