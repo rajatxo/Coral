@@ -110,6 +110,24 @@ class SimpleCrossfadeController(
                 outgoing.getMediaItemAt(it)
             }
 
+            // ─── Sync the standby player's repeat mode with the active ──
+            // BUG: After a crossfade handoff, the standby player becomes
+            // the new active player. If the standby's repeatMode wasn't
+            // synced, it would have the default (REPEAT_MODE_OFF). This
+            // caused loop-one to break after a manual skip:
+            //   • Song 1 loops fine (active has REPEAT_MODE_ONE)
+            //   • User taps next → Song 2 plays on the same player
+            //   • If that player was the former standby (REPEAT_MODE_OFF),
+            //     the crossfade reads OFF → advances to Song 3
+            //   • After that handoff, the other player (REPEAT_MODE_ONE)
+            //     becomes active → Song 3 loops fine
+            //   • Pattern: every other song loops
+            //
+            // Fix: sync the standby's repeatMode BEFORE loading media.
+            // This ensures both players always have the same repeat mode,
+            // so the crossfade always reads the correct one.
+            incoming.repeatMode = outgoing.repeatMode
+
             incoming.setMediaItems(mediaItems, nextIndex, 0)
             incoming.prepare()
             incoming.volume = 0f
