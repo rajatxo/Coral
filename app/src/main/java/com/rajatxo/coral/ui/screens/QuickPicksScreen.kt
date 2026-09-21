@@ -276,18 +276,6 @@ fun QuickPicksScreen(
             )
         }
     ) {
-        // ═══ Falling ginkgo leaves overlay (Ghost of Yotei inspired) ═══
-        // Shows when pulling down (progress > 0.1) or while refreshing.
-        // Pure Canvas overlay — no nestedScroll, no pointerInput — so it
-        // never conflicts with PullToRefreshBox's pull detection or the
-        // LazyColumn's scroll. The PullToRefreshBox above this layer
-        // detects the pull, this layer just renders the leaves.
-        LeavesOverlay(
-            progress = ptrState.distanceFraction,
-            isRefreshing = isRefreshing,
-            modifier = Modifier.fillMaxSize()
-        )
-
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize(),
@@ -379,6 +367,19 @@ fun QuickPicksScreen(
                 }
             }
         }
+
+        // ═══ Falling ginkgo leaves overlay (Ghost of Yotei inspired) ═══
+        // Drawn AFTER the LazyColumn so it sits ON TOP in Z-order —
+        // otherwise the LazyColumn's cards would cover the leaves.
+        // Pure Canvas overlay — no nestedScroll, no pointerInput — so it
+        // never conflicts with PullToRefreshBox's pull detection or the
+        // LazyColumn's scroll. PullToRefreshBox above this layer detects
+        // the pull, this layer just renders the leaves.
+        LeavesOverlay(
+            progress = ptrState.distanceFraction,
+            isRefreshing = isRefreshing,
+            modifier = Modifier.fillMaxSize()
+        )
     }
 }
 
