@@ -445,6 +445,7 @@ fun HomeScreen(
                     if (isPlaying) onPlayPauseClick()
                     miniPlayerDismissed = true
                 },
+                isFullPlayerOpen = showFullPlayer,
                 backdrop = glassBackdrop
             )
         }
@@ -970,6 +971,7 @@ private fun MiniPlayer(
     onClick: () -> Unit,
     onSwipeUp: () -> Unit = {},
     onSwipeDismiss: () -> Unit = {},
+    isFullPlayerOpen: Boolean = false,
     backdrop: LayerBackdrop? = null
 ) {
     // Notched mini player — pill with a U-shaped concave notch at the
@@ -1023,6 +1025,28 @@ private fun MiniPlayer(
     // The mini player fades out as it approaches this cap, so by 60dp up
     // it's fully dissolved — the full player then opens.
     val maxSwipeUpPx = with(density) { 60.dp.toPx() }
+
+    // ─── Reset offsets when the full player closes ──────────────────
+    // When the user swipes up to open the full player, the mini player
+    // fades away (offsetY animates up + alpha fades). We DON'T reset
+    // offsetY to 0 immediately — that would cause a "splash" flash
+    // (mini player snapping back to position before the full player
+    // covers it).
+    //
+    // Instead, we leave offsetY at the faded position while the full
+    // player is open (the mini player is invisible anyway — it's under
+    // the full player). When the full player CLOSES (isFullPlayerOpen
+    // goes true → false), this LaunchedEffect fires and resets offsetY
+    // to 0 so the mini player reappears at its normal position.
+    androidx.compose.runtime.LaunchedEffect(isFullPlayerOpen) {
+        if (!isFullPlayerOpen) {
+            scope.launch {
+                offsetY.snapTo(0f)
+                offsetX.snapTo(0f)
+                scale.snapTo(1f)
+            }
+        }
+    }
 
     // Drag direction lock — once the drag exceeds the threshold, we
     // commit to either HORIZONTAL (dismiss) or VERTICAL (expand).
@@ -1113,11 +1137,23 @@ private fun MiniPlayer(
                                     // Animate the mini player fading away smoothly,
                                     // then open the full player. The 200ms tween gives
                                     // a buttery dissolve before the player opens.
+                                    //
+                                    // NOTE: Do NOT reset offsetY to 0 here. The mini
+                                    // player stays translated up (invisible) while
+                                    // the full player is open. When the full player
+                                    // closes, the LaunchedEffect(isFullPlayerOpen)
+                                    // above resets offsetY to 0 so the mini player
+                                    // reappears at its normal position.
+                                    //
+                                    // Previously, offsetY.snapTo(0f) here caused a
+                                    // "splash" flash — the mini player snapped back
+                                    // to position before the full player had fully
+                                    // covered the screen.
                                     scope.launch {
                                         offsetY.animateTo(-maxSwipeUpPx * 2f, tween(200))
                                         onSwipeUp()
-                                        delay(50)
-                                        offsetY.snapTo(0f)
+                                        // Don't reset offsetY — the LaunchedEffect
+                                        // handles it when the full player closes.
                                     }
                                 } else {
                                     // Not enough swipe → spring back
