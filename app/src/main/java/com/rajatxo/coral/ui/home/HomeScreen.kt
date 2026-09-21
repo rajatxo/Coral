@@ -1073,6 +1073,10 @@ private fun MiniPlayer(
                 }
 
                 // --- Title + artist ---
+                // Both use CalSans (the same display font used elsewhere in
+                // Coral for headings) — gives the mini player a distinctive
+                // typographic identity, matching the rest of the app's
+                // display type. Was the system default FontFamily before.
                 Column(
                     modifier = Modifier.weight(1f).padding(horizontal = 12.dp)
                 ) {
@@ -1081,6 +1085,7 @@ private fun MiniPlayer(
                         color = Color.White,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Medium,
+                        fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -1088,6 +1093,7 @@ private fun MiniPlayer(
                         text = artist,
                         color = Color.White.copy(alpha = 0.7f),
                         fontSize = 12.sp,
+                        fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
