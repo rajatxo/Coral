@@ -293,58 +293,94 @@ fun CoralApp() {
         }
     }
 
-    // ─── Bluetooth resume receiver (#6) ──────────────────────────────
+    // ─── Bluetooth resume (#6) ──────────────────────────────────────
     // When the "Resume when connected to Bluetooth" toggle is ON:
-    //   • BT device connects → if a song is loaded but paused, resume
-    //   • BT device disconnects → if playing, pause
+    //   • Audio device connects → if a song is loaded but paused, resume
+    //   • Audio device disconnects → if playing, pause
     //
-    // Uses a BroadcastReceiver for ACTION_ACL_CONNECTED and
-    // ACTION_ACL_DISCONNECTED. Registered/unregistered via DisposableEffect
-    // so it only runs while the Activity is alive (avoids leaking the
-    // receiver after the Activity is destroyed).
+    // Implementation uses TWO mechanisms for reliability:
     //
-    // The receiver reads the toggle state at fire-time (not at register-
-    // time) so toggling the setting in Settings doesn't require re-
-    // registering the receiver.
+    //   1. AudioDeviceCallback (API 23+) — the official way to listen
+    //      for audio device changes. No permission required. Fires for
+    //      Bluetooth, wired headphones, USB audio — any audio device.
+    //      This is the primary mechanism. The previous BroadcastReceiver
+    //      using ACTION_ACL_CONNECTED/DISCONNECTED didn't fire on
+    //      reconnect on Android 12+ (needs BLUETOOTH_CONNECT runtime
+    //      permission, which the app doesn't request).
+    //
+    //   2. ACTION_AUDIO_BECOMING_NOISY — fires when audio is about to
+    //      become noisy (e.g. headphone unplugged, BT disconnected).
+    //      This is the backup disconnect signal — covers cases where
+    //      AudioDeviceCallback's onAudioDevicesRemoved might not fire
+    //      (rare, but possible during system audio routing changes).
+    //
+    // Both mechanisms check the toggle state at fire-time (not register-
+    // time), so toggling the setting in Settings doesn't require re-
+    // registering.
     DisposableEffect(mediaController) {
         val controller = mediaController ?: return@DisposableEffect onDispose { }
+        val audioManager = context.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
 
-        val receiver = object : android.content.BroadcastReceiver() {
-            override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
+        // --- 1. AudioDeviceCallback (primary, API 23+) ---
+        // android.media.AudioDeviceCallback is a top-level class (not
+        // nested in AudioManager). The fully-qualified name is
+        // android.media.AudioDeviceCallback.
+        val deviceCallback = object : android.media.AudioDeviceCallback() {
+            override fun onAudioDevicesAdded(addedDevices: Array<android.media.AudioDeviceInfo>?) {
                 val enabled = com.rajatxo.coral.data.prefs.PlaybackPrefs.bluetoothResumeEnabled.value
                 if (!enabled) return
-
-                when (intent?.action) {
-                    android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED -> {
-                        // BT device connected → resume if paused
-                        if (controller.isPlaying.not() && controller.currentMediaItem != null) {
-                            controller.play()
-                        }
+                // Check if any ADDED device is a Bluetooth A2DP type.
+                // TYPE_BLUETOOTH_A2DP = high-quality audio streaming.
+                val hasBluetooth = addedDevices?.any {
+                    it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+                } == true
+                if (hasBluetooth) {
+                    // BT device connected → resume if paused + has a song loaded
+                    if (!controller.isPlaying && controller.currentMediaItem != null) {
+                        controller.play()
                     }
-                    android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
-                        // BT device disconnected → pause if playing
-                        if (controller.isPlaying) {
-                            controller.pause()
-                        }
+                }
+            }
+
+            override fun onAudioDevicesRemoved(removedDevices: Array<android.media.AudioDeviceInfo>?) {
+                val enabled = com.rajatxo.coral.data.prefs.PlaybackPrefs.bluetoothResumeEnabled.value
+                if (!enabled) return
+                val hasBluetooth = removedDevices?.any {
+                    it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+                } == true
+                if (hasBluetooth) {
+                    // BT device disconnected → pause if playing
+                    if (controller.isPlaying) {
+                        controller.pause()
                     }
                 }
             }
         }
+        audioManager.registerAudioDeviceCallback(deviceCallback, null)
 
-        val filter = android.content.IntentFilter().apply {
-            addAction(android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED)
-            addAction(android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED)
+        // --- 2. ACTION_AUDIO_BECOMING_NOISY (backup disconnect signal) ---
+        val noisyReceiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(ctx: android.content.Context?, intent: android.content.Intent?) {
+                val enabled = com.rajatxo.coral.data.prefs.PlaybackPrefs.bluetoothResumeEnabled.value
+                if (!enabled) return
+                if (intent?.action == android.media.AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
+                    if (controller.isPlaying) {
+                        controller.pause()
+                    }
+                }
+            }
         }
-
+        val noisyFilter = android.content.IntentFilter(android.media.AudioManager.ACTION_AUDIO_BECOMING_NOISY)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(receiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
+            context.registerReceiver(noisyReceiver, noisyFilter, android.content.Context.RECEIVER_NOT_EXPORTED)
         } else {
             @Suppress("UnspecifiedRegisterReceiverFlag")
-            context.registerReceiver(receiver, filter)
+            context.registerReceiver(noisyReceiver, noisyFilter)
         }
 
         onDispose {
-            try { context.unregisterReceiver(receiver) } catch (_: Exception) { }
+            audioManager.unregisterAudioDeviceCallback(deviceCallback)
+            try { context.unregisterReceiver(noisyReceiver) } catch (_: Exception) { }
         }
     }
 
