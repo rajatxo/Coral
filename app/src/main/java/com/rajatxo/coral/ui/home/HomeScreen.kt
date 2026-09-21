@@ -286,10 +286,14 @@ fun HomeScreen(
         // Other tabs (Discover, Playlists, Artists, Albums) have no PTR.
         //
         // ─── Push back animation (Yuma-style) ──
-        // When the FullPlayer opens, the main content scales down slightly
-        // (0.93) and dims — like the home screen is being "pushed back" behind
-        // the player. Animated smoothly via animateFloatAsState keyed on
-        // showFullPlayer.
+        // When the FullPlayer opens, the main content dims (alpha → 0.6)
+        // — like the home screen is being "pushed back" behind the player.
+        //
+        // NOTE: Previously also scaled down (0.93x) but that exposed black
+        // bars on both sides of the screen during the animation (the
+        // scaled-down content didn't cover the full width, showing the
+        // parent's background). Removed the scale — alpha-only dimming
+        // still gives the "push back" feel without the visual glitch.
         val pushBackFraction by animateFloatAsState(
             targetValue = if (showFullPlayer) 1f else 0f,
             animationSpec = tween(350),
@@ -299,9 +303,6 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    val scale = 1f - (0.07f * pushBackFraction)
-                    scaleX = scale
-                    scaleY = scale
                     alpha = 1f - (0.4f * pushBackFraction)
                 }
                 .layerBackdrop(glassBackdrop)
@@ -1000,6 +1001,12 @@ private fun MiniPlayer(
     val offsetY = remember { Animatable(0f) }
     val scale = remember { Animatable(1f) }
 
+    // Max distance the mini player can be dragged upward (in pixels).
+    // 60dp — keeps the gesture short (no dragging all the way to the top).
+    // The mini player fades out as it approaches this cap, so by 60dp up
+    // it's fully dissolved — the full player then opens.
+    val maxSwipeUpPx = with(density) { 60.dp.toPx() }
+
     // Drag direction lock — once the drag exceeds the threshold, we
     // commit to either HORIZONTAL (dismiss) or VERTICAL (expand).
     var dragDirection: Int? by remember { mutableStateOf(null) }  // 0=H, 1=V
@@ -1012,12 +1019,18 @@ private fun MiniPlayer(
             .navigationBarsPadding()
             .graphicsLayer {
                 translationX = offsetX.value
-                translationY = offsetY.value
+                // Cap upward drag — mini player only moves up to 60dp
+                // worth of pixels. Prevents dragging it all the way to the
+                // top of the screen. Beyond that, only the fade continues.
+                translationY = offsetY.value.coerceAtLeast(-maxSwipeUpPx)
                 val s = scale.value
                 scaleX = s
                 scaleY = s
                 // Fade out as the mini player slides off-screen horizontally.
-                alpha = (1f - abs(offsetX.value) / screenWidthPx).coerceIn(0f, 1f)
+                alpha = (1f - abs(offsetX.value) / screenWidthPx).coerceIn(0f, 1f) *
+                    // For vertical: fade out as the mini player moves up,
+                    // proportional to drag distance. By 60dp up → fully faded.
+                    (1f - (abs(offsetY.value) / maxSwipeUpPx)).coerceIn(0f, 1f)
             }
             .pointerInput(Unit) {
                 detectDragGestures(
@@ -1045,8 +1058,11 @@ private fun MiniPlayer(
                             }
                             1 -> {  // VERTICAL — only follow upward drags (swipe up)
                                 if (totalDragY < 0) {
-                                    // Dampened follow — mini player moves at half the drag speed
-                                    scope.launch { offsetY.snapTo(totalDragY * 0.5f) }
+                                    // Dampened follow — mini player moves at 0.4x the drag speed
+                                    // (was 0.5x — slower, so the 60dp cap is reached with a
+                                    // more deliberate gesture). Combined with the alpha fade,
+                                    // this gives a smooth "lift up and dissolve" feel.
+                                    scope.launch { offsetY.snapTo(totalDragY * 0.4f) }
                                 }
                             }
                         }
@@ -1072,12 +1088,25 @@ private fun MiniPlayer(
                                 }
                             }
                             1 -> {  // VERTICAL
-                                if (totalDragY < -100f) {
-                                    // Swiped up past 100px → open FullPlayer
-                                    onSwipeUp()
-                                }
-                                scope.launch {
-                                    offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                                // If swiped up at least 30px → open FullPlayer.
+                                // Lower threshold than before (was 100px) — since the
+                                // visual is now a short lift + fade (not a long drag),
+                                // a smaller swipe should trigger it.
+                                if (totalDragY < -30f) {
+                                    // Animate the mini player fading away smoothly,
+                                    // then open the full player. The 200ms tween gives
+                                    // a buttery dissolve before the player opens.
+                                    scope.launch {
+                                        offsetY.animateTo(-maxSwipeUpPx * 2f, tween(200))
+                                        onSwipeUp()
+                                        delay(50)
+                                        offsetY.snapTo(0f)
+                                    }
+                                } else {
+                                    // Not enough swipe → spring back
+                                    scope.launch {
+                                        offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                                    }
                                 }
                             }
                         }
