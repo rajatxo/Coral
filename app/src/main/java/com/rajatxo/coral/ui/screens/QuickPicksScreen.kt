@@ -142,39 +142,46 @@ fun QuickPicksScreen(
             }
         }
     }
-    // ─── Background gradient ─────────────────────────────────────────
-    // The background is split into TWO zones:
+    // ─── Background gradient (single dominant color → dark) ─────────
+    // Uses ONLY the dominant palette color (palette.primary), not a mix
+    // of primary + secondary. One color, fading from vibrant at the top
+    // (behind the blur header) to near-black at the bottom.
     //
-    //   ZONE 1 (top, ~0-18% of screen, behind the blur header):
-    //     VIBRANT palette colors at high alpha (0.85 / 0.55). No darkening.
-    //     This makes the frosted-glass blur feel ALIVE — the vibrant
-    //     colors show through the blur, instead of a flat dark smear.
+    // The transition from vibrant → dark is BUTTERY SMOOTH via many
+    // closely-spaced color stops. Each stop smoothly steps the alpha
+    // down, so there's no visible "band" or hard transition line.
     //
-    //   ZONE 2 (below ~18%, where the Speed Dial text sits → bottom):
-    //     The existing DARK gradient — palette colors at low alpha
-    //     (0.25 / 0.15) composited over a near-black base. This keeps
-    //     the rest of the page predominantly dark for text legibility
-    //     and the editorial gallery aesthetic.
-    //
-    // The transition happens around the speed dial header position
-    // (LazyColumn contentPadding top = 108dp ≈ 14% of a 780dp screen).
-    // Above that: vibrant. Below: dark.
+    // Layout:
+    //   0.00 - 0.10  → vibrant (alpha 0.85)  [behind blur header]
+    //   0.10 - 0.30  → buttery smooth fade   [transition zone]
+    //   0.30 - 1.00  → dark gradient         [page content]
     //
     // All colors animate smoothly when the song changes (tween 800ms).
     val vibrantTop by animateColorAsState(
         targetValue = palette.primary.copy(alpha = 0.85f),
         animationSpec = tween(800), label = "bgVibrantTop"
     )
-    val vibrantTopMid by animateColorAsState(
-        targetValue = palette.secondary.copy(alpha = 0.55f),
-        animationSpec = tween(800), label = "bgVibrantTopMid"
+    // Mid-transition stops — same hue, progressively lower alpha.
+    // These create the "buttery" feel by stepping alpha down gradually
+    // instead of one hard jump from 0.85 → 0.25.
+    val fade1 by animateColorAsState(
+        targetValue = palette.primary.copy(alpha = 0.65f),
+        animationSpec = tween(800), label = "bgFade1"
+    )
+    val fade2 by animateColorAsState(
+        targetValue = palette.primary.copy(alpha = 0.45f),
+        animationSpec = tween(800), label = "bgFade2"
+    )
+    val fade3 by animateColorAsState(
+        targetValue = palette.primary.copy(alpha = 0.28f),
+        animationSpec = tween(800), label = "bgFade3"
     )
     val animatedTop by animateColorAsState(
-        targetValue = palette.primary.copy(alpha = 0.25f),
+        targetValue = palette.primary.copy(alpha = 0.18f),
         animationSpec = tween(800), label = "bgTop"
     )
     val animatedMid by animateColorAsState(
-        targetValue = palette.secondary.copy(alpha = 0.15f),
+        targetValue = palette.primary.copy(alpha = 0.08f),
         animationSpec = tween(800), label = "bgMid"
     )
     val animatedBottom by animateColorAsState(
@@ -271,16 +278,23 @@ fun QuickPicksScreen(
             .fillMaxSize()
             .background(darkBase)
             .background(
-                // Multi-stop gradient: vibrant top → dark below.
-                // Stops are tuned so the vibrant zone covers the blur
-                // header area (~0-15% of screen) and transitions to the
-                // existing dark gradient by ~22% (just below the speed
-                // dial header text at y≈108dp on a 780dp screen).
+                // Single dominant color → dark gradient, buttery smooth.
+                // 8 stops total — closely spaced for a continuous fade
+                // with no visible banding or hard transitions.
+                //   0.00  vibrant (0.85)   — behind blur header
+                //   0.10  fade1  (0.65)   ┐
+                //   0.15  fade2  (0.45)   │ transition zone (buttery)
+                //   0.20  fade3  (0.28)   ┘
+                //   0.30  top    (0.18)   — dark gradient kicks in
+                //   0.55  mid    (0.08)
+                //   1.00  bottom (black)
                 Brush.verticalGradient(
                     colorStops = arrayOf(
-                        0.0f  to vibrantTop,        // top of screen (behind blur) — vibrant
-                        0.10f to vibrantTopMid,     // still vibrant, transitioning
-                        0.18f to animatedTop,       // existing dark gradient kicks in
+                        0.0f  to vibrantTop,
+                        0.10f to fade1,
+                        0.15f to fade2,
+                        0.20f to fade3,
+                        0.30f to animatedTop,
                         0.55f to animatedMid,
                         1.0f  to animatedBottom
                     )
