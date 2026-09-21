@@ -883,7 +883,138 @@ private fun SpeedDialSection(
                 }
             }
         }
+
+        // ═══ Liquid blob page indicator ═══
+        // 3 blobs below the grid. As you swipe, the active blob physically
+        // merges into the next blob like liquid (stretching into a pill
+        // between them). When the swipe completes, the merged blob snaps
+        // into the target, which is now bright coral.
+        // Tracks pagerState.currentPage + currentPageOffsetFraction for
+        // real-time finger tracking during swipe.
+        LiquidBlobPageIndicator(
+            pagerState = pagerState,
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .padding(top = 8.dp)
+        )
     }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// LIQUID BLOB PAGE INDICATOR — 3 blobs that merge like liquid on swipe
+// ════════════════════════════════════════════════════════════════════
+// 3 blobs sit in a row below the Speed Dial grid. The active blob is
+// bright coral; inactive blobs are dull gray.
+//
+// As you swipe, the active blob physically MERGES into the next blob:
+//   • The space between them fills with a "bridge" of color
+//   • The bridge stretches from the active blob toward the target
+//   • When the swipe completes, the merged shape snaps into the target
+//
+// Implementation:
+//   • Drawn on a Canvas for smooth liquid-like shapes
+//   • Uses pagerState.currentPage + currentPageOffsetFraction for
+//     real-time finger tracking (the blob follows your finger)
+//   • The "bridge" is a rounded rectangle connecting the two blobs,
+//     whose width grows/shrinks with the swipe progress
+//   • Color interpolates from coral (active) to gray (target) across
+//     the bridge for a smooth transition
+// ════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun LiquidBlobPageIndicator(
+    pagerState: androidx.compose.foundation.pager.PagerState,
+    modifier: Modifier = Modifier
+) {
+    val pageCount = pagerState.pageCount
+    if (pageCount <= 1) return  // no indicator for single page
+
+    // Read current page + swipe progress in real-time.
+    // currentPageOffsetFraction: 0.0 = settled on a page,
+    // negative = swiping toward next page, positive = toward previous.
+    val currentPage = pagerState.currentPage
+    val offsetFraction = pagerState.currentPageOffsetFraction
+
+    // The "scroll position" — a continuous float representing where we
+    // are in the swipe. E.g. 0.0 = page 0, 1.0 = page 1, 0.5 = halfway.
+    val scrollPosition = currentPage + offsetFraction
+
+    val activeColor = Color(0xFFFF6B6B)   // coral
+    val inactiveColor = Color.White.copy(alpha = 0.3f)
+
+    Canvas(
+        modifier = modifier
+            .width(72.dp)
+            .height(16.dp)
+    ) {
+        val blobRadius = size.minDimension / 2f  // 8dp radius (16dp diameter)
+        val blobSpacing = size.width / pageCount  // even spacing across the canvas
+        val centerY = size.height / 2f
+
+        // Draw the blobs
+        for (i in 0 until pageCount) {
+            val centerX = blobSpacing * (i + 0.5f)
+            // Distance from this blob to the current scroll position
+            val distance = kotlin.math.abs(i - scrollPosition)
+            // Color: full active when distance=0, fades to inactive as distance→1
+            val t = distance.coerceIn(0f, 1f)
+            val color = lerpColor(activeColor, inactiveColor, t)
+
+            drawCircle(
+                color = color,
+                radius = blobRadius,
+                center = androidx.compose.ui.geometry.Offset(centerX, centerY)
+            )
+        }
+
+        // Draw the liquid "bridge" between blobs during a swipe.
+        // The bridge connects the two blobs that are being merged.
+        // scrollPosition is a float like 0.7 (swiping from page 0 to 1).
+        // The fractional part tells us the merge progress.
+        val fromPage = kotlin.math.floor(scrollPosition.toDouble()).toInt()
+        val toPage = fromPage + 1
+        val mergeProgress = scrollPosition - fromPage  // 0.0 → 1.0
+
+        if (toPage in 0 until pageCount && mergeProgress > 0f && mergeProgress < 1f) {
+            val fromX = blobSpacing * (fromPage + 0.5f)
+            val toX = blobSpacing * (toPage + 0.5f)
+            // The bridge fills from `fromX` toward `toX` based on mergeProgress
+            val bridgeLeft = fromX
+            val bridgeRight = fromX + (toX - fromX) * mergeProgress
+            val bridgeWidth = bridgeRight - bridgeLeft
+            val bridgeCenterX = (bridgeLeft + bridgeRight) / 2f
+
+            // Bridge color: coral fading toward the target
+            val bridgeColor = lerpColor(activeColor, inactiveColor, mergeProgress)
+
+            // Draw the bridge as a rounded rectangle (pill shape)
+            drawRoundRect(
+                color = bridgeColor,
+                topLeft = androidx.compose.ui.geometry.Offset(
+                    bridgeCenterX - bridgeWidth / 2f,
+                    centerY - blobRadius * 0.6f
+                ),
+                size = androidx.compose.ui.geometry.Size(
+                    bridgeWidth,
+                    blobRadius * 1.2f
+                ),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(
+                    blobRadius * 0.6f,
+                    blobRadius * 0.6f
+                )
+            )
+        }
+    }
+}
+
+/** Linear interpolation between two Colors. */
+private fun lerpColor(start: Color, end: Color, t: Float): Color {
+    return Color(
+        red = start.red + (end.red - start.red) * t,
+        green = start.green + (end.green - start.green) * t,
+        blue = start.blue + (end.blue - start.blue) * t,
+        alpha = start.alpha + (end.alpha - start.alpha) * t
+    )
 }
 
 // ════════════════════════════════════════════════════════════════════
