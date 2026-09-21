@@ -72,6 +72,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.transformations
+import com.rajatxo.coral.util.BlurTransformation
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorControls
@@ -451,6 +454,7 @@ private fun SquareCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val cardShape = RoundedCornerShape(14.dp)
     Box(
         modifier = modifier
@@ -466,16 +470,21 @@ private fun SquareCard(
                 onClick = onClick
             )
     ) {
-        // ═══ Spiral 2.0-style album art blur-blend (ORIGINAL .blur() modifier) ═══
-        // Layer 1 (bottom): BLURRED album art — fills entire card
+        // ═══ Spiral 2.0-style album art blur-blend ═══
+        // Layer 1 (bottom): BLURRED album art — pre-computed via Coil
+        // BlurTransformation (cached in memory) for smooth scrolling.
         if (song.albumArtUri != null) {
+            val blurredRequest = remember(song.albumArtUri) {
+                ImageRequest.Builder(context)
+                    .data(song.albumArtUri)
+                    .transformations(BlurTransformation(36.dp))
+                    .build()
+            }
             AsyncImage(
-                model = song.albumArtUri,
+                model = blurredRequest,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .blur(36.dp)
+                modifier = Modifier.fillMaxSize()
             )
         } else {
             Box(
@@ -578,6 +587,7 @@ private fun LandscapeCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val cardShape = RoundedCornerShape(14.dp)
     Box(
         modifier = modifier
@@ -593,16 +603,21 @@ private fun LandscapeCard(
                 onClick = onClick
             )
     ) {
-        // ═══ Spiral 2.0-style album art blur-blend (ORIGINAL .blur() modifier) ═══
-        // Layer 1 (bottom): BLURRED album art — fills entire card
+        // ═══ Spiral 2.0-style album art blur-blend ═══
+        // Layer 1 (bottom): BLURRED album art — pre-computed via Coil
+        // BlurTransformation (cached in memory) for smooth scrolling.
         if (song.albumArtUri != null) {
+            val blurredRequest = remember(song.albumArtUri) {
+                ImageRequest.Builder(context)
+                    .data(song.albumArtUri)
+                    .transformations(BlurTransformation(36.dp))
+                    .build()
+            }
             AsyncImage(
-                model = song.albumArtUri,
+                model = blurredRequest,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .blur(36.dp)
+                modifier = Modifier.fillMaxSize()
             )
         } else {
             Box(
@@ -847,6 +862,7 @@ private fun SpeedDialCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val cardShape = RoundedCornerShape(8.dp)
     Box(
         modifier = modifier
@@ -862,17 +878,22 @@ private fun SpeedDialCard(
                 onClick = onClick
             )
     ) {
-        // ═══ Spiral 2.0-style album art blur-blend (ORIGINAL .blur() modifier) ═══
-        // Layer 1 (bottom): BLURRED album art — fills entire card.
+        // ═══ Spiral 2.0-style album art blur-blend ═══
+        // Layer 1 (bottom): BLURRED album art — pre-computed via Coil
+        // BlurTransformation (cached in memory) for smooth scrolling.
         // Reduced blur (20dp, was 36dp) so the cover isn't cropped too much.
         if (song.albumArtUri != null) {
+            val blurredRequest = remember(song.albumArtUri) {
+                ImageRequest.Builder(context)
+                    .data(song.albumArtUri)
+                    .transformations(BlurTransformation(20.dp))
+                    .build()
+            }
             AsyncImage(
-                model = song.albumArtUri,
+                model = blurredRequest,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .blur(20.dp)
+                modifier = Modifier.fillMaxSize()
             )
         } else {
             Box(
