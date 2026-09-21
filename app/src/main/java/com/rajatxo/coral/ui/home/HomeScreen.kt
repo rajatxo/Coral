@@ -285,6 +285,35 @@ fun HomeScreen(
         //     Same wind indicator for consistency.
         // Other tabs (Discover, Playlists, Artists, Albums) have no PTR.
         //
+        // ─── Mini player dismissed state ─────────────────────────────
+        // When the user swipes left/right on the mini player, it's
+        // dismissed (fades out + slides away) and playback pauses.
+        //
+        // The mini player reappears when:
+        //   • A new song is selected (currentSongId changes) — LaunchedEffect
+        //   • The SAME song is replayed — handled by wrapping onSongClick
+        //     below to reset miniPlayerDismissed before forwarding the call.
+        //     Without this, replaying the same song (currentSongId stays
+        //     the same) wouldn't trigger the LaunchedEffect, leaving the
+        //     mini player hidden even though the song is playing.
+        //
+        // DECLARED HERE (before the content Box) so the wrapped callbacks
+        // are in scope when the screens below use them.
+        var miniPlayerDismissed by remember { mutableStateOf(false) }
+        androidx.compose.runtime.LaunchedEffect(currentSongId) {
+            if (currentSongId != null && miniPlayerDismissed) {
+                miniPlayerDismissed = false
+            }
+        }
+        val onSongClickWithReset: (Song) -> Unit = { song ->
+            miniPlayerDismissed = false
+            onSongClick(song)
+        }
+        val onSongClickWithQueueReset: (Song, List<Song>) -> Unit = { song, queue ->
+            miniPlayerDismissed = false
+            onSongClickWithQueue(song, queue)
+        }
+
         // ─── Push back animation (Yuma-style) ──
         // When the FullPlayer opens, the main content dims (alpha → 0.6)
         // — like the home screen is being "pushed back" behind the player.
@@ -315,7 +344,7 @@ fun HomeScreen(
                     capsuleVisible = capsuleVisible,
                     capsuleRemaining = capsuleRemaining,
                     onExtend = onExtend,
-                    onSongClick = onSongClick
+                    onSongClick = onSongClickWithReset
                 )
                 CoralTab.Discover -> PlaceholderScreen(
                     tabName = "Discover",
@@ -328,7 +357,7 @@ fun HomeScreen(
                     songs = songs,
                     currentSongId = currentSongId,
                     currentSongTitle = currentSongTitle,
-                    onSongClick = onSongClick,
+                    onSongClick = onSongClickWithReset,
                     capsuleVisible = capsuleVisible,
                     capsuleRemaining = capsuleRemaining,
                     onExtend = onExtend,
@@ -388,18 +417,6 @@ fun HomeScreen(
         val miniPlayerBottomFromScreenBottom = navBarTopFromBottom + miniPlayerGap
         val miniPlayerPaddingBottom = (miniPlayerBottomFromScreenBottom - systemNavInset)
             .coerceAtLeast(0.dp)
-
-        // ─── Mini player dismissed state ─────────────────────────────
-        // When the user swipes left/right on the mini player, it's
-        // dismissed (fades out + slides away) and playback pauses.
-        // This state is reset when a new song starts (currentSongId
-        // changes) — the mini player reappears for the new song.
-        var miniPlayerDismissed by remember { mutableStateOf(false) }
-        androidx.compose.runtime.LaunchedEffect(currentSongId) {
-            if (currentSongId != null && miniPlayerDismissed) {
-                miniPlayerDismissed = false
-            }
-        }
 
         AnimatedVisibility(
             visible = currentSongTitle != null && !miniPlayerDismissed,
@@ -725,7 +742,7 @@ fun HomeScreen(
                 songs = songs,
                 onSongClick = { song ->
                     showSearch = false
-                    onSongClick(song)
+                    onSongClickWithReset(song)
                 },
                 onDismiss = { showSearch = false }
             )
@@ -869,12 +886,12 @@ fun HomeScreen(
                     allSongs = songs,
                     currentSongTitle = currentSongTitle,
                     onBackClick = { selectedPlaylist = null },
-                    onPlayAll = { songList -> onSongClickWithQueue(songList.first(), songList) },
+                    onPlayAll = { songList -> onSongClickWithQueueReset(songList.first(), songList) },
                     onShuffle = { songList ->
                         val shuffled = songList.shuffled()
-                        if (shuffled.isNotEmpty()) onSongClickWithQueue(shuffled.first(), shuffled)
+                        if (shuffled.isNotEmpty()) onSongClickWithQueueReset(shuffled.first(), shuffled)
                     },
-                    onSongClick = { song, songList -> onSongClickWithQueue(song, songList) },
+                    onSongClick = { song, songList -> onSongClickWithQueueReset(song, songList) },
                     onAddSongsClick = {
                         playlistForPicker = playlist
                         showSongPicker = true
