@@ -976,20 +976,14 @@ private fun SpeedDialSection(
             }
         }
 
-        // ═══ Liquid bar page indicator ═══
-        // 3 bars below the grid. The active bar has a flowing animated
-        // gradient (coral → orange → pink, cycling per page) that moves
-        // left-to-right over time. Inactive bars are dim gray.
+        // ═══ Page indicator — thin line with center dot showing page number ═══
+        // A short thin horizontal line with both ends fading to transparent,
+        // and a white circle (dot) centered on the line. Inside the dot,
+        // the current page number is shown (1, 2, 3).
         //
-        // Both ends of the row fade to transparent — the leftmost bar's
-        // left edge and the rightmost bar's right edge "blend into the
-        // screen", no hard edges.
-        //
-        // As you swipe between pages, the gradient cycle shifts: page 0
-        // shows the coral→orange phase, page 1 shows orange→pink,
-        // page 2 shows pink→coral. The gradient's POSITION follows
-        // the page.
-        LiquidBarPageIndicator(
+        // Replaces the previous LiquidBarPageIndicator (animated gradient
+        // bars) per user request — simpler, cleaner, more legible.
+        LineWithDotPageIndicator(
             pagerState = pagerState,
             modifier = Modifier
                 .align(Alignment.CenterHorizontally)
@@ -999,159 +993,131 @@ private fun SpeedDialSection(
 }
 
 // ════════════════════════════════════════════════════════════════════
-// LIQUID BAR PAGE INDICATOR — flowing-gradient bars that fade at both ends
+// LINE WITH DOT PAGE INDICATOR — thin line, faded ends, center dot with page number
 // ════════════════════════════════════════════════════════════════════
-// Three thin bars (rounded pills) sit in a row below the Speed Dial grid.
+// A horizontal line with:
+//   • Both ends fading to transparent (via a horizontal gradient mask)
+//   • A white filled circle centered on the line
+//   • The current page number (1-indexed) drawn inside the circle
 //
-// Why this looks "liquid", not just another dot indicator:
-//   1. ANIMATED GRADIENT — the active bar's gradient FLOWS left-to-right
-//      continuously, never static. Uses rememberInfiniteTransition.
-//   2. PAGE-DRIVEN COLOR CYCLE — each bar gets its own gradient pair
-//      from the palette. Page 0 = coral→orange, page 1 = orange→pink,
-//      page 2 = pink→coral. As the active page changes, the gradient
-//      you see is different.
-//   3. EDGE FADE — the whole row fades to transparent at both ends
-//      via a BlendMode.DstOut mask. The leftmost bar's left edge and
-//      the rightmost bar's right edge "blend into the screen".
-//   4. ACTIVITY-WEIGHTED OPACITY — when a bar is far from the current
-//      scroll position, its alpha drops so the active one stands out.
+// The line is 80dp wide × 2dp tall. The dot is 18dp diameter.
+// The dot sits centered on the line, vertically aligned.
 //
-// All drawn on a single Canvas — no nested Boxes, no overlays outside.
+// All drawn on a single Canvas with a Text overlay for the page number.
 // ════════════════════════════════════════════════════════════════════
 
 @Composable
-private fun LiquidBarPageIndicator(
+private fun LineWithDotPageIndicator(
     pagerState: androidx.compose.foundation.pager.PagerState,
     modifier: Modifier = Modifier
 ) {
     val pageCount = pagerState.pageCount
     if (pageCount <= 1) return
 
-    val currentPage = pagerState.currentPage
-    val offsetFraction = pagerState.currentPageOffsetFraction
-    // Continuous float: 0.0 = page 0, 1.0 = page 1, 0.5 = halfway swipe
-    val scrollPosition = currentPage + offsetFraction
+    // +1 because currentPage is 0-indexed, but we display 1-indexed.
+    val currentPageDisplay = (pagerState.currentPage + 1).coerceIn(1, pageCount)
 
-    // ─── Animated flow — gradient shifts left↔right, loops without snap ──
-    // Restart + LinearEasing causes a visible snap when the value resets
-    // from 1.0 → 0.0 on every loop. Reverse + FastOutSlowInEasing gives
-    // a buttery back-and-forth motion: gradient flows left, decelerates,
-    // reverses, flows right, decelerates, reverses again. Never snaps.
-    val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "liquidFlow")
-    val flowOffset by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(3200, easing = androidx.compose.animation.core.FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "flowOffset"
-    )
-
-    // ─── Per-page color cycle ────────────────────────────────────────
-    // Page 0 → coral→orange,  page 1 → orange→pink,  page 2 → pink→coral
-    val palette = listOf(
-        Color(0xFFFF6B6B),  // coral
-        Color(0xFFFFB36B),  // orange
-        Color(0xFFFF6BE5),  // pink
-        Color(0xFFFF6B6B)   // back to coral (seamless loop)
-    )
-
-    Canvas(
+    Box(
         modifier = modifier
-            .width(120.dp)
-            .height(6.dp)
-            // Offscreen layer is required for BlendMode.DstOut to work —
-            // without it, the edge-fade mask would punch a hole through
-            // the entire screen instead of just through the bars.
-            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            .width(80.dp)
+            .height(20.dp),
+        contentAlignment = Alignment.Center
     ) {
-        val slotWidth = size.width / pageCount
-        val barWidth = slotWidth * 0.7f           // each bar is 70% of its slot
-        val barHeight = size.height
-        val gap = (slotWidth - barWidth) / 2f
-        val cornerRadius = androidx.compose.ui.geometry.CornerRadius(barHeight / 2f, barHeight / 2f)
+        // ─── The line + dot, drawn on a Canvas ───
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                // Offscreen layer is required for BlendMode.DstIn to work —
+                // without it, the edge-fade mask would punch through the
+                // entire screen instead of just fading the line's ends.
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+        ) {
+            val canvasWidth = size.width
+            val canvasHeight = size.height
+            val centerY = canvasHeight / 2f
 
-        // (1) DRAW ALL BARS ─────────────────────────────────────────────
-        for (i in 0 until pageCount) {
-            val barLeft = slotWidth * i + gap
-            val barRight = barLeft + barWidth
+            // ─── (1) Thin horizontal line ───
+            val lineHeight = 2f  // thin
+            val lineLeft = 0f
+            val lineRight = canvasWidth
 
-            // Distance from this bar to the current scroll position.
-            // 0.0 = this is the active bar, 1.0+ = far away.
-            val distance = kotlin.math.abs(i - scrollPosition)
-            val activity = (1f - distance.coerceIn(0f, 1f)).coerceIn(0f, 1f)
-
-            // The bar's gradient colors — each bar gets a different pair
-            // from the palette, so as you swipe, the active gradient is
-            // different on each page.
-            val c1 = palette[i % palette.size]
-            val c2 = palette[(i + 1) % palette.size]
-
-            // The animated gradient position — shifts left-to-right over
-            // time, then snaps back (RepeatMode.Restart) to loop seamlessly.
-            // 3-stop gradient (c1, c2, c1) so the loop has no visible seam.
-            val shift = flowOffset * barWidth     // 0 → barWidth over the 2800ms cycle
-            val barBrush = Brush.horizontalGradient(
-                colors = listOf(c1, c2, c1),
-                startX = barLeft - shift,
-                endX = barRight - shift + barWidth  // gradient is 2x bar width so it slides visibly
-            )
-
-            // Activity-modulated alpha — active bar is fully opaque,
-            // inactive bars fade down. Drives the visual "spotlight"
-            // effect on the current page.
-            val drawAlpha = 0.25f + 0.75f * activity
-
+            // The line itself — a subtle white.
             drawRoundRect(
-                brush = barBrush,
-                topLeft = androidx.compose.ui.geometry.Offset(barLeft, 0f),
-                size = androidx.compose.ui.geometry.Size(barWidth, barHeight),
-                cornerRadius = cornerRadius,
-                alpha = drawAlpha
+                color = Color.White.copy(alpha = 0.6f),
+                topLeft = androidx.compose.ui.geometry.Offset(lineLeft, centerY - lineHeight / 2f),
+                size = androidx.compose.ui.geometry.Size(lineRight - lineLeft, lineHeight),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(lineHeight / 2f, lineHeight / 2f)
             )
 
-            // Subtle inner highlight on active bar — a thin lighter
-            // stripe along the top edge to make it feel "glassy"
-            if (activity > 0.5f) {
-                drawRoundRect(
-                    color = Color.White.copy(alpha = 0.15f * (activity - 0.5f) * 2f),
-                    topLeft = androidx.compose.ui.geometry.Offset(barLeft, 0f),
-                    size = androidx.compose.ui.geometry.Size(barWidth, barHeight * 0.5f),
-                    cornerRadius = cornerRadius
+            // ─── (2) Fade the line's ends to transparent ───
+            // Draw a horizontal-gradient mask: opaque (Color.Black) in the
+            // middle 60%, fading to transparent at both ends (0-20% and
+            // 80-100%). BlendMode.DstIn keeps the line where the mask is
+            // opaque and erases it where the mask is transparent.
+            //
+            // The dot (drawn next) is NOT affected by this mask because
+            // it's drawn AFTER the mask — DstIn only affects what's
+            // already in the layer at draw time.
+            val lineFadeBrush = Brush.horizontalGradient(
+                colorStops = arrayOf(
+                    0.00f to Color.Transparent,
+                    0.20f to Color.Black,
+                    0.80f to Color.Black,
+                    1.00f to Color.Transparent
                 )
-            }
+            )
+            drawRect(
+                brush = lineFadeBrush,
+                topLeft = androidx.compose.ui.geometry.Offset.Zero,
+                size = size,
+                blendMode = BlendMode.DstIn
+            )
+
+            // ─── (3) The white dot (circle) in the center ───
+            // Drawn AFTER the fade mask so it's fully opaque (not faded).
+            val dotDiameter = 18.dp.toPx()
+            val dotRadius = dotDiameter / 2f
+            val dotCenterX = canvasWidth / 2f
+            val dotCenterY = centerY
+
+            // White filled circle.
+            drawCircle(
+                color = Color.White,
+                radius = dotRadius,
+                center = androidx.compose.ui.geometry.Offset(dotCenterX, dotCenterY)
+            )
         }
 
-        // (2) APPLY EDGE FADE MASK ──────────────────────────────────────
-        // The whole row fades to transparent at both ends. We achieve
-        // this by drawing a horizontal-gradient rect that is opaque
-        // (Color.Black, alpha=1) at the left and right edges, and
-        // transparent in the middle, using BlendMode.DstOut.
-        //
-        // DstOut subtracts the source (our mask) from the destination
-        // (the bars already drawn). Where the mask is opaque, the bars
-        // become fully transparent → "blend into the screen" effect.
-        //
-        // Requires CompositingStrategy.OffscreenLayer (set above),
-        // otherwise DstOut would punch through the entire screen.
-        val edgeFadeBrush = Brush.horizontalGradient(
-            colorStops = arrayOf(
-                0.00f to Color.Black,            // opaque cover at left
-                0.08f to Color.Black,            // solid up to 8%
-                0.20f to Color.Transparent,      // fades out by 20%
-                0.80f to Color.Transparent,      // stays clear until 80%
-                0.92f to Color.Black,            // fades back in
-                1.00f to Color.Black             // opaque cover at right
-            )
-        )
-        drawRect(
-            brush = edgeFadeBrush,
-            topLeft = androidx.compose.ui.geometry.Offset.Zero,
-            size = size,
-            blendMode = BlendMode.DstOut
+        // ─── The page number text, centered on the dot ───
+        // Drawn on top of the Canvas, centered via the Box's contentAlignment.
+        Text(
+            text = "$currentPageDisplay",
+            color = Color.Black,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = CalSansFamily,
+            modifier = Modifier.align(Alignment.Center)
         )
     }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// LIQUID BAR PAGE INDICATOR — REMOVED (replaced by LineWithDotPageIndicator)
+// ════════════════════════════════════════════════════════════════════
+// The old LiquidBarPageIndicator (animated gradient bars) was replaced
+// per user request with the simpler LineWithDotPageIndicator above.
+// The old code is intentionally removed — not commented out — to keep
+// the file clean. The new indicator is a thin line + center dot with
+// the page number inside the dot.
+// ════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun LiquidBarPageIndicatorRemoved(
+    pagerState: androidx.compose.foundation.pager.PagerState,
+    modifier: Modifier = Modifier
+) {
+    // Intentionally empty — kept as a marker so git history shows the
+    // removal cleanly. Use LineWithDotPageIndicator instead.
 }
 
 // ════════════════════════════════════════════════════════════════════
