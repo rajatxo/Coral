@@ -293,6 +293,61 @@ fun CoralApp() {
         }
     }
 
+    // ─── Bluetooth resume receiver (#6) ──────────────────────────────
+    // When the "Resume when connected to Bluetooth" toggle is ON:
+    //   • BT device connects → if a song is loaded but paused, resume
+    //   • BT device disconnects → if playing, pause
+    //
+    // Uses a BroadcastReceiver for ACTION_ACL_CONNECTED and
+    // ACTION_ACL_DISCONNECTED. Registered/unregistered via DisposableEffect
+    // so it only runs while the Activity is alive (avoids leaking the
+    // receiver after the Activity is destroyed).
+    //
+    // The receiver reads the toggle state at fire-time (not at register-
+    // time) so toggling the setting in Settings doesn't require re-
+    // registering the receiver.
+    DisposableEffect(mediaController) {
+        val controller = mediaController ?: return@DisposableEffect onDispose { }
+
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
+                val enabled = com.rajatxo.coral.data.prefs.PlaybackPrefs.bluetoothResumeEnabled.value
+                if (!enabled) return
+
+                when (intent?.action) {
+                    android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED -> {
+                        // BT device connected → resume if paused
+                        if (controller.isPlaying.not() && controller.currentMediaItem != null) {
+                            controller.play()
+                        }
+                    }
+                    android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
+                        // BT device disconnected → pause if playing
+                        if (controller.isPlaying) {
+                            controller.pause()
+                        }
+                    }
+                }
+            }
+        }
+
+        val filter = android.content.IntentFilter().apply {
+            addAction(android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED)
+            addAction(android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(receiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            context.registerReceiver(receiver, filter)
+        }
+
+        onDispose {
+            try { context.unregisterReceiver(receiver) } catch (_: Exception) { }
+        }
+    }
+
     // When user grants permissions via PermissionScreen, scan music in the
     // background — no loading screen. HomeScreen renders instantly and the
     // song list populates within ~100-200ms as the MediaStore query returns.
