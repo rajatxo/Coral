@@ -336,20 +336,18 @@ fun HomeScreen(
         }
 
         // --- Mini player (bottom-center, TRACKS the nav bar) ---
-        // The mini player sits a fixed 6dp ABOVE the TabCapsule (nav bar).
+        // The mini player sits a fixed 10dp ABOVE the TabCapsule (nav bar).
         // When the user drags the nav bar, the mini player recomposes and
-        // follows — same 6dp gap maintained at all times.
+        // follows — same 10dp gap maintained at all times.
         //
         // Math (in dp, from screen bottom):
         //   navBarCenterFromBottom = screenHeight * (1 - yFrac)
         //   navBarTopFromBottom    = navBarCenterFromBottom + 26dp (half of 52dp capsule)
-        //   miniPlayerBottom       = navBarTopFromBottom + 6dp (gap)
+        //   miniPlayerBottom       = navBarTopFromBottom + 10dp (gap)
         //   .padding(bottom = miniPlayerBottom - systemNavInset)
         //     (because .navigationBarsPadding() already adds the system nav inset)
         //
-        // Default yFrac=0.91 → mini player bottom ≈ 102dp from screen bottom
-        // (was 132dp at the old yFrac=0.87 + 108dp padding). Mini player
-        // moves DOWN ~30dp along with the nav bar.
+        // Default yFrac=0.89 → mini player bottom ≈ 122dp from screen bottom.
         val savedTabPos by com.rajatxo.coral.data.prefs.TabCapsulePosition.position.collectAsState()
         val tabYFrac = savedTabPos.second
         val configuration = androidx.compose.ui.platform.LocalConfiguration.current
@@ -357,7 +355,7 @@ fun HomeScreen(
             .asPaddingValues()
             .calculateBottomPadding()
         val capsuleHeight = 52.dp
-        val miniPlayerGap = 6.dp  // gap between mini player bottom and nav bar top
+        val miniPlayerGap = 10.dp  // gap between mini player bottom and nav bar top
         val navBarCenterFromBottom = configuration.screenHeightDp.dp * (1f - tabYFrac)
         val navBarTopFromBottom = navBarCenterFromBottom + (capsuleHeight / 2)
         val miniPlayerBottomFromScreenBottom = navBarTopFromBottom + miniPlayerGap
@@ -934,7 +932,7 @@ private fun MiniPlayer(
 
     Box(
         modifier = Modifier
-            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .padding(vertical = 4.dp)
             .navigationBarsPadding()
     ) {
         // --- Main player body (standard pill) ---
@@ -944,9 +942,15 @@ private fun MiniPlayer(
         // readability. Falls back to a flat dark background if the backdrop
         // isn't available (shouldn't happen in practice — HomeScreen always
         // provides one).
+        //
+        // WIDTH: 240dp — matches the TabCapsule width exactly. Both are
+        // centered horizontally (via Alignment.BottomCenter on the parent
+        // AnimatedVisibility), so their rounded pill ends align perfectly.
+        // Was fillMaxWidth + 12dp horizontal padding (way wider than the
+        // TabCapsule below it — the ends didn't line up).
         val bodyModifier = if (backdrop != null) {
             Modifier
-                .fillMaxWidth()
+                .width(240.dp)
                 .height(64.dp)
                 .clip(pillShape)
                 .drawBackdrop(
@@ -969,7 +973,7 @@ private fun MiniPlayer(
                 .clickable(onClick = onClick)
         } else {
             Modifier
-                .fillMaxWidth()
+                .width(240.dp)
                 .height(64.dp)
                 .clip(pillShape)
                 .background(Color.Black.copy(alpha = 0.6f))
