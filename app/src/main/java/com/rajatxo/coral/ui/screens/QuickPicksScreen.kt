@@ -48,8 +48,12 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshState
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -89,6 +93,7 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.vibrancy
 import com.rajatxo.coral.domain.model.Song
+import com.rajatxo.coral.ui.components.WindRefreshIndicator
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
 import com.rajatxo.coral.ui.theme.QuirkFontFamily
@@ -96,6 +101,7 @@ import com.rajatxo.coral.util.CoralPalette
 import com.rajatxo.coral.util.PaletteCache
 import com.rajatxo.coral.util.extractPalette
 import kotlin.random.Random
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -104,7 +110,13 @@ import kotlinx.coroutines.launch
  * Light/dark theme-aware. Asymmetric hero grid + horizontal carousels.
  * Songs are randomized on each app launch. Carousels are infinite
  * (repeat the song list so you can swipe forever).
+ *
+ * Pull-to-refresh: pulling down on this page refreshes the Quick Picks
+ * content (rolls a new random seed → new hero/recent/more selections,
+ * same effect as tab-switching away and back). The indicator is a soft
+ * wind animation, NOT the boring circular arrow.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuickPicksScreen(
     songs: List<Song>,
@@ -152,11 +164,26 @@ fun QuickPicksScreen(
     val textPrimary = Color.White
     val textSecondary = Color.White.copy(alpha = 0.6f)
 
-    // ─── Random seed — changes on every app launch ─────────────────
+    // ─── Random seed — changes on every app launch OR pull-to-refresh ─
     // This ensures the song selection is different each time the user
-    // opens the app. The seed is remembered for the lifetime of this
-    // composable (which is tied to the app session).
-    val launchSeed = remember { Random.nextInt() }
+    // opens the app OR pulls to refresh the Quick Picks page.
+    // Keyed on refreshKey so bumping it (via PTR) rolls a new seed,
+    // which cascades into heroSongs / recentSongs / moreSongs below.
+    var refreshKey by remember { mutableIntStateOf(0) }
+    val launchSeed = remember(refreshKey) { Random.nextInt() }
+
+    // ─── Pull-to-refresh state ───────────────────────────────────────
+    // Pulling down on this page refreshes the Quick Picks content
+    // (rolls a new launchSeed → new random song selections, same
+    // effect as tab-switching away and back).
+    //
+    // The wind indicator is rendered in the `indicator` slot of
+    // PullToRefreshBox. It sits at the top, behind the fixed header's
+    // glass blur (rendered in HomeScreen) — so the streaks appear
+    // softened through the frosted glass, like wind through a window.
+    val ptrState: PullToRefreshState = rememberPullToRefreshState()
+    var isRefreshing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     // ─── Prepare song groups (randomized per launch) ────────────────
     // BUG FIX: previously used remember(songs, currentSongId) which
@@ -207,7 +234,23 @@ fun QuickPicksScreen(
     // over this, so the background is always predominantly dark/black.
     val darkBase = Color(0xFF05050A)
 
-    Box(
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = {
+            // Refresh the Quick Picks page: bump refreshKey, which rolls
+            // a new launchSeed → new heroSongs/recentSongs/moreSongs
+            // selections. Hold the refreshing state for ~900ms so the
+            // wind streaks are visibly in motion (otherwise the seed
+            // bump is instant and the indicator snaps away too fast
+            // to register visually).
+            isRefreshing = true
+            refreshKey++
+            scope.launch {
+                delay(900)
+                isRefreshing = false
+            }
+        },
+        state = ptrState,
         modifier = Modifier
             .fillMaxSize()
             .background(darkBase)
@@ -215,7 +258,22 @@ fun QuickPicksScreen(
                 Brush.verticalGradient(
                     colors = listOf(animatedTop, animatedMid, animatedBottom)
                 )
+            ),
+        indicator = {
+            // Wind indicator positioned just below the fixed header
+            // (HomeScreen's glass header covers y=0..120dp). Drawing the
+            // wind at y=0 would hide it entirely behind the header's blur.
+            // y=120dp places it in the LazyColumn's top content-padding
+            // area (which is empty), so streaks are visible without
+            // overlapping song cards.
+            WindRefreshIndicator(
+                progress = ptrState.distanceFraction,
+                isRefreshing = isRefreshing,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = 120.dp)
             )
+        }
     ) {
         LazyColumn(
             modifier = Modifier

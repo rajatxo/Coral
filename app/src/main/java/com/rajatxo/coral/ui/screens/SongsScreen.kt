@@ -12,18 +12,24 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshState
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,7 +48,9 @@ import coil3.compose.AsyncImage
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.components.SleepTimerCapsule
+import com.rajatxo.coral.ui.components.WindRefreshIndicator
 import com.rajatxo.coral.ui.icons.CoralIcons
+import kotlinx.coroutines.launch
 
 /**
  * Songs tab — with pinned header + wavy fade overlay.
@@ -62,9 +70,14 @@ import com.rajatxo.coral.ui.icons.CoralIcons
  * The wavy fade creates the effect where songs scrolling up "disappear"
  * into the darkness instead of sliding past a hard edge.
  *
+ * Pull-to-refresh: pulling down triggers a library rescan via [onRefresh]
+ * (e.g. to pick up newly added songs on the device). Uses the same soft
+ * wind indicator as QuickPicksScreen — no boring circular spinner.
+ *
  * PERFORMANCE: LazyColumn items have stable keys (key = { it.id }) so
  * Compose reuses rows. isCurrent compared by song ID (Long, not String).
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SongsScreen(
     songs: List<Song>,
@@ -73,7 +86,8 @@ fun SongsScreen(
     onSongClick: (Song) -> Unit,
     capsuleVisible: Boolean = false,
     capsuleRemaining: Long = 0L,
-    onExtend: () -> Unit = {}
+    onExtend: () -> Unit = {},
+    onRefresh: suspend () -> Unit = {}
 ) {
     val sortedSongs = remember(songs) {
         songs.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
@@ -85,21 +99,60 @@ fun SongsScreen(
     //   ~136-170dp: wavy fade (34dp of fade — smaller gap, songs closer to capsule)
     val headerHeight = 170.dp
 
+    // ─── Pull-to-refresh state ───────────────────────────────────────
+    // Pulling down on the song list triggers a library rescan via
+    // onRefresh (e.g. to pick up newly added songs on the device).
+    // Same soft wind indicator as QuickPicksScreen for consistency.
+    val ptrState: PullToRefreshState = rememberPullToRefreshState()
+    var isRefreshing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
     Box(modifier = Modifier.fillMaxSize().background(CoralColors.Surface)) {
         // --- Layer 1: Song list (scrolls behind the header) ---
-        LazyColumn(
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                isRefreshing = true
+                scope.launch {
+                    try {
+                        onRefresh()
+                    } finally {
+                        isRefreshing = false
+                    }
+                }
+            },
+            state = ptrState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                top = headerHeight,
-                bottom = 100.dp  // space for mini player
-            )
-        ) {
-            items(sortedSongs, key = { it.id }) { song ->
-                SongRow(
-                    song = song,
-                    isCurrent = currentSongId == song.id,
-                    onClick = { onSongClick(song) }
+            indicator = {
+                // Wind indicator positioned just below the pinned header
+                // (header covers y=0..170dp with solid black + wavy fade).
+                // Drawing the wind at y=0 would hide it entirely behind
+                // the header. y=170dp places it in the LazyColumn's top
+                // content-padding area (which is empty), so streaks are
+                // visible without overlapping song rows.
+                WindRefreshIndicator(
+                    progress = ptrState.distanceFraction,
+                    isRefreshing = isRefreshing,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .offset(y = 170.dp)
                 )
+            }
+        ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    top = headerHeight,
+                    bottom = 100.dp  // space for mini player
+                )
+            ) {
+                items(sortedSongs, key = { it.id }) { song ->
+                    SongRow(
+                        song = song,
+                        isCurrent = currentSongId == song.id,
+                        onClick = { onSongClick(song) }
+                    )
+                }
             }
         }
 

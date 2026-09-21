@@ -36,7 +36,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -187,7 +186,6 @@ fun HomeScreen(
     // Equalizer controller + sleep timer — singletons for the home screen's
     // lifetime. Created here (not in the screen) so the equalizer state
     // survives config changes and isn't reset when the screen recomposes.
-    val homeScope = androidx.compose.runtime.rememberCoroutineScope()
     val equalizerController = remember { com.rajatxo.coral.audio.EqualizerController() }
     // SleepTimer is now a SINGLETON — no need to create it here.
     // It survives Activity destruction (rotation, task manager kill).
@@ -270,82 +268,67 @@ fun HomeScreen(
         // Main content — fills the WHOLE screen (no nav rail anymore)
         // Wrapped with layerBackdrop so the nav bar can sample + blur this.
         //
-        // Wrapped in PullToRefreshBox so the user can pull down anywhere on
-        // the screen to force a music rescan (e.g. after adding new songs
-        // to the device). Shows a circular spinner while refreshing, then
-        // the new songs appear in the list. This replaces the old "Scanning
-        // your music..." full-screen loading state that used to show on
-        // every cold start.
-        var isRefreshing by remember { mutableStateOf(false) }
-
-        PullToRefreshBox(
-            isRefreshing = isRefreshing,
-            onRefresh = {
-                isRefreshing = true
-                homeScope.launch {
-                    try {
-                        onRefresh()
-                    } finally {
-                        isRefreshing = false
-                    }
-                }
-            },
-            modifier = Modifier.fillMaxSize()
-        ) {
-            Box(modifier = Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
-
-                when (selectedTab) {
-                    CoralTab.QuickPicks -> QuickPicksScreen(
-                        songs = songs,
-                        currentSongId = currentSongId,
-                        currentSongArt = currentSongArt,
+        // Pull-to-refresh is NO LONGER global. Each tab screen handles its
+        // own PTR:
+        //   - QuickPicksScreen: PTR refreshes the page contents (rolls a
+        //     new random seed → new hero/recent/more selections). Custom
+        //     wind indicator (WindRefreshIndicator).
+        //   - SongsScreen: PTR triggers a library rescan (calls onRefresh).
+        //     Same wind indicator for consistency.
+        // Other tabs (Discover, Playlists, Artists, Albums) have no PTR.
+        Box(modifier = Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
+            when (selectedTab) {
+                CoralTab.QuickPicks -> QuickPicksScreen(
+                    songs = songs,
+                    currentSongId = currentSongId,
+                    currentSongArt = currentSongArt,
+                    capsuleVisible = capsuleVisible,
+                    capsuleRemaining = capsuleRemaining,
+                    onExtend = onExtend,
+                    onSongClick = onSongClick
+                )
+                CoralTab.Discover -> PlaceholderScreen(
+                    tabName = "Discover",
+                    description = "Random shuffle, hidden gems, and smart recommendations based on your listening. Coming soon.",
+                    capsuleVisible = capsuleVisible,
+                    capsuleRemaining = capsuleRemaining,
+                    onExtend = onExtend
+                )
+                CoralTab.Songs -> SongsScreen(
+                    songs = songs,
+                    currentSongId = currentSongId,
+                    currentSongTitle = currentSongTitle,
+                    onSongClick = onSongClick,
+                    capsuleVisible = capsuleVisible,
+                    capsuleRemaining = capsuleRemaining,
+                    onExtend = onExtend,
+                    onRefresh = onRefresh
+                )
+                CoralTab.Playlists -> {
+                    // Always show PlaylistsScreen. When a playlist is tapped,
+                    // the detail screen appears as a full-screen overlay below.
+                    PlaylistsScreen(
+                        onPlaylistClick = { selectedPlaylist = it },
                         capsuleVisible = capsuleVisible,
                         capsuleRemaining = capsuleRemaining,
                         onExtend = onExtend,
-                        onSongClick = onSongClick
-                    )
-                    CoralTab.Discover -> PlaceholderScreen(
-                        tabName = "Discover",
-                        description = "Random shuffle, hidden gems, and smart recommendations based on your listening. Coming soon.",
-                        capsuleVisible = capsuleVisible,
-                        capsuleRemaining = capsuleRemaining,
-                        onExtend = onExtend
-                    )
-                    CoralTab.Songs -> SongsScreen(
-                        songs = songs,
-                        currentSongId = currentSongId,
-                        currentSongTitle = currentSongTitle,
-                        onSongClick = onSongClick,
-                        capsuleVisible = capsuleVisible,
-                        capsuleRemaining = capsuleRemaining,
-                        onExtend = onExtend
-                    )
-                    CoralTab.Playlists -> {
-                        // Always show PlaylistsScreen. When a playlist is tapped,
-                        // the detail screen appears as a full-screen overlay below.
-                        PlaylistsScreen(
-                            onPlaylistClick = { selectedPlaylist = it },
-                            capsuleVisible = capsuleVisible,
-                            capsuleRemaining = capsuleRemaining,
-                            onExtend = onExtend,
-                            accentColor = capsuleAccentColor
-                        )
-                    }
-                    CoralTab.Artists -> PlaceholderScreen(
-                        tabName = "Artists",
-                        description = "Browse your library by artist. Coming soon.",
-                        capsuleVisible = capsuleVisible,
-                        capsuleRemaining = capsuleRemaining,
-                        onExtend = onExtend
-                    )
-                    CoralTab.Albums -> PlaceholderScreen(
-                        tabName = "Albums",
-                        description = "Browse your library by album. Coming soon.",
-                        capsuleVisible = capsuleVisible,
-                        capsuleRemaining = capsuleRemaining,
-                        onExtend = onExtend
+                        accentColor = capsuleAccentColor
                     )
                 }
+                CoralTab.Artists -> PlaceholderScreen(
+                    tabName = "Artists",
+                    description = "Browse your library by artist. Coming soon.",
+                    capsuleVisible = capsuleVisible,
+                    capsuleRemaining = capsuleRemaining,
+                    onExtend = onExtend
+                )
+                CoralTab.Albums -> PlaceholderScreen(
+                    tabName = "Albums",
+                    description = "Browse your library by album. Coming soon.",
+                    capsuleVisible = capsuleVisible,
+                    capsuleRemaining = capsuleRemaining,
+                    onExtend = onExtend
+                )
             }
         }
 
