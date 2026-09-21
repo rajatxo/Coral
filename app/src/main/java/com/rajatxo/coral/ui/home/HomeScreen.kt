@@ -656,32 +656,55 @@ fun HomeScreen(
         // ─── BOTTOM BLUR (behind system nav buttons) ──────────────────
         // A small frosted-glass blur at the very bottom of the screen,
         // covering just the system navigation area (gesture pill or
-        // 3-button nav). 40dp tall — enough to cover the system nav
-        // (24-48dp depending on device) without being excessive.
+        // 3-button nav). 50dp tall — enough to cover the system nav
+        // (24-48dp depending on device) with a seamless upward fade.
         //
         // Same technique as the top header blur (RenderEffect + CLAMP +
         // DstIn mask — see CORAL_BLUR_BLUEPRINT.md), but mirrored:
         //   • Aligned to BottomCenter
-        //   • 40dp tall (vs 120dp for the top — no status bar to cover)
-        //   • DstIn mask: transparent at top (smooth blend with content)
-        //     → opaque at bottom (full-strength blur behind system nav)
+        //   • 50dp tall (vs 120dp for the top — no status bar to cover)
+        //   • DstIn mask: transparent at top (seamless upward blend with
+        //     content) → opaque at bottom (full-strength blur behind nav)
+        //
+        // CRITICAL: drawLayer(graphicsLayer) draws the captured screen
+        // content starting from the Box's origin (0,0). For the TOP blur,
+        // the Box is at screen y=0, so it shows the top of the screen.
+        // But for the BOTTOM blur, the Box is at y=(screenHeight - 50dp).
+        // Without translationY, drawLayer would show the TOP 50dp of the
+        // screen (the album cover area), not the bottom 50dp.
+        //
+        // Fix: translationY = -(screenHeight - boxHeight) shifts the
+        // graphicsLayer UP so its bottom edge aligns with the Box's
+        // bottom. Now the Box shows the BOTTOM 50dp of the screen content.
         //
         // Does NOT touch the TabCapsule (Coral's nav bar). Default
         // capsule position is Y=0.89, 52dp tall → bottom edge at ~60dp
-        // from screen bottom. The 40dp blur leaves a ~20dp gap.
+        // from screen bottom. The 50dp blur leaves a ~10dp gap.
         run {
             val useRenderEffect =
                 android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
+
+            // Screen height in pixels — needed for the translationY offset.
+            val screenHeightPx = with(androidx.compose.ui.platform.LocalDensity.current) {
+                configuration.screenHeightDp.dp.toPx()
+            }
+            val blurHeightDp = 50.dp
+            val blurHeightPx = with(androidx.compose.ui.platform.LocalDensity.current) {
+                blurHeightDp.toPx()
+            }
+            // Shift the graphicsLayer up so its bottom aligns with the Box's bottom.
+            val translationY = -(screenHeightPx - blurHeightPx)
 
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .height(40.dp)
+                    .height(blurHeightDp)
                     .graphicsLayer {
                         compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
                         clip = true
                         if (useRenderEffect) {
+                            // CLAMP blur — full strength at the very bottom edge.
                             renderEffect = BlurEffect(
                                 radiusX = 20.dp.toPx(),
                                 radiusY = 20.dp.toPx()
@@ -690,20 +713,33 @@ fun HomeScreen(
                     }
                     .drawWithContent {
                         if (useRenderEffect) {
+                            // ─── RenderEffect path (API 31+) ──
+                            // drawLayer draws the captured screen content.
+                            // The graphicsLayer modifier's translationY (set
+                            // below) shifts it up so the BOTTOM of the screen
+                            // shows in this Box (not the top).
+                            //
+                            // We set translationY on the graphicsLayer OBJECT
+                            // before drawing — this offsets the draw position
+                            // without affecting the renderEffect or clip.
+                            graphicsLayer.translationY = translationY
                             drawLayer(graphicsLayer)
                         } else {
                             drawContent()
                         }
 
-                        // DstIn mask — inverted from the top header:
-                        //   0.0 → Transparent (top edge, blends with content above)
-                        //   0.5 → Black (fully opaque, covers system nav)
+                        // DstIn mask — seamless upward blend:
+                        //   0.0 → Transparent (top edge, blends into content above)
+                        //   0.6 → Black (fully opaque by 60% down)
                         //   1.0 → Black (bottom edge, full-strength blur)
+                        // The top 60% fades from transparent to opaque, giving
+                        // a buttery smooth upward blend. The bottom 40% is
+                        // fully opaque (covers the system nav area).
                         drawRect(
                             brush = Brush.verticalGradient(
                                 colorStops = arrayOf(
                                     0.0f to Color.Transparent,
-                                    0.5f to Color.Black,
+                                    0.6f to Color.Black,
                                     1.0f to Color.Black
                                 ),
                                 startY = 0f,
