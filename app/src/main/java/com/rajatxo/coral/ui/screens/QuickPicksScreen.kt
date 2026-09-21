@@ -734,10 +734,32 @@ private fun SpeedDialSection(
     // Observe pinned song IDs so cards re-render when a song is pinned/unpinned.
     val pinnedIds by com.rajatxo.coral.data.prefs.SpeedDialPinStore.pinnedIds.collectAsState()
 
-    // Use up to 17 songs for the speed dial (leaves room for the dice)
-    val speedDialSongs = remember(songs.size) {
+    // ─── Build the Speed Dial song list ──
+    // Pinned songs come FIRST (in the order they were pinned — Set preserves
+    // insertion order for LinkedHashSet, which is what SharedPreferences
+    // StringSet returns after our save). They sit at the top-left of the
+    // grid and stay there across refresh/restart.
+    //
+    // Then random songs (excluding pinned) fill the rest. 3 pages × 9 slots
+    // = 27, minus 1 for the dice = 26 song slots. Pinned + random = 26.
+    //
+    // Keyed on (songs.size, pinnedIds) so it recomputes when either the
+    // library changes or a song is pinned/unpinned.
+    val speedDialSongs = remember(songs.size, pinnedIds) {
         if (songs.isEmpty()) emptyList()
-        else songs.shuffled().take(17)
+        else {
+            // 1. Pinned songs (in pin order), filtered to ones that still
+            //    exist in the library (in case a pinned song was deleted).
+            val pinnedSongs = pinnedIds.mapNotNull { id ->
+                songs.firstOrNull { it.id == id }
+            }
+            // 2. Random songs, excluding already-pinned ones.
+            val pool = songs.filter { it.id !in pinnedIds }.shuffled()
+            // 3. Total = 26 (3 pages × 9 slots - 1 for dice)
+            val targetCount = 26
+            val randomCount = (targetCount - pinnedSongs.size).coerceAtLeast(0)
+            pinnedSongs + pool.take(randomCount)
+        }
     }
 
     if (speedDialSongs.isEmpty()) return
