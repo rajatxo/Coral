@@ -3,6 +3,10 @@ package com.rajatxo.coral.ui.home
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -90,6 +94,7 @@ import com.rajatxo.coral.ui.screens.SongsScreen
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 /**
  * Root composable for the post-launch experience.
@@ -279,7 +284,28 @@ fun HomeScreen(
         //   - SongsScreen: PTR triggers a library rescan (calls onRefresh).
         //     Same wind indicator for consistency.
         // Other tabs (Discover, Playlists, Artists, Albums) have no PTR.
-        Box(modifier = Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
+        //
+        // ─── Push back animation (Yuma-style) ──
+        // When the FullPlayer opens, the main content scales down slightly
+        // (0.93) and dims — like the home screen is being "pushed back" behind
+        // the player. Animated smoothly via animateFloatAsState keyed on
+        // showFullPlayer.
+        val pushBackFraction by animateFloatAsState(
+            targetValue = if (showFullPlayer) 1f else 0f,
+            animationSpec = tween(350),
+            label = "pushBack"
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    val scale = 1f - (0.07f * pushBackFraction)
+                    scaleX = scale
+                    scaleY = scale
+                    alpha = 1f - (0.4f * pushBackFraction)
+                }
+                .layerBackdrop(glassBackdrop)
+        ) {
             when (selectedTab) {
                 CoralTab.QuickPicks -> QuickPicksScreen(
                     songs = songs,
@@ -362,8 +388,20 @@ fun HomeScreen(
         val miniPlayerPaddingBottom = (miniPlayerBottomFromScreenBottom - systemNavInset)
             .coerceAtLeast(0.dp)
 
+        // ─── Mini player dismissed state ─────────────────────────────
+        // When the user swipes left/right on the mini player, it's
+        // dismissed (fades out + slides away) and playback pauses.
+        // This state is reset when a new song starts (currentSongId
+        // changes) — the mini player reappears for the new song.
+        var miniPlayerDismissed by remember { mutableStateOf(false) }
+        androidx.compose.runtime.LaunchedEffect(currentSongId) {
+            if (currentSongId != null && miniPlayerDismissed) {
+                miniPlayerDismissed = false
+            }
+        }
+
         AnimatedVisibility(
-            visible = currentSongTitle != null,
+            visible = currentSongTitle != null && !miniPlayerDismissed,
             enter = slideInVertically { it } + fadeIn(),
             exit = slideOutVertically { it } + fadeOut(),
             modifier = Modifier
@@ -382,6 +420,13 @@ fun HomeScreen(
                 onPlayPauseClick = onPlayPauseClick,
                 onNextClick = onNextClick,
                 onClick = onMiniPlayerClick,
+                onSwipeUp = onMiniPlayerClick,
+                onSwipeDismiss = {
+                    // Pause playback + hide the mini player.
+                    // The mini player reappears when a new song is selected.
+                    if (isPlaying) onPlayPauseClick()
+                    miniPlayerDismissed = true
+                },
                 backdrop = glassBackdrop
             )
         }
@@ -905,6 +950,8 @@ private fun MiniPlayer(
     onPlayPauseClick: () -> Unit,
     onNextClick: () -> Unit,
     onClick: () -> Unit,
+    onSwipeUp: () -> Unit = {},
+    onSwipeDismiss: () -> Unit = {},
     backdrop: LayerBackdrop? = null
 ) {
     // Notched mini player — pill with a U-shaped concave notch at the
@@ -924,16 +971,126 @@ private fun MiniPlayer(
     // album art, etc. — and blurs it in real time. Replaces the old
     // 'blurred album cover + dark tint' background. Shape is unchanged
     // (still a 32dp rounded pill, same border).
+    //
+    // GESTURES (Yuma-inspired, original implementation — not copied):
+    //   • Tap → opens FullPlayer (existing behavior, kept)
+    //   • Swipe UP → opens FullPlayer (same as tap, but gesture-based)
+    //   • Swipe LEFT/RIGHT → dismisses the mini player (slides out + fades)
+    //     and pauses playback. The mini player reappears when a new song
+    //     is selected.
+    //
+    // The gesture uses a single detectDragGestures pointerInput. On drag
+    // start, no direction is locked. Once the drag exceeds 20px in either
+    // axis, the direction locks (horizontal or vertical). This prevents
+    // diagonal drags from triggering both actions.
 
     val favorites by com.rajatxo.coral.data.store.PlaylistStore.favorites.collectAsState()
     val isFavorite = songId != null && songId in favorites.songIds
 
     val pillShape: Shape = RoundedCornerShape(32.dp)
 
+    // ─── Gesture state ──────────────────────────────────────────────
+    val scope = rememberCoroutineScope()
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val screenWidthPx = with(density) {
+        androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp.toPx()
+    }
+
+    val offsetX = remember { Animatable(0f) }
+    val offsetY = remember { Animatable(0f) }
+    val scale = remember { Animatable(1f) }
+
+    // Drag direction lock — once the drag exceeds the threshold, we
+    // commit to either HORIZONTAL (dismiss) or VERTICAL (expand).
+    var dragDirection: Int? by remember { mutableStateOf(null) }  // 0=H, 1=V
+    var totalDragX by remember { mutableStateOf(0f) }
+    var totalDragY by remember { mutableStateOf(0f) }
+
     Box(
         modifier = Modifier
             .padding(vertical = 4.dp)
             .navigationBarsPadding()
+            .graphicsLayer {
+                translationX = offsetX.value
+                translationY = offsetY.value
+                val s = scale.value
+                scaleX = s
+                scaleY = s
+                // Fade out as the mini player slides off-screen horizontally.
+                alpha = (1f - abs(offsetX.value) / screenWidthPx).coerceIn(0f, 1f)
+            }
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = {
+                        dragDirection = null
+                        totalDragX = 0f
+                        totalDragY = 0f
+                        scope.launch { scale.snapTo(0.96f) }
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        totalDragX += dragAmount.x
+                        totalDragY += dragAmount.y
+
+                        // Lock direction once the drag exceeds 20px
+                        if (dragDirection == null) {
+                            if (abs(totalDragX) > 20f || abs(totalDragY) > 20f) {
+                                dragDirection = if (abs(totalDragX) > abs(totalDragY)) 0 else 1
+                            }
+                        }
+
+                        when (dragDirection) {
+                            0 -> {  // HORIZONTAL — move the mini player with the finger
+                                scope.launch { offsetX.snapTo(totalDragX) }
+                            }
+                            1 -> {  // VERTICAL — only follow upward drags (swipe up)
+                                if (totalDragY < 0) {
+                                    // Dampened follow — mini player moves at half the drag speed
+                                    scope.launch { offsetY.snapTo(totalDragY * 0.5f) }
+                                }
+                            }
+                        }
+                    },
+                    onDragEnd = {
+                        scope.launch { scale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy)) }
+                        when (dragDirection) {
+                            0 -> {  // HORIZONTAL
+                                if (abs(totalDragX) > screenWidthPx * 0.4f) {
+                                    // Past the 40% threshold → dismiss
+                                    val target = if (totalDragX < 0) -screenWidthPx else screenWidthPx
+                                    scope.launch {
+                                        offsetX.animateTo(target, tween(200))
+                                        onSwipeDismiss()
+                                        delay(100)
+                                        offsetX.snapTo(0f)
+                                    }
+                                } else {
+                                    // Not past threshold → spring back
+                                    scope.launch {
+                                        offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                                    }
+                                }
+                            }
+                            1 -> {  // VERTICAL
+                                if (totalDragY < -100f) {
+                                    // Swiped up past 100px → open FullPlayer
+                                    onSwipeUp()
+                                }
+                                scope.launch {
+                                    offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                                }
+                            }
+                        }
+                    },
+                    onDragCancel = {
+                        scope.launch {
+                            scale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                        }
+                    }
+                )
+            }
     ) {
         // --- Main player body (standard pill) ---
         // Frosted-glass background: same drawBackdrop mechanism as the nav
