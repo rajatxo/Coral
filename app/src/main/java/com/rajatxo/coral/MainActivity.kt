@@ -215,11 +215,21 @@ fun CoralApp() {
                 override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
             })
 
-            // Ensure REPEAT_MODE_ALL is set on the controller (overrides any
-            // stale service setting). This guarantees auto-advance works.
-            controller.repeatMode = Player.REPEAT_MODE_ALL
+            // Restore the saved repeat mode (was hardcoded to REPEAT_MODE_ALL,
+            // which reset the user's "loop one song" selection on every restart).
+            controller.repeatMode = com.rajatxo.coral.data.prefs.PlaybackPrefs.repeatMode.value
 
-            // --- BUG FIX: Restore mini player state after app restart ---
+            // Listen for repeat mode changes and persist them.
+            controller.addListener(object : Player.Listener {
+                override fun onRepeatModeChanged(repeatMode: Int) {
+                    com.rajatxo.coral.data.prefs.PlaybackPrefs.setRepeatMode(repeatMode)
+                }
+            })
+
+            // --- Persistent Queue: restore the queue after a full app kill ---
+            // If the controller has no current media item (fresh service start),
+            // and the Persistent Queue setting is enabled, restore the saved
+            // queue from SharedPreferences.
             val currentMediaItem = controller.currentMediaItem
             if (currentMediaItem != null) {
                 currentSongTitle = currentMediaItem.mediaMetadata.title?.toString()
@@ -227,6 +237,36 @@ fun CoralApp() {
                 currentSongAlbum = currentMediaItem.mediaMetadata.albumTitle?.toString()
                 currentSongArt = currentMediaItem.mediaMetadata.artworkUri
                 currentSongId = currentMediaItem.mediaId.toLongOrNull()
+            } else if (com.rajatxo.coral.data.prefs.PlaybackPrefs.persistentQueueEnabled.value) {
+                // Try to restore the saved queue.
+                val saved = com.rajatxo.coral.data.prefs.PlaybackPrefs.loadQueue()
+                if (saved != null && songs.isNotEmpty()) {
+                    val (savedSongIds, savedIndex, savedPosition) = saved
+                    // Map saved song IDs back to actual Song objects.
+                    // If a song was deleted from the device, it's skipped.
+                    val songMap = songs.associateBy { it.id }
+                    val restoredSongs = savedSongIds.mapNotNull { songMap[it] }
+                    if (restoredSongs.isNotEmpty()) {
+                        val mediaItems = restoredSongs.map { s ->
+                            MediaItem.Builder().setUri(s.uri).setMediaId(s.id.toString())
+                                .setMediaMetadata(
+                                    MediaMetadata.Builder()
+                                        .setTitle(s.title)
+                                        .setArtist(s.artist)
+                                        .setAlbumTitle(s.album)
+                                        .setArtworkUri(s.albumArtUri)
+                                        .build()
+                                )
+                                .build()
+                        }
+                        // Clamp the index to the restored list's bounds
+                        val restoreIndex = savedIndex.coerceIn(0, restoredSongs.lastIndex)
+                        controller.setMediaItems(mediaItems, restoreIndex, savedPosition)
+                        controller.prepare()
+                        // Don't auto-play — let the user press play.
+                        // The mini player will show the restored song.
+                    }
+                }
             }
             isPlaying = controller.isPlaying
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -340,6 +380,10 @@ fun CoralApp() {
                             controller.setMediaItems(allMediaItems, index, 0)
                             controller.prepare()
                             controller.play()
+                            // Save the queue for Persistent Queue restoration
+                            com.rajatxo.coral.data.prefs.PlaybackPrefs.saveQueue(
+                                songs.map { it.id }, index, 0L
+                            )
                         }
                     },
                     onSongClickWithQueue = { song, songList ->
@@ -353,6 +397,10 @@ fun CoralApp() {
                             controller.setMediaItems(mediaItems, index, 0)
                             controller.prepare()
                             controller.play()
+                            // Save the queue for Persistent Queue restoration
+                            com.rajatxo.coral.data.prefs.PlaybackPrefs.saveQueue(
+                                songList.map { it.id }, index, 0L
+                            )
                         }
                     },
                     onMiniPlayerClick = { showFullPlayer = true },

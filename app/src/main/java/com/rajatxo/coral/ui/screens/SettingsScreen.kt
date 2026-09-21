@@ -67,6 +67,8 @@ fun SettingsScreen(
     val soundVolume by SoundHapticsManager.soundVolume.collectAsState()
     val playerStyle by PlayerStyleManager.playerStyle.collectAsState()
     val crossfadeDuration by CrossfadeManager.crossfadeDuration.collectAsState()
+    val persistentQueue by com.rajatxo.coral.data.prefs.PlaybackPrefs.persistentQueueEnabled.collectAsState()
+    val bluetoothResume by com.rajatxo.coral.data.prefs.PlaybackPrefs.bluetoothResumeEnabled.collectAsState()
     var versionTapCount by remember { mutableIntStateOf(0) }
 
     Column(
@@ -257,6 +259,20 @@ fun SettingsScreen(
                 title = "Replay gain",
                 subtitle = "Normalise loudness across songs",
                 value = "Off"
+            )
+            ToggleRow(
+                icon = CoralIcons.ListMusic,
+                title = "Persistent Queue",
+                subtitle = "Restore last played song + queue after app restart",
+                checked = persistentQueue,
+                onCheckedChange = { com.rajatxo.coral.data.prefs.PlaybackPrefs.setPersistentQueueEnabled(it) }
+            )
+            ToggleRow(
+                icon = CoralIcons.Music,
+                title = "Resume when connected to Bluetooth",
+                subtitle = "Auto-play on BT connect, pause on disconnect",
+                checked = bluetoothResume,
+                onCheckedChange = { com.rajatxo.coral.data.prefs.PlaybackPrefs.setBluetoothResumeEnabled(it) }
             )
         }
 
