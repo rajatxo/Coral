@@ -92,8 +92,20 @@ class SimpleCrossfadeController(
             val fadeMs = crossfadeSeconds * 1000L
             val totalFadeMs = remaining.coerceAtMost(fadeMs).toFloat()
 
-            // Load the next song on the standby player
-            val nextIndex = (outgoing.currentMediaItemIndex + 1) % outgoing.mediaItemCount
+            // Load the next song on the standby player.
+            //
+            // REPEAT_MODE_ONE (loop song): load the SAME song — the
+            // crossfade creates a seamless loop of the current song.
+            // Previously this always advanced to the next song, which
+            // broke loop-one mode (the song moved to the next instead
+            // of looping).
+            //
+            // REPEAT_MODE_ALL / REPEAT_MODE_OFF: advance to the next
+            // song (wrapping around at the end of the queue).
+            val nextIndex = when (outgoing.repeatMode) {
+                Player.REPEAT_MODE_ONE -> outgoing.currentMediaItemIndex
+                else -> (outgoing.currentMediaItemIndex + 1) % outgoing.mediaItemCount
+            }
             val mediaItems = (0 until outgoing.mediaItemCount).map {
                 outgoing.getMediaItemAt(it)
             }
