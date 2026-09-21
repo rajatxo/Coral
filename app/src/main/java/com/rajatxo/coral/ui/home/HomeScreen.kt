@@ -715,15 +715,24 @@ fun HomeScreen(
                         if (useRenderEffect) {
                             // ─── RenderEffect path (API 31+) ──
                             // drawLayer draws the captured screen content.
-                            // The graphicsLayer modifier's translationY (set
-                            // below) shifts it up so the BOTTOM of the screen
-                            // shows in this Box (not the top).
                             //
-                            // We set translationY on the graphicsLayer OBJECT
-                            // before drawing — this offsets the draw position
-                            // without affecting the renderEffect or clip.
+                            // CRITICAL: The graphicsLayer object is SHARED — it's
+                            // the same one used by the top header blur, the mini
+                            // player's drawBackdrop, and the TabCapsule's
+                            // drawBackdrop. Mutating graphicsLayer.translationY
+                            // and NOT restoring it would corrupt the blur for
+                            // every subsequent consumer (mini player + nav bar
+                            // would sample the wrong screen region → their blur
+                            // would effectively be "removed").
+                            //
+                            // Fix: SAVE the current translationY, set the offset
+                            // we need, draw, then RESTORE the original value.
+                            // This keeps the shared graphicsLayer pristine for
+                            // the next consumer.
+                            val savedTranslationY = graphicsLayer.translationY
                             graphicsLayer.translationY = translationY
                             drawLayer(graphicsLayer)
+                            graphicsLayer.translationY = savedTranslationY
                         } else {
                             drawContent()
                         }
