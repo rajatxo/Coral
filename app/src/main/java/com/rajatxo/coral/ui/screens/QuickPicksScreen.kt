@@ -25,7 +25,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import com.rajatxo.coral.ui.components.LeavesOverlay
+import com.rajatxo.coral.ui.components.AstroidRefreshIndicator
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -255,7 +255,22 @@ fun QuickPicksScreen(
                 Brush.verticalGradient(
                     colors = listOf(animatedTop, animatedMid, animatedBottom)
                 )
+            ),
+        indicator = {
+            // Astroid icon — replaces the default Material3 circular arrow.
+            // Positioned just below the fixed header (HomeScreen's glass
+            // header covers y=0..120dp). Drawing at y=0 would hide it
+            // behind the blur. y=120dp places it in the LazyColumn's
+            // top content-padding area (which is empty), so the astroid
+            // is visible without overlapping song cards.
+            AstroidRefreshIndicator(
+                progress = ptrState.distanceFraction,
+                isRefreshing = isRefreshing,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = 120.dp)
             )
+        }
     ) {
         LazyColumn(
             modifier = Modifier
@@ -348,22 +363,6 @@ fun QuickPicksScreen(
                 }
             }
         }
-
-        // ═══ Falling ginkgo leaves — spring path ═══
-        // Pure Canvas overlay (no nestedScroll, no pointerInput) — so it
-        // never interferes with PullToRefreshBox's pull detection.
-        // Drawn AFTER the LazyColumn so it sits ON TOP in Z-order —
-        // leaves fall across the cards, not behind them.
-        //
-        // Each leaf follows an "invisible spring" path: as Y increases
-        // (falling), X oscillates left↔right following a sine wave with
-        // low frequency (stretched spring — coils far apart vertically).
-        // Plus slow rotation. Fade in at top, fade out at bottom.
-        LeavesOverlay(
-            progress = ptrState.distanceFraction,
-            isRefreshing = isRefreshing,
-            modifier = Modifier.fillMaxSize()
-        )
     }
 }
 

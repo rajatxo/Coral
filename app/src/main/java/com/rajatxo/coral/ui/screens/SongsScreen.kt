@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.rajatxo.coral.domain.model.Song
+import com.rajatxo.coral.ui.components.AstroidRefreshIndicator
 import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.components.SleepTimerCapsule
 import com.rajatxo.coral.ui.icons.CoralIcons
@@ -121,7 +122,20 @@ fun SongsScreen(
                 }
             },
             state = ptrState,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            indicator = {
+                // Astroid icon — same as QuickPicksScreen. Positioned just
+                // below the pinned header (header covers y=0..170dp with
+                // solid black + wavy fade). y=170dp places it in the
+                // LazyColumn's top content-padding area (empty).
+                AstroidRefreshIndicator(
+                    progress = ptrState.distanceFraction,
+                    isRefreshing = isRefreshing,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .offset(y = 170.dp)
+                )
+            }
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
