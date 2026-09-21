@@ -3,19 +3,26 @@ package com.rajatxo.coral.ui.screens
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,6 +52,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -722,6 +730,9 @@ private fun SpeedDialSection(
     val scope = rememberCoroutineScope()
     var isRandomizing by remember { mutableStateOf(false) }
 
+    // Observe pinned song IDs so cards re-render when a song is pinned/unpinned.
+    val pinnedIds by com.rajatxo.coral.data.prefs.SpeedDialPinStore.pinnedIds.collectAsState()
+
     // Use up to 17 songs for the speed dial (leaves room for the dice)
     val speedDialSongs = remember(songs.size) {
         if (songs.isEmpty()) emptyList()
@@ -828,6 +839,7 @@ private fun SpeedDialSection(
                                     SpeedDialCard(
                                         song = song,
                                         isCurrent = song.id == currentSongId,
+                                        isPinned = song.id in pinnedIds,
                                         onClick = { onSongClick(song) },
                                         modifier = Modifier
                                             .width(itemWidth)
@@ -859,23 +871,41 @@ private fun SpeedDialSection(
 private fun SpeedDialCard(
     song: Song,
     isCurrent: Boolean,
+    isPinned: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val cardShape = RoundedCornerShape(8.dp)
+
+    // ─── Quick tap animation ──
+    // Scale down while pressed, spring back on release. Only this card
+    // animates — no effect on other cards.
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.92f else 1.0f,
+        animationSpec = spring(dampingRatio = 0.55f, stiffness = 800f),
+        label = "tapScale"
+    )
+
+    // ─── Long-press pin capsule state ──
+    var showPinCapsule by remember { mutableStateOf(false) }
+
     Box(
         modifier = modifier
+            .scale(scale)
             .shadow(
                 elevation = 4.dp,
                 shape = cardShape,
                 clip = false
             )
             .clip(cardShape)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+            .combinedClickable(
+                interactionSource = interactionSource,
                 indication = null,
-                onClick = onClick
+                onClick = onClick,
+                onLongClick = { showPinCapsule = true }
             )
     ) {
         // ═══ Spiral 2.0-style album art blur-blend ═══
@@ -972,6 +1002,102 @@ private fun SpeedDialCard(
                     .clip(RoundedCornerShape(3.dp))
                     .background(Color(0xFFFF6B6B))
             )
+        }
+
+        // Pinned indicator (top-left, small pin icon)
+        if (isPinned) {
+            Icon(
+                imageVector = CoralIcons.Pin,
+                contentDescription = "Pinned",
+                tint = Color.White,
+                modifier = Modifier
+                    .padding(6.dp)
+                    .size(12.dp)
+                    .align(Alignment.TopStart)
+            )
+        }
+
+        // ═══ Long-press pin capsule overlay ═══
+        // Thin capsule with a pin icon, fades in on long-press, stays
+        // 5 seconds, fades out on pin or timeout.
+        SpeedDialPinCapsule(
+            visible = showPinCapsule,
+            isPinned = isPinned,
+            onPin = {
+                if (isPinned) {
+                    com.rajatxo.coral.data.prefs.SpeedDialPinStore.unpin(song.id)
+                } else {
+                    com.rajatxo.coral.data.prefs.SpeedDialPinStore.pin(song.id)
+                }
+                showPinCapsule = false
+            },
+            onTimeout = { showPinCapsule = false }
+        )
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// SPEED DIAL PIN CAPSULE — thin capsule with pin icon, shown on long-press
+// ════════════════════════════════════════════════════════════════════
+// Fades in when [visible] becomes true, stays for 5 seconds, then
+// calls [onTimeout]. If the user taps the pin icon, calls [onPin].
+// The capsule is a thin pill centered over the card with a semi-transparent
+// dark background and a pin icon inside.
+// ════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun SpeedDialPinCapsule(
+    visible: Boolean,
+    isPinned: Boolean,
+    onPin: () -> Unit,
+    onTimeout: () -> Unit
+) {
+    // Auto-hide after 5 seconds
+    if (visible) {
+        androidx.compose.runtime.LaunchedEffect(visible) {
+            kotlinx.coroutines.delay(5000)
+            onTimeout()
+        }
+    }
+
+    androidx.compose.animation.AnimatedVisibility(
+        visible = visible,
+        enter = androidx.compose.animation.fadeIn(
+            animationSpec = tween(200)
+        ),
+        exit = androidx.compose.animation.fadeOut(
+            animationSpec = tween(300)
+        ),
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        // Dim the card behind the capsule
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.4f)),
+            contentAlignment = Alignment.Center
+        ) {
+            // Thin capsule with pin icon
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color.Black.copy(alpha = 0.75f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onPin
+                    )
+                    .padding(10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = CoralIcons.Pin,
+                    contentDescription = if (isPinned) "Unpin" else "Pin",
+                    tint = if (isPinned) Color(0xFFFF6B6B) else Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
     }
 }
