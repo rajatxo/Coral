@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -40,6 +41,7 @@ import com.rajatxo.coral.data.prefs.PlayerStyleManager
 import com.rajatxo.coral.data.prefs.SoundHapticsManager
 import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.icons.CoralIcons
+import com.rajatxo.coral.ui.components.CoralTab
 
 /**
  * Settings tab — real (read-only for now) settings surface.
@@ -69,6 +71,8 @@ fun SettingsScreen(
     val crossfadeDuration by CrossfadeManager.crossfadeDuration.collectAsState()
     val persistentQueue by com.rajatxo.coral.data.prefs.PlaybackPrefs.persistentQueueEnabled.collectAsState()
     val bluetoothResume by com.rajatxo.coral.data.prefs.PlaybackPrefs.bluetoothResumeEnabled.collectAsState()
+    val enabledTabs by com.rajatxo.coral.data.prefs.NavBarConfig.enabledTabs.collectAsState()
+    val defaultTab by com.rajatxo.coral.data.prefs.NavBarConfig.defaultTab.collectAsState()
     var versionTapCount by remember { mutableIntStateOf(0) }
 
     Column(
@@ -273,6 +277,55 @@ fun SettingsScreen(
                 subtitle = "Auto-play on BT connect, pause on disconnect",
                 checked = bluetoothResume,
                 onCheckedChange = { com.rajatxo.coral.data.prefs.PlaybackPrefs.setBluetoothResumeEnabled(it) }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // --- Nav bar UI ---
+        // Lets the user:
+        //   1. Enable/disable each tab (toggle on the right of each row)
+        //   2. Reorder tabs (up/down chevrons on the left of each row)
+        //   3. Pick which tab opens by default on app launch
+        SettingsSection(title = "Nav bar UI") {
+            // All 6 tabs (in their enum order, not the user's custom order).
+            // Each row shows: up chevron | down chevron | name | subtitle | toggle.
+            // The position in the list reflects the user's custom order.
+            CoralTab.values().forEach { tab ->
+                val enabled = tab in enabledTabs
+                val position = enabledTabs.indexOf(tab)
+                NavTabRow(
+                    tab = tab,
+                    enabled = enabled,
+                    position = position,
+                    totalEnabled = enabledTabs.size,
+                    onMoveUp = { com.rajatxo.coral.data.prefs.NavBarConfig.moveTabUp(tab) },
+                    onMoveDown = { com.rajatxo.coral.data.prefs.NavBarConfig.moveTabDown(tab) },
+                    onToggle = { com.rajatxo.coral.data.prefs.NavBarConfig.setTabEnabled(tab, it) }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Default opening tab selector.
+            // Cycles through enabled tabs on tap.
+            val currentIdx = enabledTabs.indexOf(defaultTab).coerceAtLeast(0)
+            val nextDefault = enabledTabs[(currentIdx + 1) % enabledTabs.size]
+            SettingsRow(
+                icon = CoralIcons.Play,
+                title = "Opening page",
+                subtitle = "Which tab opens when the app launches",
+                value = defaultTab.label,
+                onClick = { com.rajatxo.coral.data.prefs.NavBarConfig.setDefaultTab(nextDefault) }
+            )
+
+            // Reset button
+            SettingsRow(
+                icon = CoralIcons.Music,
+                title = "Reset to defaults",
+                subtitle = "Restore the factory tab order + opening page",
+                value = "→",
+                onClick = { com.rajatxo.coral.data.prefs.NavBarConfig.resetToDefaults() }
             )
         }
 
@@ -560,6 +613,134 @@ private fun VolumeSliderRow(
                 thumbColor = Color(0xFFFF6B6B),
                 activeTrackColor = Color(0xFFFF6B6B),
                 inactiveTrackColor = Color(0xFF333333)
+            )
+        )
+    }
+}
+
+/**
+ * Nav bar tab customization row.
+ *
+ * Layout:
+ *   [up chevron] [down chevron] | [position #] [name + subtitle] | [toggle]
+ *
+ * - Up/down chevrons reorder the tab in the nav bar.
+ * - Position number shows where this tab is in the order (1-indexed).
+ * - Toggle enables/disables the tab. Disabled tabs disappear from the
+ *   nav bar. The last enabled tab can't be disabled (otherwise the nav
+ *   bar would be empty).
+ *
+ * When a tab is disabled, its chevrons are dimmed (can't reorder a
+ * tab that isn't in the list).
+ */
+@Composable
+private fun NavTabRow(
+    tab: CoralTab,
+    enabled: Boolean,
+    position: Int,  // -1 if disabled (not in enabledTabs)
+    totalEnabled: Int,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    onToggle: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Up chevron — moves the tab left in the nav bar.
+        // Disabled when the tab is at the top OR the tab is disabled.
+        val canMoveUp = enabled && position > 0
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .let { mod ->
+                    if (canMoveUp) mod.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onMoveUp
+                    ) else mod
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = CoralIcons.ChevronUp,
+                contentDescription = "Move up",
+                tint = if (canMoveUp) Color.White.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.2f),
+                modifier = Modifier.size(16.dp)
+            )
+        }
+
+        // Down chevron — moves the tab right in the nav bar.
+        // Disabled when the tab is at the bottom OR the tab is disabled.
+        val canMoveDown = enabled && position < totalEnabled - 1
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .let { mod ->
+                    if (canMoveDown) mod.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onMoveDown
+                    ) else mod
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = CoralIcons.ChevronDown,
+                contentDescription = "Move down",
+                tint = if (canMoveDown) Color.White.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.2f),
+                modifier = Modifier.size(16.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.size(8.dp))
+
+        // Position number (e.g. "1", "2", "3") — shows the tab's place
+        // in the nav bar order. Hidden when disabled.
+        if (enabled) {
+            Text(
+                text = "${position + 1}",
+                color = Color(0xFFFF6B6B),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.width(16.dp)
+            )
+        } else {
+            Spacer(modifier = Modifier.width(16.dp))
+        }
+
+        Spacer(modifier = Modifier.size(8.dp))
+
+        // Tab name + subtitle.
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = tab.label,
+                color = if (enabled) Color.White else Color.White.copy(alpha = 0.4f),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = if (enabled) "Visible in nav bar" else "Hidden from nav bar",
+                color = Color(0xFFB0B0B0),
+                fontSize = 12.sp
+            )
+        }
+
+        // Toggle. The last enabled tab can't be disabled.
+        val canDisable = totalEnabled > 1
+        androidx.compose.material3.Switch(
+            checked = enabled,
+            onCheckedChange = onToggle,
+            enabled = canDisable || !enabled,  // can always enable; can only disable if >1 tab
+            colors = androidx.compose.material3.SwitchDefaults.colors(
+                checkedThumbColor = Color.White,
+                checkedTrackColor = Color(0xFFFF6B6B),
+                uncheckedThumbColor = Color(0xFF888888),
+                uncheckedTrackColor = Color(0xFF333333)
             )
         )
     }

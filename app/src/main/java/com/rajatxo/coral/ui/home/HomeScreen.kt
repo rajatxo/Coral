@@ -137,7 +137,28 @@ fun HomeScreen(
     onSongEnded: () -> Unit,
     onRefresh: suspend () -> Unit = {}
 ) {
-    var selectedTab by remember { mutableStateOf(CoralTab.QuickPicks) }
+    // ─── Nav bar configuration ─────────────────────────────────────
+    // Read the enabled tabs (in their display order) + the default
+    // opening tab from NavBarConfig. The user can customize both in
+    // Settings → Nav bar UI.
+    //
+    // selectedTab is initialized to the configured default tab (was
+    // hardcoded to CoralTab.QuickPicks). If the user disabled QuickPicks
+    // and set Songs as their default, the app opens on Songs.
+    val enabledTabs by com.rajatxo.coral.data.prefs.NavBarConfig.enabledTabs.collectAsState()
+    val defaultTab by com.rajatxo.coral.data.prefs.NavBarConfig.defaultTab.collectAsState()
+    var selectedTab by remember { mutableStateOf(defaultTab) }
+
+    // SAFETY: if the selectedTab gets disabled in settings while it's
+    // active (e.g. user is on Discover, then disables Discover), fall
+    // back to the default tab. This LaunchedEffect fires whenever the
+    // enabledTabs list changes.
+    androidx.compose.runtime.LaunchedEffect(enabledTabs) {
+        if (selectedTab !in enabledTabs && enabledTabs.isNotEmpty()) {
+            selectedTab = defaultTab
+        }
+    }
+
     var selectedPlaylist by remember { mutableStateOf<com.rajatxo.coral.data.model.Playlist?>(null) }
     var showSongPicker by remember { mutableStateOf(false) }
     var playlistForPicker by remember { mutableStateOf<com.rajatxo.coral.data.model.Playlist?>(null) }
@@ -657,7 +678,7 @@ fun HomeScreen(
         // Same pattern as the search FAB: hold for 3 seconds → enter drag mode
         // → drag anywhere on screen → release to pin. Position persists.
         DraggableTabCapsule(
-            tabs = CoralTab.values().toList(),
+            tabs = enabledTabs,
             activeTab = selectedTab,
             onTabSelected = { tab ->
                 selectedTab = tab
