@@ -54,6 +54,7 @@ import com.rajatxo.coral.service.CoralPlaybackService
 import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.home.HomeScreen
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.guava.await
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -384,30 +385,55 @@ fun CoralApp() {
         }
     }
 
-    // ─── Persistent Queue: save position on app background (#5) ──────
+    // ─── Persistent Queue: periodic save + save on transitions ─────
     // Saves the current queue (song IDs) + current song index + playback
-    // position to SharedPreferences when the app goes to background
-    // (ON_STOP). This ensures that when the user kills the app and
-    // reopens it, the song resumes from where they left off — not from
-    // the start.
+    // position to SharedPreferences every 5 seconds while a song is
+    // loaded. Also saves on song transition (onMediaItemTransition).
     //
-    // We use LifecycleEventObserver instead of a periodic timer because:
-    //   • It's event-driven (no wasted CPU when the app is foreground)
-    //   • It fires at the right moment (when the user is leaving)
-    //   • It captures the actual current position at that moment
+    // WHY PERIODIC: The previous ON_STOP-only save was unreliable. When
+    // the user swipes the app from recents (force kill), the process is
+    // killed immediately — ON_STOP might not fire, or the SharedPreferences
+    // write might not complete. The saved position would stay at 0L (from
+    // the song click), so the song would restart from the beginning on
+    // reopen. With a 5-second periodic save, the position is at most 5
+    // seconds stale.
     //
-    // The queue is ALSO saved on every song click (in onSongClick /
-    // onSongClickWithQueue below), but with position=0L. This ON_STOP
-    // save captures the LIVE position so it survives a mid-song kill.
+    // The ON_STOP save (in the LifecycleEventObserver below) is still kept
+    // as a backup — it captures the exact position at the moment of
+    // backgrounding.
+    LaunchedEffect(mediaController) {
+        val controller = mediaController ?: return@LaunchedEffect
+        while (true) {
+            // Only save if persistent queue is enabled AND there's a song loaded.
+            val enabled = com.rajatxo.coral.data.prefs.PlaybackPrefs.persistentQueueEnabled.value
+            if (enabled) {
+                val player: Player = controller
+                val itemCount = player.mediaItemCount
+                if (itemCount > 0 && player.currentMediaItem != null) {
+                    val songIds = (0 until itemCount).mapNotNull {
+                        player.getMediaItemAt(it).mediaId.toLongOrNull()
+                    }
+                    val currentIndex = player.currentMediaItemIndex
+                    val position = player.currentPosition.coerceAtLeast(0L)
+                    com.rajatxo.coral.data.prefs.PlaybackPrefs.saveQueue(
+                        songIds, currentIndex, position
+                    )
+                }
+            }
+            delay(5000)  // save every 5 seconds
+        }
+    }
+
+    // ─── Persistent Queue: save position on app background ──────
+    // Saves the current queue + position when the app goes to background
+    // (ON_STOP). This is the "best effort" save — captures the exact
+    // position at the moment of backgrounding. The periodic save above
+    // is the reliable fallback for force kills where ON_STOP doesn't fire.
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(mediaController, lifecycleOwner) {
         val controller = mediaController ?: return@DisposableEffect onDispose { }
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
-                // Save the current queue + position.
-                // Player interface doesn't expose getMediaItems() as a List
-                // in Media3 1.5.1 — only getMediaItemAt(index) + getMediaItemCount().
-                // We iterate to build the list of song IDs.
                 val player: Player = controller
                 val itemCount = player.mediaItemCount
                 if (itemCount > 0) {
