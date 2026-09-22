@@ -1,7 +1,5 @@
 package com.rajatxo.coral.ui.components
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
@@ -14,9 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -68,16 +64,15 @@ fun BugLineRefreshIndicator(
     if (visibility <= 0.01f && !isRefreshing) return
 
     // ─── Bug X position ─────────────────────────────────────────────
-    // PULLING: position follows the finger instantly (snap).
-    //   - pullProgress is driven by ptrState.distanceFraction, which
-    //     PullToRefreshBox animates smoothly on release (spring-back).
-    //   - Using snap() means the bug follows that animated value, so
-    //     on release-without-trigger, the bug walks back smoothly.
+    // The bug walks left → right only. One direction. No U-turn.
     //
-    // REFRESHING: position animates from current (1.0) → 0.0 slowly.
-    //   - 900ms LinearEasing — matches the refresh duration.
-    //   - The bug walks from right to left, one direction, slow.
-    val targetPosition = if (isRefreshing) 0f else pullProgress
+    // PULLING: position follows the finger (snap). Bug walks left → right
+    // as the user pulls down. Head always points right.
+    //
+    // REFRESHING: bug stays at position 1 (right end of the line). Head
+    // still points right. The line + bug fade out together when refresh
+    // completes (handled by the visibility alpha above).
+    val targetPosition = if (isRefreshing) 1f else pullProgress
     val bugPosition by animateFloatAsState(
         targetValue = targetPosition,
         animationSpec = if (isRefreshing) {
@@ -88,53 +83,9 @@ fun BugLineRefreshIndicator(
         label = "bugPosition"
     )
 
-    // ─── U-turn via smooth fade ─────────────────────────────────────
-    // The Bug icon's head is at the TOP (perpendicular to the line).
-    // We rotate it 90° clockwise so the head is PARALLEL to the line,
-    // pointing right during the pull phase.
-    //
-    // When refresh starts, the bug does a U-turn via a SMOOTH FADE:
-    //   Phase 1 (0–150ms): bug fades out (alpha 1 → 0). Head still
-    //     points right.
-    //   Phase 2 (invisible, instant): rotationZ jumps from 90° → 270°.
-    //   Phase 3 (150–300ms): bug fades back in (alpha 0 → 1). Head now
-    //     points left — the direction the bug walks during refresh.
-    //
-    // This gives a "smooth transition" (the bug dissolves, reappears
-    // facing the other way) without a visible rotation or squish —
-    // which the user found felt "funny".
-    val uTurnProgress = remember { Animatable(0f) }
-    LaunchedEffect(isRefreshing) {
-        if (isRefreshing) {
-            // U-turn: 0 → 1 over 300ms (150ms fade out + 150ms fade in)
-            uTurnProgress.animateTo(
-                targetValue = 1f,
-                animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
-            )
-        } else {
-            uTurnProgress.snapTo(0f)
-        }
-    }
-
-    // Derive rotationZ and bug alpha from U-turn progress:
-    //   progress 0.0–0.5: alpha 1 → 0 (fade out), rotationZ = 90° (head right)
-    //   progress 0.5:     alpha = 0 (invisible — rotation flips to 270°)
-    //   progress 0.5–1.0: alpha 0 → 1 (fade in), rotationZ = 270° (head left)
-    val uTurn = uTurnProgress.value
-    val bugRotationZ = if (isRefreshing) {
-        // 90° for the first half (fading out, head right),
-        // 270° for the second half (fading in, head left).
-        if (uTurn < 0.5f) 90f else 270f
-    } else {
-        90f  // head right during pull
-    }
-    // Alpha: 1 at uTurn=0, 0 at uTurn=0.5, 1 at uTurn=1.
-    // Triangle wave — smooth fade out then smooth fade in.
-    val bugAlpha = if (isRefreshing) {
-        (1f - kotlin.math.abs(uTurn * 2f - 1f))
-    } else {
-        1f
-    }
+    // Bug always faces right — rotationZ = 90° (head parallel to line,
+    // pointing right). No U-turn, no rotation change.
+    val bugRotationZ = 90f
 
     val bugSize = 16.dp
     val density = LocalDensity.current
@@ -190,9 +141,10 @@ fun BugLineRefreshIndicator(
                 )
             }
 
-            // ─── Layer 2: Bug icon (stable, no bob) ───
-            // Vertically centered on the line. No vertical wobble —
-            // the bug is stable while walking.
+            // ─── Layer 2: Bug icon (stable, always facing right) ───
+            // Vertically centered on the line. No bob, no rotation change.
+            // Head always points right — walks left → right during pull,
+            // stays at the right end during refresh, fades out when done.
             val bugOffsetY = (20.dp - bugSize) / 2f
 
             Icon(
@@ -203,17 +155,8 @@ fun BugLineRefreshIndicator(
                     .size(bugSize)
                     .offset(x = bugOffsetX, y = bugOffsetY)
                     .graphicsLayer {
-                        // Head parallel to line:
-                        //   Pull: rotationZ = 90° (head points right)
-                        //   After U-turn: rotationZ = 270° (head points left)
-                        // The rotation flips INSTANTLY while the bug is
-                        // invisible (alpha = 0 at the U-turn midpoint),
-                        // so the user doesn't see a spin — just a smooth
-                        // fade out + fade in with the head now pointing
-                        // the other way.
+                        // Head always points right (parallel to line).
                         rotationZ = bugRotationZ
-                        // Smooth fade for the U-turn transition.
-                        alpha = bugAlpha
                     }
             )
         }
