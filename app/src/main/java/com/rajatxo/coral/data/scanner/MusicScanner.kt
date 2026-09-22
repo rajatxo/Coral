@@ -1,6 +1,5 @@
 package com.rajatxo.coral.data.scanner
 
-import android.content.ContentResolver
 import android.content.ContentUris
 import android.content.Context
 import android.media.MediaExtractor
@@ -36,13 +35,16 @@ object MusicScanner {
 
     private const val TAG = "MusicScanner"
 
-    fun scanMusic(contentResolver: ContentResolver): List<Song> {
-        // Cast to Context — needed for MediaExtractor.setDataSource(context, uri)
-        // which is the only variant that works with content:// URIs from MediaStore.
-        // The fallback setDataSource(uri.toString()) throws on content:// URIs.
-        val context = contentResolver as? Context
-            ?: throw IllegalArgumentException("ContentResolver must be a Context")
-
+    /**
+     * Scans the device for local audio files using MediaStore.
+     *
+     * NOTE: Takes a [Context] (not ContentResolver) because MediaExtractor
+     * needs the Context variant of setDataSource to read content:// URIs.
+     * The ContentResolver is obtained from the context for the MediaStore
+     * query.
+     */
+    fun scanMusic(context: Context): List<Song> {
+        val contentResolver = context.contentResolver
         val songs = mutableListOf<Song>()
         val collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
         val projection = arrayOf(

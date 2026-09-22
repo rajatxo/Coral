@@ -169,7 +169,7 @@ fun CoralApp() {
         if (hasPermission) {
             scope.launch {
                 val scannedSongs = withContext(Dispatchers.IO) {
-                    MusicScanner.scanMusic(context.contentResolver)
+                    MusicScanner.scanMusic(context)
                 }
                 // Only update + re-save if the scan result differs from
                 // what we already have (avoids unnecessary UI flicker).
@@ -460,7 +460,7 @@ fun CoralApp() {
     val onPermissionsGranted: () -> Unit = {
         hasPermission = true
         scope.launch {
-            val scannedSongs = withContext(Dispatchers.IO) { MusicScanner.scanMusic(context.contentResolver) }
+            val scannedSongs = withContext(Dispatchers.IO) { MusicScanner.scanMusic(context) }
             songs.clear()
             songs.addAll(scannedSongs)
             // Persist to cache for next launch's instant load
@@ -480,7 +480,7 @@ fun CoralApp() {
     // This is a suspend lambda so HomeScreen can await completion before
     // hiding the refresh spinner.
     val onRefreshSongs: suspend () -> Unit = {
-        val scannedSongs = withContext(Dispatchers.IO) { MusicScanner.scanMusic(context.contentResolver) }
+        val scannedSongs = withContext(Dispatchers.IO) { MusicScanner.scanMusic(context) }
         songs.clear()
         songs.addAll(scannedSongs)
         // Persist refreshed list to cache
