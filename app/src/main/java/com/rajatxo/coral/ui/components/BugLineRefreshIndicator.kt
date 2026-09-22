@@ -3,11 +3,7 @@ package com.rajatxo.coral.ui.components
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -33,8 +29,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Icon
 import com.rajatxo.coral.ui.icons.CoralIcons
-import kotlin.math.PI
-import kotlin.math.sin
 
 /**
  * Bug-on-a-line pull-to-refresh indicator — Coral's signature animation.
@@ -94,25 +88,25 @@ fun BugLineRefreshIndicator(
         label = "bugPosition"
     )
 
-    // ─── U-turn animation ───────────────────────────────────────────
+    // ─── U-turn via smooth fade ─────────────────────────────────────
     // The Bug icon's head is at the TOP (perpendicular to the line).
     // We rotate it 90° clockwise so the head is PARALLEL to the line,
     // pointing right during the pull phase.
     //
-    // When refresh starts, the bug does a U-turn:
-    //   rotationZ: 90° → 180° → 270° (head: right → down → left)
-    //   scaleX: 1 → 0.1 → 1 (squishes flat at 180° = the "turn" moment)
+    // When refresh starts, the bug does a U-turn via a SMOOTH FADE:
+    //   Phase 1 (0–150ms): bug fades out (alpha 1 → 0). Head still
+    //     points right.
+    //   Phase 2 (invisible, instant): rotationZ jumps from 90° → 270°.
+    //   Phase 3 (150–300ms): bug fades back in (alpha 0 → 1). Head now
+    //     points left — the direction the bug walks during refresh.
     //
-    // After the U-turn, the head points LEFT — the direction the bug
-    // walks during refresh.
-    //
-    // NOTE: The Bug icon is bilaterally symmetric, so scaleX = -1 alone
-    // wouldn't flip the head direction (it would look the same). Only
-    // a rotation change can flip the head from right to left.
+    // This gives a "smooth transition" (the bug dissolves, reappears
+    // facing the other way) without a visible rotation or squish —
+    // which the user found felt "funny".
     val uTurnProgress = remember { Animatable(0f) }
     LaunchedEffect(isRefreshing) {
         if (isRefreshing) {
-            // U-turn: 0 → 1 over 300ms (150ms each half)
+            // U-turn: 0 → 1 over 300ms (150ms fade out + 150ms fade in)
             uTurnProgress.animateTo(
                 targetValue = 1f,
                 animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
@@ -122,49 +116,28 @@ fun BugLineRefreshIndicator(
         }
     }
 
-    // Derive rotationZ and scaleX from U-turn progress:
-    //   progress 0.0: rotationZ = 90° (head right), scaleX = 1
-    //   progress 0.5: rotationZ = 180° (head down = squish), scaleX = 0.1
-    //   progress 1.0: rotationZ = 270° (head left), scaleX = 1
+    // Derive rotationZ and bug alpha from U-turn progress:
+    //   progress 0.0–0.5: alpha 1 → 0 (fade out), rotationZ = 90° (head right)
+    //   progress 0.5:     alpha = 0 (invisible — rotation flips to 270°)
+    //   progress 0.5–1.0: alpha 0 → 1 (fade in), rotationZ = 270° (head left)
     val uTurn = uTurnProgress.value
     val bugRotationZ = if (isRefreshing) {
-        90f + (uTurn * 180f)  // 90° → 270°
+        // 90° for the first half (fading out, head right),
+        // 270° for the second half (fading in, head left).
+        if (uTurn < 0.5f) 90f else 270f
     } else {
         90f  // head right during pull
     }
-    val bugScaleX = if (isRefreshing) {
-        // Squish to 0.1 at midpoint (uTurn = 0.5), back to 1 at ends.
-        // Uses a triangle wave: 1 at 0, 0.1 at 0.5, 1 at 1.
-        val tri = 1f - (1f - kotlin.math.abs(uTurn * 2f - 1f)) * 0.9f
-        tri.coerceIn(0.1f, 1f)
+    // Alpha: 1 at uTurn=0, 0 at uTurn=0.5, 1 at uTurn=1.
+    // Triangle wave — smooth fade out then smooth fade in.
+    val bugAlpha = if (isRefreshing) {
+        (1f - kotlin.math.abs(uTurn * 2f - 1f))
     } else {
         1f
     }
 
-    // ─── Walking bob (vertical wobble) ──────────────────────────────
-    // A subtle ±1.5dp sine wave at ~5Hz (200ms per cycle). Only visible
-    // while the bug is moving (pulling or refreshing). This gives the
-    // "legs walking" impression without animating individual legs.
-    //
-    // At 16dp, individual leg wiggles would be ~1px — invisible. A
-    // whole-body bob is the right abstraction for this scale.
-    val isMoving = pullProgress > 0.01f || isRefreshing
-    val infiniteTransition = rememberInfiniteTransition(label = "bugWalk")
-    val walkPhase by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "walkPhase"
-    )
-    val density = LocalDensity.current
-    val bobAmountPx = with(density) { 1.5.dp.toPx() }
-    // sin(2π × walkPhase) gives a full sine wave cycle (0 → 1 → 0 → -1 → 0)
-    val bobY = if (isMoving) (sin(walkPhase * 2 * PI) * bobAmountPx).toFloat() else 0f
-
     val bugSize = 16.dp
+    val density = LocalDensity.current
     val bugSizePx = with(density) { bugSize.toPx() }
 
     Box(
@@ -217,11 +190,10 @@ fun BugLineRefreshIndicator(
                 )
             }
 
-            // ─── Layer 2: Bug icon, positioned + walking bob ───
-            // Vertically centered on the line, offset by the walking bob.
+            // ─── Layer 2: Bug icon (stable, no bob) ───
+            // Vertically centered on the line. No vertical wobble —
+            // the bug is stable while walking.
             val bugOffsetY = (20.dp - bugSize) / 2f
-            val bugOffsetYWithBob = with(density) { bugOffsetY.toPx() + bobY }
-            val bugOffsetYDp = with(density) { bugOffsetYWithBob.toDp() }
 
             Icon(
                 imageVector = CoralIcons.Bug,
@@ -229,14 +201,19 @@ fun BugLineRefreshIndicator(
                 tint = Color.White,
                 modifier = Modifier
                     .size(bugSize)
-                    .offset(x = bugOffsetX, y = bugOffsetYDp)
+                    .offset(x = bugOffsetX, y = bugOffsetY)
                     .graphicsLayer {
                         // Head parallel to line:
                         //   Pull: rotationZ = 90° (head points right)
                         //   After U-turn: rotationZ = 270° (head points left)
+                        // The rotation flips INSTANTLY while the bug is
+                        // invisible (alpha = 0 at the U-turn midpoint),
+                        // so the user doesn't see a spin — just a smooth
+                        // fade out + fade in with the head now pointing
+                        // the other way.
                         rotationZ = bugRotationZ
-                        // Squish during U-turn (1 → 0.1 at midpoint → 1)
-                        scaleX = bugScaleX
+                        // Smooth fade for the U-turn transition.
+                        alpha = bugAlpha
                     }
             )
         }
