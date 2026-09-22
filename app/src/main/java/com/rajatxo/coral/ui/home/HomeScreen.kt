@@ -378,6 +378,7 @@ fun HomeScreen(
                     songs = songs,
                     currentSongId = currentSongId,
                     currentSongTitle = currentSongTitle,
+                    currentSongArt = currentSongArt,
                     onSongClick = onSongClickWithReset,
                     capsuleVisible = capsuleVisible,
                     capsuleRemaining = capsuleRemaining,
@@ -506,7 +507,11 @@ fun HomeScreen(
         //
         // On API < 31: fall back to drawBackdrop (has the edge-sampling
         // weakness, but most devices are API 31+).
-        if (selectedTab == CoralTab.QuickPicks && !showSearch) {
+        if ((selectedTab == CoralTab.QuickPicks || selectedTab == CoralTab.Songs) && !showSearch) {
+            // ─── Dynamic header title ──
+            // "Quick picks" for the Quick Picks tab, "Songs" for the Songs tab.
+            val headerTitle = if (selectedTab == CoralTab.QuickPicks) "Quick picks" else "Songs"
+
             val useRenderEffect =
                 android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
 
@@ -620,9 +625,9 @@ fun HomeScreen(
                     )
                 }
 
-                // "Quick picks" title (center)
+                // Title (center) — "Quick picks" or "Songs" depending on tab
                 Text(
-                    text = "Quick picks",
+                    text = headerTitle,
                     color = Color.White,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
