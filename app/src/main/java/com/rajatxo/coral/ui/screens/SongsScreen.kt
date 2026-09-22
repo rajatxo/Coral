@@ -69,6 +69,10 @@ import com.rajatxo.coral.ui.theme.CalSansFamily
 import com.rajatxo.coral.util.CoralPalette
 import com.rajatxo.coral.util.PaletteCache
 import com.rajatxo.coral.util.extractPalette
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.colorControls
+import com.kyant.backdrop.effects.vibrancy
 import kotlinx.coroutines.launch
 
 /**
@@ -100,7 +104,8 @@ fun SongsScreen(
     capsuleVisible: Boolean = false,
     capsuleRemaining: Long = 0L,
     onExtend: () -> Unit = {},
-    onRefresh: suspend () -> Unit = {}
+    onRefresh: suspend () -> Unit = {},
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null
 ) {
     val context = LocalContext.current
     val sortedSongs = remember(songs) {
@@ -251,7 +256,8 @@ fun SongsScreen(
                 item {
                     CapsuleGrid(
                         onSongClick = onSongClick,
-                        songs = displayedSongs
+                        songs = displayedSongs,
+                        backdrop = backdrop
                     )
                 }
 
@@ -320,7 +326,8 @@ fun SongsScreen(
 @Composable
 private fun CapsuleGrid(
     songs: List<Song>,
-    onSongClick: (Song) -> Unit
+    onSongClick: (Song) -> Unit,
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -335,9 +342,8 @@ private fun CapsuleGrid(
                 icon = CoralIcons.Music,
                 label = "All songs",
                 modifier = Modifier.weight(1f),
+                backdrop = backdrop,
                 onClick = {
-                    // Play the first song in the sorted list (which starts
-                    // the full queue from the beginning).
                     if (songs.isNotEmpty()) {
                         onSongClick(songs.first())
                     }
@@ -347,6 +353,7 @@ private fun CapsuleGrid(
                 icon = CoralIcons.ListMusic,
                 label = "Recent",
                 modifier = Modifier.weight(1f),
+                backdrop = backdrop,
                 onClick = {
                     // Placeholder — user will guide what this does.
                 }
@@ -361,6 +368,7 @@ private fun CapsuleGrid(
                 icon = CoralIcons.HeartLucide,
                 label = "Favorites",
                 modifier = Modifier.weight(1f),
+                backdrop = backdrop,
                 onClick = {
                     // Placeholder — user will guide what this does.
                 }
@@ -369,8 +377,8 @@ private fun CapsuleGrid(
                 icon = CoralIcons.ShuffleLucide,
                 label = "Shuffle all",
                 modifier = Modifier.weight(1f),
+                backdrop = backdrop,
                 onClick = {
-                    // Shuffle all songs and play the first one.
                     if (songs.isNotEmpty()) {
                         val shuffled = songs.shuffled()
                         onSongClick(shuffled.first())
@@ -554,6 +562,7 @@ private fun FilterCapsule(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     modifier: Modifier = Modifier,
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null,
     onClick: () -> Unit = {}
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -567,33 +576,68 @@ private fun FilterCapsule(
         label = "capsuleScale"
     )
 
-    val capsuleShape: Shape = RoundedCornerShape(26.dp)
+    // Thinner (48dp vs old 64dp) + properly rounded (24dp corner = half of
+    // 48dp height → fully rounded pill ends).
+    val capsuleShape: Shape = RoundedCornerShape(24.dp)
 
-    Row(
-        modifier = modifier
-            .height(64.dp)
+    // Build the background modifier: real glass morphism via drawBackdrop
+    // (AGSL real-time blur, same technique as the mini player + nav bar),
+    // OR fall back to semi-transparent dark if no backdrop is available.
+    val glassModifier = if (backdrop != null) {
+        modifier
+            .height(48.dp)
             .scale(scale)
             .clip(capsuleShape)
-            .background(Color.Black.copy(alpha = 0.4f))
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { capsuleShape },
+                effects = {
+                    vibrancy()
+                    colorControls(
+                        brightness = 0.05f,
+                        contrast = 1f,
+                        saturation = 1.3f
+                    )
+                    blur(18f.dp.toPx())  // AGSL real-time backdrop blur
+                },
+                onDrawSurface = {
+                    drawRect(Color.Black.copy(alpha = 0.35f))
+                }
+            )
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 16.dp),
+    } else {
+        modifier
+            .height(48.dp)
+            .scale(scale)
+            .clip(capsuleShape)
+            .background(Color.Black.copy(alpha = 0.5f))
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+    }
+
+    Row(
+        modifier = glassModifier
+            .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
             tint = Color(0xFFFF6B6B),
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(20.dp)
         )
         Text(
             text = label,
             color = Color.White,
-            fontSize = 15.sp,
+            fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
             fontFamily = CalSansFamily,
             maxLines = 1,
