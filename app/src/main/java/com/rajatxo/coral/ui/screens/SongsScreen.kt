@@ -58,10 +58,6 @@ import com.rajatxo.coral.ui.theme.CalSansFamily
 import com.rajatxo.coral.util.CoralPalette
 import com.rajatxo.coral.util.PaletteCache
 import com.rajatxo.coral.util.extractPalette
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.colorControls
-import com.kyant.backdrop.effects.vibrancy
 import kotlinx.coroutines.launch
 
 /**
@@ -93,8 +89,7 @@ fun SongsScreen(
     capsuleVisible: Boolean = false,
     capsuleRemaining: Long = 0L,
     onExtend: () -> Unit = {},
-    onRefresh: suspend () -> Unit = {},
-    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null
+    onRefresh: suspend () -> Unit = {}
 ) {
     val context = LocalContext.current
     val sortedSongs = remember(songs) {
@@ -262,8 +257,7 @@ fun SongsScreen(
         ) {
             CapsuleGrid(
                 onSongClick = onSongClick,
-                songs = sortedSongs,
-                backdrop = backdrop
+                songs = sortedSongs
             )
         }
     }
@@ -291,8 +285,7 @@ fun SongsScreen(
 @Composable
 private fun CapsuleGrid(
     songs: List<Song>,
-    onSongClick: (Song) -> Unit,
-    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null
+    onSongClick: (Song) -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -307,7 +300,6 @@ private fun CapsuleGrid(
                 icon = CoralIcons.Music,
                 label = "All songs",
                 modifier = Modifier.weight(1f),
-                backdrop = backdrop,
                 onClick = {
                     if (songs.isNotEmpty()) {
                         onSongClick(songs.first())
@@ -318,7 +310,6 @@ private fun CapsuleGrid(
                 icon = CoralIcons.ListMusic,
                 label = "Recent",
                 modifier = Modifier.weight(1f),
-                backdrop = backdrop,
                 onClick = {
                     // Placeholder — user will guide what this does.
                 }
@@ -333,7 +324,6 @@ private fun CapsuleGrid(
                 icon = CoralIcons.HeartLucide,
                 label = "Favorites",
                 modifier = Modifier.weight(1f),
-                backdrop = backdrop,
                 onClick = {
                     // Placeholder — user will guide what this does.
                 }
@@ -342,7 +332,6 @@ private fun CapsuleGrid(
                 icon = CoralIcons.ShuffleLucide,
                 label = "Shuffle all",
                 modifier = Modifier.weight(1f),
-                backdrop = backdrop,
                 onClick = {
                     if (songs.isNotEmpty()) {
                         val shuffled = songs.shuffled()
@@ -378,7 +367,6 @@ private fun FilterCapsule(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     modifier: Modifier = Modifier,
-    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null,
     onClick: () -> Unit = {}
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -396,47 +384,24 @@ private fun FilterCapsule(
     // 48dp height → fully rounded pill ends).
     val capsuleShape: Shape = RoundedCornerShape(24.dp)
 
-    // Build the background modifier: real glass morphism via drawBackdrop
-    // (AGSL real-time blur, same technique as the mini player + nav bar),
-    // OR fall back to semi-transparent dark if no backdrop is available.
-    val glassModifier = if (backdrop != null) {
-        modifier
-            .height(48.dp)
-            .scale(scale)
-            .clip(capsuleShape)
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { capsuleShape },
-                effects = {
-                    vibrancy()
-                    colorControls(
-                        brightness = 0.05f,
-                        contrast = 1f,
-                        saturation = 1.3f
-                    )
-                    blur(18f.dp.toPx())  // AGSL real-time backdrop blur
-                },
-                onDrawSurface = {
-                    drawRect(Color.Black.copy(alpha = 0.35f))
-                }
-            )
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            )
-    } else {
-        modifier
-            .height(48.dp)
-            .scale(scale)
-            .clip(capsuleShape)
-            .background(Color.Black.copy(alpha = 0.5f))
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            )
-    }
+    // Build the background modifier: semi-transparent dark with a subtle
+    // white border — gives a "frosted glass" visual without drawBackdrop
+    // (which crashes inside screen composables — only works in HomeScreen's
+    // fixed overlays like the mini player and nav bar).
+    //
+    // The capsules still look glassy (semi-transparent dark + border) but
+    // don't actually blur the content behind them. This is a safe fallback
+    // that won't crash.
+    val glassModifier = modifier
+        .height(48.dp)
+        .scale(scale)
+        .clip(capsuleShape)
+        .background(Color.Black.copy(alpha = 0.45f))
+        .clickable(
+            interactionSource = interactionSource,
+            indication = null,
+            onClick = onClick
+        )
 
     Row(
         modifier = glassModifier
