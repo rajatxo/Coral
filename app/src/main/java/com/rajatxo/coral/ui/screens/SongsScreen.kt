@@ -1,7 +1,11 @@
 package com.rajatxo.coral.ui.screens
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -15,11 +19,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.items as lazyItems
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -38,9 +45,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -92,6 +105,31 @@ fun SongsScreen(
     val context = LocalContext.current
     val sortedSongs = remember(songs) {
         songs.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
+    }
+
+    // ─── Format filter state ───────────────────────────────────────
+    // Tracks which format capsule is currently selected (e.g. "FLAC").
+    // null = no filter (show all songs). Tapping a selected capsule
+    // again clears the filter (toggle behavior).
+    var selectedFormat by remember { mutableStateOf<String?>(null) }
+
+    // Compute the list of available formats from the songs, with the
+    // count of each. Sorted by count descending (most common first) so
+    // the user sees their dominant formats at the start of the line.
+    val formatCounts = remember(songs) {
+        songs.groupBy { it.format.ifEmpty { "Unknown" } }
+            .map { (format, list) -> format to list.size }
+            .sortedByDescending { it.second }
+    }
+
+    // The filtered song list — if a format is selected, only songs
+    // matching that format are shown. Otherwise, all songs.
+    val displayedSongs = remember(sortedSongs, selectedFormat) {
+        if (selectedFormat != null) {
+            sortedSongs.filter { it.format == selectedFormat }
+        } else {
+            sortedSongs
+        }
     }
 
     // ─── Current song's palette → dark gradient background ──────────
@@ -192,9 +230,29 @@ fun SongsScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
+                // ═══ Format capsules on a line ═══
+                // A full-width thin line with faded ends, with format
+                // capsules sitting on top. Capsules are horizontally
+                // scrollable (LazyRow) when there are more formats than
+                // fit on screen.
+                item {
+                    FormatCapsuleLine(
+                        formatCounts = formatCounts,
+                        selectedFormat = selectedFormat,
+                        onFormatSelected = { format ->
+                            // Tap to toggle: if already selected, clear.
+                            // If a different format is selected, switch.
+                            selectedFormat = if (selectedFormat == format) null else format
+                        }
+                    )
+                }
+
                 // ═══ 2×2 capsule grid ═══
                 item {
-                    CapsuleGrid(onSongClick = onSongClick, songs = songs)
+                    CapsuleGrid(
+                        onSongClick = onSongClick,
+                        songs = displayedSongs
+                    )
                 }
 
                 // ═══ Section header for the song list ═══
@@ -207,7 +265,7 @@ fun SongsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "All songs",
+                            text = if (selectedFormat != null) selectedFormat!! else "All songs",
                             color = Color.White,
                             fontSize = 20.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -221,7 +279,7 @@ fun SongsScreen(
                         )
                         Spacer(modifier = Modifier.weight(1f))
                         Text(
-                            text = "${songs.size}",
+                            text = "${displayedSongs.size}",
                             color = Color.White.copy(alpha = 0.6f),
                             fontSize = 14.sp,
                             fontFamily = CalSansFamily
@@ -230,7 +288,7 @@ fun SongsScreen(
                 }
 
                 // ═══ Song list ═══
-                items(sortedSongs, key = { it.id }) { song ->
+                items(displayedSongs, key = { it.id }) { song ->
                     SongRow(
                         song = song,
                         isCurrent = currentSongId == song.id,
@@ -320,6 +378,157 @@ private fun CapsuleGrid(
                 }
             )
         }
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// FORMAT CAPSULE LINE — thin line with faded ends + format capsules
+// ════════════════════════════════════════════════════════════════════
+// A full-width thin horizontal line with both ends fading to transparent
+// (same style as the bug-on-a-line PTR indicator). Format capsules sit
+// ON TOP of the line, centered vertically.
+//
+// Each capsule shows a format label (FLAC, M4A, MP3, Atmos, etc.) and
+// the count of songs in that format. Capsules are:
+//   • Semi-transparent dark background with white border (glass look)
+//   • Tap to select → filters the song list below
+//   • Tap again to deselect (toggle)
+//   • Selected capsule has a coral accent border + brighter text
+//
+// When there are more capsules than fit on screen, the LazyRow scrolls
+// horizontally — swipe left/right to see more formats.
+// ════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun FormatCapsuleLine(
+    formatCounts: List<Pair<String, Int>>,
+    selectedFormat: String?,
+    onFormatSelected: (String) -> Unit
+) {
+    if (formatCounts.isEmpty()) return
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(36.dp)
+    ) {
+        // ─── Layer 1: Thin line with faded ends ───
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+        ) {
+            val canvasWidth = size.width
+            val centerY = size.height / 2f
+            val lineHeight = 2f
+
+            drawRoundRect(
+                color = Color.White.copy(alpha = 0.4f),
+                topLeft = Offset(0f, centerY - lineHeight / 2f),
+                size = Size(canvasWidth, lineHeight),
+                cornerRadius = CornerRadius(lineHeight / 2f, lineHeight / 2f)
+            )
+
+            // Fade mask — both ends fade to transparent.
+            val fadeBrush = Brush.horizontalGradient(
+                colorStops = arrayOf(
+                    0.00f to Color.Transparent,
+                    0.05f to Color.Black,
+                    0.95f to Color.Black,
+                    1.00f to Color.Transparent
+                )
+            )
+            drawRect(
+                brush = fadeBrush,
+                topLeft = Offset.Zero,
+                size = size,
+                blendMode = BlendMode.DstIn
+            )
+        }
+
+        // ─── Layer 2: Format capsules (horizontally scrollable) ───
+        LazyRow(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            lazyItems(formatCounts) { (format, count) ->
+                val isSelected = format == selectedFormat
+                FormatCapsule(
+                    label = format,
+                    count = count,
+                    isSelected = isSelected,
+                    onClick = { onFormatSelected(format) }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * A single format capsule — shows the format name + song count.
+ *
+ * Selected state: coral accent border + brighter text + filled background.
+ * Unselected: semi-transparent dark + white border + dimmer text.
+ *
+ * Press animation: scale down to 0.94x (bouncy spring).
+ */
+@Composable
+private fun FormatCapsule(
+    label: String,
+    count: Int,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.94f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "formatCapsuleScale"
+    )
+
+    val capsuleShape: Shape = RoundedCornerShape(20.dp)
+
+    Row(
+        modifier = Modifier
+            .height(28.dp)
+            .scale(scale)
+            .clip(capsuleShape)
+            .background(
+                if (isSelected) Color(0xFFFF6B6B).copy(alpha = 0.15f)
+                else Color.Black.copy(alpha = 0.4f)
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        // Format label
+        Text(
+            text = label,
+            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f),
+            fontSize = 13.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+            fontFamily = CalSansFamily,
+            maxLines = 1
+        )
+        // Count
+        Text(
+            text = "$count",
+            color = if (isSelected) Color(0xFFFF6B6B) else Color.White.copy(alpha = 0.4f),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+            fontFamily = CalSansFamily
+        )
     }
 }
 
