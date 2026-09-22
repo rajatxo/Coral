@@ -93,6 +93,7 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.vibrancy
 import com.rajatxo.coral.domain.model.Song
+import com.rajatxo.coral.ui.components.BugLineRefreshIndicator
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
 import com.rajatxo.coral.ui.theme.QuirkFontFamily
@@ -206,10 +207,11 @@ fun QuickPicksScreen(
     // (rolls a new launchSeed → new random song selections, same
     // effect as tab-switching away and back).
     //
-    // The wind indicator is rendered in the `indicator` slot of
-    // PullToRefreshBox. It sits at the top, behind the fixed header's
-    // glass blur (rendered in HomeScreen) — so the streaks appear
-    // softened through the frosted glass, like wind through a window.
+    // The default Material3 circular arrow indicator is suppressed
+    // (indicator = {} on PullToRefreshBox). Instead, a custom
+    // BugLineRefreshIndicator is rendered in the Speed Dial header
+    // — right next to the chevron. A bug icon crawls along a thin line
+    // as the user pulls, rotating as it moves.
     val ptrState: PullToRefreshState = rememberPullToRefreshState()
     var isRefreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -299,7 +301,11 @@ fun QuickPicksScreen(
                         1.0f  to animatedBottom
                     )
                 )
-            )
+            ),
+        // Suppress the default Material3 circular arrow indicator — we
+        // use our custom BugLineRefreshIndicator in the Speed Dial header
+        // instead (positioned right next to the chevron).
+        indicator = {}
     ) {
         LazyColumn(
             modifier = Modifier
@@ -325,7 +331,9 @@ fun QuickPicksScreen(
                     onSongClick = onSongClick,
                     textPrimary = textPrimary,
                     textSecondary = textSecondary,
-                    launchSeed = launchSeed
+                    launchSeed = launchSeed,
+                    pullProgress = ptrState.distanceFraction,
+                    isRefreshing = isRefreshing
                 )
             }
 
@@ -812,7 +820,9 @@ private fun SpeedDialSection(
     onSongClick: (Song) -> Unit,
     textPrimary: Color,
     textSecondary: Color,
-    launchSeed: Int
+    launchSeed: Int,
+    pullProgress: Float = 0f,
+    isRefreshing: Boolean = false
 ) {
     val scope = rememberCoroutineScope()
     var isRandomizing by remember { mutableStateOf(false) }
@@ -881,6 +891,22 @@ private fun SpeedDialSection(
             contentDescription = null,
             tint = textSecondary,
             modifier = Modifier.size(20.dp)
+        )
+        // ─── Bug-on-a-line pull-to-refresh indicator ──────────────
+        // A thin horizontal line with faded ends sits right next to the
+        // chevron. As the user pulls down, a Bug icon crawls from left
+        // to right along the line, rotating as it moves. Fades in when
+        // pulling starts, fades out when refresh completes.
+        //
+        // Takes the remaining width (weight 1f) so the line fills the
+        // space after the chevron. Height is 20dp (matches the chevron
+        // row height). The bug is 16dp, centered on the line.
+        BugLineRefreshIndicator(
+            progress = pullProgress,
+            isRefreshing = isRefreshing,
+            modifier = Modifier
+                .weight(1f)
+                .height(20.dp)
         )
     }
 

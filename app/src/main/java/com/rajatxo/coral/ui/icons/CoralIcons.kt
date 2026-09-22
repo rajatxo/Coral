@@ -902,4 +902,48 @@ object CoralIcons {
         close()
     }
 
+    /** Lucide Bug icon. Used as the pull-to-refresh indicator on Quick Picks. */
+    val Bug: ImageVector = stroke("Bug") {
+        // body stem (vertical line from top to bottom of body)
+        moveTo(12f, 20f)
+        verticalLineToRelative(-9f)
+        // body shell (rounded rectangle with flat bottom)
+        moveTo(14f, 7f)
+        arcTo(4f, 4f, 0f, false, true, 18f, 11f)
+        verticalLineToRelative(3f)
+        arcTo(6f, 6f, 0f, false, true, 6f, 14f)
+        verticalLineToRelative(-3f)
+        arcTo(4f, 4f, 0f, false, true, 10f, 7f)
+        close()
+        // right antenna
+        moveTo(14.12f, 3.88f)
+        lineTo(16f, 2f)
+        // right-bottom leg
+        moveTo(21f, 21f)
+        arcTo(4f, 4f, 0f, false, false, 17.19f, 17f)
+        // right-top leg
+        moveTo(21f, 5f)
+        arcTo(4f, 4f, 0f, false, true, 17.45f, 8.97f)
+        // right-mid leg
+        moveTo(22f, 13f)
+        horizontalLineToRelative(-4f)
+        // left-bottom leg
+        moveTo(3f, 21f)
+        arcTo(4f, 4f, 0f, false, true, 6.81f, 17f)
+        // left-top leg
+        moveTo(3f, 5f)
+        arcTo(4f, 4f, 0f, false, false, 6.55f, 8.97f)
+        // left-mid leg
+        moveTo(6f, 13f)
+        horizontalLineTo(2f)
+        // left antenna
+        moveTo(8f, 2f)
+        lineToRelative(1.88f, 1.88f)
+        // head (small circle/arc at top)
+        moveTo(9f, 7.13f)
+        verticalLineToRelative(-1.13f)
+        arcToRelative(3f, 3f, 0f, true, true, 6f, 0f)
+        verticalLineToRelative(1.13f)
+    }
+
 }
