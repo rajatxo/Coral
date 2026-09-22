@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.rajatxo.coral.domain.model.Song
+import com.rajatxo.coral.ui.components.BugLineRefreshIndicator
 import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.components.SleepTimerCapsule
 import com.rajatxo.coral.ui.icons.CoralIcons
@@ -147,14 +148,11 @@ fun SongsScreen(
     val darkBase = Color(0xFF05050A)
 
     // ─── Pull-to-refresh state ───────────────────────────────────────
+    // Same bug-on-a-line indicator as Quick Picks — the bug crawls along
+    // a thin line beside the chevron next to "All songs" text.
     val ptrState: PullToRefreshState = rememberPullToRefreshState()
     var isRefreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-
-    // The capsule grid sits ABOVE the LazyColumn at a fixed offset.
-    // The LazyColumn's top content padding makes room for it.
-    // This keeps drawBackdrop OUT of the LazyColumn (which would crash).
-    val capsuleGridHeight = 108.dp  // 48dp row + 12dp gap + 48dp row
 
     Box(
         modifier = Modifier
@@ -187,12 +185,16 @@ fun SongsScreen(
                 }
             },
             state = ptrState,
+            // Suppress the default Material3 circular arrow indicator —
+            // we use the custom BugLineRefreshIndicator in the "All songs"
+            // header instead (positioned right next to the chevron).
+            indicator = {},
             modifier = Modifier.fillMaxSize()
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
-                    top = 130.dp + capsuleGridHeight,  // blur header (120+10) + capsule grid
+                    top = 130.dp,      // just below where the blur header ends (120dp + 10dp gap)
                     bottom = 100.dp,   // space for mini player
                     start = 20.dp,
                     end = 20.dp
@@ -221,7 +223,16 @@ fun SongsScreen(
                             tint = Color.White.copy(alpha = 0.6f),
                             modifier = Modifier.size(20.dp)
                         )
-                        Spacer(modifier = Modifier.weight(1f))
+                        // ─── Bug-on-a-line pull-to-refresh indicator ──
+                        // Same as Quick Picks: a thin line with faded ends,
+                        // bug crawls left → right as you pull. Fades in/out.
+                        BugLineRefreshIndicator(
+                            progress = ptrState.distanceFraction,
+                            isRefreshing = isRefreshing,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(20.dp)
+                        )
                         Text(
                             text = "${songs.size}",
                             color = Color.White.copy(alpha = 0.6f),
@@ -241,189 +252,6 @@ fun SongsScreen(
                 }
             }
         }
-
-        // ─── Fixed 2×2 capsule grid (OUTSIDE LazyColumn) ───
-        // Rendered as a fixed overlay above the LazyColumn, positioned
-        // right below the blur header (130dp from top). This is critical:
-        // drawBackdrop inside LazyColumn item {} crashes on item recycle
-        // (known issue — see CORAL_BLUR_BLUEPRINT.md / handover brief).
-        // By pulling the capsule grid OUT of the LazyColumn, the
-        // drawBackdrop composable stays alive for the screen's lifetime.
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.TopCenter)
-                .padding(top = 130.dp, start = 20.dp, end = 20.dp)
-        ) {
-            CapsuleGrid(
-                onSongClick = onSongClick,
-                songs = sortedSongs
-            )
-        }
-    }
-}
-
-// ════════════════════════════════════════════════════════════════════
-// CAPSULE GRID — 2×2 frosted-glass capsules below the blur header
-// ════════════════════════════════════════════════════════════════════
-// Four capsules in a 2×2 grid. Each capsule:
-//   • Half the screen width (with 12dp gap between them)
-//   • 48dp tall (thinner, matching the music player aesthetic)
-//   • Glass-blur background via drawBackdrop (REAL frosted glass —
-//     samples the screen content behind + AGSL blur)
-//   • Properly rounded (24dp corner = half of 48dp height → full pill)
-//   • Icon on the left + label on the right
-//   • Tappable (scale-down on press, haptic on release)
-//
-// The 4 capsules are:
-//   1. "All songs"    → Music icon       → plays all songs from the top
-//   2. "Recent"       → ListMusic icon   → (placeholder — user will guide)
-//   3. "Favorites"    → HeartLucide icon → (placeholder)
-//   4. "Shuffle all" → ShuffleLucide    → shuffles all songs + plays
-// ════════════════════════════════════════════════════════════════════
-
-@Composable
-private fun CapsuleGrid(
-    songs: List<Song>,
-    onSongClick: (Song) -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        // Row 1: All songs | Recent
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            FilterCapsule(
-                icon = CoralIcons.Music,
-                label = "All songs",
-                modifier = Modifier.weight(1f),
-                onClick = {
-                    if (songs.isNotEmpty()) {
-                        onSongClick(songs.first())
-                    }
-                }
-            )
-            FilterCapsule(
-                icon = CoralIcons.ListMusic,
-                label = "Recent",
-                modifier = Modifier.weight(1f),
-                onClick = {
-                    // Placeholder — user will guide what this does.
-                }
-            )
-        }
-        // Row 2: Favorites | Shuffle all
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            FilterCapsule(
-                icon = CoralIcons.HeartLucide,
-                label = "Favorites",
-                modifier = Modifier.weight(1f),
-                onClick = {
-                    // Placeholder — user will guide what this does.
-                }
-            )
-            FilterCapsule(
-                icon = CoralIcons.ShuffleLucide,
-                label = "Shuffle all",
-                modifier = Modifier.weight(1f),
-                onClick = {
-                    if (songs.isNotEmpty()) {
-                        val shuffled = songs.shuffled()
-                        onSongClick(shuffled.first())
-                    }
-                }
-            )
-        }
-    }
-}
-
-/**
- * A single frosted-glass filter capsule.
- *
- * Design:
- *   • Rounded pill shape (24dp corner radius — half of 48dp height →
- *     fully rounded pill ends)
- *   • 48dp tall (thinner, matching the mini player aesthetic)
- *   • REAL glass morphism via drawBackdrop (AGSL real-time backdrop
- *     blur, same technique as the mini player + nav bar). Samples
- *     whatever is behind the capsule on the screen and blurs it.
- *   • Dark tint overlay (alpha 0.35) on top of the blur for readability
- *   • Icon on the left (20dp, coral accent color)
- *   • Label on the right (CalSans, 14sp, SemiBold, white)
- *   • Scale-down animation on press (0.96x, bouncy spring)
- *
- * NOTE: This composable must NOT be inside a LazyColumn item —
- * drawBackdrop crashes when the LazyColumn item is recycled. The
- * CapsuleGrid is rendered as a fixed overlay above the LazyColumn.
- */
-@Composable
-private fun FilterCapsule(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit = {}
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.96f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
-        label = "capsuleScale"
-    )
-
-    // Thinner (48dp vs old 64dp) + properly rounded (24dp corner = half of
-    // 48dp height → fully rounded pill ends).
-    val capsuleShape: Shape = RoundedCornerShape(24.dp)
-
-    // Build the background modifier: semi-transparent dark with a subtle
-    // white border — gives a "frosted glass" visual without drawBackdrop
-    // (which crashes inside screen composables — only works in HomeScreen's
-    // fixed overlays like the mini player and nav bar).
-    //
-    // The capsules still look glassy (semi-transparent dark + border) but
-    // don't actually blur the content behind them. This is a safe fallback
-    // that won't crash.
-    val glassModifier = modifier
-        .height(48.dp)
-        .scale(scale)
-        .clip(capsuleShape)
-        .background(Color.Black.copy(alpha = 0.45f))
-        .clickable(
-            interactionSource = interactionSource,
-            indication = null,
-            onClick = onClick
-        )
-
-    Row(
-        modifier = glassModifier
-            .padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = Color(0xFFFF6B6B),
-            modifier = Modifier.size(20.dp)
-        )
-        Text(
-            text = label,
-            color = Color.White,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            fontFamily = CalSansFamily,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
     }
 }
 
