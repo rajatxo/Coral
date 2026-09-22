@@ -5,7 +5,6 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -19,14 +18,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.items as lazyItems
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -45,15 +40,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -86,10 +75,10 @@ import kotlinx.coroutines.launch
  *      at the bottom into the page content.
  *   3. 2×2 capsule grid — 4 frosted-glass capsules right below where the
  *      blur ends (~120dp from top). Each capsule has an icon + label.
+ *      Rendered OUTSIDE the LazyColumn (fixed position) so drawBackdrop
+ *      doesn't crash (drawBackdrop inside LazyColumn item crashes on
+ *      item recycle — known issue from the Speed Dial mode capsule).
  *   4. Song list — LazyColumn of all songs, scrolls below the capsules.
- *
- * The old design (black wavy fade + italic "Songs" text + placeholder
- * capsule) has been completely removed.
  *
  * Pull-to-refresh: pulling down triggers a library rescan via [onRefresh].
  */
@@ -110,31 +99,6 @@ fun SongsScreen(
     val context = LocalContext.current
     val sortedSongs = remember(songs) {
         songs.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
-    }
-
-    // ─── Format filter state ───────────────────────────────────────
-    // Tracks which format capsule is currently selected (e.g. "FLAC").
-    // null = no filter (show all songs). Tapping a selected capsule
-    // again clears the filter (toggle behavior).
-    var selectedFormat by remember { mutableStateOf<String?>(null) }
-
-    // Compute the list of available formats from the songs, with the
-    // count of each. Sorted by count descending (most common first) so
-    // the user sees their dominant formats at the start of the line.
-    val formatCounts = remember(songs) {
-        songs.groupBy { it.format.ifEmpty { "Unknown" } }
-            .map { (format, list) -> format to list.size }
-            .sortedByDescending { it.second }
-    }
-
-    // The filtered song list — if a format is selected, only songs
-    // matching that format are shown. Otherwise, all songs.
-    val displayedSongs = remember(sortedSongs, selectedFormat) {
-        if (selectedFormat != null) {
-            sortedSongs.filter { it.format == selectedFormat }
-        } else {
-            sortedSongs
-        }
     }
 
     // ─── Current song's palette → dark gradient background ──────────
@@ -192,6 +156,11 @@ fun SongsScreen(
     var isRefreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
+    // The capsule grid sits ABOVE the LazyColumn at a fixed offset.
+    // The LazyColumn's top content padding makes room for it.
+    // This keeps drawBackdrop OUT of the LazyColumn (which would crash).
+    val capsuleGridHeight = 108.dp  // 48dp row + 12dp gap + 48dp row
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -228,39 +197,13 @@ fun SongsScreen(
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
-                    top = 130.dp,      // just below where the blur header ends (120dp + 10dp gap)
+                    top = 130.dp + capsuleGridHeight,  // blur header (120+10) + capsule grid
                     bottom = 100.dp,   // space for mini player
                     start = 20.dp,
                     end = 20.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                // ═══ Format capsules on a line ═══
-                // A full-width thin line with faded ends, with format
-                // capsules sitting on top. Capsules are horizontally
-                // scrollable (LazyRow) when there are more formats than
-                // fit on screen.
-                item {
-                    FormatCapsuleLine(
-                        formatCounts = formatCounts,
-                        selectedFormat = selectedFormat,
-                        onFormatSelected = { format ->
-                            // Tap to toggle: if already selected, clear.
-                            // If a different format is selected, switch.
-                            selectedFormat = if (selectedFormat == format) null else format
-                        }
-                    )
-                }
-
-                // ═══ 2×2 capsule grid ═══
-                item {
-                    CapsuleGrid(
-                        onSongClick = onSongClick,
-                        songs = displayedSongs,
-                        backdrop = backdrop
-                    )
-                }
-
                 // ═══ Section header for the song list ═══
                 item {
                     Row(
@@ -271,7 +214,7 @@ fun SongsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = if (selectedFormat != null) selectedFormat!! else "All songs",
+                            text = "All songs",
                             color = Color.White,
                             fontSize = 20.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -285,7 +228,7 @@ fun SongsScreen(
                         )
                         Spacer(modifier = Modifier.weight(1f))
                         Text(
-                            text = "${displayedSongs.size}",
+                            text = "${songs.size}",
                             color = Color.White.copy(alpha = 0.6f),
                             fontSize = 14.sp,
                             fontFamily = CalSansFamily
@@ -294,7 +237,7 @@ fun SongsScreen(
                 }
 
                 // ═══ Song list ═══
-                items(displayedSongs, key = { it.id }) { song ->
+                items(sortedSongs, key = { it.id }) { song ->
                     SongRow(
                         song = song,
                         isCurrent = currentSongId == song.id,
@@ -302,6 +245,26 @@ fun SongsScreen(
                     )
                 }
             }
+        }
+
+        // ─── Fixed 2×2 capsule grid (OUTSIDE LazyColumn) ───
+        // Rendered as a fixed overlay above the LazyColumn, positioned
+        // right below the blur header (130dp from top). This is critical:
+        // drawBackdrop inside LazyColumn item {} crashes on item recycle
+        // (known issue — see CORAL_BLUR_BLUEPRINT.md / handover brief).
+        // By pulling the capsule grid OUT of the LazyColumn, the
+        // drawBackdrop composable stays alive for the screen's lifetime.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopCenter)
+                .padding(top = 130.dp, start = 20.dp, end = 20.dp)
+        ) {
+            CapsuleGrid(
+                onSongClick = onSongClick,
+                songs = sortedSongs,
+                backdrop = backdrop
+            )
         }
     }
 }
@@ -311,8 +274,10 @@ fun SongsScreen(
 // ════════════════════════════════════════════════════════════════════
 // Four capsules in a 2×2 grid. Each capsule:
 //   • Half the screen width (with 12dp gap between them)
-//   • 64dp tall (chunky pill, matching the mini player height)
-//   • Glass-blur background (frosted glass look)
+//   • 48dp tall (thinner, matching the music player aesthetic)
+//   • Glass-blur background via drawBackdrop (REAL frosted glass —
+//     samples the screen content behind + AGSL blur)
+//   • Properly rounded (24dp corner = half of 48dp height → full pill)
 //   • Icon on the left + label on the right
 //   • Tappable (scale-down on press, haptic on release)
 //
@@ -389,173 +354,24 @@ private fun CapsuleGrid(
     }
 }
 
-// ════════════════════════════════════════════════════════════════════
-// FORMAT CAPSULE LINE — thin line with faded ends + format capsules
-// ════════════════════════════════════════════════════════════════════
-// A full-width thin horizontal line with both ends fading to transparent
-// (same style as the bug-on-a-line PTR indicator). Format capsules sit
-// ON TOP of the line, centered vertically.
-//
-// Each capsule shows a format label (FLAC, M4A, MP3, Atmos, etc.) and
-// the count of songs in that format. Capsules are:
-//   • Semi-transparent dark background with white border (glass look)
-//   • Tap to select → filters the song list below
-//   • Tap again to deselect (toggle)
-//   • Selected capsule has a coral accent border + brighter text
-//
-// When there are more capsules than fit on screen, the LazyRow scrolls
-// horizontally — swipe left/right to see more formats.
-// ════════════════════════════════════════════════════════════════════
-
-@Composable
-private fun FormatCapsuleLine(
-    formatCounts: List<Pair<String, Int>>,
-    selectedFormat: String?,
-    onFormatSelected: (String) -> Unit
-) {
-    if (formatCounts.isEmpty()) return
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(36.dp)
-    ) {
-        // ─── Layer 1: Thin line with faded ends ───
-        Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-        ) {
-            val canvasWidth = size.width
-            val centerY = size.height / 2f
-            val lineHeight = 2f
-
-            drawRoundRect(
-                color = Color.White.copy(alpha = 0.4f),
-                topLeft = Offset(0f, centerY - lineHeight / 2f),
-                size = Size(canvasWidth, lineHeight),
-                cornerRadius = CornerRadius(lineHeight / 2f, lineHeight / 2f)
-            )
-
-            // Fade mask — both ends fade to transparent.
-            val fadeBrush = Brush.horizontalGradient(
-                colorStops = arrayOf(
-                    0.00f to Color.Transparent,
-                    0.05f to Color.Black,
-                    0.95f to Color.Black,
-                    1.00f to Color.Transparent
-                )
-            )
-            drawRect(
-                brush = fadeBrush,
-                topLeft = Offset.Zero,
-                size = size,
-                blendMode = BlendMode.DstIn
-            )
-        }
-
-        // ─── Layer 2: Format capsules (horizontally scrollable) ───
-        LazyRow(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            lazyItems(formatCounts) { (format, count) ->
-                val isSelected = format == selectedFormat
-                FormatCapsule(
-                    label = format,
-                    count = count,
-                    isSelected = isSelected,
-                    onClick = { onFormatSelected(format) }
-                )
-            }
-        }
-    }
-}
-
-/**
- * A single format capsule — shows the format name + song count.
- *
- * Selected state: coral accent border + brighter text + filled background.
- * Unselected: semi-transparent dark + white border + dimmer text.
- *
- * Press animation: scale down to 0.94x (bouncy spring).
- */
-@Composable
-private fun FormatCapsule(
-    label: String,
-    count: Int,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.94f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
-        label = "formatCapsuleScale"
-    )
-
-    val capsuleShape: Shape = RoundedCornerShape(20.dp)
-
-    Row(
-        modifier = Modifier
-            .height(28.dp)
-            .scale(scale)
-            .clip(capsuleShape)
-            .background(
-                if (isSelected) Color(0xFFFF6B6B).copy(alpha = 0.15f)
-                else Color.Black.copy(alpha = 0.4f)
-            )
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            )
-            .padding(horizontal = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        // Format label
-        Text(
-            text = label,
-            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f),
-            fontSize = 13.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-            fontFamily = CalSansFamily,
-            maxLines = 1
-        )
-        // Count
-        Text(
-            text = "$count",
-            color = if (isSelected) Color(0xFFFF6B6B) else Color.White.copy(alpha = 0.4f),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
-            fontFamily = CalSansFamily
-        )
-    }
-}
-
 /**
  * A single frosted-glass filter capsule.
  *
  * Design:
- *   • Rounded pill shape (26dp corner radius — matches TabCapsule)
- *   • 64dp tall (matches mini player height)
- *   • Semi-transparent dark background with a subtle white border
- *   • Icon on the left (24dp, coral accent color)
- *   • Label on the right (CalSans, 15sp, SemiBold, white)
- *   • Scale-down animation on press (0.96x)
+ *   • Rounded pill shape (24dp corner radius — half of 48dp height →
+ *     fully rounded pill ends)
+ *   • 48dp tall (thinner, matching the mini player aesthetic)
+ *   • REAL glass morphism via drawBackdrop (AGSL real-time backdrop
+ *     blur, same technique as the mini player + nav bar). Samples
+ *     whatever is behind the capsule on the screen and blurs it.
+ *   • Dark tint overlay (alpha 0.35) on top of the blur for readability
+ *   • Icon on the left (20dp, coral accent color)
+ *   • Label on the right (CalSans, 14sp, SemiBold, white)
+ *   • Scale-down animation on press (0.96x, bouncy spring)
  *
- * NOTE: This doesn't use drawBackdrop (real glass blur) because that
- * would require a LayerBackdrop to be passed down from HomeScreen.
- * Instead, it uses a semi-transparent dark background which gives a
- * similar visual feel without the blur. If the user wants real glass
- * blur later, we can wire the backdrop through.
+ * NOTE: This composable must NOT be inside a LazyColumn item —
+ * drawBackdrop crashes when the LazyColumn item is recycled. The
+ * CapsuleGrid is rendered as a fixed overlay above the LazyColumn.
  */
 @Composable
 private fun FilterCapsule(
@@ -567,11 +383,11 @@ private fun FilterCapsule(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by androidx.compose.animation.core.animateFloatAsState(
+    val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.96f else 1f,
-        animationSpec = androidx.compose.animation.core.spring(
-            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
-            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
         ),
         label = "capsuleScale"
     )
