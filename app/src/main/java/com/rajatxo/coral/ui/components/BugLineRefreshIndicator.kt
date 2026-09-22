@@ -95,29 +95,50 @@ fun BugLineRefreshIndicator(
     )
 
     // ─── U-turn animation ───────────────────────────────────────────
-    // When refresh starts, the bug "turns around" via a scaleX squish:
-    //   1 → 0.1 (150ms, squish flat — the bug "turns")
-    //   0.1 → 1 (150ms, expand back — now "facing" the other way)
+    // The Bug icon's head is at the TOP (perpendicular to the line).
+    // We rotate it 90° clockwise so the head is PARALLEL to the line,
+    // pointing right during the pull phase.
     //
-    // The Bug icon is vertically symmetric, so the end state looks the
-    // same as the start. But the squish animation reads as "U-turn"
-    // because the bug briefly flattens (like it rotated 90°).
-    val bugScaleX = remember { Animatable(1f) }
+    // When refresh starts, the bug does a U-turn:
+    //   rotationZ: 90° → 180° → 270° (head: right → down → left)
+    //   scaleX: 1 → 0.1 → 1 (squishes flat at 180° = the "turn" moment)
+    //
+    // After the U-turn, the head points LEFT — the direction the bug
+    // walks during refresh.
+    //
+    // NOTE: The Bug icon is bilaterally symmetric, so scaleX = -1 alone
+    // wouldn't flip the head direction (it would look the same). Only
+    // a rotation change can flip the head from right to left.
+    val uTurnProgress = remember { Animatable(0f) }
     LaunchedEffect(isRefreshing) {
         if (isRefreshing) {
-            // Squish flat (turn 90°)
-            bugScaleX.animateTo(
-                targetValue = 0.1f,
-                animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)
-            )
-            // Expand back (now "facing" left)
-            bugScaleX.animateTo(
+            // U-turn: 0 → 1 over 300ms (150ms each half)
+            uTurnProgress.animateTo(
                 targetValue = 1f,
-                animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)
+                animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
             )
         } else {
-            bugScaleX.snapTo(1f)
+            uTurnProgress.snapTo(0f)
         }
+    }
+
+    // Derive rotationZ and scaleX from U-turn progress:
+    //   progress 0.0: rotationZ = 90° (head right), scaleX = 1
+    //   progress 0.5: rotationZ = 180° (head down = squish), scaleX = 0.1
+    //   progress 1.0: rotationZ = 270° (head left), scaleX = 1
+    val uTurn = uTurnProgress.value
+    val bugRotationZ = if (isRefreshing) {
+        90f + (uTurn * 180f)  // 90° → 270°
+    } else {
+        90f  // head right during pull
+    }
+    val bugScaleX = if (isRefreshing) {
+        // Squish to 0.1 at midpoint (uTurn = 0.5), back to 1 at ends.
+        // Uses a triangle wave: 1 at 0, 0.1 at 0.5, 1 at 1.
+        val tri = 1f - (1f - kotlin.math.abs(uTurn * 2f - 1f)) * 0.9f
+        tri.coerceIn(0.1f, 1f)
+    } else {
+        1f
     }
 
     // ─── Walking bob (vertical wobble) ──────────────────────────────
@@ -210,8 +231,12 @@ fun BugLineRefreshIndicator(
                     .size(bugSize)
                     .offset(x = bugOffsetX, y = bugOffsetYDp)
                     .graphicsLayer {
-                        // U-turn squash (1 → 0.1 → 1 during refresh start)
-                        scaleX = bugScaleX.value
+                        // Head parallel to line:
+                        //   Pull: rotationZ = 90° (head points right)
+                        //   After U-turn: rotationZ = 270° (head points left)
+                        rotationZ = bugRotationZ
+                        // Squish during U-turn (1 → 0.1 at midpoint → 1)
+                        scaleX = bugScaleX
                     }
             )
         }
