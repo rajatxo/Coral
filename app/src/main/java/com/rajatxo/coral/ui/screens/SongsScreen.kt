@@ -1,19 +1,9 @@
 package com.rajatxo.coral.ui.screens
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,10 +34,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -66,19 +54,16 @@ import com.rajatxo.coral.util.extractPalette
 import kotlinx.coroutines.launch
 
 /**
- * Songs tab — card-based design matching the reference video.
+ * Songs tab — simple clean list, matching Quick Picks visual language.
  *
- * Each song is a full-width rounded card with:
- *   • Album art filling the card background
- *   • Gradient overlay at the bottom for text readability
- *   • Song title (CalSans, bold, white) at bottom-left
- *   • Artist name (CalSans, regular, dimmer) below the title
- *   • Colorful gradient progress bar at the very bottom if playing
+ * Layout (top to bottom):
+ *   1. Background: single dominant color → dark gradient (same as Quick Picks)
+ *   2. Blur header (rendered in HomeScreen) — profile + "Songs" + settings
+ *   3. LazyColumn of songs as rows (album art + title/artist + duration).
+ *      The "All songs" header is INSIDE the LazyColumn so it scrolls up
+ *      and blurs behind the header (like Quick Picks).
  *
- * No letter headers — all songs in one continuous list.
- * The "All songs" header scrolls with the list and blurs behind the header.
- *
- * Pull-to-refresh: bug-on-a-line indicator in the header row.
+ * Pull-to-refresh: bug-on-a-line indicator in the "All songs" header row.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -96,7 +81,6 @@ fun SongsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // Sort songs alphabetically — no letter groupings, one flat list.
     val sortedSongs = remember(songs) {
         songs.sortedBy { it.title.lowercase() }
     }
@@ -187,17 +171,17 @@ fun SongsScreen(
                 contentPadding = PaddingValues(
                     top = 108.dp,
                     bottom = 100.dp,
-                    start = 16.dp,
-                    end = 16.dp
+                    start = 20.dp,
+                    end = 20.dp
                 ),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                // ═══ "All songs" section header (inside LazyColumn — scrolls + blurs) ═══
+                // ═══ "All songs" header (inside LazyColumn — scrolls + blurs) ═══
                 item {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 4.dp, start = 8.dp, end = 8.dp),
+                            .padding(top = 4.dp, start = 4.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -230,9 +214,9 @@ fun SongsScreen(
                     }
                 }
 
-                // ═══ Song cards ═══
+                // ═══ Song list (simple rows — no letter headers) ═══
                 items(sortedSongs, key = { it.id }) { song ->
-                    SongCard(
+                    SongRow(
                         song = song,
                         isCurrent = currentSongId == song.id,
                         onClick = { onSongClick(song) }
@@ -244,169 +228,72 @@ fun SongsScreen(
 }
 
 // ════════════════════════════════════════════════════════════════════
-// SONG CARD — full-width card with album art + overlay text
-// ════════════════════════════════════════════════════════════════════
-// Each card:
-//   • Full width, 90dp tall (compact but shows the art)
-//   • Album art fills the entire card (ContentScale.Crop)
-//   • Gradient overlay (transparent → black) at the bottom for text
-//   • Song title (CalSans, 15sp, Bold, white) at bottom-left
-//   • Artist name (CalSans, 12sp, Regular, dimmer) below title
-//   • If currently playing: colorful gradient progress bar at the bottom
-//   • Press: scale down to 0.97x (bouncy spring)
-//   • Rounded corners: 16dp
+// SONG ROW — album art + title/artist + duration
 // ════════════════════════════════════════════════════════════════════
 
 @Composable
-private fun SongCard(
-    song: Song,
-    isCurrent: Boolean,
-    onClick: () -> Unit
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.97f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
-        label = "cardScale"
-    )
-
-    val cardShape: Shape = RoundedCornerShape(16.dp)
-
-    Box(
+private fun SongRow(song: Song, isCurrent: Boolean, onClick: () -> Unit) {
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(90.dp)
-            .scale(scale)
-            .clip(cardShape)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            )
+            .clickable(onClick = onClick)
+            .background(if (isCurrent) CoralColors.SurfaceVariant else Color.Transparent)
+            .padding(horizontal = 4.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        // ─── Album art background ───
-        if (song.albumArtUri != null) {
-            AsyncImage(
-                model = song.albumArtUri,
-                contentDescription = "Album art",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-        } else {
-            // No album art — dark placeholder
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(CoralColors.SurfaceVariant),
-                contentAlignment = Alignment.Center
-            ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(CoralColors.SurfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
+            if (song.albumArtUri != null) {
+                AsyncImage(
+                    model = song.albumArtUri,
+                    contentDescription = "Album art",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
                 Icon(
                     imageVector = CoralIcons.Music,
                     contentDescription = null,
                     tint = Color(0xFFB0B0B0),
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
+        Spacer(modifier = Modifier.size(12.dp))
 
-        // ─── Gradient overlay for text readability ───
-        // Transparent at top → black at bottom
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0.0f to Color.Transparent,
-                            0.4f to Color.Transparent,
-                            0.7f to Color.Black.copy(alpha = 0.4f),
-                            1.0f to Color.Black.copy(alpha = 0.85f)
-                        )
-                    )
-                )
-        )
-
-        // ─── Song title + artist (bottom-left) ───
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 14.dp, bottom = 12.dp)
-        ) {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = song.title,
                 color = Color.White,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = CalSansFamily,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = song.artist,
-                color = Color.White.copy(alpha = 0.7f),
-                fontSize = 12.sp,
+                color = Color.White.copy(alpha = 0.5f),
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Normal,
-                fontFamily = CalSansFamily,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
 
-        // ─── Colorful gradient progress bar (only on the playing song) ───
-        // A thin bar at the very bottom of the card with a flowing gradient
-        // (coral → orange → pink → blue → coral, cycling). Only shown on
-        // the currently playing song — not on all songs.
-        if (isCurrent) {
-            ColorfulProgressBar(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(3.dp)
-            )
-        }
+        val totalSec = song.duration / 1000
+        val mm = totalSec / 60
+        val ss = totalSec % 60
+        Text(
+            text = "$mm:${String.format("%02d", ss)}",
+            color = Color.White.copy(alpha = 0.4f),
+            fontSize = 13.sp
+        )
     }
-}
-
-/**
- * Colorful gradient progress bar — flows left to right continuously.
- * Uses a 4-stop gradient (coral, orange, pink, blue) that shifts over
- * time via an infinite transition. The gradient is 2x the bar width so
- * it slides visibly.
- */
-@Composable
-private fun ColorfulProgressBar(modifier: Modifier = Modifier) {
-    val infiniteTransition = rememberInfiniteTransition(label = "progressFlow")
-    val flowOffset by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "progressFlowOffset"
-    )
-
-    val colors = listOf(
-        Color(0xFFFF6B6B),  // coral
-        Color(0xFFFFB36B),  // orange
-        Color(0xFFFF6BE5),  // pink
-        Color(0xFF6B9BFF),  // blue
-        Color(0xFFFF6B6B)   // back to coral (seamless loop)
-    )
-
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
-            .background(
-                Brush.horizontalGradient(
-                    colors = colors,
-                    startX = -flowOffset * 300f,  // slide
-                    endX = (1f - flowOffset) * 300f + 300f
-                )
-            )
-    )
 }
