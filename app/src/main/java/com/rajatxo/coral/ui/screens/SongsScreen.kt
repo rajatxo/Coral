@@ -212,12 +212,10 @@ fun SongsScreen(
     var isRefreshing by remember { mutableStateOf(false) }
 
     // Heights for the fixed overlays:
-    //   100dp = blur header end
+    //   130dp = below the blur header (120dp blur + 10dp gap)
     //   36dp  = "All songs" header row
-    //   Total = 136dp top padding for the LazyColumn
-    //   (No horizontal scrubber bar anymore — the letter scrubber is
-    //   vertical on the right edge, doesn't take vertical space)
-    val allSongsHeaderTop = 100.dp
+    //   Total = 170dp top padding for the LazyColumn
+    val allSongsHeaderTop = 130.dp
     val allSongsHeaderHeight = 36.dp
     val listTopPadding = allSongsHeaderTop + allSongsHeaderHeight + 4.dp
 
@@ -427,15 +425,17 @@ private fun VerticalLetterScrubber(
                 }
             }
     ) {
-        // The letter column — aligned to the right edge, no background.
+        // The letter column — aligned to CenterEnd (vertically CENTERED, not
+        // full height). Letters are TIGHTLY PACKED (near-zero spacing) to
+        // match Niagara Launcher exactly.
+        // NO background — letters float over the content.
         Column(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .fillMaxHeight()
                 .onGloballyPositioned { coordinates ->
                     columnHeight = coordinates.size.height.toFloat()
                 },
-            verticalArrangement = Arrangement.SpaceEvenly,
+            verticalArrangement = Arrangement.spacedBy(0.001.dp),
             horizontalAlignment = Alignment.End
         ) {
             letters.forEachIndexed { index, letter ->
@@ -473,7 +473,8 @@ private fun NiagaraLetter(
     // Track this letter's center Y position (for distance calculation)
     var letterCenterY by remember { mutableStateOf(0f) }
 
-    // Calculate the elastic offset based on distance from touch
+    // Calculate the elastic offset based on distance from touch.
+    // Matches the Open-Niagara reference: maxOffset=120, decayFactor=10.
     val targetOffset = remember(touchY, letterCenterY, columnHeight) {
         if (touchY == null || columnHeight == 0f) {
             0f
@@ -483,12 +484,12 @@ private fun NiagaraLetter(
             // Normalize by column height
             val normalizedDistance = distance / columnHeight
             // Exponential decay — letters near finger move more
-            val decayFactor = 12f
+            val decayFactor = 10f
             val influence = kotlin.math.exp(
                 -(normalizedDistance * normalizedDistance) * decayFactor
             )
-            // Max bulge: 80dp to the left
-            80f * influence
+            // Max bulge: 120dp to the left (matches reference)
+            120f * influence
         }
     }
 
@@ -502,14 +503,16 @@ private fun NiagaraLetter(
         label = "letterOffset_$letter"
     )
 
+    // 12sp font for ALL letters (matches reference). Active letter is
+    // coral + bold; others are white at 0.5 alpha.
     Text(
         text = letter,
         color = if (isActive) Color(0xFFFF6B6B) else Color.White.copy(alpha = 0.5f),
-        fontSize = if (isActive) 14.sp else 11.sp,
+        fontSize = 12.sp,
         fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
         fontFamily = CalSansFamily,
         modifier = Modifier
-            .padding(end = 16.dp)
+            .padding(horizontal = 16.dp)
             .offset(x = -animatedOffset.dp)  // Move LEFT (negative X)
             .onGloballyPositioned { coordinates ->
                 val rect = coordinates.positionInRoot()
