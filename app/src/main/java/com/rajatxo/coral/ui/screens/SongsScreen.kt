@@ -4,7 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -13,11 +13,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -43,6 +46,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -209,12 +214,12 @@ fun SongsScreen(
     // Heights for the fixed overlays:
     //   100dp = blur header end
     //   36dp  = "All songs" header row
-    //   44dp  = letter scrubber bar
-    //   Total = 180dp top padding for the LazyColumn
+    //   Total = 136dp top padding for the LazyColumn
+    //   (No horizontal scrubber bar anymore — the letter scrubber is
+    //   vertical on the right edge, doesn't take vertical space)
     val allSongsHeaderTop = 100.dp
     val allSongsHeaderHeight = 36.dp
-    val scrubberHeight = 44.dp
-    val listTopPadding = allSongsHeaderTop + allSongsHeaderHeight + scrubberHeight + 4.dp
+    val listTopPadding = allSongsHeaderTop + allSongsHeaderHeight + 4.dp
 
     // Available letters for the scrubber
     val letters = letterGroups.map { it.first }
@@ -318,12 +323,14 @@ fun SongsScreen(
             )
         }
 
-        // ─── Fixed letter scrubber bar (Niagara-style) ───
-        // Drag horizontally → scroll list to that letter.
-        // Scrolling list → updates the active letter on the bar.
-        // 1:1 finger following.
+        // ─── Vertical letter scrubber (Niagara-style, right edge) ───
+        // Letters stacked vertically on the RIGHT edge of the screen.
+        // NO background — letters float directly over the content.
+        // Drag vertically → nearby letters bulge LEFT (elastic rope
+        // effect with exponential decay + spring physics). The letter
+        // at the finger position becomes active → list scrolls to it.
         if (letters.isNotEmpty()) {
-            LetterScrubberBar(
+            VerticalLetterScrubber(
                 letters = letters,
                 activeLetter = activeLetter,
                 onLetterSelected = { letter ->
@@ -335,101 +342,180 @@ fun SongsScreen(
                     }
                 },
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.TopCenter)
-                    .padding(
-                        top = allSongsHeaderTop + allSongsHeaderHeight + 4.dp,
-                        start = 20.dp,
-                        end = 20.dp
-                    )
-                    .height(scrubberHeight)
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight()
             )
         }
     }
 }
 
 // ════════════════════════════════════════════════════════════════════
-// LETTER SCRUBBER BAR — Niagara-style horizontal scrubber
+// VERTICAL LETTER SCRUBBER — Niagara-style elastic rope
 // ════════════════════════════════════════════════════════════════════
-// A horizontal bar showing all available letters. The active letter
-// (the one currently at the top of the viewport) is highlighted in
-// coral. Dragging horizontally on the bar scrubs through the letters
-// and scrolls the list to match — 1:1 finger following.
+// Letters stacked VERTICALLY on the right edge of the screen.
+// NO background — letters float directly over the content behind them.
+//
+// Interaction:
+//   • Drag finger UP/DOWN on the right edge
+//   • Letters near the finger BULGE LEFT (elastic rope effect)
+//   • The letter closest to the finger becomes "active" → list scrolls
+//   • Exponential decay: letters far from the finger barely move
+//   • Spring physics: letters spring back when the finger lifts
+//
+// Inspired by theSoberSobber/Open-Niagara implementation, adapted
+// for Coral's Songs tab with bidirectional sync (scrolling the list
+// also updates which letter is highlighted).
 // ════════════════════════════════════════════════════════════════════
 
 @Composable
-private fun LetterScrubberBar(
+private fun VerticalLetterScrubber(
     letters: List<String>,
     activeLetter: String,
     onLetterSelected: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val density = LocalDensity.current
-    val scope = rememberCoroutineScope()
+    // Track the finger's Y position (in pixels, relative to this composable).
+    // null = not touching.
+    var touchY by remember { mutableStateOf<Float?>(null) }
 
-    // Track the drag position (0..1 across the bar width)
-    var dragFraction by remember { mutableStateOf<Float?>(null) }
+    // Track the total height of the letter column (for normalizing distances).
+    var columnHeight by remember { mutableStateOf(0f) }
 
-    // The bar is a tappable + draggable zone. Letters are spread evenly.
+    // Track which letter index the finger is closest to (for selection).
+    var lastSelectedIndex by remember { mutableStateOf(-1) }
+
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(22.dp))
-            .background(Color.Black.copy(alpha = 0.3f))
+            .width(60.dp)  // touch zone width
             .pointerInput(letters) {
-                detectTapGestures { offset ->
-                    val frac = (offset.x / size.width).coerceIn(0f, 1f)
-                    val idx = (frac * (letters.size - 1)).roundToInt()
-                        .coerceIn(0, letters.lastIndex)
-                    onLetterSelected(letters[idx])
-                }
-            }
-            .pointerInput(letters) {
-                detectHorizontalDragGestures(
+                detectDragGestures(
                     onDragStart = { offset ->
-                        val frac = (offset.x / size.width).coerceIn(0f, 1f)
-                        dragFraction = frac
-                        val idx = (frac * (letters.size - 1)).roundToInt()
-                            .coerceIn(0, letters.lastIndex)
-                        onLetterSelected(letters[idx])
+                        touchY = offset.y
                     },
-                    onHorizontalDrag = { change, _ ->
+                    onDrag = { change, _ ->
                         change.consume()
-                        val frac = (change.position.x / size.width).coerceIn(0f, 1f)
-                        dragFraction = frac
-                        val idx = (frac * (letters.size - 1)).roundToInt()
-                            .coerceIn(0, letters.lastIndex)
-                        onLetterSelected(letters[idx])
+                        touchY = change.position.y
+                        // Calculate which letter the finger is over
+                        if (columnHeight > 0 && letters.isNotEmpty()) {
+                            val frac = (touchY!! / columnHeight).coerceIn(0f, 1f)
+                            val idx = (frac * (letters.size - 1)).roundToInt()
+                                .coerceIn(0, letters.lastIndex)
+                            if (idx != lastSelectedIndex) {
+                                lastSelectedIndex = idx
+                                onLetterSelected(letters[idx])
+                            }
+                        }
                     },
                     onDragEnd = {
-                        dragFraction = null
+                        touchY = null
+                        lastSelectedIndex = -1
                     },
                     onDragCancel = {
-                        dragFraction = null
+                        touchY = null
+                        lastSelectedIndex = -1
                     }
                 )
             }
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        contentAlignment = Alignment.Center
+            .pointerInput(letters) {
+                detectTapGestures { offset ->
+                    if (columnHeight > 0 && letters.isNotEmpty()) {
+                        val frac = (offset.y / columnHeight).coerceIn(0f, 1f)
+                        val idx = (frac * (letters.size - 1)).roundToInt()
+                            .coerceIn(0, letters.lastIndex)
+                        onLetterSelected(letters[idx])
+                    }
+                }
+            }
     ) {
-        // Render all letters in a row, evenly spaced.
-        // Active letter is coral + bold. Others are dim white.
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        // The letter column — aligned to the right edge, no background.
+        Column(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight()
+                .onGloballyPositioned { coordinates ->
+                    columnHeight = coordinates.size.height.toFloat()
+                },
+            verticalArrangement = Arrangement.SpaceEvenly,
+            horizontalAlignment = Alignment.End
         ) {
-            letters.forEach { letter ->
-                val isActive = letter == activeLetter
-                Text(
-                    text = letter,
-                    color = if (isActive) Color(0xFFFF6B6B) else Color.White.copy(alpha = 0.4f),
-                    fontSize = if (isActive) 16.sp else 13.sp,
-                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                    fontFamily = CalSansFamily
+            letters.forEachIndexed { index, letter ->
+                NiagaraLetter(
+                    letter = letter,
+                    isActive = letter == activeLetter,
+                    touchY = touchY,
+                    columnHeight = columnHeight,
+                    letterIndex = index,
+                    totalLetters = letters.size
                 )
             }
         }
     }
+}
+
+/**
+ * A single letter in the vertical scrubber.
+ *
+ * When the finger is near (touchY is set), the letter bulges LEFT
+ * (negative X offset) with exponential decay. Letters closest to
+ * the finger move the most; far letters barely move.
+ *
+ * Spring physics animate the offset for an elastic feel.
+ */
+@Composable
+private fun NiagaraLetter(
+    letter: String,
+    isActive: Boolean,
+    touchY: Float?,
+    columnHeight: Float,
+    letterIndex: Int,
+    totalLetters: Int
+) {
+    // Track this letter's center Y position (for distance calculation)
+    var letterCenterY by remember { mutableStateOf(0f) }
+
+    // Calculate the elastic offset based on distance from touch
+    val targetOffset = remember(touchY, letterCenterY, columnHeight) {
+        if (touchY == null || columnHeight == 0f) {
+            0f
+        } else {
+            // Distance from finger to this letter's center
+            val distance = touchY - letterCenterY
+            // Normalize by column height
+            val normalizedDistance = distance / columnHeight
+            // Exponential decay — letters near finger move more
+            val decayFactor = 12f
+            val influence = kotlin.math.exp(
+                -(normalizedDistance * normalizedDistance) * decayFactor
+            )
+            // Max bulge: 80dp to the left
+            80f * influence
+        }
+    }
+
+    // Animate with spring physics for elastic feel
+    val animatedOffset by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = targetOffset,
+        animationSpec = androidx.compose.animation.core.spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+        ),
+        label = "letterOffset_$letter"
+    )
+
+    Text(
+        text = letter,
+        color = if (isActive) Color(0xFFFF6B6B) else Color.White.copy(alpha = 0.5f),
+        fontSize = if (isActive) 14.sp else 11.sp,
+        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
+        fontFamily = CalSansFamily,
+        modifier = Modifier
+            .padding(end = 16.dp)
+            .offset(x = -animatedOffset.dp)  // Move LEFT (negative X)
+            .onGloballyPositioned { coordinates ->
+                val rect = coordinates.positionInRoot()
+                letterCenterY = rect.y + (coordinates.size.height / 2f)
+            }
+    )
 }
 
 // ════════════════════════════════════════════════════════════════════
