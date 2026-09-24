@@ -181,7 +181,7 @@ fun SongsScreen(
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
-                    top = 108.dp,
+                    top = 160.dp,      // blur header (108dp) + tag carousel (40dp) + gap (12dp)
                     bottom = 100.dp,
                     start = 20.dp,
                     end = 20.dp
@@ -226,18 +226,6 @@ fun SongsScreen(
                     }
                 }
 
-                // ═══ Circular tag capsule carousel ═══
-                // Fixed centre "All Tags" capsule. Other capsules rotate
-                // around it on swipe. Each capsule has real glass morphism.
-                item {
-                    TagCarousel(
-                        backdrop = backdrop,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp)
-                    )
-                }
-
                 // ═══ Song list ═══
                 items(sortedSongs, key = { it.id }) { song ->
                     SongRow(
@@ -248,6 +236,23 @@ fun SongsScreen(
                 }
             }
         }
+
+        // ─── Fixed tag carousel overlay (OUTSIDE LazyColumn) ───
+        // drawBackdrop crashes inside LazyColumn item (recycle issue).
+        // Fix: render the TagCarousel as a FIXED overlay positioned right
+        // below the blur header. The song list scrolls behind it. The
+        // drawBackdrop composable stays alive for the screen's lifetime
+        // — no recycle, no crash.
+        //
+        // Same pattern as the Quick Picks blur header (which is also a
+        // fixed overlay above the LazyColumn, not inside it).
+        TagCarousel(
+            backdrop = backdrop,
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopCenter)
+                .padding(top = 112.dp, start = 20.dp, end = 20.dp)
+        )
     }
 }
 
