@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -68,15 +69,18 @@ import com.kyant.backdrop.effects.vibrancy
 import kotlinx.coroutines.launch
 
 /**
- * Songs tab — simple list + circular glass tag capsules.
+ * Songs tab — simple list + fixed glass tag capsules.
  *
- * Tag carousel is INSIDE the LazyColumn so it scrolls with the list and
- * gets blurred by the top blur header when scrolling up.
+ * The tag carousel is a FIXED overlay (outside LazyColumn) with REAL
+ * glass morphism via drawBackdrop. Each capsule creates its OWN
+ * independent graphicsLayer + LayerBackdrop — NOT the shared one from
+ * HomeScreen. No shared state, no race condition, no LazyColumn recycle.
  *
- * Each capsule has REAL glass morphism via its OWN independent
- * rememberGraphicsLayer() + rememberLayerBackdrop() — NOT the shared
- * one from HomeScreen. Each capsule is self-contained: its own backdrop,
- * its own blur. No shared state corruption.
+ * Layout:
+ *   1. Background gradient (same as Quick Picks)
+ *   2. Blur header (rendered in HomeScreen)
+ *   3. Fixed tag carousel overlay (112dp, real glass blur on each capsule)
+ *   4. LazyColumn: "All songs" header + song rows
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,7 +99,7 @@ fun SongsScreen(
     val scope = rememberCoroutineScope()
     val sortedSongs = remember(songs) { songs.sortedBy { it.title.lowercase() } }
 
-    // Background palette + gradient (same as Quick Picks)
+    // Background palette + gradient
     var palette by remember { mutableStateOf(CoralPalette.Default) }
     LaunchedEffect(currentSongArt) {
         if (currentSongArt != null) {
@@ -143,7 +147,7 @@ fun SongsScreen(
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = 108.dp, bottom = 100.dp, start = 20.dp, end = 20.dp),
+                contentPadding = PaddingValues(top = 160.dp, bottom = 100.dp, start = 20.dp, end = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 // "All songs" header (scrolls + blurs behind header)
@@ -163,25 +167,32 @@ fun SongsScreen(
                             fontSize = 14.sp, fontFamily = CalSansFamily)
                     }
                 }
-
-                // Tag carousel (INSIDE LazyColumn — scrolls + blurs behind header)
-                item {
-                    TagCarousel(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
-                    )
-                }
-
                 // Song list
                 items(sortedSongs, key = { it.id }) { song ->
                     SongRow(song, currentSongId == song.id) { onSongClick(song) }
                 }
             }
         }
+
+        // ─── FIXED tag carousel overlay (outside LazyColumn) ───
+        // Real glass morphism via drawBackdrop with each capsule's OWN
+        // independent graphicsLayer + LayerBackdrop. NOT shared with
+        // HomeScreen. NOT inside LazyColumn. No crash.
+        TagCarousel(
+            modifier = Modifier.fillMaxWidth()
+                .align(Alignment.TopCenter)
+                .padding(top = 112.dp, start = 20.dp, end = 20.dp)
+        )
     }
 }
 
 // ════════════════════════════════════════════════════════════════════
-// TAG CAROUSEL — circular capsule row with fixed centre
+// TAG CAROUSEL — fixed overlay, circular capsule row with fixed centre
+// ════════════════════════════════════════════════════════════════════
+// ONE shared backdrop for the whole row (not per-capsule). The whole
+// row is wrapped in layerBackdrop(), and each capsule uses drawBackdrop
+// with this single backdrop. This is the same pattern as the TabCapsule
+// (one backdrop, one drawBackdrop call per item).
 // ════════════════════════════════════════════════════════════════════
 
 @Composable
@@ -203,11 +214,21 @@ private fun TagCarousel(modifier: Modifier = Modifier) {
     }
 
     val dragThreshold = 40f
+    val density = LocalDensity.current
+
+    // ONE backdrop for the whole row. Each capsule samples from it.
+    val ownGraphicsLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
+    val ownBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop(
+        graphicsLayer = ownGraphicsLayer
+    ) {
+        drawContent()
+    }
 
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(40.dp)
+            .layerBackdrop(ownBackdrop)
             .pointerInput(n) {
                 var acc = 0f
                 detectHorizontalDragGestures(
@@ -230,6 +251,8 @@ private fun TagCarousel(modifier: Modifier = Modifier) {
                 label = tag,
                 isCentre = isCentre,
                 isSelected = isSelected,
+                backdrop = ownBackdrop,
+                density = density,
                 onClick = { selectedTag = if (selectedTag == tag) centreTag else tag },
                 modifier = if (isCentre) Modifier else Modifier.weight(1f)
             )
@@ -238,18 +261,10 @@ private fun TagCarousel(modifier: Modifier = Modifier) {
 }
 
 // ════════════════════════════════════════════════════════════════════
-// GLASS TAG CAPSULE — each has its OWN independent graphicsLayer + backdrop
+// GLASS TAG CAPSULE — real glass morphism via drawBackdrop
 // ════════════════════════════════════════════════════════════════════
-// Each capsule creates its OWN rememberGraphicsLayer() + rememberLayerBackdrop().
-// NOT the shared one from HomeScreen. Each capsule is fully self-contained:
-//   - Own graphicsLayer to capture content behind it
-//   - Own LayerBackdrop to provide the backdrop
-//   - Own layerBackdrop() modifier to wrap the capsule
-//   - Own drawBackdrop() to blur the captured content
-//
-// This avoids the shared-state corruption that caused the previous crashes.
-// When LazyColumn recycles this item, the capsule's own backdrop is disposed
-// and recreated — no shared state to corrupt.
+// Uses drawBackdrop with the carousel's OWN backdrop (not HomeScreen's
+// shared one). Same technique as the TabCapsule nav bar.
 // ════════════════════════════════════════════════════════════════════
 
 @Composable
@@ -257,6 +272,8 @@ private fun GlassTagCapsule(
     label: String,
     isCentre: Boolean,
     isSelected: Boolean,
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop,
+    density: androidx.compose.ui.unit.Density,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -272,24 +289,14 @@ private fun GlassTagCapsule(
     )
 
     val capsuleShape: Shape = RoundedCornerShape(16.dp)
-    val density = androidx.compose.ui.platform.LocalDensity.current
-
-    // Each capsule gets its OWN independent graphicsLayer + backdrop.
-    val ownGraphicsLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
-    val ownBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop(
-        graphicsLayer = ownGraphicsLayer
-    ) {
-        drawContent()
-    }
 
     Box(
         modifier = modifier
             .height(32.dp)
             .scale(scale)
             .clip(capsuleShape)
-            .layerBackdrop(ownBackdrop)
             .drawBackdrop(
-                backdrop = ownBackdrop,
+                backdrop = backdrop,
                 shape = { capsuleShape },
                 effects = {
                     vibrancy()
