@@ -383,8 +383,7 @@ fun HomeScreen(
                     capsuleVisible = capsuleVisible,
                     capsuleRemaining = capsuleRemaining,
                     onExtend = onExtend,
-                    onRefresh = onRefresh,
-                    graphicsLayer = graphicsLayer
+                    onRefresh = onRefresh
                 )
                 CoralTab.Playlists -> {
                     // Always show PlaylistsScreen. When a playlist is tapped,

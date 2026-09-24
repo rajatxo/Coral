@@ -40,20 +40,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.layer.GraphicsLayer
-import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -70,14 +60,23 @@ import com.rajatxo.coral.ui.theme.CalSansFamily
 import com.rajatxo.coral.util.CoralPalette
 import com.rajatxo.coral.util.PaletteCache
 import com.rajatxo.coral.util.extractPalette
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.colorControls
+import com.kyant.backdrop.effects.vibrancy
 import kotlinx.coroutines.launch
 
 /**
  * Songs tab — simple list + circular glass tag capsules.
  *
- * The tag capsules use REAL glass morphism via the RenderEffect technique
- * (drawLayer + BlurEffect) — the SAME technique as the top blur header.
- * No drawBackdrop (which crashes inside screen composables).
+ * Tag carousel is INSIDE the LazyColumn so it scrolls with the list and
+ * gets blurred by the top blur header when scrolling up.
+ *
+ * Each capsule has REAL glass morphism via its OWN independent
+ * rememberGraphicsLayer() + rememberLayerBackdrop() — NOT the shared
+ * one from HomeScreen. Each capsule is self-contained: its own backdrop,
+ * its own blur. No shared state corruption.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,14 +89,13 @@ fun SongsScreen(
     capsuleVisible: Boolean = false,
     capsuleRemaining: Long = 0L,
     onExtend: () -> Unit = {},
-    onRefresh: suspend () -> Unit = {},
-    graphicsLayer: GraphicsLayer? = null
+    onRefresh: suspend () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val sortedSongs = remember(songs) { songs.sortedBy { it.title.lowercase() } }
 
-    // ─── Background palette + gradient ──────────────────────────────
+    // Background palette + gradient (same as Quick Picks)
     var palette by remember { mutableStateOf(CoralPalette.Default) }
     LaunchedEffect(currentSongArt) {
         if (currentSongArt != null) {
@@ -145,7 +143,7 @@ fun SongsScreen(
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = 160.dp, bottom = 100.dp, start = 20.dp, end = 20.dp),
+                contentPadding = PaddingValues(top = 108.dp, bottom = 100.dp, start = 20.dp, end = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 // "All songs" header (scrolls + blurs behind header)
@@ -165,20 +163,20 @@ fun SongsScreen(
                             fontSize = 14.sp, fontFamily = CalSansFamily)
                     }
                 }
+
+                // Tag carousel (INSIDE LazyColumn — scrolls + blurs behind header)
+                item {
+                    TagCarousel(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                    )
+                }
+
                 // Song list
                 items(sortedSongs, key = { it.id }) { song ->
                     SongRow(song, currentSongId == song.id) { onSongClick(song) }
                 }
             }
         }
-
-        // Fixed tag carousel overlay (OUTSIDE LazyColumn — no crash)
-        TagCarousel(
-            graphicsLayer = graphicsLayer,
-            modifier = Modifier.fillMaxWidth()
-                .align(Alignment.TopCenter)
-                .padding(top = 112.dp, start = 20.dp, end = 20.dp)
-        )
     }
 }
 
@@ -187,10 +185,7 @@ fun SongsScreen(
 // ════════════════════════════════════════════════════════════════════
 
 @Composable
-private fun TagCarousel(
-    graphicsLayer: GraphicsLayer? = null,
-    modifier: Modifier = Modifier
-) {
+private fun TagCarousel(modifier: Modifier = Modifier) {
     val rotatingTags = remember { listOf("Recent", "Favorites", "Most played", "On device", "Downloads") }
     val centreTag = "All Tags"
     var rotationOffset by remember { mutableStateOf(0) }
@@ -235,7 +230,6 @@ private fun TagCarousel(
                 label = tag,
                 isCentre = isCentre,
                 isSelected = isSelected,
-                graphicsLayer = graphicsLayer,
                 onClick = { selectedTag = if (selectedTag == tag) centreTag else tag },
                 modifier = if (isCentre) Modifier else Modifier.weight(1f)
             )
@@ -244,14 +238,18 @@ private fun TagCarousel(
 }
 
 // ════════════════════════════════════════════════════════════════════
-// GLASS TAG CAPSULE — real glass via RenderEffect (same as blur header)
+// GLASS TAG CAPSULE — each has its OWN independent graphicsLayer + backdrop
 // ════════════════════════════════════════════════════════════════════
-// Uses the EXACT same technique as the top blur header:
-//   graphicsLayer { renderEffect = BlurEffect(12dp, 12dp); clip = true }
-//   drawWithContent { drawLayer(graphicsLayer); drawRect(dark tint) }
+// Each capsule creates its OWN rememberGraphicsLayer() + rememberLayerBackdrop().
+// NOT the shared one from HomeScreen. Each capsule is fully self-contained:
+//   - Own graphicsLayer to capture content behind it
+//   - Own LayerBackdrop to provide the backdrop
+//   - Own layerBackdrop() modifier to wrap the capsule
+//   - Own drawBackdrop() to blur the captured content
 //
-// No drawBackdrop → no crash. The graphicsLayer is the shared one from
-// HomeScreen that captures the screen content via layerBackdrop().
+// This avoids the shared-state corruption that caused the previous crashes.
+// When LazyColumn recycles this item, the capsule's own backdrop is disposed
+// and recreated — no shared state to corrupt.
 // ════════════════════════════════════════════════════════════════════
 
 @Composable
@@ -259,7 +257,6 @@ private fun GlassTagCapsule(
     label: String,
     isCentre: Boolean,
     isSelected: Boolean,
-    graphicsLayer: GraphicsLayer? = null,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -275,18 +272,37 @@ private fun GlassTagCapsule(
     )
 
     val capsuleShape: Shape = RoundedCornerShape(16.dp)
+    val density = androidx.compose.ui.platform.LocalDensity.current
 
-    // NO drawLayer, NO drawBackdrop, NO BlurEffect — those corrupt the shared
-    // graphicsLayer and crash the app. Using semi-transparent dark + thin white
-    // border. Looks glassy, never crashes.
+    // Each capsule gets its OWN independent graphicsLayer + backdrop.
+    val ownGraphicsLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
+    val ownBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop(
+        graphicsLayer = ownGraphicsLayer
+    ) {
+        drawContent()
+    }
+
     Box(
         modifier = modifier
             .height(32.dp)
             .scale(scale)
             .clip(capsuleShape)
-            .background(
-                if (isCentre) Color(0xFFFF6B6B).copy(alpha = 0.12f)
-                else Color.Black.copy(alpha = 0.4f)
+            .layerBackdrop(ownBackdrop)
+            .drawBackdrop(
+                backdrop = ownBackdrop,
+                shape = { capsuleShape },
+                effects = {
+                    vibrancy()
+                    colorControls(
+                        brightness = 0.05f,
+                        contrast = 1f,
+                        saturation = 1.2f
+                    )
+                    blur(with(density) { 12.dp.toPx() })
+                },
+                onDrawSurface = {
+                    drawRect(Color.Black.copy(alpha = 0.3f))
+                }
             )
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(horizontal = 10.dp),
