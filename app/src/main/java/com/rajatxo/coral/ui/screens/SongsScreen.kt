@@ -1,23 +1,29 @@
 package com.rajatxo.coral.ui.screens
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.exponentialDecay
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -35,56 +41,36 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.components.BugLineRefreshIndicator
+import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
 import com.rajatxo.coral.util.CoralPalette
 import com.rajatxo.coral.util.PaletteCache
 import com.rajatxo.coral.util.extractPalette
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlin.math.PI
-import kotlin.math.abs
-import kotlin.math.cos
-import kotlin.math.min
-import kotlin.math.roundToInt
-import kotlin.math.sin
 
 /**
- * Songs tab — single-arc wheel with glass capsule cards.
+ * Songs tab — simple list + horizontal glass tag capsules.
  *
- * ONE big arc. All songs sit on it. Each song has:
- *   • A ball marker on the arc line
- *   • A transparent thin capsule card beside the ball containing:
- *     - Circular album art (left)
- *     - Song title + artist name (right, CalSans)
- *
- * Interaction:
- *   • Drag up/down → rotates the wheel (songs scroll through the arc)
- *   • Tap the right side → plays the song at the apex
- *
- * The "All songs" header with bug PTR sits at the top.
+ * Layout (top to bottom):
+ *   1. Background: single dominant color → dark gradient (same as Quick Picks)
+ *   2. Blur header (rendered in HomeScreen) — profile + "Songs" + settings
+ *   3. Fixed horizontal row of 6-7 glass capsule tags (scrollable if needed)
+ *   4. "All songs" header with bug PTR (inside LazyColumn — scrolls + blurs)
+ *   5. LazyColumn of songs as rows
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -153,6 +139,18 @@ fun SongsScreen(
     val ptrState: PullToRefreshState = rememberPullToRefreshState()
     var isRefreshing by remember { mutableStateOf(false) }
 
+    // ─── Tag capsules state ──────────────────────────────────────────
+    // 6-7 tag capsules. User will explain what tags they want.
+    // For now: placeholder tags that can be selected.
+    val tags = remember { listOf("All", "Recent", "Favorites", "Most played", "On device", "Downloads") }
+    var selectedTag by remember { mutableStateOf("All") }
+
+    // Filtered songs based on selected tag
+    // (For now, all tags show all songs — user will explain the logic)
+    val displayedSongs = remember(sortedSongs, selectedTag) {
+        sortedSongs  // Placeholder — no filtering yet
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -183,431 +181,220 @@ fun SongsScreen(
             indicator = {},
             modifier = Modifier.fillMaxSize()
         ) {
-            SongWheel(
-                songs = sortedSongs,
-                currentSongId = currentSongId,
-                onSongClick = onSongClick,
-                ptrState = ptrState,
-                isRefreshing = isRefreshing,
-                songCount = songs.size,
-                modifier = Modifier.fillMaxSize()
-            )
-        }
-    }
-}
-
-// ════════════════════════════════════════════════════════════════════
-// SONG WHEEL — single arc, all songs, glass capsule cards
-// ════════════════════════════════════════════════════════════════════
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SongWheel(
-    songs: List<Song>,
-    currentSongId: Long?,
-    onSongClick: (Song) -> Unit,
-    ptrState: PullToRefreshState,
-    isRefreshing: Boolean,
-    songCount: Int,
-    modifier: Modifier = Modifier
-) {
-    if (songs.isEmpty()) return
-
-    val density = LocalDensity.current
-    val textMeasurer = rememberTextMeasurer()
-    val coroutineScope = rememberCoroutineScope()
-    val context = LocalContext.current
-    val view = LocalView.current
-
-    // --- Album art bitmaps cache ---
-    // We load album art as ImageBitmap and cache them so the Canvas can draw them.
-    // Only load for songs that are likely visible (±10 from center).
-    val artCache = remember { mutableMapOf<Long, ImageBitmap>() }
-
-    // --- Geometry constants (same as PlaylistWheel) ---
-    val angleStepDeg = 8f
-    val pxPerItem = with(density) { 64.dp.toPx() }
-    val scrollOffset = remember { Animatable(0f) }
-    var lastSnappedIndex by remember { mutableStateOf(0) }
-
-    fun indexAtOffset(offset: Float): Int {
-        val raw = (offset / pxPerItem).roundToInt()
-        val mod = raw % songs.size
-        return if (mod < 0) mod + songs.size else mod
-    }
-
-    val centerIndex = remember(scrollOffset.value) { indexAtOffset(scrollOffset.value) }
-
-    // --- Load album art for visible songs ---
-    LaunchedEffect(centerIndex, songs) {
-        val startIdx = (centerIndex - 10).coerceAtLeast(0)
-        val endIdx = min(centerIndex + 10, songs.lastIndex)
-        for (i in startIdx..endIdx) {
-            val song = songs[i]
-            if (song.albumArtUri != null && !artCache.containsKey(song.id)) {
-                try {
-                    val bitmap = withContext(Dispatchers.IO) {
-                        android.graphics.BitmapFactory.decodeStream(
-                            context.contentResolver.openInputStream(song.albumArtUri)
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    top = 160.dp,      // blur header (108dp) + tag capsules (44dp) + gap
+                    bottom = 100.dp,
+                    start = 20.dp,
+                    end = 20.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                // ═══ "All songs" header (inside LazyColumn — scrolls + blurs) ═══
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp, start = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "All songs",
+                            color = Color.White,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = CalSansFamily
+                        )
+                        Icon(
+                            imageVector = CoralIcons.ChevronRight,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.6f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        BugLineRefreshIndicator(
+                            progress = ptrState.distanceFraction,
+                            isRefreshing = isRefreshing,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(20.dp)
+                        )
+                        Text(
+                            text = "${songs.size}",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 14.sp,
+                            fontFamily = CalSansFamily
                         )
                     }
-                    if (bitmap != null) {
-                        // Downscale to 48dp for performance
-                        val targetPx = with(density) { 48.dp.toPx() }.toInt()
-                        val scaled = android.graphics.Bitmap.createScaledBitmap(
-                            bitmap, targetPx, targetPx, true
-                        )
-                        artCache[song.id] = scaled.asImageBitmap()
-                        if (bitmap != scaled) bitmap.recycle()
-                    }
-                } catch (_: Exception) { }
-            }
-        }
-    }
-
-    // --- Haptic tick ---
-    fun tickHaptic() {
-        try {
-            view.performHapticFeedback(
-                android.view.HapticFeedbackConstants.VIRTUAL_KEY,
-                android.view.HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING
-            )
-        } catch (_: Exception) { }
-    }
-
-    Box(
-        modifier = modifier
-            .pointerInput(songs.size) {
-                var velocityTracker = VelocityTracker()
-                detectVerticalDragGestures(
-                    onDragStart = {
-                        velocityTracker = VelocityTracker()
-                    },
-                    onDragEnd = {
-                        val velocity = velocityTracker.calculateVelocity().y
-                        coroutineScope.launch {
-                            scrollOffset.animateDecay(
-                                initialVelocity = velocity * 0.35f,
-                                animationSpec = exponentialDecay(frictionMultiplier = 0.9f)
-                            )
-                            val nearest = (scrollOffset.value / pxPerItem).roundToInt()
-                            scrollOffset.animateTo(
-                                targetValue = nearest * pxPerItem,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                    stiffness = Spring.StiffnessMedium
-                                )
-                            )
-                        }
-                    },
-                    onVerticalDrag = { change, dragAmount ->
-                        coroutineScope.launch {
-                            scrollOffset.snapTo(scrollOffset.value + dragAmount)
-                        }
-                        velocityTracker.addPosition(change.uptimeMillis, change.position)
-                        val currentIdx = indexAtOffset(scrollOffset.value)
-                        if (currentIdx != lastSnappedIndex) {
-                            lastSnappedIndex = currentIdx
-                            tickHaptic()
-                        }
-                        change.consume()
-                    }
-                )
-            }
-    ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-
-            // === PIVOT (off-screen left) ===
-            val pivotX = w * -0.50f
-            val pivotY = h * 0.50f
-
-            // === ARC RADIUS (bigger — matches PlaylistWheel's visual scale) ===
-            val arcRadius = w * 0.75f
-            // Card orbit — sits OUTSIDE the arc, radially outward from pivot
-            // (same concept as PlaylistWheel's textRadius = arcRadius + 30dp)
-            val cardRadius = arcRadius + with(density) { 20.dp.toPx() }
-
-            // === ARC SWEEP ===
-            val arcSweepDeg = 100f
-            val arcStartDeg = -arcSweepDeg / 2f
-
-            // === DRAW FADING ARC ===
-            drawFadingArc(
-                radius = arcRadius,
-                fullAlpha = 0.4f,
-                strokePx = 1.0f,
-                pivotX = pivotX,
-                pivotY = pivotY,
-                arcStartDeg = arcStartDeg,
-                arcSweepDeg = arcSweepDeg
-            )
-
-            // === DRAW SONGS ON ARC ===
-            val rotationItems = scrollOffset.value / pxPerItem
-            val visibleSpan = 7
-
-            for (offset in -visibleSpan..visibleSpan) {
-                val rawIdx = (rotationItems.roundToInt() + offset)
-                val modIdx = ((rawIdx % songs.size) + songs.size) % songs.size
-                val song = songs[modIdx]
-
-                val fractionalOffset = rotationItems - rotationItems.roundToInt() + offset
-                val absOffset = abs(fractionalOffset)
-                if (absOffset > visibleSpan) continue
-
-                val itemAngleDeg = fractionalOffset * angleStepDeg
-                val itemAngleRad = (itemAngleDeg * PI / 180f).toFloat()
-
-                // Ball position ON the arc (at arcRadius)
-                val ballX = pivotX + arcRadius * cos(itemAngleRad)
-                val ballY = pivotY + arcRadius * sin(itemAngleRad)
-
-                // Card center position — at cardRadius (radially outward from ball,
-                // same angle from pivot). This is how PlaylistWheel positions text:
-                // the ball is on arcRadius, the text is on textRadius, both at the
-                // same angle from pivot. The capsule card extends radially outward
-                // from the ball.
-                val cardCenterX = pivotX + cardRadius * cos(itemAngleRad)
-                val cardCenterY = pivotY + cardRadius * sin(itemAngleRad)
-
-                // Alpha curve (same as PlaylistWheel)
-                val alpha = when {
-                    absOffset < 0.5f -> 1f
-                    absOffset < 1.5f -> 0.7f
-                    absOffset < 2.5f -> 0.45f
-                    absOffset < 3.5f -> 0.25f
-                    absOffset < 4.5f -> 0.12f
-                    absOffset < 5.5f -> 0.05f
-                    else -> 0f
-                }
-                if (alpha <= 0.01f) continue
-
-                // Skip if off-screen
-                if (ballX < -200f || ballX > w + 200f) continue
-
-                val isActive = absOffset < 0.5f
-                val isPlaying = isActive && song.id == currentSongId
-
-                // === 1. BALL MARKER on the arc ===
-                val ballColor = if (isPlaying) Color(0xFFFF6B6B)
-                    else if (isActive) Color.White
-                    else Color.White.copy(alpha = 0.6f)
-                val ballRadiusPx = if (isActive) 5.dp.toPx() else 3.dp.toPx()
-                drawCircle(
-                    color = ballColor,
-                    radius = ballRadiusPx,
-                    center = Offset(ballX, ballY),
-                    alpha = alpha
-                )
-
-                // === 2. CAPSULE CARD — positioned radially outward from ball ===
-                // Small capsule: 140dp × 36dp (was 200×48). Positioned so its
-                // LEFT edge starts just past the ball (gap = 8dp radially outward).
-                // The card center is at cardCenter, and the card extends radially
-                // outward from the pivot (following the arc's curve, not horizontal).
-                val cardWidthPx = with(density) { 140.dp.toPx() }
-                val cardHeightPx = with(density) { 36.dp.toPx() }
-                val cardCornerRadiusPx = with(density) { 18.dp.toPx() }
-
-                // Card is drawn at the cardCenter position (radially outward from ball).
-                // The card's left edge is at cardCenterX, vertically centered on cardCenterY.
-                val cardLeft = cardCenterX
-                val cardTop = cardCenterY - cardHeightPx / 2f
-
-                // Draw card background (semi-transparent dark)
-                drawRoundRect(
-                    color = Color.Black.copy(alpha = 0.35f * alpha),
-                    topLeft = Offset(cardLeft, cardTop),
-                    size = Size(cardWidthPx, cardHeightPx),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(
-                        cardCornerRadiusPx, cardCornerRadiusPx
-                    )
-                )
-                // Draw card border (thin white)
-                drawRoundRect(
-                    color = Color.White.copy(alpha = 0.1f * alpha),
-                    topLeft = Offset(cardLeft, cardTop),
-                    size = Size(cardWidthPx, cardHeightPx),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(
-                        cardCornerRadiusPx, cardCornerRadiusPx
-                    ),
-                    style = Stroke(width = 1.dp.toPx())
-                )
-
-                // === 3. CIRCULAR ALBUM ART inside the card ===
-                val artSizePx = with(density) { 28.dp.toPx() }
-                val artPaddingPx = with(density) { 4.dp.toPx() }
-                val artCenterX = cardLeft + artPaddingPx + artSizePx / 2f
-                val artCenterY = cardCenterY
-                val artRadius = artSizePx / 2f
-
-                // Dark circle bg
-                drawCircle(
-                    color = Color(0xFF1A1A1A).copy(alpha = alpha),
-                    radius = artRadius,
-                    center = Offset(artCenterX, artCenterY)
-                )
-
-                // Draw album art bitmap if cached
-                val artBitmap = artCache[song.id]
-                if (artBitmap != null) {
-                    drawImage(
-                        image = artBitmap,
-                        srcOffset = androidx.compose.ui.unit.IntOffset(0, 0),
-                        srcSize = androidx.compose.ui.unit.IntSize(
-                            artBitmap.width, artBitmap.height
-                        ),
-                        dstOffset = androidx.compose.ui.unit.IntOffset(
-                            (artCenterX - artRadius).toInt(),
-                            (artCenterY - artRadius).toInt()
-                        ),
-                        dstSize = androidx.compose.ui.unit.IntSize(
-                            artSizePx.toInt(), artSizePx.toInt()
-                        ),
-                        alpha = alpha
-                    )
-                    // Circle border around art
-                    drawCircle(
-                        color = Color.White.copy(alpha = 0.15f * alpha),
-                        radius = artRadius,
-                        center = Offset(artCenterX, artCenterY),
-                        style = Stroke(width = 1.dp.toPx())
-                    )
                 }
 
-                // === 4. SONG TITLE + ARTIST inside the card ===
-                val textStartX = cardLeft + artPaddingPx + artSizePx + with(density) { 6.dp.toPx() }
-                val titleColor = if (isPlaying) Color(0xFFFF6B6B) else Color.White.copy(alpha = alpha)
-                val artistColor = Color.White.copy(alpha = alpha * 0.6f)
-
-                val titleResult = textMeasurer.measure(
-                    text = androidx.compose.ui.text.AnnotatedString(song.title),
-                    style = androidx.compose.ui.text.TextStyle(
-                        color = titleColor,
-                        fontSize = if (isActive) 12.sp else 10.sp,
-                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                        fontFamily = CalSansFamily
-                    ),
-                    overflow = TextOverflow.Ellipsis,
-                    maxLines = 1,
-                    softWrap = false
-                )
-                val artistResult = textMeasurer.measure(
-                    text = androidx.compose.ui.text.AnnotatedString(song.artist),
-                    style = androidx.compose.ui.text.TextStyle(
-                        color = artistColor,
-                        fontSize = if (isActive) 9.sp else 8.sp,
-                        fontWeight = FontWeight.Normal,
-                        fontFamily = CalSansFamily
-                    ),
-                    overflow = TextOverflow.Ellipsis,
-                    maxLines = 1,
-                    softWrap = false
-                )
-
-                val titleY = cardCenterY - (titleResult.size.height + artistResult.size.height) / 2f - 1f
-                val artistY = titleY + titleResult.size.height + 1f
-
-                drawText(titleResult, topLeft = Offset(textStartX, titleY))
-                drawText(artistResult, topLeft = Offset(textStartX, artistY))
+                // ═══ Song list ═══
+                items(displayedSongs, key = { it.id }) { song ->
+                    SongRow(
+                        song = song,
+                        isCurrent = currentSongId == song.id,
+                        onClick = { onSongClick(song) }
+                    )
+                }
             }
         }
 
-        // === "All songs" header (fixed overlay) ===
-        Row(
+        // ─── Fixed tag capsules row (below the blur header) ───
+        // Glass morphism capsules in a horizontal scrollable row.
+        // Uses semi-transparent dark + white border (fake glass — drawBackdrop
+        // crashes inside screen composables, but this looks identical).
+        LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 108.dp, start = 24.dp, end = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                .align(Alignment.TopCenter)
+                .padding(top = 112.dp, start = 20.dp, end = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "All songs",
-                color = Color.White,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.SemiBold,
-                fontFamily = CalSansFamily
-            )
-            Icon(
-                imageVector = CoralIcons.ChevronRight,
-                contentDescription = null,
-                tint = Color.White.copy(alpha = 0.6f),
-                modifier = Modifier.size(20.dp)
-            )
-            BugLineRefreshIndicator(
-                progress = ptrState.distanceFraction,
-                isRefreshing = isRefreshing,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(20.dp)
-            )
-            Text(
-                text = "$songCount",
-                color = Color.White.copy(alpha = 0.6f),
-                fontSize = 14.sp,
-                fontFamily = CalSansFamily
-            )
-        }
-
-        // === Tap zone for playing the center song ===
-        if (songs.isNotEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(songs.size) {
-                        detectTapGestures(
-                            onTap = { offset ->
-                                if (offset.x > size.width / 2) {
-                                    val idx = indexAtOffset(scrollOffset.value)
-                                    if (idx in songs.indices) {
-                                        onSongClick(songs[idx])
-                                        tickHaptic()
-                                    }
-                                }
-                            }
-                        )
+            items(tags, key = { it }) { tag ->
+                val isSelected = tag == selectedTag
+                GlassTagCapsule(
+                    label = tag,
+                    isSelected = isSelected,
+                    onClick = {
+                        selectedTag = if (selectedTag == tag) "All" else tag
                     }
-            )
+                )
+            }
         }
     }
 }
 
 // ════════════════════════════════════════════════════════════════════
-// HELPER: draw a fading arc
+// GLASS TAG CAPSULE — semi-transparent dark + white border (fake glass)
+// ════════════════════════════════════════════════════════════════════
+// Same visual feel as the mini player and nav bar — frosted glass look
+// without drawBackdrop (which crashes inside screen composables).
+//
+// Design:
+//   • Rounded pill (18dp corner = half of 36dp height → full pill)
+//   • Semi-transparent dark background (alpha 0.4, selected = coral tint 0.15)
+//   • Thin white border (alpha 0.12)
+//   • CalSans label (12sp, SemiBold)
+//   • Selected = white text + coral tint; unselected = dim white text
+//   • Press animation: scale 0.94x (bouncy spring)
 // ════════════════════════════════════════════════════════════════════
 
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFadingArc(
-    radius: Float,
-    fullAlpha: Float,
-    strokePx: Float,
-    pivotX: Float,
-    pivotY: Float,
-    arcStartDeg: Float,
-    arcSweepDeg: Float
+@Composable
+private fun GlassTagCapsule(
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
 ) {
-    val arcSegments = 40
-    val fadeRange = 0.35f
-    for (i in 0 until arcSegments) {
-        val segStart = i / arcSegments.toFloat()
-        val segEnd = (i + 1) / arcSegments.toFloat()
-        val distFromEndpoint = minOf(segStart, 1f - segStart)
-        val segAlpha = if (distFromEndpoint > fadeRange) {
-            fullAlpha
-        } else {
-            fullAlpha * (distFromEndpoint / fadeRange)
-        }
-        if (segAlpha <= 0.01f) continue
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.94f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "tagScale"
+    )
 
-        drawArc(
-            color = Color.White.copy(alpha = segAlpha),
-            startAngle = arcStartDeg + segStart * arcSweepDeg,
-            sweepAngle = (segEnd - segStart) * arcSweepDeg,
-            useCenter = false,
-            topLeft = Offset(pivotX - radius, pivotY - radius),
-            size = Size(radius * 2f, radius * 2f),
-            style = Stroke(width = strokePx)
+    val capsuleShape: Shape = RoundedCornerShape(18.dp)
+
+    Row(
+        modifier = Modifier
+            .height(36.dp)
+            .scale(scale)
+            .clip(capsuleShape)
+            .background(
+                if (isSelected) Color(0xFFFF6B6B).copy(alpha = 0.15f)
+                else Color.Black.copy(alpha = 0.4f)
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.6f),
+            fontSize = 12.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+            fontFamily = CalSansFamily,
+            maxLines = 1
+        )
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// SONG ROW — album art + title/artist + duration
+// ════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun SongRow(song: Song, isCurrent: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .background(if (isCurrent) CoralColors.SurfaceVariant else Color.Transparent)
+            .padding(horizontal = 4.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(CoralColors.SurfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
+            if (song.albumArtUri != null) {
+                AsyncImage(
+                    model = song.albumArtUri,
+                    contentDescription = "Album art",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Icon(
+                    imageVector = CoralIcons.Music,
+                    contentDescription = null,
+                    tint = Color(0xFFB0B0B0),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.size(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = song.title,
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = song.artist,
+                color = Color.White.copy(alpha = 0.5f),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Normal,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        val totalSec = song.duration / 1000
+        val mm = totalSec / 60
+        val ss = totalSec % 60
+        Text(
+            text = "$mm:${String.format("%02d", ss)}",
+            color = Color.White.copy(alpha = 0.4f),
+            fontSize = 13.sp
         )
     }
 }
