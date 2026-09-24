@@ -323,9 +323,10 @@ private fun SongWheel(
             val pivotX = w * -0.50f
             val pivotY = h * 0.50f
 
-            // === ARC RADIUS ===
-            val arcRadius = w * 0.65f
-            // Card orbit — sits OUTSIDE the arc, where capsule cards are drawn
+            // === ARC RADIUS (bigger — matches PlaylistWheel's visual scale) ===
+            val arcRadius = w * 0.75f
+            // Card orbit — sits OUTSIDE the arc, radially outward from pivot
+            // (same concept as PlaylistWheel's textRadius = arcRadius + 30dp)
             val cardRadius = arcRadius + with(density) { 20.dp.toPx() }
 
             // === ARC SWEEP ===
@@ -359,15 +360,19 @@ private fun SongWheel(
                 val itemAngleDeg = fractionalOffset * angleStepDeg
                 val itemAngleRad = (itemAngleDeg * PI / 180f).toFloat()
 
-                // Ball position ON the arc
+                // Ball position ON the arc (at arcRadius)
                 val ballX = pivotX + arcRadius * cos(itemAngleRad)
                 val ballY = pivotY + arcRadius * sin(itemAngleRad)
 
-                // Card position — OUTSIDE the arc (radially outward)
-                val cardX = pivotX + cardRadius * cos(itemAngleRad)
-                val cardY = pivotY + cardRadius * sin(itemAngleRad)
+                // Card center position — at cardRadius (radially outward from ball,
+                // same angle from pivot). This is how PlaylistWheel positions text:
+                // the ball is on arcRadius, the text is on textRadius, both at the
+                // same angle from pivot. The capsule card extends radially outward
+                // from the ball.
+                val cardCenterX = pivotX + cardRadius * cos(itemAngleRad)
+                val cardCenterY = pivotY + cardRadius * sin(itemAngleRad)
 
-                // Alpha curve
+                // Alpha curve (same as PlaylistWheel)
                 val alpha = when {
                     absOffset < 0.5f -> 1f
                     absOffset < 1.5f -> 0.7f
@@ -378,6 +383,9 @@ private fun SongWheel(
                     else -> 0f
                 }
                 if (alpha <= 0.01f) continue
+
+                // Skip if off-screen
+                if (ballX < -200f || ballX > w + 200f) continue
 
                 val isActive = absOffset < 0.5f
                 val isPlaying = isActive && song.id == currentSongId
@@ -394,15 +402,19 @@ private fun SongWheel(
                     alpha = alpha
                 )
 
-                // === 2. CAPSULE CARD beside the ball ===
-                // Transparent thin capsule: semi-transparent dark bg + thin white border
-                val cardWidthPx = with(density) { 200.dp.toPx() }
-                val cardHeightPx = with(density) { 48.dp.toPx() }
-                val cardCornerRadiusPx = with(density) { 24.dp.toPx() }
+                // === 2. CAPSULE CARD — positioned radially outward from ball ===
+                // Small capsule: 140dp × 36dp (was 200×48). Positioned so its
+                // LEFT edge starts just past the ball (gap = 8dp radially outward).
+                // The card center is at cardCenter, and the card extends radially
+                // outward from the pivot (following the arc's curve, not horizontal).
+                val cardWidthPx = with(density) { 140.dp.toPx() }
+                val cardHeightPx = with(density) { 36.dp.toPx() }
+                val cardCornerRadiusPx = with(density) { 18.dp.toPx() }
 
-                // Card top-left position (card extends to the RIGHT from the ball)
-                val cardLeft = ballX + with(density) { 10.dp.toPx() }
-                val cardTop = cardY - cardHeightPx / 2f
+                // Card is drawn at the cardCenter position (radially outward from ball).
+                // The card's left edge is at cardCenterX, vertically centered on cardCenterY.
+                val cardLeft = cardCenterX
+                val cardTop = cardCenterY - cardHeightPx / 2f
 
                 // Draw card background (semi-transparent dark)
                 drawRoundRect(
@@ -425,12 +437,13 @@ private fun SongWheel(
                 )
 
                 // === 3. CIRCULAR ALBUM ART inside the card ===
-                val artSizePx = with(density) { 36.dp.toPx() }
-                val artCenterX = cardLeft + with(density) { 6.dp.toPx() } + artSizePx / 2f
-                val artCenterY = cardY
+                val artSizePx = with(density) { 28.dp.toPx() }
+                val artPaddingPx = with(density) { 4.dp.toPx() }
+                val artCenterX = cardLeft + artPaddingPx + artSizePx / 2f
+                val artCenterY = cardCenterY
                 val artRadius = artSizePx / 2f
 
-                // Clip to circle: draw a dark circle bg first
+                // Dark circle bg
                 drawCircle(
                     color = Color(0xFF1A1A1A).copy(alpha = alpha),
                     radius = artRadius,
@@ -440,10 +453,6 @@ private fun SongWheel(
                 // Draw album art bitmap if cached
                 val artBitmap = artCache[song.id]
                 if (artBitmap != null) {
-                    // Draw the bitmap clipped to a circle
-                    // We clip by drawing a circle path then the image inside
-                    val srcSize = artBitmap.width.toFloat()
-                    val srcLeft = (srcSize - artBitmap.width.toFloat()) / 2f
                     drawImage(
                         image = artBitmap,
                         srcOffset = androidx.compose.ui.unit.IntOffset(0, 0),
@@ -459,7 +468,7 @@ private fun SongWheel(
                         ),
                         alpha = alpha
                     )
-                    // Draw a circle border around the art
+                    // Circle border around art
                     drawCircle(
                         color = Color.White.copy(alpha = 0.15f * alpha),
                         radius = artRadius,
@@ -469,7 +478,7 @@ private fun SongWheel(
                 }
 
                 // === 4. SONG TITLE + ARTIST inside the card ===
-                val textStartX = cardLeft + with(density) { 6.dp.toPx() } + artSizePx + with(density) { 8.dp.toPx() }
+                val textStartX = cardLeft + artPaddingPx + artSizePx + with(density) { 6.dp.toPx() }
                 val titleColor = if (isPlaying) Color(0xFFFF6B6B) else Color.White.copy(alpha = alpha)
                 val artistColor = Color.White.copy(alpha = alpha * 0.6f)
 
@@ -477,7 +486,7 @@ private fun SongWheel(
                     text = androidx.compose.ui.text.AnnotatedString(song.title),
                     style = androidx.compose.ui.text.TextStyle(
                         color = titleColor,
-                        fontSize = if (isActive) 13.sp else 11.sp,
+                        fontSize = if (isActive) 12.sp else 10.sp,
                         fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
                         fontFamily = CalSansFamily
                     ),
@@ -489,7 +498,7 @@ private fun SongWheel(
                     text = androidx.compose.ui.text.AnnotatedString(song.artist),
                     style = androidx.compose.ui.text.TextStyle(
                         color = artistColor,
-                        fontSize = if (isActive) 10.sp else 9.sp,
+                        fontSize = if (isActive) 9.sp else 8.sp,
                         fontWeight = FontWeight.Normal,
                         fontFamily = CalSansFamily
                     ),
@@ -498,7 +507,7 @@ private fun SongWheel(
                     softWrap = false
                 )
 
-                val titleY = cardY - (titleResult.size.height + artistResult.size.height) / 2f - 1f
+                val titleY = cardCenterY - (titleResult.size.height + artistResult.size.height) / 2f - 1f
                 val artistY = titleY + titleResult.size.height + 1f
 
                 drawText(titleResult, topLeft = Offset(textStartX, titleY))
