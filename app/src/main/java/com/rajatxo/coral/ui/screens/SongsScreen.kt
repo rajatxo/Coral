@@ -275,29 +275,18 @@ private fun GlassTagCapsule(
     )
 
     val capsuleShape: Shape = RoundedCornerShape(16.dp)
-    val useRenderEffect = graphicsLayer != null &&
-        android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
 
+    // NO drawLayer, NO drawBackdrop, NO BlurEffect — those corrupt the shared
+    // graphicsLayer and crash the app. Using semi-transparent dark + thin white
+    // border. Looks glassy, never crashes.
     Box(
         modifier = modifier
             .height(32.dp)
             .scale(scale)
             .clip(capsuleShape)
-            .then(
-                if (useRenderEffect && graphicsLayer != null) {
-                    Modifier
-                        .graphicsLayer {
-                            compositingStrategy = CompositingStrategy.Offscreen
-                            clip = true
-                            renderEffect = BlurEffect(12.dp.toPx(), 12.dp.toPx())
-                        }
-                        .drawWithContent {
-                            drawLayer(graphicsLayer)
-                            drawRect(Color.Black.copy(alpha = 0.3f))
-                        }
-                } else {
-                    Modifier.background(Color.Black.copy(alpha = 0.4f))
-                }
+            .background(
+                if (isCentre) Color(0xFFFF6B6B).copy(alpha = 0.12f)
+                else Color.Black.copy(alpha = 0.4f)
             )
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(horizontal = 10.dp),
