@@ -7,6 +7,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -20,9 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -45,6 +44,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -60,17 +60,25 @@ import com.rajatxo.coral.ui.theme.CalSansFamily
 import com.rajatxo.coral.util.CoralPalette
 import com.rajatxo.coral.util.PaletteCache
 import com.rajatxo.coral.util.extractPalette
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.colorControls
+import com.kyant.backdrop.effects.vibrancy
 import kotlinx.coroutines.launch
 
 /**
- * Songs tab — simple list + horizontal glass tag capsules.
+ * Songs tab — simple list + circular glass tag capsules.
  *
  * Layout (top to bottom):
- *   1. Background: single dominant color → dark gradient (same as Quick Picks)
- *   2. Blur header (rendered in HomeScreen) — profile + "Songs" + settings
- *   3. Fixed horizontal row of 6-7 glass capsule tags (scrollable if needed)
- *   4. "All songs" header with bug PTR (inside LazyColumn — scrolls + blurs)
- *   5. LazyColumn of songs as rows
+ *   1. Background gradient (same as Quick Picks)
+ *   2. Blur header (rendered in HomeScreen)
+ *   3. LazyColumn containing:
+ *      a. "All songs" header with bug PTR (scrolls + blurs behind header)
+ *      b. Circular tag capsule carousel (scrolls + blurs behind header)
+ *         — Fixed centre "All Tags" capsule
+ *         — Other capsules rotate around it on swipe left/right
+ *         — Each capsule has REAL glass morphism via drawBackdrop
+ *      c. Song rows
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,7 +91,8 @@ fun SongsScreen(
     capsuleVisible: Boolean = false,
     capsuleRemaining: Long = 0L,
     onExtend: () -> Unit = {},
-    onRefresh: suspend () -> Unit = {}
+    onRefresh: suspend () -> Unit = {},
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -92,7 +101,7 @@ fun SongsScreen(
         songs.sortedBy { it.title.lowercase() }
     }
 
-    // ─── Current song's palette → dark gradient background ──────────
+    // ─── Background palette + gradient (same as Quick Picks) ─────────
     var palette by remember { mutableStateOf(CoralPalette.Default) }
     LaunchedEffect(currentSongArt) {
         if (currentSongArt != null) {
@@ -139,18 +148,6 @@ fun SongsScreen(
     val ptrState: PullToRefreshState = rememberPullToRefreshState()
     var isRefreshing by remember { mutableStateOf(false) }
 
-    // ─── Tag capsules state ──────────────────────────────────────────
-    // 6-7 tag capsules. User will explain what tags they want.
-    // For now: placeholder tags that can be selected.
-    val tags = remember { listOf("All", "Recent", "Favorites", "Most played", "On device", "Downloads") }
-    var selectedTag by remember { mutableStateOf("All") }
-
-    // Filtered songs based on selected tag
-    // (For now, all tags show all songs — user will explain the logic)
-    val displayedSongs = remember(sortedSongs, selectedTag) {
-        sortedSongs  // Placeholder — no filtering yet
-    }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -184,14 +181,14 @@ fun SongsScreen(
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
-                    top = 160.dp,      // blur header (108dp) + tag capsules (44dp) + gap
+                    top = 108.dp,
                     bottom = 100.dp,
                     start = 20.dp,
                     end = 20.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                // ═══ "All songs" header (inside LazyColumn — scrolls + blurs) ═══
+                // ═══ "All songs" header (scrolls + blurs behind header) ═══
                 item {
                     Row(
                         modifier = Modifier
@@ -229,8 +226,20 @@ fun SongsScreen(
                     }
                 }
 
+                // ═══ Circular tag capsule carousel ═══
+                // Fixed centre "All Tags" capsule. Other capsules rotate
+                // around it on swipe. Each capsule has real glass morphism.
+                item {
+                    TagCarousel(
+                        backdrop = backdrop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp)
+                    )
+                }
+
                 // ═══ Song list ═══
-                items(displayedSongs, key = { it.id }) { song ->
+                items(sortedSongs, key = { it.id }) { song ->
                     SongRow(
                         song = song,
                         isCurrent = currentSongId == song.id,
@@ -239,53 +248,141 @@ fun SongsScreen(
                 }
             }
         }
+    }
+}
 
-        // ─── Fixed tag capsules row (below the blur header) ───
-        // Glass morphism capsules in a horizontal scrollable row.
-        // Uses semi-transparent dark + white border (fake glass — drawBackdrop
-        // crashes inside screen composables, but this looks identical).
-        LazyRow(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.TopCenter)
-                .padding(top = 112.dp, start = 20.dp, end = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            items(tags, key = { it }) { tag ->
-                val isSelected = tag == selectedTag
-                GlassTagCapsule(
-                    label = tag,
-                    isSelected = isSelected,
-                    onClick = {
-                        selectedTag = if (selectedTag == tag) "All" else tag
+// ════════════════════════════════════════════════════════════════════
+// TAG CAROUSEL — circular capsule row with fixed centre
+// ════════════════════════════════════════════════════════════════════
+// Layout: 5 visible capsules in a Row.
+//   [tag] [tag] [ALL TAGS] [tag] [tag]
+//
+// The centre position (index 2) is ALWAYS "All Tags" — it never moves.
+// The other 4 positions are filled from a circular list of tags.
+// Swipe LEFT → tags rotate left (next tag enters from right)
+// Swipe RIGHT → tags rotate right (next tag enters from left)
+//
+// Example with tags [A, B, D, E] (C = "All Tags" is centre):
+//   Start:     A B [C] D E
+//   Swipe right: E A [C] B D
+//   Swipe right: D E [C] A B
+//   Swipe left:  A B [C] D E  (back to start)
+// ════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun TagCarousel(
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null,
+    modifier: Modifier = Modifier
+) {
+    // Non-centre tags (these rotate around the fixed centre)
+    val rotatingTags = remember {
+        listOf("Recent", "Favorites", "Most played", "On device", "Downloads")
+    }
+    val centreTag = "All Tags"
+
+    // Rotation offset — how many positions the rotating tags have shifted.
+    // Swipe right → offset increases. Swipe left → offset decreases.
+    var rotationOffset by remember { mutableStateOf(0) }
+    val n = rotatingTags.size
+
+    // Compute the 4 visible rotating tags (2 on each side of centre)
+    // Position 0 (far left):   rotatingTags[(offset - 2 + n*2) % n]
+    // Position 1 (left):        rotatingTags[(offset - 1 + n*2) % n]
+    // Position 2 (CENTRE):      "All Tags" (FIXED)
+    // Position 3 (right):       rotatingTags[offset % n]
+    // Position 4 (far right):   rotatingTags[(offset + 1) % n]
+    val visibleTags = remember(rotationOffset) {
+        listOf(
+            rotatingTags[((rotationOffset - 2) % n + n) % n],
+            rotatingTags[((rotationOffset - 1) % n + n) % n],
+            centreTag,  // FIXED
+            rotatingTags[rotationOffset % n],
+            rotatingTags[(rotationOffset + 1) % n]
+        )
+    }
+
+    // Track which tag is selected (for visual highlight)
+    var selectedTag by remember { mutableStateOf(centreTag) }
+
+    // Drag gesture: swipe left/right to rotate
+    val dragThreshold = 40f  // pixels of drag needed to advance by 1
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            .pointerInput(n) {
+                var accumulatedDrag = 0f
+                detectHorizontalDragGestures(
+                    onDragStart = {
+                        accumulatedDrag = 0f
+                    },
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        accumulatedDrag += dragAmount
+                        // Swipe right (positive dragAmount) → offset increases
+                        // Swipe left (negative dragAmount) → offset decreases
+                        while (accumulatedDrag > dragThreshold) {
+                            rotationOffset++
+                            accumulatedDrag -= dragThreshold
+                        }
+                        while (accumulatedDrag < -dragThreshold) {
+                            rotationOffset--
+                            accumulatedDrag += dragThreshold
+                        }
                     }
                 )
-            }
+            },
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Render 5 capsules: [rotating] [rotating] [FIXED CENTRE] [rotating] [rotating]
+        visibleTags.forEachIndexed { index, tag ->
+            val isCentre = index == 2
+            val isSelected = tag == selectedTag
+
+            GlassTagCapsule(
+                label = tag,
+                isCentre = isCentre,
+                isSelected = isSelected,
+                backdrop = backdrop,
+                onClick = {
+                    selectedTag = if (selectedTag == tag) centreTag else tag
+                },
+                modifier = if (isCentre) Modifier else Modifier.weight(1f)
+            )
         }
     }
 }
 
 // ════════════════════════════════════════════════════════════════════
-// GLASS TAG CAPSULE — semi-transparent dark + white border (fake glass)
+// GLASS TAG CAPSULE — real glass morphism via drawBackdrop
 // ════════════════════════════════════════════════════════════════════
-// Same visual feel as the mini player and nav bar — frosted glass look
-// without drawBackdrop (which crashes inside screen composables).
+// Each capsule has REAL glass morphism (drawBackdrop with AGSL blur),
+// matching the nav bar and mini player technique.
+//
+// If backdrop is null (shouldn't happen), falls back to semi-transparent
+// dark background (fake glass).
 //
 // Design:
-//   • Rounded pill (18dp corner = half of 36dp height → full pill)
-//   • Semi-transparent dark background (alpha 0.4, selected = coral tint 0.15)
-//   • Thin white border (alpha 0.12)
-//   • CalSans label (12sp, SemiBold)
-//   • Selected = white text + coral tint; unselected = dim white text
+//   • Rounded pill (16dp corner = half of 32dp height → full pill)
+//   • 32dp tall (small, compact)
+//   • Real glass blur (drawBackdrop + vibrancy + colorControls + blur 12dp)
+//   • Dark tint overlay (alpha 0.3) for readability
+//   • Centre capsule: coral accent tint
+//   • Selected capsule: brighter text + coral ball
+//   • CalSans font, 11sp
 //   • Press animation: scale 0.94x (bouncy spring)
 // ════════════════════════════════════════════════════════════════════
 
 @Composable
 private fun GlassTagCapsule(
     label: String,
+    isCentre: Boolean,
     isSelected: Boolean,
-    onClick: () -> Unit
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -298,30 +395,66 @@ private fun GlassTagCapsule(
         label = "tagScale"
     )
 
-    val capsuleShape: Shape = RoundedCornerShape(18.dp)
+    val capsuleShape: Shape = RoundedCornerShape(16.dp)
 
-    Row(
-        modifier = Modifier
-            .height(36.dp)
+    // Build the glass modifier: REAL drawBackdrop if available, fake glass fallback
+    val glassModifier = if (backdrop != null) {
+        modifier
+            .height(32.dp)
             .scale(scale)
             .clip(capsuleShape)
-            .background(
-                if (isSelected) Color(0xFFFF6B6B).copy(alpha = 0.15f)
-                else Color.Black.copy(alpha = 0.4f)
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { capsuleShape },
+                effects = {
+                    vibrancy()
+                    colorControls(
+                        brightness = 0.05f,
+                        contrast = 1f,
+                        saturation = 1.2f
+                    )
+                    blur(12f.dp.toPx())
+                },
+                onDrawSurface = {
+                    drawRect(Color.Black.copy(alpha = 0.3f))
+                }
             )
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
+    } else {
+        modifier
+            .height(32.dp)
+            .scale(scale)
+            .clip(capsuleShape)
+            .background(Color.Black.copy(alpha = 0.4f))
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+    }
+
+    Box(
+        modifier = glassModifier
+            .padding(horizontal = 10.dp),
+        contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
-            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.6f),
-            fontSize = 12.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+            color = when {
+                isCentre -> Color(0xFFFF6B6B)
+                isSelected -> Color.White
+                else -> Color.White.copy(alpha = 0.6f)
+            },
+            fontSize = 11.sp,
+            fontWeight = when {
+                isCentre -> FontWeight.Bold
+                isSelected -> FontWeight.SemiBold
+                else -> FontWeight.Normal
+            },
             fontFamily = CalSansFamily,
             maxLines = 1
         )
