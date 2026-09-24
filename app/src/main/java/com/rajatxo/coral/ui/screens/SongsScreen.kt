@@ -1,15 +1,9 @@
 package com.rajatxo.coral.ui.screens
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -40,14 +35,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -61,26 +52,18 @@ import com.rajatxo.coral.ui.theme.CalSansFamily
 import com.rajatxo.coral.util.CoralPalette
 import com.rajatxo.coral.util.PaletteCache
 import com.rajatxo.coral.util.extractPalette
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.colorControls
-import com.kyant.backdrop.effects.vibrancy
 import kotlinx.coroutines.launch
 
 /**
- * Songs tab — simple list + fixed glass tag capsules.
+ * Songs tab — each song is a capsule shaped like the mini player.
  *
- * The tag carousel is a FIXED overlay (outside LazyColumn) with REAL
- * glass morphism via drawBackdrop. Each capsule creates its OWN
- * independent graphicsLayer + LayerBackdrop — NOT the shared one from
- * HomeScreen. No shared state, no race condition, no LazyColumn recycle.
+ * No drawBackdrop, no drawLayer, no graphicsLayer — no crash.
+ * Just semi-transparent dark pills with circular album art.
  *
- * Layout:
+ * Layout (top to bottom):
  *   1. Background gradient (same as Quick Picks)
  *   2. Blur header (rendered in HomeScreen)
- *   3. Fixed tag carousel overlay (112dp, real glass blur on each capsule)
- *   4. LazyColumn: "All songs" header + song rows
+ *   3. LazyColumn: "All songs" header + song capsule rows
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -147,13 +130,13 @@ fun SongsScreen(
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = 160.dp, bottom = 100.dp, start = 20.dp, end = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+                contentPadding = PaddingValues(top = 108.dp, bottom = 100.dp, start = 12.dp, end = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                // "All songs" header (scrolls + blurs behind header)
+                // "All songs" header
                 item {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp, start = 4.dp),
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp, start = 8.dp, end = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -167,188 +150,59 @@ fun SongsScreen(
                             fontSize = 14.sp, fontFamily = CalSansFamily)
                     }
                 }
-                // Song list
+                // Song capsule rows
                 items(sortedSongs, key = { it.id }) { song ->
-                    SongRow(song, currentSongId == song.id) { onSongClick(song) }
+                    SongCapsule(
+                        song = song,
+                        isCurrent = currentSongId == song.id,
+                        onClick = { onSongClick(song) }
+                    )
                 }
             }
         }
-
-        // ─── FIXED tag carousel overlay (outside LazyColumn) ───
-        // Real glass morphism via drawBackdrop with each capsule's OWN
-        // independent graphicsLayer + LayerBackdrop. NOT shared with
-        // HomeScreen. NOT inside LazyColumn. No crash.
-        TagCarousel(
-            modifier = Modifier.fillMaxWidth()
-                .align(Alignment.TopCenter)
-                .padding(top = 112.dp, start = 20.dp, end = 20.dp)
-        )
     }
 }
 
 // ════════════════════════════════════════════════════════════════════
-// TAG CAROUSEL — fixed overlay, circular capsule row with fixed centre
+// SONG CAPSULE — mini player-shaped row
 // ════════════════════════════════════════════════════════════════════
-// ONE shared backdrop for the whole row (not per-capsule). The whole
-// row is wrapped in layerBackdrop(), and each capsule uses drawBackdrop
-// with this single backdrop. This is the same pattern as the TabCapsule
-// (one backdrop, one drawBackdrop call per item).
-// ════════════════════════════════════════════════════════════════════
-
-@Composable
-private fun TagCarousel(modifier: Modifier = Modifier) {
-    val rotatingTags = remember { listOf("Recent", "Favorites", "Most played", "On device", "Downloads") }
-    val centreTag = "All Tags"
-    var rotationOffset by remember { mutableStateOf(0) }
-    val n = rotatingTags.size
-    var selectedTag by remember { mutableStateOf(centreTag) }
-
-    val visibleTags = remember(rotationOffset) {
-        listOf(
-            rotatingTags[((rotationOffset - 2) % n + n) % n],
-            rotatingTags[((rotationOffset - 1) % n + n) % n],
-            centreTag,
-            rotatingTags[rotationOffset % n],
-            rotatingTags[(rotationOffset + 1) % n]
-        )
-    }
-
-    val dragThreshold = 40f
-    val density = LocalDensity.current
-
-    // ONE backdrop for the whole row. Each capsule samples from it.
-    val ownGraphicsLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
-    val ownBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop(
-        graphicsLayer = ownGraphicsLayer
-    ) {
-        drawContent()
-    }
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(40.dp)
-            .layerBackdrop(ownBackdrop)
-            .pointerInput(n) {
-                var acc = 0f
-                detectHorizontalDragGestures(
-                    onDragStart = { acc = 0f },
-                    onHorizontalDrag = { change, dragAmount ->
-                        change.consume()
-                        acc += dragAmount
-                        while (acc > dragThreshold) { rotationOffset++; acc -= dragThreshold }
-                        while (acc < -dragThreshold) { rotationOffset--; acc += dragThreshold }
-                    }
-                )
-            },
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        visibleTags.forEachIndexed { index, tag ->
-            val isCentre = index == 2
-            val isSelected = tag == selectedTag
-            GlassTagCapsule(
-                label = tag,
-                isCentre = isCentre,
-                isSelected = isSelected,
-                backdrop = ownBackdrop,
-                density = density,
-                onClick = { selectedTag = if (selectedTag == tag) centreTag else tag },
-                modifier = if (isCentre) Modifier else Modifier.weight(1f)
-            )
-        }
-    }
-}
-
-// ════════════════════════════════════════════════════════════════════
-// GLASS TAG CAPSULE — real glass morphism via drawBackdrop
-// ════════════════════════════════════════════════════════════════════
-// Uses drawBackdrop with the carousel's OWN backdrop (not HomeScreen's
-// shared one). Same technique as the TabCapsule nav bar.
+// Same shape + design language as the mini player:
+//   • Full-width pill (RoundedCornerShape 32dp)
+//   • Semi-transparent dark background (alpha 0.35)
+//   • Thin white border (alpha 0.1) — frosted glass feel
+//   • Circular album art (44dp, clipped CircleShape) on the left
+//   • Song title (CalSans 14sp Medium) + artist (CalSans 12sp) center
+//   • Duration (12sp) on the right
+//   • Currently-playing song: coral accent on album art border
 // ════════════════════════════════════════════════════════════════════
 
 @Composable
-private fun GlassTagCapsule(
-    label: String,
-    isCentre: Boolean,
-    isSelected: Boolean,
-    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop,
-    density: androidx.compose.ui.unit.Density,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+private fun SongCapsule(
+    song: Song,
+    isCurrent: Boolean,
+    onClick: () -> Unit
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.94f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
-        label = "tagScale"
-    )
+    val pillShape = RoundedCornerShape(32.dp)
 
-    val capsuleShape: Shape = RoundedCornerShape(16.dp)
-
-    Box(
-        modifier = modifier
-            .height(32.dp)
-            .scale(scale)
-            .clip(capsuleShape)
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { capsuleShape },
-                effects = {
-                    vibrancy()
-                    colorControls(
-                        brightness = 0.05f,
-                        contrast = 1f,
-                        saturation = 1.2f
-                    )
-                    blur(with(density) { 12.dp.toPx() })
-                },
-                onDrawSurface = {
-                    drawRect(Color.Black.copy(alpha = 0.3f))
-                }
-            )
-            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .padding(horizontal = 10.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = label,
-            color = when {
-                isCentre -> Color(0xFFFF6B6B)
-                isSelected -> Color.White
-                else -> Color.White.copy(0.6f)
-            },
-            fontSize = 11.sp,
-            fontWeight = when {
-                isCentre -> FontWeight.Bold
-                isSelected -> FontWeight.SemiBold
-                else -> FontWeight.Normal
-            },
-            fontFamily = CalSansFamily,
-            maxLines = 1
-        )
-    }
-}
-
-// ════════════════════════════════════════════════════════════════════
-// SONG ROW
-// ════════════════════════════════════════════════════════════════════
-
-@Composable
-private fun SongRow(song: Song, isCurrent: Boolean, onClick: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
-            .background(if (isCurrent) CoralColors.SurfaceVariant else Color.Transparent)
-            .padding(horizontal = 4.dp, vertical = 8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .clip(pillShape)
+            .background(Color.Black.copy(alpha = 0.35f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // ─── Circular album art (left) ───
         Box(
-            modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp))
-                .background(CoralColors.SurfaceVariant),
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .then(
+                    if (isCurrent) Modifier.background(Color(0xFFFF6B6B).copy(alpha = 0.15f))
+                    else Modifier
+                ),
             contentAlignment = Alignment.Center
         ) {
             if (song.albumArtUri != null) {
@@ -356,25 +210,62 @@ private fun SongRow(song: Song, isCurrent: Boolean, onClick: () -> Unit) {
                     model = song.albumArtUri,
                     contentDescription = "Album art",
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
                 )
             } else {
-                Icon(
-                    imageVector = CoralIcons.Music,
-                    contentDescription = null,
-                    tint = Color(0xFFB0B0B0),
-                    modifier = Modifier.size(20.dp)
-                )
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF1A1A1A)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = CoralIcons.Music,
+                        contentDescription = null,
+                        tint = Color(0xFFB0B0B0),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
+
         Spacer(Modifier.size(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(song.title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium,
-                maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(song.artist, color = Color.White.copy(0.5f), fontSize = 14.sp,
-                maxLines = 1, overflow = TextOverflow.Ellipsis)
+
+        // ─── Title + artist (center) ───
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = song.title,
+                color = if (isCurrent) Color(0xFFFF6B6B) else Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                fontFamily = CalSansFamily,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = song.artist,
+                color = Color.White.copy(alpha = 0.5f),
+                fontSize = 12.sp,
+                fontFamily = CalSansFamily,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
-        val s = song.duration / 1000
-        Text("${s / 60}:${String.format("%02d", s % 60)}", color = Color.White.copy(0.4f), fontSize = 13.sp)
+
+        // ─── Duration (right) ───
+        val totalSec = song.duration / 1000
+        val mm = totalSec / 60
+        val ss = totalSec % 60
+        Text(
+            text = "$mm:${String.format("%02d", ss)}",
+            color = Color.White.copy(alpha = 0.4f),
+            fontSize = 12.sp,
+            fontFamily = CalSansFamily
+        )
+
+        Spacer(Modifier.size(8.dp))
     }
 }
