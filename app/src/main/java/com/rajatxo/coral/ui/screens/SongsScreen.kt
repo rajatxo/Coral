@@ -1,28 +1,23 @@
 package com.rajatxo.coral.ui.screens
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -44,9 +39,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -56,16 +54,16 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.AsyncImage
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.components.BugLineRefreshIndicator
-import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
 import com.rajatxo.coral.util.CoralPalette
 import com.rajatxo.coral.util.PaletteCache
 import com.rajatxo.coral.util.extractPalette
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -74,20 +72,19 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
- * Songs tab — dual-arc wheel design.
+ * Songs tab — single-arc wheel with glass capsule cards.
  *
- * Two concentric arcs around an off-screen left pivot:
- *   • INNER (small) arc: letters A-Z. Rotating this selects the active letter.
- *   • OUTER (big) arc: songs. Shows songs filtered by the selected letter.
- *     Each song is a glass morphism card (semi-transparent dark + border).
+ * ONE big arc. All songs sit on it. Each song has:
+ *   • A ball marker on the arc line
+ *   • A transparent thin capsule card beside the ball containing:
+ *     - Circular album art (left)
+ *     - Song title + artist name (right, CalSans)
  *
  * Interaction:
- *   • Drag the right side → rotates the song arc (big)
- *   • Drag the left side → rotates the letter arc (small) in opposite direction
- *   • Tap a song card → plays that song
- *   • The letter at the apex of the small arc filters the songs on the big arc
+ *   • Drag up/down → rotates the wheel (songs scroll through the arc)
+ *   • Tap the right side → plays the song at the apex
  *
- * The "All songs" header with bug PTR indicator sits above the wheel.
+ * The "All songs" header with bug PTR sits at the top.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -186,7 +183,6 @@ fun SongsScreen(
             indicator = {},
             modifier = Modifier.fillMaxSize()
         ) {
-            // ═══ Song wheel ═══
             SongWheel(
                 songs = sortedSongs,
                 currentSongId = currentSongId,
@@ -201,17 +197,7 @@ fun SongsScreen(
 }
 
 // ════════════════════════════════════════════════════════════════════
-// SONG WHEEL — dual-arc rotary picker
-// ════════════════════════════════════════════════════════════════════
-// Adapted from PlaylistsScreen's PlaylistWheel:
-//   • INNER arc (small radius): letters A-Z, counter-rotating balls
-//   • OUTER arc (big radius): songs as glass cards
-//   • The letter at the apex of the inner arc filters the songs on the outer arc
-//   • Tap a song on the outer arc → plays it
-//
-// Two independent scroll offsets:
-//   • letterScrollOffset — controls the letter wheel
-//   • songScrollOffset — controls the song wheel (resets when letter changes)
+// SONG WHEEL — single arc, all songs, glass capsule cards
 // ════════════════════════════════════════════════════════════════════
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -233,77 +219,50 @@ private fun SongWheel(
     val context = LocalContext.current
     val view = LocalView.current
 
-    // --- Letters ---
-    val letters = remember(songs) {
-        val letterSet = songs.mapNotNull { song ->
-            val c = song.title.firstOrNull()?.uppercaseChar()
-            if (c != null && c.isLetter()) c.toString() else "#"
-        }.toSet().sorted()
-        if (letterSet.isEmpty()) listOf("#") else letterSet
-    }
+    // --- Album art bitmaps cache ---
+    // We load album art as ImageBitmap and cache them so the Canvas can draw them.
+    // Only load for songs that are likely visible (±10 from center).
+    val artCache = remember { mutableMapOf<Long, ImageBitmap>() }
 
-    // --- Active letter → filtered songs ---
-    // null = show ALL songs. When a letter is at the apex, filter to that letter.
-    var activeLetterIndex by remember { mutableStateOf(0) }
-    val filteredSongs = remember(songs, activeLetterIndex) {
-        if (letters.isEmpty()) songs
-        else {
-            val letter = letters[activeLetterIndex.coerceIn(0, letters.lastIndex)]
-            if (letter == "#") {
-                songs.filter { song ->
-                    val c = song.title.firstOrNull()?.uppercaseChar()
-                    c == null || !c.isLetter()
-                }
-            } else {
-                songs.filter { song ->
-                    song.title.firstOrNull()?.uppercaseChar()?.toString()?.equals(letter, ignoreCase = true) == true
-                }
-            }.ifEmpty { songs }  // fallback to all if no songs match
-        }
-    }
-
-    // --- Geometry constants ---
+    // --- Geometry constants (same as PlaylistWheel) ---
     val angleStepDeg = 8f
     val pxPerItem = with(density) { 64.dp.toPx() }
+    val scrollOffset = remember { Animatable(0f) }
+    var lastSnappedIndex by remember { mutableStateOf(0) }
 
-    // --- Two independent scroll offsets ---
-    val letterScrollOffset = remember { Animatable(0f) }
-    val songScrollOffset = remember { Animatable(0f) }
-
-    // --- Letter index at apex ---
-    var lastLetterIndex by remember { mutableStateOf(0) }
-    fun letterIndexAtOffset(offset: Float): Int {
-        if (letters.isEmpty()) return 0
+    fun indexAtOffset(offset: Float): Int {
         val raw = (offset / pxPerItem).roundToInt()
-        val mod = raw % letters.size
-        return if (mod < 0) mod + letters.size else mod
+        val mod = raw % songs.size
+        return if (mod < 0) mod + songs.size else mod
     }
 
-    val centerLetterIdx = remember(letterScrollOffset.value) {
-        letterIndexAtOffset(letterScrollOffset.value)
-    }
+    val centerIndex = remember(scrollOffset.value) { indexAtOffset(scrollOffset.value) }
 
-    // When the center letter changes, update the active letter + reset song offset
-    LaunchedEffect(centerLetterIdx) {
-        if (centerLetterIdx != lastLetterIndex && letters.isNotEmpty()) {
-            lastLetterIndex = centerLetterIdx
-            activeLetterIndex = centerLetterIdx
-            // Reset the song wheel to the start when the letter changes
-            songScrollOffset.snapTo(0f)
+    // --- Load album art for visible songs ---
+    LaunchedEffect(centerIndex, songs) {
+        val startIdx = (centerIndex - 10).coerceAtLeast(0)
+        val endIdx = min(centerIndex + 10, songs.lastIndex)
+        for (i in startIdx..endIdx) {
+            val song = songs[i]
+            if (song.albumArtUri != null && !artCache.containsKey(song.id)) {
+                try {
+                    val bitmap = withContext(Dispatchers.IO) {
+                        android.graphics.BitmapFactory.decodeStream(
+                            context.contentResolver.openInputStream(song.albumArtUri)
+                        )
+                    }
+                    if (bitmap != null) {
+                        // Downscale to 48dp for performance
+                        val targetPx = with(density) { 48.dp.toPx() }.toInt()
+                        val scaled = android.graphics.Bitmap.createScaledBitmap(
+                            bitmap, targetPx, targetPx, true
+                        )
+                        artCache[song.id] = scaled.asImageBitmap()
+                        if (bitmap != scaled) bitmap.recycle()
+                    }
+                } catch (_: Exception) { }
+            }
         }
-    }
-
-    // --- Song index at apex ---
-    var lastSongIndex by remember { mutableStateOf(0) }
-    fun songIndexAtOffset(offset: Float): Int {
-        if (filteredSongs.isEmpty()) return 0
-        val raw = (offset / pxPerItem).roundToInt()
-        val mod = raw % filteredSongs.size
-        return if (mod < 0) mod + filteredSongs.size else mod
-    }
-
-    val centerSongIdx = remember(songScrollOffset.value, filteredSongs) {
-        songIndexAtOffset(songScrollOffset.value)
     }
 
     // --- Haptic tick ---
@@ -316,61 +275,9 @@ private fun SongWheel(
         } catch (_: Exception) { }
     }
 
-    // --- "All songs" header (fixed at top, scrolls with PTR) ---
-    // Rendered OUTSIDE the Canvas, at the top of the wheel area.
-
     Box(
         modifier = modifier
-            // LEFT ZONE drag → rotates LETTERS (inner arc, negated)
-            .pointerInput(letters.size) {
-                val halfScreen = size.width / 2
-                var velocityTracker = VelocityTracker()
-                var isLeftZoneDrag = false
-                detectVerticalDragGestures(
-                    onDragStart = { offset ->
-                        isLeftZoneDrag = offset.x < halfScreen
-                        if (isLeftZoneDrag) {
-                            velocityTracker = VelocityTracker()
-                        }
-                    },
-                    onDragEnd = {
-                        if (isLeftZoneDrag) {
-                            val velocity = velocityTracker.calculateVelocity().y
-                            coroutineScope.launch {
-                                letterScrollOffset.animateDecay(
-                                    initialVelocity = -velocity * 0.35f,
-                                    animationSpec = exponentialDecay(frictionMultiplier = 0.9f)
-                                )
-                                val nearest = (letterScrollOffset.value / pxPerItem).roundToInt()
-                                letterScrollOffset.animateTo(
-                                    targetValue = nearest * pxPerItem,
-                                    animationSpec = spring(
-                                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                                        stiffness = Spring.StiffnessMedium
-                                    )
-                                )
-                            }
-                        }
-                        isLeftZoneDrag = false
-                    },
-                    onVerticalDrag = { change, dragAmount ->
-                        if (isLeftZoneDrag) {
-                            coroutineScope.launch {
-                                letterScrollOffset.snapTo(letterScrollOffset.value - dragAmount)
-                            }
-                            velocityTracker.addPosition(change.uptimeMillis, change.position)
-                            val currentIdx = letterIndexAtOffset(letterScrollOffset.value)
-                            if (currentIdx != lastLetterIndex) {
-                                lastLetterIndex = currentIdx
-                                tickHaptic()
-                            }
-                            change.consume()
-                        }
-                    }
-                )
-            }
-            // RIGHT ZONE drag → rotates SONGS (outer arc, normal)
-            .pointerInput(filteredSongs.size) {
+            .pointerInput(songs.size) {
                 var velocityTracker = VelocityTracker()
                 detectVerticalDragGestures(
                     onDragStart = {
@@ -379,12 +286,12 @@ private fun SongWheel(
                     onDragEnd = {
                         val velocity = velocityTracker.calculateVelocity().y
                         coroutineScope.launch {
-                            songScrollOffset.animateDecay(
+                            scrollOffset.animateDecay(
                                 initialVelocity = velocity * 0.35f,
                                 animationSpec = exponentialDecay(frictionMultiplier = 0.9f)
                             )
-                            val nearest = (songScrollOffset.value / pxPerItem).roundToInt()
-                            songScrollOffset.animateTo(
+                            val nearest = (scrollOffset.value / pxPerItem).roundToInt()
+                            scrollOffset.animateTo(
                                 targetValue = nearest * pxPerItem,
                                 animationSpec = spring(
                                     dampingRatio = Spring.DampingRatioMediumBouncy,
@@ -395,12 +302,12 @@ private fun SongWheel(
                     },
                     onVerticalDrag = { change, dragAmount ->
                         coroutineScope.launch {
-                            songScrollOffset.snapTo(songScrollOffset.value + dragAmount)
+                            scrollOffset.snapTo(scrollOffset.value + dragAmount)
                         }
                         velocityTracker.addPosition(change.uptimeMillis, change.position)
-                        val currentIdx = songIndexAtOffset(songScrollOffset.value)
-                        if (currentIdx != lastSongIndex) {
-                            lastSongIndex = currentIdx
+                        val currentIdx = indexAtOffset(scrollOffset.value)
+                        if (currentIdx != lastSnappedIndex) {
+                            lastSnappedIndex = currentIdx
                             tickHaptic()
                         }
                         change.consume()
@@ -416,32 +323,18 @@ private fun SongWheel(
             val pivotX = w * -0.50f
             val pivotY = h * 0.50f
 
-            // === DUAL RADII ===
-            // Inner arc (letters) — smaller radius
-            val letterArcRadius = w * 0.50f
-            // Outer arc (songs) — bigger radius
-            val songArcRadius = w * 0.75f
-            // Text orbit for songs (outside the song arc)
-            val songTextRadius = songArcRadius + with(density) { 30.dp.toPx() }
+            // === ARC RADIUS ===
+            val arcRadius = w * 0.65f
+            // Card orbit — sits OUTSIDE the arc, where capsule cards are drawn
+            val cardRadius = arcRadius + with(density) { 20.dp.toPx() }
 
             // === ARC SWEEP ===
             val arcSweepDeg = 100f
             val arcStartDeg = -arcSweepDeg / 2f
 
-            // === DRAW LETTER ARC (inner, small) ===
+            // === DRAW FADING ARC ===
             drawFadingArc(
-                radius = letterArcRadius,
-                fullAlpha = 0.5f,
-                strokePx = 1.5f,
-                pivotX = pivotX,
-                pivotY = pivotY,
-                arcStartDeg = arcStartDeg,
-                arcSweepDeg = arcSweepDeg
-            )
-
-            // === DRAW SONG ARC (outer, big) ===
-            drawFadingArc(
-                radius = songArcRadius,
+                radius = arcRadius,
                 fullAlpha = 0.4f,
                 strokePx = 1.0f,
                 pivotX = pivotX,
@@ -450,151 +343,170 @@ private fun SongWheel(
                 arcSweepDeg = arcSweepDeg
             )
 
-            // === DRAW LETTERS ON INNER ARC ===
-            if (letters.isNotEmpty()) {
-                val letterRotationItems = letterScrollOffset.value / pxPerItem
-                val letterVisibleSpan = 7
-                for (offset in -letterVisibleSpan..letterVisibleSpan) {
-                    val rawIdx = (letterRotationItems.roundToInt() + offset)
-                    val modIdx = ((rawIdx % letters.size) + letters.size) % letters.size
-                    val letter = letters[modIdx]
+            // === DRAW SONGS ON ARC ===
+            val rotationItems = scrollOffset.value / pxPerItem
+            val visibleSpan = 7
 
-                    val fractionalOffset = letterRotationItems - letterRotationItems.roundToInt() + offset
-                    val absOffset = abs(fractionalOffset)
-                    if (absOffset > letterVisibleSpan) continue
+            for (offset in -visibleSpan..visibleSpan) {
+                val rawIdx = (rotationItems.roundToInt() + offset)
+                val modIdx = ((rawIdx % songs.size) + songs.size) % songs.size
+                val song = songs[modIdx]
 
-                    val itemAngleDeg = fractionalOffset * angleStepDeg
-                    val itemAngleRad = (itemAngleDeg * PI / 180f).toFloat()
+                val fractionalOffset = rotationItems - rotationItems.roundToInt() + offset
+                val absOffset = abs(fractionalOffset)
+                if (absOffset > visibleSpan) continue
 
-                    val letterX = pivotX + letterArcRadius * cos(itemAngleRad)
-                    val letterY = pivotY + letterArcRadius * sin(itemAngleRad)
+                val itemAngleDeg = fractionalOffset * angleStepDeg
+                val itemAngleRad = (itemAngleDeg * PI / 180f).toFloat()
 
-                    // Alpha curve
-                    val alpha = when {
-                        absOffset < 0.5f -> 1f
-                        absOffset < 1.5f -> 0.7f
-                        absOffset < 2.5f -> 0.45f
-                        absOffset < 3.5f -> 0.25f
-                        absOffset < 4.5f -> 0.12f
-                        absOffset < 5.5f -> 0.05f
-                        else -> 0f
-                    }
-                    if (alpha <= 0.01f) continue
+                // Ball position ON the arc
+                val ballX = pivotX + arcRadius * cos(itemAngleRad)
+                val ballY = pivotY + arcRadius * sin(itemAngleRad)
 
-                    val isActive = absOffset < 0.5f
-                    val ballColor = if (isActive) Color(0xFFFF6B6B) else Color.White
-                    val ballRadius = if (isActive) 5.dp.toPx() else 3.dp.toPx()
+                // Card position — OUTSIDE the arc (radially outward)
+                val cardX = pivotX + cardRadius * cos(itemAngleRad)
+                val cardY = pivotY + cardRadius * sin(itemAngleRad)
 
-                    // Ball
-                    drawCircle(
-                        color = ballColor,
-                        radius = ballRadius,
-                        center = Offset(letterX, letterY),
+                // Alpha curve
+                val alpha = when {
+                    absOffset < 0.5f -> 1f
+                    absOffset < 1.5f -> 0.7f
+                    absOffset < 2.5f -> 0.45f
+                    absOffset < 3.5f -> 0.25f
+                    absOffset < 4.5f -> 0.12f
+                    absOffset < 5.5f -> 0.05f
+                    else -> 0f
+                }
+                if (alpha <= 0.01f) continue
+
+                val isActive = absOffset < 0.5f
+                val isPlaying = isActive && song.id == currentSongId
+
+                // === 1. BALL MARKER on the arc ===
+                val ballColor = if (isPlaying) Color(0xFFFF6B6B)
+                    else if (isActive) Color.White
+                    else Color.White.copy(alpha = 0.6f)
+                val ballRadiusPx = if (isActive) 5.dp.toPx() else 3.dp.toPx()
+                drawCircle(
+                    color = ballColor,
+                    radius = ballRadiusPx,
+                    center = Offset(ballX, ballY),
+                    alpha = alpha
+                )
+
+                // === 2. CAPSULE CARD beside the ball ===
+                // Transparent thin capsule: semi-transparent dark bg + thin white border
+                val cardWidthPx = with(density) { 200.dp.toPx() }
+                val cardHeightPx = with(density) { 48.dp.toPx() }
+                val cardCornerRadiusPx = with(density) { 24.dp.toPx() }
+
+                // Card top-left position (card extends to the RIGHT from the ball)
+                val cardLeft = ballX + with(density) { 10.dp.toPx() }
+                val cardTop = cardY - cardHeightPx / 2f
+
+                // Draw card background (semi-transparent dark)
+                drawRoundRect(
+                    color = Color.Black.copy(alpha = 0.35f * alpha),
+                    topLeft = Offset(cardLeft, cardTop),
+                    size = Size(cardWidthPx, cardHeightPx),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(
+                        cardCornerRadiusPx, cardCornerRadiusPx
+                    )
+                )
+                // Draw card border (thin white)
+                drawRoundRect(
+                    color = Color.White.copy(alpha = 0.1f * alpha),
+                    topLeft = Offset(cardLeft, cardTop),
+                    size = Size(cardWidthPx, cardHeightPx),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(
+                        cardCornerRadiusPx, cardCornerRadiusPx
+                    ),
+                    style = Stroke(width = 1.dp.toPx())
+                )
+
+                // === 3. CIRCULAR ALBUM ART inside the card ===
+                val artSizePx = with(density) { 36.dp.toPx() }
+                val artCenterX = cardLeft + with(density) { 6.dp.toPx() } + artSizePx / 2f
+                val artCenterY = cardY
+                val artRadius = artSizePx / 2f
+
+                // Clip to circle: draw a dark circle bg first
+                drawCircle(
+                    color = Color(0xFF1A1A1A).copy(alpha = alpha),
+                    radius = artRadius,
+                    center = Offset(artCenterX, artCenterY)
+                )
+
+                // Draw album art bitmap if cached
+                val artBitmap = artCache[song.id]
+                if (artBitmap != null) {
+                    // Draw the bitmap clipped to a circle
+                    // We clip by drawing a circle path then the image inside
+                    val srcSize = artBitmap.width.toFloat()
+                    val srcLeft = (srcSize - artBitmap.width.toFloat()) / 2f
+                    drawImage(
+                        image = artBitmap,
+                        srcOffset = androidx.compose.ui.unit.IntOffset(0, 0),
+                        srcSize = androidx.compose.ui.unit.IntSize(
+                            artBitmap.width, artBitmap.height
+                        ),
+                        dstOffset = androidx.compose.ui.unit.IntOffset(
+                            (artCenterX - artRadius).toInt(),
+                            (artCenterY - artRadius).toInt()
+                        ),
+                        dstSize = androidx.compose.ui.unit.IntSize(
+                            artSizePx.toInt(), artSizePx.toInt()
+                        ),
                         alpha = alpha
                     )
-
-                    // Letter text (using textMeasurer to render)
-                    val fontSize = if (isActive) 14.sp else 11.sp
-                    val textResult = textMeasurer.measure(
-                        text = androidx.compose.ui.text.AnnotatedString(letter),
-                        style = androidx.compose.ui.text.TextStyle(
-                            color = if (isActive) Color(0xFFFF6B6B) else Color.White.copy(alpha = alpha),
-                            fontSize = fontSize,
-                            fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                            fontFamily = CalSansFamily
-                        )
-                    )
-                    val textX = letterX + with(density) { 8.dp.toPx() }
-                    val textY = letterY - textResult.size.height / 2f
-                    drawText(textResult, topLeft = Offset(textX, textY))
-                }
-            }
-
-            // === DRAW SONGS ON OUTER ARC ===
-            if (filteredSongs.isNotEmpty()) {
-                val songRotationItems = songScrollOffset.value / pxPerItem
-                val songVisibleSpan = 7
-                for (offset in -songVisibleSpan..songVisibleSpan) {
-                    val rawIdx = (songRotationItems.roundToInt() + offset)
-                    val modIdx = ((rawIdx % filteredSongs.size) + filteredSongs.size) % filteredSongs.size
-                    val song = filteredSongs[modIdx]
-
-                    val fractionalOffset = songRotationItems - songRotationItems.roundToInt() + offset
-                    val absOffset = abs(fractionalOffset)
-                    if (absOffset > songVisibleSpan) continue
-
-                    val itemAngleDeg = fractionalOffset * angleStepDeg
-                    val itemAngleRad = (itemAngleDeg * PI / 180f).toFloat()
-
-                    val songX = pivotX + songTextRadius * cos(itemAngleRad)
-                    val songY = pivotY + songTextRadius * sin(itemAngleRad)
-
-                    // Alpha curve
-                    val alpha = when {
-                        absOffset < 0.5f -> 1f
-                        absOffset < 1.5f -> 0.7f
-                        absOffset < 2.5f -> 0.45f
-                        absOffset < 3.5f -> 0.25f
-                        absOffset < 4.5f -> 0.12f
-                        absOffset < 5.5f -> 0.05f
-                        else -> 0f
-                    }
-                    if (alpha <= 0.01f) continue
-
-                    val isActive = absOffset < 0.5f
-                    val isPlaying = isActive && song.id == currentSongId
-
-                    // Ball marker
-                    val ballColor = if (isPlaying) Color(0xFFFF6B6B) else if (isActive) Color.White else Color.White.copy(alpha = 0.6f)
-                    val ballRadius = if (isActive) 5.dp.toPx() else 3.dp.toPx()
+                    // Draw a circle border around the art
                     drawCircle(
-                        color = ballColor,
-                        radius = ballRadius,
-                        center = Offset(songX, songY),
-                        alpha = alpha
+                        color = Color.White.copy(alpha = 0.15f * alpha),
+                        radius = artRadius,
+                        center = Offset(artCenterX, artCenterY),
+                        style = Stroke(width = 1.dp.toPx())
                     )
-
-                    // Song text — title + artist
-                    val titleColor = if (isPlaying) Color(0xFFFF6B6B) else Color.White.copy(alpha = alpha)
-                    val artistColor = Color.White.copy(alpha = alpha * 0.6f)
-
-                    val titleResult = textMeasurer.measure(
-                        text = androidx.compose.ui.text.AnnotatedString(song.title),
-                        style = androidx.compose.ui.text.TextStyle(
-                            color = titleColor,
-                            fontSize = if (isActive) 14.sp else 11.sp,
-                            fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                            fontFamily = CalSansFamily
-                        ),
-                        overflow = TextOverflow.Ellipsis,
-                        maxLines = 1,
-                        softWrap = false
-                    )
-                    val artistResult = textMeasurer.measure(
-                        text = androidx.compose.ui.text.AnnotatedString(song.artist),
-                        style = androidx.compose.ui.text.TextStyle(
-                            color = artistColor,
-                            fontSize = if (isActive) 11.sp else 9.sp,
-                            fontWeight = FontWeight.Normal,
-                            fontFamily = CalSansFamily
-                        ),
-                        overflow = TextOverflow.Ellipsis,
-                        maxLines = 1,
-                        softWrap = false
-                    )
-
-                    val textGap = with(density) { 8.dp.toPx() }
-                    val textX = songX + textGap
-                    val titleY = songY - (titleResult.size.height + artistResult.size.height) / 2f
-                    val artistY = titleY + titleResult.size.height
-
-                    drawText(titleResult, topLeft = Offset(textX, titleY))
-                    drawText(artistResult, topLeft = Offset(textX, artistY))
                 }
+
+                // === 4. SONG TITLE + ARTIST inside the card ===
+                val textStartX = cardLeft + with(density) { 6.dp.toPx() } + artSizePx + with(density) { 8.dp.toPx() }
+                val titleColor = if (isPlaying) Color(0xFFFF6B6B) else Color.White.copy(alpha = alpha)
+                val artistColor = Color.White.copy(alpha = alpha * 0.6f)
+
+                val titleResult = textMeasurer.measure(
+                    text = androidx.compose.ui.text.AnnotatedString(song.title),
+                    style = androidx.compose.ui.text.TextStyle(
+                        color = titleColor,
+                        fontSize = if (isActive) 13.sp else 11.sp,
+                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                        fontFamily = CalSansFamily
+                    ),
+                    overflow = TextOverflow.Ellipsis,
+                    maxLines = 1,
+                    softWrap = false
+                )
+                val artistResult = textMeasurer.measure(
+                    text = androidx.compose.ui.text.AnnotatedString(song.artist),
+                    style = androidx.compose.ui.text.TextStyle(
+                        color = artistColor,
+                        fontSize = if (isActive) 10.sp else 9.sp,
+                        fontWeight = FontWeight.Normal,
+                        fontFamily = CalSansFamily
+                    ),
+                    overflow = TextOverflow.Ellipsis,
+                    maxLines = 1,
+                    softWrap = false
+                )
+
+                val titleY = cardY - (titleResult.size.height + artistResult.size.height) / 2f - 1f
+                val artistY = titleY + titleResult.size.height + 1f
+
+                drawText(titleResult, topLeft = Offset(textStartX, titleY))
+                drawText(artistResult, topLeft = Offset(textStartX, artistY))
             }
         }
 
-        // === "All songs" header (fixed overlay, scrolls with PTR) ===
+        // === "All songs" header (fixed overlay) ===
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -631,20 +543,17 @@ private fun SongWheel(
         }
 
         // === Tap zone for playing the center song ===
-        // Tapping the right side of the screen plays the song at the apex
-        // of the outer (song) arc. Simple, no precise hit-testing needed.
-        if (filteredSongs.isNotEmpty()) {
+        if (songs.isNotEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .pointerInput(filteredSongs.size) {
+                    .pointerInput(songs.size) {
                         detectTapGestures(
                             onTap = { offset ->
-                                // Only register taps on the right half (song arc zone)
                                 if (offset.x > size.width / 2) {
-                                    val idx = songIndexAtOffset(songScrollOffset.value)
-                                    if (idx in filteredSongs.indices) {
-                                        onSongClick(filteredSongs[idx])
+                                    val idx = indexAtOffset(scrollOffset.value)
+                                    if (idx in songs.indices) {
+                                        onSongClick(songs[idx])
                                         tickHaptic()
                                     }
                                 }
@@ -657,7 +566,7 @@ private fun SongWheel(
 }
 
 // ════════════════════════════════════════════════════════════════════
-// HELPER: draw a fading arc (same technique as PlaylistWheel)
+// HELPER: draw a fading arc
 // ════════════════════════════════════════════════════════════════════
 
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFadingArc(
