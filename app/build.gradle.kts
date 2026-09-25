@@ -75,6 +75,9 @@ dependencies {
     // Media3 decoder — provides software decoders (FFmpeg-based) for codecs
     // that hardware doesn't support (ALAC 24-bit, Dolby Atmos, etc.)
     implementation("androidx.media3:media3-decoder:1.5.1")
+    // Pure-Java ALAC decoder — bypasses the broken hardware ALAC decoder
+    // that produces silence on 24-bit ALAC files. Same library Gramophone uses.
+    implementation(project(":misc:alacdecoder"))
     implementation("io.coil-kt.coil3:coil-compose:3.0.4")
     implementation("androidx.palette:palette-ktx:1.0.0")
     implementation("androidx.navigation:navigation-compose:2.8.5")

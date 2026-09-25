@@ -85,16 +85,34 @@ class CoralPlaybackService : MediaSessionService() {
         // Fix: Enable float audio output on the RenderersFactory.
         // This tells the audio sink to use float PCM instead of 16-bit integer,
         // which properly handles 24-bit ALAC output from the decoder.
-        // ROOT CAUSE: ExoPlayer's built-in ALAC decoder doesn't handle
-        // 24-bit ALAC properly — it decodes but produces silence.
-        // The DefaultAudioSink rejects 24-bit PCM.
+        // ROOT CAUSE: ExoPlayer's built-in hardware ALAC decoder produces
+        // silence on 24-bit ALAC files. The AudioSink fix (float output)
+        // alone wasn't enough — the decoder itself is broken.
         //
-        // FIX: Override buildAudioSink to use float output. Float PCM
-        // can represent any bit depth (16, 24, 32-bit) — the decoder's
-        // 24-bit output gets converted to float and played correctly.
-        //
-        // This is what Gramophone does (setEnableFloatOutput).
+        // FIX: Override buildAudioRenderers to add the pure-Java AlacRenderer
+        // (org.nift4.alacdecoder) BEFORE the default hardware decoders.
+        // This bypasses the broken hardware decoder entirely.
+        // Same approach as Gramophone (open-source, GPL).
         val renderersFactory = object : DefaultRenderersFactory(this) {
+            override fun buildAudioRenderers(
+                context: android.content.Context,
+                extensionRendererMode: Int,
+                mediaCodecSelector: androidx.media3.exoplayer.mediacodec.MediaCodecSelector,
+                enableDecoderFallback: Boolean,
+                audioSink: androidx.media3.exoplayer.audio.AudioSink,
+                eventHandler: android.os.Handler,
+                eventListener: androidx.media3.exoplayer.audio.AudioRendererEventListener,
+                out: java.util.ArrayList<androidx.media3.exoplayer.Renderer>
+            ) {
+                // Add the pure-Java ALAC renderer FIRST — it takes priority
+                out.add(org.nift4.alacdecoder.AlacRenderer(eventHandler, eventListener, audioSink))
+                // Then add the default renderers (for MP3, FLAC, AAC, etc.)
+                super.buildAudioRenderers(
+                    context, extensionRendererMode, mediaCodecSelector,
+                    enableDecoderFallback, audioSink, eventHandler, eventListener, out
+                )
+            }
+
             override fun buildAudioSink(
                 context: android.content.Context,
                 pcmEncodingRestrictionLifted: Boolean,
