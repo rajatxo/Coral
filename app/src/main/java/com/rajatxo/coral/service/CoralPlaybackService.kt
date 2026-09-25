@@ -3,6 +3,7 @@ package com.rajatxo.coral.service
 import android.app.PendingIntent
 import android.content.Intent
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -77,7 +78,15 @@ class CoralPlaybackService : MediaSessionService() {
     }
 
     private fun buildPlayer(ownsSession: Boolean): ExoPlayer {
-        val player = ExoPlayer.Builder(this)
+        // Enable decoder fallback — if the hardware decoder doesn't support
+        // a codec (e.g. ALAC on some devices, Dolby Atmos, etc.), ExoPlayer
+        // falls back to the next available decoder (software if possible).
+        // This fixes the "shows playing but no sound" issue with ALAC files.
+        val renderersFactory = DefaultRenderersFactory(this)
+            .setEnableDecoderFallback(true)
+            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+
+        val player = ExoPlayer.Builder(this, renderersFactory)
             .setAudioAttributes(
                 androidx.media3.common.AudioAttributes.Builder()
                     .setUsage(androidx.media3.common.C.USAGE_MEDIA)

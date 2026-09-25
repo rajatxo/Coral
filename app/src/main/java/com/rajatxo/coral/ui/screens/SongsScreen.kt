@@ -95,11 +95,6 @@ fun SongsScreen(
     }
 
     val vibrantTop by animateColorAsState(palette.primary.copy(alpha = 0.85f), tween(800), "sBgVT")
-    val fade1 by animateColorAsState(palette.primary.copy(alpha = 0.65f), tween(800), "sBgF1")
-    val fade2 by animateColorAsState(palette.primary.copy(alpha = 0.45f), tween(800), "sBgF2")
-    val fade3 by animateColorAsState(palette.primary.copy(alpha = 0.28f), tween(800), "sBgF3")
-    val animatedTop by animateColorAsState(palette.primary.copy(alpha = 0.18f), tween(800), "sBgT")
-    val animatedMid by animateColorAsState(palette.primary.copy(alpha = 0.08f), tween(800), "sBgM")
     val animatedBottom by animateColorAsState(Color(0xFF05050A), tween(800), "sBgB")
     val darkBase = Color(0xFF05050A)
 
@@ -110,13 +105,16 @@ fun SongsScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(darkBase)
-            .background(Brush.verticalGradient(
-                colorStops = arrayOf(
-                    0.0f to vibrantTop, 0.10f to fade1, 0.15f to fade2,
-                    0.20f to fade3, 0.30f to animatedTop, 0.55f to animatedMid,
-                    1.0f to animatedBottom
+            .background(
+                // Simple gradient: 60% normal color → 40% blend to dark
+                Brush.verticalGradient(
+                    colorStops = arrayOf(
+                        0.0f  to vibrantTop,    // 0-60%: solid palette color
+                        0.60f to vibrantTop,    // still solid at 60%
+                        1.0f  to animatedBottom  // 60-100%: blend to near-black
+                    )
                 )
-            ))
+            )
     ) {
         PullToRefreshBox(
             isRefreshing = isRefreshing,
@@ -184,88 +182,111 @@ private fun SongCapsule(
 ) {
     val pillShape = RoundedCornerShape(32.dp)
 
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(64.dp)
             .clip(pillShape)
-            .background(Color.Black.copy(alpha = 0.35f))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
     ) {
-        // ─── Circular album art (left) ───
+        // ─── Glossy glass background ───
+        // Semi-transparent dark base + subtle white gradient overlay on top
+        // for a "glass sheen" effect. No blur — just visual gloss.
         Box(
             modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .then(
-                    if (isCurrent) Modifier.background(Color(0xFFFF6B6B).copy(alpha = 0.15f))
-                    else Modifier
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            if (song.albumArtUri != null) {
-                AsyncImage(
-                    model = song.albumArtUri,
-                    contentDescription = "Album art",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF1A1A1A)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = CoralIcons.Music,
-                        contentDescription = null,
-                        tint = Color(0xFFB0B0B0),
-                        modifier = Modifier.size(18.dp)
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.35f))
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f to Color.White.copy(alpha = 0.08f),  // subtle white sheen at top
+                            0.5f to Color.Transparent,
+                            1.0f to Color.White.copy(alpha = 0.03f)   // very subtle at bottom
+                        )
                     )
-                }
-            }
-        }
-
-        Spacer(Modifier.size(12.dp))
-
-        // ─── Title + artist (center) ───
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = song.title,
-                color = if (isCurrent) Color(0xFFFF6B6B) else Color.White,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                fontFamily = CalSansFamily,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = song.artist,
-                color = Color.White.copy(alpha = 0.5f),
-                fontSize = 12.sp,
-                fontFamily = CalSansFamily,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-
-        // ─── Duration (right) ───
-        val totalSec = song.duration / 1000
-        val mm = totalSec / 60
-        val ss = totalSec % 60
-        Text(
-            text = "$mm:${String.format("%02d", ss)}",
-            color = Color.White.copy(alpha = 0.4f),
-            fontSize = 12.sp,
-            fontFamily = CalSansFamily
+                )
         )
 
-        Spacer(Modifier.size(8.dp))
+        // ─── Content row ───
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(onClick = onClick)
+                .padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // ─── Circular album art (left) ───
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .then(
+                        if (isCurrent) Modifier.background(Color(0xFFFF6B6B).copy(alpha = 0.15f))
+                        else Modifier
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                if (song.albumArtUri != null) {
+                    AsyncImage(
+                        model = song.albumArtUri,
+                        contentDescription = "Album art",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF1A1A1A)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = CoralIcons.Music,
+                            contentDescription = null,
+                            tint = Color(0xFFB0B0B0),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.size(12.dp))
+
+            // ─── Title + artist (center) ───
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = song.title,
+                    color = if (isCurrent) Color(0xFFFF6B6B) else Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = CalSansFamily,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = song.artist,
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 12.sp,
+                    fontFamily = CalSansFamily,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            // ─── Duration (right) ───
+            val totalSec = song.duration / 1000
+            val mm = totalSec / 60
+            val ss = totalSec % 60
+            Text(
+                text = "$mm:${String.format("%02d", ss)}",
+                color = Color.White.copy(alpha = 0.4f),
+                fontSize = 12.sp,
+                fontFamily = CalSansFamily
+            )
+
+            Spacer(Modifier.size(8.dp))
+        }
     }
 }
