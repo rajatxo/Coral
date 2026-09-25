@@ -544,9 +544,9 @@ public class AlacDecodeUtils {
                 }
 
                 buffer_out.position((i * numchannels + channel_index_a) * 3);
-                buffer_out.put((byte)(left >> 8)); buffer_out.put((byte)(left >> 16)); buffer_out.put((byte)left);
+                buffer_out.put((byte)left); buffer_out.put((byte)(left >> 8)); buffer_out.put((byte)(left >> 16));
                 buffer_out.position((i * numchannels + channel_index_b) * 3);
-                buffer_out.put((byte)(right >> 8)); buffer_out.put((byte)(right >> 16)); buffer_out.put((byte)right);
+                buffer_out.put((byte)right); buffer_out.put((byte)(right >> 8)); buffer_out.put((byte)(right >> 16));
             }
 
             return;
@@ -831,7 +831,7 @@ public class AlacDecodeUtils {
                             int sample = alac.outputsamples_buffer[channel_index][i] << 4;
 
                             outbuffer.position((i * alac.numchannels + channel_index_a) * 3);
-                            outbuffer.put((byte)(sample >> 8)); outbuffer.put((byte)(sample >> 16)); outbuffer.put((byte)sample);
+                            outbuffer.put((byte)sample); outbuffer.put((byte)(sample >> 8)); outbuffer.put((byte)(sample >> 16));
                         }
                         break;
                     case 24: {
@@ -846,7 +846,7 @@ public class AlacDecodeUtils {
                             }
 
                             outbuffer.position((i * alac.numchannels + channel_index_a) * 3);
-                            outbuffer.put((byte)(sample >> 8)); outbuffer.put((byte)(sample >> 16)); outbuffer.put((byte)sample);
+                            outbuffer.put((byte)sample); outbuffer.put((byte)(sample >> 8)); outbuffer.put((byte)(sample >> 16));
 
                         }
                         break;
