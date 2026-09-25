@@ -576,9 +576,9 @@ public class AlacDecodeUtils {
             }
 
             buffer_out.position((i * numchannels + channel_index_a) * 3);
-            buffer_out.put((byte)(left >> 8)); buffer_out.put((byte)(left >> 16)); buffer_out.put((byte)left);
+            buffer_out.put((byte)left); buffer_out.put((byte)(left >> 8)); buffer_out.put((byte)(left >> 16));
             buffer_out.position((i * numchannels + channel_index_b) * 3);
-            buffer_out.put((byte)(right >> 8)); buffer_out.put((byte)(right >> 16)); buffer_out.put((byte)right);
+            buffer_out.put((byte)right); buffer_out.put((byte)(right >> 8)); buffer_out.put((byte)(right >> 16));
 
         }
 
