@@ -159,6 +159,30 @@ fun SongsScreen(
                 }
             }
         }
+
+        // ─── Bottom fade gradient ───
+        // Fades from transparent → solid dark at the bottom, hiding the
+        // capsules that scroll behind the mini player and nav bar.
+        // NOT a blur (that corrupts the shared graphicsLayer) — just a
+        // gradient overlay that gradually darkens the bottom ~180dp.
+        // The darkest part sits behind the nav bar (bottom of screen),
+        // and it gradually fades upward into the song list.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(180.dp)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f  to Color.Transparent,       // top of fade — fully transparent
+                            0.3f  to darkBase.copy(alpha = 0.5f),  // mid — semi-dark
+                            0.7f  to darkBase.copy(alpha = 0.9f),  // near bottom — mostly dark
+                            1.0f  to darkBase.copy(alpha = 1f)     // bottom — solid dark (behind nav bar)
+                        )
+                    )
+                )
+        )
     }
 }
 
