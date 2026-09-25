@@ -203,10 +203,6 @@ fun CoralApp() {
                     currentSongAlbum = mediaItem?.mediaMetadata?.albumTitle?.toString()
                     currentSongArt = mediaItem?.mediaMetadata?.artworkUri
                     currentSongId = mediaItem?.mediaId?.toLongOrNull()
-                    // Play on song change — call play() for ALL transitions
-                    // except PLAYLIST_CHANGED (caller already calls play()).
-                    // Check isPlaying first to avoid the "1-2" restart bug
-                    // (if already playing mid-transition, don't interfere).
                     if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) {
                         if (!controller.isPlaying) {
                             controller.play()
@@ -214,6 +210,15 @@ fun CoralApp() {
                     }
                 }
                 override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
+                override fun onPlayerErrorChanged(error: androidx.media3.common.PlaybackException?) {
+                    if (error != null) {
+                        android.util.Log.e("CoralPlayer", "Playback error: ${error.errorCodeName}", error)
+                        android.widget.Toast.makeText(context,
+                            "Can't play this file: ${error.errorCodeName}",
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
             })
 
             // Restore the saved repeat mode (was hardcoded to REPEAT_MODE_ALL,
