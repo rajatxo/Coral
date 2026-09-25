@@ -3,6 +3,7 @@ package com.rajatxo.coral.ui.screens
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -187,6 +188,7 @@ private fun SongCapsule(
             .fillMaxWidth()
             .height(64.dp)
             .clip(pillShape)
+            .border(1.dp, Color.White.copy(alpha = 0.2f), pillShape)
     ) {
         // ─── Glossy glass background ───
         // Semi-transparent dark base + subtle white gradient overlay on top

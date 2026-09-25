@@ -72,6 +72,9 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.5.1")
     implementation("androidx.media3:media3-session:1.5.1")
     implementation("androidx.media3:media3-ui:1.5.1")
+    // Media3 decoder — provides software decoders (FFmpeg-based) for codecs
+    // that hardware doesn't support (ALAC 24-bit, Dolby Atmos, etc.)
+    implementation("androidx.media3:media3-decoder:1.5.1")
     implementation("io.coil-kt.coil3:coil-compose:3.0.4")
     implementation("androidx.palette:palette-ktx:1.0.0")
     implementation("androidx.navigation:navigation-compose:2.8.5")

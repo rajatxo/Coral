@@ -78,13 +78,20 @@ class CoralPlaybackService : MediaSessionService() {
     }
 
     private fun buildPlayer(ownsSession: Boolean): ExoPlayer {
-        // Enable decoder fallback — if the hardware decoder doesn't support
-        // a codec (e.g. ALAC on some devices, Dolby Atmos, etc.), ExoPlayer
-        // falls back to the next available decoder (software if possible).
-        // This fixes the "shows playing but no sound" issue with ALAC files.
+        // Enable decoder fallback + prefer extension decoders.
+        //
+        // EXTENSION_RENDERER_MODE_PREFER tells ExoPlayer to use extension
+        // decoders (FFmpeg-based software decoders from media3-decoder)
+        // FIRST, falling back to hardware only if no extension is available.
+        // This ensures codecs like ALAC 24-bit, Dolby Atmos E-AC-3, and
+        // other formats that some hardware doesn't support will play
+        // correctly via software decoding.
+        //
+        // setEnableDecoderFallback(true) = if the preferred decoder fails,
+        // try the next available one instead of erroring out.
         val renderersFactory = DefaultRenderersFactory(this)
             .setEnableDecoderFallback(true)
-            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
 
         val player = ExoPlayer.Builder(this, renderersFactory)
             .setAudioAttributes(
