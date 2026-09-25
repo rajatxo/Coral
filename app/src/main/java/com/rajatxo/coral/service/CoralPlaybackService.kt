@@ -78,24 +78,18 @@ class CoralPlaybackService : MediaSessionService() {
     }
 
     private fun buildPlayer(ownsSession: Boolean): ExoPlayer {
-        // Use DefaultRenderersFactory with decoder fallback.
-        // MODE_ON = use extension decoders if available, but prefer
-        // hardware decoders. MODE_PREFER = prefer extension/ software
-        // decoders over hardware.
+        // The ALAC 24-bit file plays (timeline runs) but produces no sound.
+        // The hardware decoder claims to support ALAC but can't handle 24-bit
+        // depth — it silently produces silence.
         //
-        // Using MODE_ON (not PREFER) because PREFER causes issues on some
-        // devices where the software decoder is selected but doesn't
-        // initialize properly. MODE_ON lets the hardware decoder try
-        // first, then falls back to software.
-        //
-        // The real fix for ALAC: ExoPlayer's built-in ALAC decoder
-        // (in media3-decoder) handles ALAC natively in software. The
-        // issue was that without setEnableDecoderFallback(true), if
-        // the hardware ALAC decoder failed silently, ExoPlayer didn't
-        // try the software one.
+        // Fix: Enable float audio output on the RenderersFactory.
+        // This tells the audio sink to use float PCM instead of 16-bit integer,
+        // which properly handles 24-bit ALAC output from the decoder.
         val renderersFactory = DefaultRenderersFactory(this)
             .setEnableDecoderFallback(true)
             .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+            .setEnableAudioFloatOutput(true)
+            .setEnableAudioTrackPlaybackParams(true)
 
         val player = ExoPlayer.Builder(this, renderersFactory)
             .setAudioAttributes(
@@ -108,7 +102,7 @@ class CoralPlaybackService : MediaSessionService() {
             .setHandleAudioBecomingNoisy(ownsSession)
             .build()
         player.repeatMode = Player.REPEAT_MODE_ALL
-        player.volume = 1f  // ensure volume is at max
+        player.volume = 1f
         return player
     }
 
