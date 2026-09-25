@@ -78,20 +78,24 @@ class CoralPlaybackService : MediaSessionService() {
     }
 
     private fun buildPlayer(ownsSession: Boolean): ExoPlayer {
-        // Enable decoder fallback + prefer extension decoders.
+        // Use DefaultRenderersFactory with decoder fallback.
+        // MODE_ON = use extension decoders if available, but prefer
+        // hardware decoders. MODE_PREFER = prefer extension/ software
+        // decoders over hardware.
         //
-        // EXTENSION_RENDERER_MODE_PREFER tells ExoPlayer to use extension
-        // decoders (FFmpeg-based software decoders from media3-decoder)
-        // FIRST, falling back to hardware only if no extension is available.
-        // This ensures codecs like ALAC 24-bit, Dolby Atmos E-AC-3, and
-        // other formats that some hardware doesn't support will play
-        // correctly via software decoding.
+        // Using MODE_ON (not PREFER) because PREFER causes issues on some
+        // devices where the software decoder is selected but doesn't
+        // initialize properly. MODE_ON lets the hardware decoder try
+        // first, then falls back to software.
         //
-        // setEnableDecoderFallback(true) = if the preferred decoder fails,
-        // try the next available one instead of erroring out.
+        // The real fix for ALAC: ExoPlayer's built-in ALAC decoder
+        // (in media3-decoder) handles ALAC natively in software. The
+        // issue was that without setEnableDecoderFallback(true), if
+        // the hardware ALAC decoder failed silently, ExoPlayer didn't
+        // try the software one.
         val renderersFactory = DefaultRenderersFactory(this)
             .setEnableDecoderFallback(true)
-            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
 
         val player = ExoPlayer.Builder(this, renderersFactory)
             .setAudioAttributes(
@@ -104,6 +108,7 @@ class CoralPlaybackService : MediaSessionService() {
             .setHandleAudioBecomingNoisy(ownsSession)
             .build()
         player.repeatMode = Player.REPEAT_MODE_ALL
+        player.volume = 1f  // ensure volume is at max
         return player
     }
 

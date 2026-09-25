@@ -209,7 +209,13 @@ fun CoralApp() {
                         }
                     }
                 }
-                override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
+                override fun onIsPlayingChanged(playing: Boolean) {
+                    isPlaying = playing
+                    // If it says "playing" but actually errored, force volume to 1
+                    if (playing) {
+                        controller.volume = 1f
+                    }
+                }
                 override fun onPlayerErrorChanged(error: androidx.media3.common.PlaybackException?) {
                     if (error != null) {
                         android.util.Log.e("CoralPlayer", "Playback error: ${error.errorCodeName}", error)
@@ -217,6 +223,21 @@ fun CoralApp() {
                             "Can't play this file: ${error.errorCodeName}",
                             android.widget.Toast.LENGTH_LONG
                         ).show()
+                    }
+                }
+                override fun onPlayerStateChanged(playWhenReady: Boolean, playbackState: Int) {
+                    // Log state changes for debugging
+                    val stateName = when (playbackState) {
+                        Player.STATE_IDLE -> "IDLE"
+                        Player.STATE_BUFFERING -> "BUFFERING"
+                        Player.STATE_READY -> "READY"
+                        Player.STATE_ENDED -> "ENDED"
+                        else -> "UNKNOWN($playbackState)"
+                    }
+                    android.util.Log.d("CoralPlayer", "State: $stateName, playWhenReady=$playWhenReady")
+                    // Force volume to max whenever we enter READY state
+                    if (playbackState == Player.STATE_READY) {
+                        controller.volume = 1f
                     }
                 }
             })
