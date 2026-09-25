@@ -85,11 +85,30 @@ class CoralPlaybackService : MediaSessionService() {
         // Fix: Enable float audio output on the RenderersFactory.
         // This tells the audio sink to use float PCM instead of 16-bit integer,
         // which properly handles 24-bit ALAC output from the decoder.
-        val renderersFactory = DefaultRenderersFactory(this)
+        // ROOT CAUSE: ExoPlayer's built-in ALAC decoder doesn't handle
+        // 24-bit ALAC properly — it decodes but produces silence.
+        // The DefaultAudioSink rejects 24-bit PCM.
+        //
+        // FIX: Override buildAudioSink to use float output. Float PCM
+        // can represent any bit depth (16, 24, 32-bit) — the decoder's
+        // 24-bit output gets converted to float and played correctly.
+        //
+        // This is what Gramophone does (setEnableFloatOutput).
+        val renderersFactory = object : DefaultRenderersFactory(this) {
+            override fun buildAudioSink(
+                context: android.content.Context,
+                pcmEncodingRestrictionLifted: Boolean,
+                enableAudioTrackPlaybackParams: Boolean
+            ): androidx.media3.exoplayer.audio.AudioSink {
+                return androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
+                    .setEnableFloatOutput(true)
+                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                    .build()
+            }
+        }
+        renderersFactory
             .setEnableDecoderFallback(true)
             .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
-            .setEnableAudioFloatOutput(true)
-            .setEnableAudioTrackPlaybackParams(true)
 
         val player = ExoPlayer.Builder(this, renderersFactory)
             .setAudioAttributes(
