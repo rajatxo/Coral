@@ -189,15 +189,15 @@ fun DuplicateSongsSheet(
             modifier = Modifier
                 .align(Alignment.Center)
                 .fillMaxWidth(0.88f)
-                .fillMaxSize(0.72f)
+                .fillMaxSize(0.62f)   // shorter — was 0.72f
                 .clip(sheetShape)
-                .background(Color.Black.copy(alpha = 0.75f))
+                .background(Color.Black.copy(alpha = 0.90f))   // 90% darker — was 0.75f
                 .background(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
-                            0.0f to Color.White.copy(alpha = 0.10f),  // sheen at top
+                            0.0f to Color.White.copy(alpha = 0.08f),  // sheen at top
                             0.4f to Color.Transparent,
-                            1.0f to Color.White.copy(alpha = 0.04f)   // subtle bottom
+                            1.0f to Color.White.copy(alpha = 0.03f)   // subtle bottom
                         )
                     )
                 )
