@@ -771,6 +771,10 @@ fun HomeScreen(
                     showSearch = false
                     onSongClickWithReset(song)
                 },
+                onPlaylistClick = { playlist ->
+                    showSearch = false
+                    selectedPlaylist = playlist
+                },
                 onDismiss = { showSearch = false }
             )
         }
