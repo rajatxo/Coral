@@ -60,7 +60,8 @@ fun SettingsScreen(
     onOpenPremium: () -> Unit,
     onOpenEqualizer: () -> Unit,
     onOpenSleepTimer: () -> Unit,
-    onOpenFontPicker: () -> Unit
+    onOpenFontPicker: () -> Unit,
+    onOpenLyrics: () -> Unit
 ) {
     val isPremium by PremiumManager.isPremium.collectAsState()
     val currentFont by com.rajatxo.coral.data.prefs.FontManager.currentFont.collectAsState()
@@ -177,6 +178,15 @@ fun SettingsScreen(
                 subtitle = "Used everywhere in Coral",
                 value = currentFont.displayName,
                 onClick = onOpenFontPicker
+            )
+            // Lyrics — opens the Lyrics settings screen (highlight animation)
+            val currentLyricsAnim by com.rajatxo.coral.data.prefs.LyricsAnimationManager.animation.collectAsState()
+            SettingsRow(
+                icon = CoralIcons.Music,
+                title = "Lyrics",
+                subtitle = "Highlight animation in Lyrics Picker",
+                value = currentLyricsAnim.displayName,
+                onClick = onOpenLyrics
             )
             // Player Design Style — toggle between Coral (immersive blurred
             // bg) and Profile (dating-app style with vertical pill + chips)

@@ -445,13 +445,14 @@ private fun CandidateCapsule(
     val matchLabel = matchStyle.label
     val matchGradient = matchStyle.gradientStops
 
-    // ★ Pulse Ring animation — only on exact match (delta == 0 AND synced).
-    //   A soft glowing ring expands outward from the duration circle and
-    //   fades as it grows. Loops every ~2s. Premium, subtle "heartbeat"
-    //   confirmation that this candidate fits the song perfectly.
-    val showPulse = isExactMatch
-    val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "pulse")
-    // Ring 1 — expands 0.6 → 1.0 over 2s, alpha 0.7 → 0.0
+    // ★ Highlight animation — only on exact match (delta == 0 AND synced).
+    //   Which animation plays depends on the user's selection in
+    //   Settings → Lyrics → Highlight Animation.
+    val showHighlight = isExactMatch
+    val selectedAnimation by com.rajatxo.coral.data.prefs.LyricsAnimationManager.animation.collectAsState()
+
+    // Pulse Ring state (only used if selectedAnimation == PULSE_RING)
+    val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "highlight")
     val pulseProgress1 by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
@@ -461,7 +462,6 @@ private fun CandidateCapsule(
         ),
         label = "pulse1"
     )
-    // Ring 2 — same animation, offset by 1s for a layered "echo" feel
     val pulseProgress2 by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
@@ -474,6 +474,28 @@ private fun CandidateCapsule(
             repeatMode = androidx.compose.animation.core.RepeatMode.Restart
         ),
         label = "pulse2"
+    )
+
+    // Sun Glow state (only used if selectedAnimation == SUN_GLOW)
+    // Glow breathes in/out (0.6 → 1.0) over 2.4s — soft, dramatic.
+    val glowScale by infiniteTransition.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 1.0f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(2400, easing = LinearEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "glowScale"
+    )
+    // Slow corona rotation (6s per revolution)
+    val coronaAngle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(6000, easing = LinearEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+        ),
+        label = "corona"
     )
 
     Box(
@@ -511,51 +533,118 @@ private fun CandidateCapsule(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // ─── Duration circle (left) ───
-            // On exact match: pulse ring expands outward (radar ping style)
+            // On exact match: highlight animation plays behind the circle.
+            //   - PULSE_RING: soft glowing rings expand outward (radar ping)
+            //   - SUN_GLOW:   soft dramatic radial glow + slow corona rays
             Box(
                 modifier = Modifier.size(56.dp),
                 contentAlignment = Alignment.Center
             ) {
-                // Pulse ring overlay (drawn first, behind the circle)
-                if (showPulse) {
-                    androidx.compose.foundation.Canvas(
-                        modifier = Modifier.matchParentSize()
-                    ) {
-                        val canvasSize = size.minDimension
-                        val center = androidx.compose.ui.geometry.Offset(canvasSize / 2f, canvasSize / 2f)
-                        // Ring starts at the circle's edge (radius ≈ 24dp in px → 0.43 of canvas)
-                        // and expands to 0.95 of canvas. Alpha fades 0.7 → 0.0.
-                        val startRadius = canvasSize * 0.43f
-                        val maxRadius = canvasSize * 0.95f
+                // Highlight overlay (drawn first, behind the circle)
+                if (showHighlight) {
+                    when (selectedAnimation) {
+                        com.rajatxo.coral.data.prefs.LyricsAnimationManager.LyricsAnimation.PULSE_RING -> {
+                            androidx.compose.foundation.Canvas(
+                                modifier = Modifier.matchParentSize()
+                            ) {
+                                val canvasSize = size.minDimension
+                                val center = androidx.compose.ui.geometry.Offset(canvasSize / 2f, canvasSize / 2f)
+                                val startRadius = canvasSize * 0.43f
+                                val maxRadius = canvasSize * 0.95f
 
-                        // Ring 1
-                        val r1 = startRadius + (maxRadius - startRadius) * pulseProgress1
-                        val a1 = (1f - pulseProgress1) * 0.7f
-                        if (a1 > 0.01f) {
-                            drawCircle(
-                                color = Color(0xFF4ADE80).copy(alpha = a1),
-                                radius = r1,
-                                center = center,
-                                style = androidx.compose.ui.graphics.drawscope.Stroke(
-                                    width = canvasSize * 0.04f,
-                                    cap = androidx.compose.ui.graphics.StrokeCap.Round
-                                )
-                            )
+                                // Ring 1
+                                val r1 = startRadius + (maxRadius - startRadius) * pulseProgress1
+                                val a1 = (1f - pulseProgress1) * 0.7f
+                                if (a1 > 0.01f) {
+                                    drawCircle(
+                                        color = Color(0xFF4ADE80).copy(alpha = a1),
+                                        radius = r1,
+                                        center = center,
+                                        style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                            width = canvasSize * 0.04f,
+                                            cap = androidx.compose.ui.graphics.StrokeCap.Round
+                                        )
+                                    )
+                                }
+
+                                // Ring 2 (offset for layered echo)
+                                val r2 = startRadius + (maxRadius - startRadius) * pulseProgress2
+                                val a2 = (1f - pulseProgress2) * 0.5f
+                                if (a2 > 0.01f) {
+                                    drawCircle(
+                                        color = Color(0xFF4ADE80).copy(alpha = a2),
+                                        radius = r2,
+                                        center = center,
+                                        style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                            width = canvasSize * 0.04f,
+                                            cap = androidx.compose.ui.graphics.StrokeCap.Round
+                                        )
+                                    )
+                                }
+                            }
                         }
 
-                        // Ring 2 (offset for layered echo)
-                        val r2 = startRadius + (maxRadius - startRadius) * pulseProgress2
-                        val a2 = (1f - pulseProgress2) * 0.5f
-                        if (a2 > 0.01f) {
-                            drawCircle(
-                                color = Color(0xFF4ADE80).copy(alpha = a2),
-                                radius = r2,
-                                center = center,
-                                style = androidx.compose.ui.graphics.drawscope.Stroke(
-                                    width = canvasSize * 0.04f,
-                                    cap = androidx.compose.ui.graphics.StrokeCap.Round
-                                )
-                            )
+                        com.rajatxo.coral.data.prefs.LyricsAnimationManager.LyricsAnimation.SUN_GLOW -> {
+                            androidx.compose.foundation.Canvas(
+                                modifier = Modifier.matchParentSize()
+                            ) {
+                                val canvasSize = size.minDimension
+                                val center = androidx.compose.ui.geometry.Offset(canvasSize / 2f, canvasSize / 2f)
+
+                                // Sun radius (matches the visible duration circle)
+                                val sunRadius = canvasSize * 0.40f
+                                val maxGlowRadius = canvasSize * 0.95f
+                                val currentGlowRadius = sunRadius + (maxGlowRadius - sunRadius) * glowScale
+
+                                // ★ Soft dramatic outer aura — ~12 concentric circles
+                                //   with fading alpha create a smooth glow. Color goes
+                                //   from golden-yellow at the sun to a warm amber at
+                                //   the outer edge. Like sunlight radiating outward.
+                                val glowSteps = 12
+                                for (i in glowSteps downTo 1) {
+                                    val stepRadius = sunRadius + (currentGlowRadius - sunRadius) * (i.toFloat() / glowSteps)
+                                    val stepAlpha = (1f - i.toFloat() / glowSteps) * 0.20f * glowScale
+                                    if (stepAlpha > 0.005f) {
+                                        // Color: warm gold at the sun → amber at outer edge.
+                                        // Use Compose's lerp for clean color interpolation.
+                                        val t = i.toFloat() / glowSteps
+                                        val glowColor = androidx.compose.ui.graphics.lerp(
+                                            Color(0xFFFFD700),  // gold (inner)
+                                            Color(0xFFFFA500),  // amber (outer)
+                                            t
+                                        )
+                                        drawCircle(
+                                            color = glowColor.copy(alpha = stepAlpha),
+                                            radius = stepRadius,
+                                            center = center
+                                        )
+                                    }
+                                }
+
+                                // ★ Corona rays — 8 thin warm-yellow lines radiating
+                                //   outward from the sun, slowly rotating. Length
+                                //   pulses with the glow (breathing effect).
+                                val rayCount = 8
+                                val rayInnerRadius = sunRadius * 1.08f
+                                val rayOuterRadius = sunRadius * (1.45f + 0.25f * glowScale)
+                                val rayColor = Color(0xFFFFD700).copy(alpha = 0.55f * glowScale)
+                                val rayWidth = canvasSize * 0.022f
+                                for (i in 0 until rayCount) {
+                                    val angleDeg = (360f / rayCount) * i + coronaAngle
+                                    val angleRad = Math.toRadians(angleDeg.toDouble())
+                                    val startX = center.x + (Math.cos(angleRad) * rayInnerRadius).toFloat()
+                                    val startY = center.y + (Math.sin(angleRad) * rayInnerRadius).toFloat()
+                                    val endX = center.x + (Math.cos(angleRad) * rayOuterRadius).toFloat()
+                                    val endY = center.y + (Math.sin(angleRad) * rayOuterRadius).toFloat()
+                                    drawLine(
+                                        color = rayColor,
+                                        start = androidx.compose.ui.geometry.Offset(startX, startY),
+                                        end = androidx.compose.ui.geometry.Offset(endX, endY),
+                                        strokeWidth = rayWidth,
+                                        cap = androidx.compose.ui.graphics.StrokeCap.Round
+                                    )
+                                }
+                            }
                         }
                     }
                 }

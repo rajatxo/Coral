@@ -168,6 +168,7 @@ fun HomeScreen(
     var showEqualizer by remember { mutableStateOf(false) }
     var showSleepTimer by remember { mutableStateOf(false) }
     var showFontPicker by remember { mutableStateOf(false) }
+    var showLyricsSettings by remember { mutableStateOf(false) }
 
     // --- Add to playlist from FullPlayer ---
     // When user taps "Add to playlist" in the FullPlayer 3-dot menu,
@@ -180,7 +181,7 @@ fun HomeScreen(
     // the app. Same for the full player, song picker, and other overlays.
     androidx.activity.compose.BackHandler(
         enabled = selectedPlaylist != null || showFullPlayer || showSongPicker ||
-                  showPremium || showSettings || showSearch || showEqualizer || showSleepTimer || showFontPicker
+                  showPremium || showSettings || showSearch || showEqualizer || showSleepTimer || showFontPicker || showLyricsSettings
     ) {
         when {
             showFullPlayer -> onFullPlayerDismiss()
@@ -191,6 +192,7 @@ fun HomeScreen(
             showEqualizer -> { showEqualizer = false }
             showSleepTimer -> { showSleepTimer = false }
             showFontPicker -> { showFontPicker = false }
+            showLyricsSettings -> { showLyricsSettings = false }
             selectedPlaylist != null -> { selectedPlaylist = null }
         }
     }
@@ -763,6 +765,13 @@ fun HomeScreen(
             )
         }
 
+        // --- Lyrics settings screen (full-screen overlay, opened from Settings → Lyrics) ---
+        if (showLyricsSettings) {
+            com.rajatxo.coral.ui.screens.LyricsSettingsScreen(
+                onBackClick = { showLyricsSettings = false }
+            )
+        }
+
         // --- Search screen (full-screen overlay, opened by search FAB) ---
         if (showSearch) {
             com.rajatxo.coral.ui.screens.SearchScreen(
@@ -798,6 +807,10 @@ fun HomeScreen(
                 onOpenFontPicker = {
                     showSettings = false
                     showFontPicker = true
+                },
+                onOpenLyrics = {
+                    showSettings = false
+                    showLyricsSettings = true
                 }
             )
         }
