@@ -1571,80 +1571,83 @@ private fun DraggableSearchFab(
                     }
                     .clip(RoundedCornerShape(16.dp))
                     .background(Color.White)
+                    // ★ Use detectTapGestures for the tap detection — this
+                    //   properly claims hit-test so the tap does NOT leak
+                    //   through to the song capsule visually behind the FAB.
+                    //   (The previous raw awaitPointerEventScope + consume()
+                    //   pattern is advisory for siblings and did not block
+                    //   the song's `clickable` from also firing.)
                     .pointerInput(Unit) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                val down = awaitFirstDown()
-                                // ★ CRITICAL: consume the down event so the tap
-                                //   does NOT leak through to the song capsule
-                                //   visually behind the FAB. Without this, the
-                                //   underlying song's `clickable` also fires
-                                //   and the song starts playing.
-                                down.consume()
+                        detectTapGestures(
+                            onPress = {
                                 pressStartTime = System.currentTimeMillis()
                                 isLongPressActivated = false
-
-                                // Show the bubble + start countdown
-                                // First: hold for 2 seconds (no bubble visible)
-                                // Then: bubble pops up showing 3→2→1 (3 seconds)
-                                // Then: drag mode activated
                                 countdownJob?.cancel()
                                 countdownJob = countdownScope.launch {
                                     // Phase 1: hold for 2 seconds (no UI feedback)
                                     delay(2000L)
-
                                     // Phase 2: pop up the bubble with countdown
                                     showBubble = true
                                     countdownNumber = 3
                                     delay(1000L)
-
                                     countdownNumber = 2
                                     delay(1000L)
-
                                     countdownNumber = 1
                                     delay(1000L)
-
                                     // Phase 3: countdown done — hide bubble, enter drag mode
                                     showBubble = false
                                     isLongPressActivated = true
                                     isDragging = true
                                 }
-
-                                while (true) {
-                                    val event = awaitPointerEvent()
-                                    val change = event.changes.firstOrNull() ?: break
-
-                                    if (!change.pressed) {
-                                        // ★ Consume the up event too, so neither
-                                        //   the down nor the up leaks to siblings.
-                                        change.consume()
-                                        // Finger lifted
-                                        if (isLongPressActivated) {
-                                            val newYFraction = (currentYpx / screenSize.height)
-                                                .coerceIn(0.05f, 0.95f)
-                                            com.rajatxo.coral.data.prefs.SearchFabPosition.setPosition(savedX, newYFraction)
-                                        } else {
-                                            // Short tap (before 2-second hold) → open search
-                                            onSearchClick()
-                                        }
-                                        isDragging = false
-                                        isLongPressActivated = false
-                                        showBubble = false
-                                        countdownJob?.cancel()
-                                        break
+                                tryAwaitRelease()
+                                countdownJob?.cancel()
+                                showBubble = false
+                                if (!isLongPressActivated) {
+                                    // Short tap (before 2-second hold) → open search
+                                    onSearchClick()
+                                } else {
+                                    // Drag ended — save position
+                                    if (screenSize.height > 0) {
+                                        val newYFraction = (currentYpx / screenSize.height)
+                                            .coerceIn(0.05f, 0.95f)
+                                        com.rajatxo.coral.data.prefs.SearchFabPosition.setPosition(
+                                            savedX, newYFraction
+                                        )
                                     }
-
-                                    if (isDragging) {
-                                        val fabTopY = currentYpx - fabSizePx / 2f
-                                        val newScreenY = fabTopY + change.position.y
-                                        currentYpx = newScreenY.coerceIn(
+                                }
+                                isDragging = false
+                                isLongPressActivated = false
+                            }
+                        )
+                    }
+                    // ★ Separate pointerInput for drag — only active after long-press countdown
+                    .pointerInput(isLongPressActivated) {
+                        if (isLongPressActivated) {
+                            detectDragGestures(
+                                onDragEnd = {
+                                    isDragging = false
+                                    isLongPressActivated = false
+                                    if (screenSize.height > 0) {
+                                        val newYFraction = (currentYpx / screenSize.height)
+                                            .coerceIn(0.05f, 0.95f)
+                                        com.rajatxo.coral.data.prefs.SearchFabPosition.setPosition(
+                                            savedX, newYFraction
+                                        )
+                                    }
+                                },
+                                onDragCancel = {
+                                    isDragging = false
+                                    isLongPressActivated = false
+                                },
+                                onDrag = { _, dragAmount ->
+                                    isDragging = true
+                                    currentYpx = (currentYpx + dragAmount.y)
+                                        .coerceIn(
                                             fabSizePx / 2f,
                                             screenSize.height - fabSizePx / 2f
                                         )
-                                        change.consume()
-                                    }
                                 }
-                            }
+                            )
                         }
                     },
                 contentAlignment = Alignment.Center
