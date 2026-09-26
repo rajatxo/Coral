@@ -375,7 +375,7 @@ fun LyricsSheet(
                             },
                             leadingIcon = {
                                 Icon(
-                                    CoralIcons.Music,
+                                    CoralIcons.Unplug,
                                     contentDescription = null,
                                     tint = Color.White,
                                     modifier = Modifier.size(20.dp)
@@ -400,7 +400,7 @@ fun LyricsSheet(
                             },
                             leadingIcon = {
                                 Icon(
-                                    CoralIcons.ListMusic,
+                                    CoralIcons.MousePointerClick,
                                     contentDescription = null,
                                     tint = Color.White,
                                     modifier = Modifier.size(20.dp)
@@ -421,7 +421,7 @@ fun LyricsSheet(
                             },
                             leadingIcon = {
                                 Icon(
-                                    CoralIcons.FileHeadphone,
+                                    CoralIcons.FolderInput,
                                     contentDescription = null,
                                     tint = Color.White,
                                     modifier = Modifier.size(20.dp)
@@ -443,7 +443,7 @@ fun LyricsSheet(
                             },
                             leadingIcon = {
                                 Icon(
-                                    CoralIcons.ClipboardPaste,
+                                    CoralIcons.ClipboardType,
                                     contentDescription = null,
                                     tint = Color.White,
                                     modifier = Modifier.size(20.dp)

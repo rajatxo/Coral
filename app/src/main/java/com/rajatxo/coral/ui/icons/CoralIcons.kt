@@ -946,4 +946,142 @@ object CoralIcons {
         verticalLineToRelative(1.13f)
     }
 
+    /**
+     * Unplug — lucide-unplug style.
+     * A plug on the left + socket on the right, with two prongs.
+     * Used by the "Fetch Lyrics" menu item in the lyrics sheet —
+     * implies disconnecting from the local cache to fetch fresh
+     * lyrics from the network.
+     */
+    val Unplug: ImageVector = stroke("Unplug") {
+        // Top-right small line (plug antenna)
+        moveTo(19f, 5f)
+        lineTo(22f, 2f)
+        // Bottom-left small line (socket antenna)
+        moveTo(2f, 22f)
+        lineTo(5f, 19f)
+        // Plug body (left side)
+        moveTo(6.3f, 20.3f)
+        arcToRelative(2.4f, 2.4f, 0f, false, false, 3.4f, 0f)
+        lineTo(12f, 18f)
+        lineToRelative(-6f, -6f)
+        lineToRelative(-2.3f, 2.3f)
+        arcToRelative(2.4f, 2.4f, 0f, false, false, 0f, 3.4f)
+        close()
+        // Prong 1 (diagonal line on plug body)
+        moveTo(7.5f, 13.5f)
+        lineTo(10f, 11f)
+        // Prong 2 (diagonal line on plug body)
+        moveTo(10.5f, 16.5f)
+        lineTo(13f, 14f)
+        // Socket body (right side)
+        moveTo(12f, 6f)
+        lineToRelative(6f, 6f)
+        lineToRelative(2.3f, -2.3f)
+        arcToRelative(2.4f, 2.4f, 0f, false, false, 0f, -3.4f)
+        lineToRelative(-2.6f, -2.6f)
+        arcToRelative(2.4f, 2.4f, 0f, false, false, -3.4f, 0f)
+        close()
+    }
+
+    /**
+     * MousePointerClick — lucide-mouse-pointer-click style.
+     * A cursor arrow with small radiating lines (click burst).
+     * Used by the "Pick Lyrics" menu item — implies user interaction
+     * (clicking to pick a specific candidate).
+     */
+    val MousePointerClick: ImageVector = stroke("MousePointerClick") {
+        // Cursor arrow (the pointer body)
+        moveTo(9.037f, 9.69f)
+        arcToRelative(0.498f, 0.498f, 0f, false, true, 0.653f, -0.653f)
+        lineToRelative(11f, 4.5f)
+        arcToRelative(0.5f, 0.5f, 0f, false, true, -0.074f, 0.949f)
+        lineToRelative(-4.349f, 1.041f)
+        arcToRelative(1f, 1f, 0f, false, false, -0.74f, 0.739f)
+        lineToRelative(-1.04f, 4.35f)
+        arcToRelative(0.5f, 0.5f, 0f, false, true, -0.95f, 0.074f)
+        close()
+        // Radiating click-burst lines (4 short ticks around the pointer)
+        moveTo(14f, 4.1f)
+        lineTo(12f, 6f)
+        moveTo(5.1f, 8f)
+        lineTo(2.2f, 7.2f)
+        moveTo(6f, 12f)
+        lineTo(4.1f, 14f)
+        moveTo(7.2f, 2.2f)
+        lineTo(8f, 5.1f)
+    }
+
+    /**
+     * FolderInput — lucide-folder-input style.
+     * A folder outline with an arrow pointing into it from the left.
+     * Used by the "Import LRC File" menu item — implies bringing
+     * an external file into Coral's lyrics cache.
+     */
+    val FolderInput: ImageVector = stroke("FolderInput") {
+        // Folder body (open at bottom-left to receive the arrow)
+        moveTo(2f, 9f)
+        verticalLineTo(5f)
+        arcToRelative(2f, 2f, 0f, false, true, 2f, -2f)
+        horizontalLineToRelative(3.9f)
+        arcToRelative(2f, 2f, 0f, false, true, 1.69f, 0.9f)
+        lineToRelative(0.81f, 1.2f)
+        arcToRelative(2f, 2f, 0f, false, false, 1.67f, 0.9f)
+        horizontalLineTo(20f)
+        arcToRelative(2f, 2f, 0f, false, true, 2f, 2f)
+        verticalLineToRelative(10f)
+        arcToRelative(2f, 2f, 0f, false, true, -2f, 2f)
+        horizontalLineTo(4f)
+        arcToRelative(2f, 2f, 0f, false, true, -2f, -2f)
+        verticalLineToRelative(-1f)
+        // Arrow shaft (horizontal line going into the folder)
+        moveTo(2f, 13f)
+        horizontalLineToRelative(10f)
+        // Arrowhead (right-pointing chevron)
+        moveTo(9f, 16f)
+        lineToRelative(3f, -3f)
+        lineToRelative(-3f, -3f)
+    }
+
+    /**
+     * ClipboardType — lucide-clipboard-type style.
+     * A clipboard with a stylized "T" letter on it (for "type/paste text").
+     * Used by the "Paste Lyrics" menu item — implies pasting typed text.
+     */
+    val ClipboardType: ImageVector = stroke("ClipboardType") {
+        // Top clip (small rounded rectangle)
+        moveTo(9f, 2f)
+        horizontalLineToRelative(6f)
+        arcToRelative(1f, 1f, 0f, false, true, 1f, 1f)
+        verticalLineToRelative(2f)
+        arcToRelative(1f, 1f, 0f, false, true, -1f, 1f)
+        horizontalLineToRelative(-6f)
+        arcToRelative(1f, 1f, 0f, false, true, -1f, -1f)
+        verticalLineToRelative(-2f)
+        arcToRelative(1f, 1f, 0f, false, true, 1f, -1f)
+        close()
+        // Clipboard body (large rounded rectangle)
+        moveTo(16f, 4f)
+        horizontalLineToRelative(2f)
+        arcToRelative(2f, 2f, 0f, false, true, 2f, 2f)
+        verticalLineToRelative(14f)
+        arcToRelative(2f, 2f, 0f, false, true, -2f, 2f)
+        horizontalLineTo(6f)
+        arcToRelative(2f, 2f, 0f, false, true, -2f, -2f)
+        verticalLineTo(6f)
+        arcToRelative(2f, 2f, 0f, false, true, 2f, -2f)
+        horizontalLineToRelative(2f)
+        // Top bar of the "T" letter
+        moveTo(9f, 12f)
+        verticalLineToRelative(-1f)
+        horizontalLineToRelative(6f)
+        verticalLineToRelative(1f)
+        // Crossbar of the "T" letter
+        moveTo(11f, 17f)
+        horizontalLineToRelative(2f)
+        // Vertical stem of the "T" letter
+        moveTo(12f, 11f)
+        verticalLineToRelative(6f)
+    }
+
 }

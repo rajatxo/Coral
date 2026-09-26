@@ -445,28 +445,35 @@ private fun CandidateCapsule(
     val matchLabel = matchStyle.label
     val matchGradient = matchStyle.gradientStops
 
-    // ★ Flower animation — only on exact match. Petals bloom out from
-    //   the duration circle for ~1.2s, then loop gently. Drawn on a
-    //   Canvas so it scales smoothly with the capsule.
-    val showFlower = isExactMatch
-    val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "flower")
-    val flowerAngle by infiniteTransition.animateFloat(
+    // ★ Pulse Ring animation — only on exact match (delta == 0 AND synced).
+    //   A soft glowing ring expands outward from the duration circle and
+    //   fades as it grows. Loops every ~2s. Premium, subtle "heartbeat"
+    //   confirmation that this candidate fits the song perfectly.
+    val showPulse = isExactMatch
+    val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "pulse")
+    // Ring 1 — expands 0.6 → 1.0 over 2s, alpha 0.7 → 0.0
+    val pulseProgress1 by infiniteTransition.animateFloat(
         initialValue = 0f,
-        targetValue = 360f,
+        targetValue = 1f,
         animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-            animation = androidx.compose.animation.core.tween(durationMillis = 8000, easing = LinearEasing),
+            animation = androidx.compose.animation.core.tween(durationMillis = 2000, easing = LinearEasing),
             repeatMode = androidx.compose.animation.core.RepeatMode.Restart
         ),
-        label = "flowerAngle"
+        label = "pulse1"
     )
-    val flowerScale by infiniteTransition.animateFloat(
-        initialValue = 0.85f,
-        targetValue = 1.0f,
+    // Ring 2 — same animation, offset by 1s for a layered "echo" feel
+    val pulseProgress2 by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
         animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-            animation = androidx.compose.animation.core.tween(900, easing = androidx.compose.animation.core.FastOutSlowInEasing),
-            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+            animation = androidx.compose.animation.core.tween(
+                delayMillis = 1000,
+                durationMillis = 2000,
+                easing = LinearEasing
+            ),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Restart
         ),
-        label = "flowerScale"
+        label = "pulse2"
     )
 
     Box(
@@ -504,51 +511,52 @@ private fun CandidateCapsule(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // ─── Duration circle (left) ───
-            // On exact match: flower petals bloom around it
+            // On exact match: pulse ring expands outward (radar ping style)
             Box(
                 modifier = Modifier.size(56.dp),
                 contentAlignment = Alignment.Center
             ) {
-                // Flower overlay (drawn first, behind the circle)
-                if (showFlower) {
+                // Pulse ring overlay (drawn first, behind the circle)
+                if (showPulse) {
                     androidx.compose.foundation.Canvas(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .graphicsLayer {
-                                scaleX = flowerScale
-                                scaleY = flowerScale
-                                rotationZ = flowerAngle
-                            }
+                        modifier = Modifier.matchParentSize()
                     ) {
                         val canvasSize = size.minDimension
                         val center = androidx.compose.ui.geometry.Offset(canvasSize / 2f, canvasSize / 2f)
-                        val petalLength = canvasSize * 0.55f
-                        val petalWidth = canvasSize * 0.12f
-                        val petalCount = 6
-                        val petalColor = Color(0xFF4ADE80).copy(alpha = 0.55f)
-                        val petalStroke = androidx.compose.ui.graphics.drawscope.Stroke(
-                            width = petalWidth,
-                            cap = androidx.compose.ui.graphics.StrokeCap.Round
-                        )
-                        for (i in 0 until petalCount) {
-                            val angleDeg = (360f / petalCount) * i
-                            val angleRad = Math.toRadians(angleDeg.toDouble())
-                            val endX = center.x + (Math.cos(angleRad) * petalLength).toFloat()
-                            val endY = center.y + (Math.sin(angleRad) * petalLength).toFloat()
-                            drawLine(
-                                color = petalColor,
-                                start = center,
-                                end = androidx.compose.ui.geometry.Offset(endX, endY),
-                                strokeWidth = petalWidth,
-                                cap = androidx.compose.ui.graphics.StrokeCap.Round
+                        // Ring starts at the circle's edge (radius ≈ 24dp in px → 0.43 of canvas)
+                        // and expands to 0.95 of canvas. Alpha fades 0.7 → 0.0.
+                        val startRadius = canvasSize * 0.43f
+                        val maxRadius = canvasSize * 0.95f
+
+                        // Ring 1
+                        val r1 = startRadius + (maxRadius - startRadius) * pulseProgress1
+                        val a1 = (1f - pulseProgress1) * 0.7f
+                        if (a1 > 0.01f) {
+                            drawCircle(
+                                color = Color(0xFF4ADE80).copy(alpha = a1),
+                                radius = r1,
+                                center = center,
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                    width = canvasSize * 0.04f,
+                                    cap = androidx.compose.ui.graphics.StrokeCap.Round
+                                )
                             )
                         }
-                        // Center sparkle dot
-                        drawCircle(
-                            color = Color.White.copy(alpha = 0.7f),
-                            radius = canvasSize * 0.06f,
-                            center = center
-                        )
+
+                        // Ring 2 (offset for layered echo)
+                        val r2 = startRadius + (maxRadius - startRadius) * pulseProgress2
+                        val a2 = (1f - pulseProgress2) * 0.5f
+                        if (a2 > 0.01f) {
+                            drawCircle(
+                                color = Color(0xFF4ADE80).copy(alpha = a2),
+                                radius = r2,
+                                center = center,
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                    width = canvasSize * 0.04f,
+                                    cap = androidx.compose.ui.graphics.StrokeCap.Round
+                                )
+                            )
+                        }
                     }
                 }
 
