@@ -45,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.rajatxo.coral.data.scanner.DuplicateDetector
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.components.BugLineRefreshIndicator
 import com.rajatxo.coral.ui.components.CoralColors
@@ -53,7 +54,9 @@ import com.rajatxo.coral.ui.theme.CalSansFamily
 import com.rajatxo.coral.util.CoralPalette
 import com.rajatxo.coral.util.PaletteCache
 import com.rajatxo.coral.util.extractPalette
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Songs tab — each song is a capsule shaped like the mini player.
@@ -102,6 +105,14 @@ fun SongsScreen(
     val ptrState: PullToRefreshState = rememberPullToRefreshState()
     var isRefreshing by remember { mutableStateOf(false) }
 
+    // ★ Duplicate detection — runs after every successful pull-to-refresh
+    //   scan. If any duplicates are found (same title + same artist),
+    //   show the DuplicateSongsSheet so the user can choose what to do.
+    //   The detection itself runs on Dispatchers.IO so the UI doesn't
+    //   jank while we scan potentially thousands of songs.
+    var duplicateGroups by remember { mutableStateOf<List<DuplicateDetector.DuplicateGroup>>(emptyList()) }
+    var showDuplicateSheet by remember { mutableStateOf(false) }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -121,7 +132,23 @@ fun SongsScreen(
             isRefreshing = isRefreshing,
             onRefresh = {
                 isRefreshing = true
-                scope.launch { try { onRefresh() } finally { isRefreshing = false } }
+                scope.launch {
+                    try {
+                        onRefresh()
+                        // ★ After refresh completes, scan for duplicates on a
+                        //   background thread so we don't block the main thread.
+                        //   If any are found, show the sheet.
+                        val groups = withContext(Dispatchers.IO) {
+                            DuplicateDetector.findDuplicates(songs)
+                        }
+                        if (groups.isNotEmpty()) {
+                            duplicateGroups = groups
+                            showDuplicateSheet = true
+                        }
+                    } finally {
+                        isRefreshing = false
+                    }
+                }
             },
             state = ptrState,
             indicator = {},
@@ -181,6 +208,29 @@ fun SongsScreen(
                     )
                 )
         )
+
+        // ─── Duplicate Songs Sheet ───
+        // Shown after a pull-to-refresh scan if any duplicates are found.
+        // User can choose which to keep / delete, then confirm. The actual
+        // deletion goes through MediaStore.createDeleteRequest (Android 10+)
+        // so the system shows a confirmation dialog before anything is
+        // removed from internal storage.
+        if (showDuplicateSheet && duplicateGroups.isNotEmpty()) {
+            DuplicateSongsSheet(
+                duplicateGroups = duplicateGroups,
+                onDismiss = {
+                    showDuplicateSheet = false
+                    duplicateGroups = emptyList()
+                },
+                onDuplicatesDeleted = {
+                    // Trigger another library scan so the Songs list updates
+                    // immediately after deletion.
+                    showDuplicateSheet = false
+                    duplicateGroups = emptyList()
+                    scope.launch { onRefresh() }
+                }
+            )
+        }
     }
 }
 
