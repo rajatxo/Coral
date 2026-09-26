@@ -831,20 +831,20 @@ private fun SpeedDialSection(
     val pinnedIds by com.rajatxo.coral.data.prefs.SpeedDialPinStore.pinnedIds.collectAsState()
 
     // ─── Build the Speed Dial song list ──
+    //
+    // Two modes (user-selectable via the "Based on" capsule popup):
+    //   - RANDOM      — completely random songs (original behavior)
+    //   - LAST_PLAYED — 80% songs from the last-played artist + 20% other.
+    //                   Falls back to RANDOM if no playback history exists.
+    //
     // Pinned songs come FIRST (in the order they were pinned — Set preserves
     // insertion order for LinkedHashSet, which is what SharedPreferences
     // StringSet returns after our save). They sit at the top-left of the
     // grid and stay there across refresh/restart.
-    //
-    // Then random songs (excluding pinned) fill the rest. 3 pages × 9 slots
-    // = 27, minus 1 for the dice = 26 song slots. Pinned + random = 26.
-    //
-    // Keyed on (songs.size, pinnedIds, launchSeed) so it recomputes when:
-    //   - the library changes (songs.size)
-    //   - a song is pinned/unpinned (pinnedIds)
-    //   - the user pulls-to-refresh (launchSeed bumps, rolling a new random
-    //     pool — pinned songs stay, the rest reshuffle)
-    val speedDialSongs = remember(songs.size, pinnedIds, launchSeed) {
+    val speedDialMode by com.rajatxo.coral.data.prefs.SpeedDialModeManager.mode.collectAsState()
+    val playbackHistory by com.rajatxo.coral.data.prefs.PlaybackHistory.history.collectAsState()
+
+    val speedDialSongs = remember(songs.size, pinnedIds, launchSeed, speedDialMode, playbackHistory) {
         if (songs.isEmpty()) emptyList()
         else {
             // 1. Pinned songs (in pin order), filtered to ones that still
@@ -852,18 +852,51 @@ private fun SpeedDialSection(
             val pinnedSongs = pinnedIds.mapNotNull { id ->
                 songs.firstOrNull { it.id == id }
             }
-            // 2. Random songs, excluding already-pinned ones. Seeded with
-            //    launchSeed so PTR refresh (which bumps launchSeed) reshuffles
-            //    the non-pinned songs on every pull-to-refresh.
-            val pool = songs.filter { it.id !in pinnedIds }.shuffled(Random(launchSeed + 100))
-            // 3. Total = 26 (3 pages × 9 slots - 1 for dice)
+            // 2. Pool of available (non-pinned) songs.
+            val pool = songs.filter { it.id !in pinnedIds }
+
+            // 3. Pick the songs based on the current mode.
             val targetCount = 26
             val randomCount = (targetCount - pinnedSongs.size).coerceAtLeast(0)
-            pinnedSongs + pool.take(randomCount)
+
+            val picked: List<Song> = if (speedDialMode == com.rajatxo.coral.data.prefs.SpeedDialModeManager.SpeedDialMode.LAST_PLAYED
+                && playbackHistory.isNotEmpty()) {
+                // ★ LAST_PLAYED mode — 80% from last-played artist + 20% other.
+                val lastArtist = playbackHistory.firstOrNull()?.artist
+                if (!lastArtist.isNullOrBlank()) {
+                    val artistSongs = pool.filter {
+                        it.artist.trim().equals(lastArtist.trim(), ignoreCase = true)
+                    }.shuffled(Random(launchSeed + 100))
+                    val otherSongs = pool.filter {
+                        !it.artist.trim().equals(lastArtist.trim(), ignoreCase = true)
+                    }.shuffled(Random(launchSeed + 200))
+                    val eightyPct = (randomCount * 0.8f).toInt()
+                    val twentyPct = randomCount - eightyPct
+                    artistSongs.take(eightyPct) + otherSongs.take(twentyPct)
+                } else {
+                    pool.shuffled(Random(launchSeed + 100)).take(randomCount)
+                }
+            } else {
+                // RANDOM mode — completely random (original behavior)
+                pool.shuffled(Random(launchSeed + 100)).take(randomCount)
+            }
+            pinnedSongs + picked
         }
     }
 
     if (speedDialSongs.isEmpty()) return
+
+    // ─── "Based on" capsule popup state ──
+    // When the user taps the "Speed dial" text, a white outer capsule
+    // pops up beside the chevron with an inner accent-colored capsule
+    // showing the current mode ("Last played" or "Random songs").
+    // Tapping the inner capsule cycles between the two modes.
+    var showBasedOnPopup by remember { mutableStateOf(false) }
+    val basedOnPopupAlpha by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (showBasedOnPopup) 1f else 0f,
+        animationSpec = androidx.compose.animation.core.tween(250),
+        label = "basedOnPopup"
+    )
 
     // Section header — "Speed dial" text + chevron right beside it.
     // Aligned with the first card: the LazyColumn has start=20dp padding,
@@ -877,30 +910,92 @@ private fun SpeedDialSection(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // ★ "Speed dial" text — now clickable to show the "Based on" popup
         Text(
             text = "Speed dial",
             color = textPrimary,
             fontSize = 20.sp,
             fontWeight = FontWeight.SemiBold,
-            fontFamily = CalSansFamily
+            fontFamily = CalSansFamily,
+            modifier = Modifier.clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                showBasedOnPopup = !showBasedOnPopup
+            }
         )
         // Chevron right beside the text (no spacer, no weight).
-        // 20dp — thicker to match the title's visual weight (was 16dp).
         Icon(
             imageVector = CoralIcons.ChevronRight,
             contentDescription = null,
             tint = textSecondary,
             modifier = Modifier.size(20.dp)
         )
+        // ★ "Based on" capsule popup — fades in/out beside the chevron
+        if (basedOnPopupAlpha > 0.01f) {
+            val currentMode = speedDialMode
+            val modeLabel = currentMode.displayName
+            // Inner capsule color — use the accent color from the
+            // current playing song's palette, or a fallback coral.
+            // (We don't have direct palette access here, so use coral red
+            //  as a sensible default — matches Coral's brand color.)
+            val innerColor = Color(0xFFFF6B6B)
+            // Adaptive text color — white on dark inner, black on light inner
+            val innerTextColor = if (com.rajatxo.coral.util.luminanceOf(innerColor) < 0.5f)
+                Color.White else Color.Black
+            // Outer white capsule + inner accent capsule
+            Row(
+                modifier = Modifier
+                    .graphicsLayer { alpha = basedOnPopupAlpha }
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color.White)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        // Tap to cycle modes
+                        val newMode = if (currentMode == com.rajatxo.coral.data.prefs.SpeedDialModeManager.SpeedDialMode.RANDOM)
+                            com.rajatxo.coral.data.prefs.SpeedDialModeManager.SpeedDialMode.LAST_PLAYED
+                        else
+                            com.rajatxo.coral.data.prefs.SpeedDialModeManager.SpeedDialMode.RANDOM
+                        com.rajatxo.coral.data.prefs.SpeedDialModeManager.setMode(newMode)
+                    }
+                    .padding(end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Based on",
+                    color = Color.Black,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = CalSansFamily,
+                    modifier = Modifier.padding(start = 10.dp, end = 6.dp, top = 5.dp, bottom = 5.dp)
+                )
+                // Inner accent capsule
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(innerColor)
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                ) {
+                    Text(
+                        text = modeLabel,
+                        color = innerTextColor,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = CalSansFamily
+                    )
+                }
+            }
+            // Auto-hide after 4 seconds if the user doesn't interact
+            androidx.compose.runtime.LaunchedEffect(showBasedOnPopup) {
+                if (showBasedOnPopup) {
+                    kotlinx.coroutines.delay(4000)
+                    showBasedOnPopup = false
+                }
+            }
+        }
         // ─── Bug-on-a-line pull-to-refresh indicator ──────────────
-        // A thin horizontal line with faded ends sits right next to the
-        // chevron. As the user pulls down, a Bug icon crawls from left
-        // to right along the line, rotating as it moves. Fades in when
-        // pulling starts, fades out when refresh completes.
-        //
-        // Takes the remaining width (weight 1f) so the line fills the
-        // space after the chevron. Height is 20dp (matches the chevron
-        // row height). The bug is 16dp, centered on the line.
         BugLineRefreshIndicator(
             progress = pullProgress,
             isRefreshing = isRefreshing,

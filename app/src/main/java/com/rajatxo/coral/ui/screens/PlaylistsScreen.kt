@@ -1415,6 +1415,23 @@ private fun CreatePlaylistDialog(
                 placeholder = { Text("Playlist name", color = Color(0xFF888888)) },
                 singleLine = true,
                 isError = name.isNotEmpty() && !isValid,
+                // ★ CRITICAL: Set explicit text color to white. Material3's
+                //   OutlinedTextField defaults to onSurfaceVariant (dark gray)
+                //   which is invisible against CoralColors.SurfaceVariant
+                //   (#1A1A1A — near black). Without this, the user types but
+                //   can't see what they're typing — even though the playlist
+                //   gets created with the typed name when they tap Create.
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    color = Color.White,
+                    fontSize = 16.sp
+                ),
+                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                    cursorColor = Color.White,
+                    focusedBorderColor = CoralColors.Coral,
+                    unfocusedBorderColor = Color(0xFF888888),
+                    focusedLabelColor = Color.White,
+                    unfocusedLabelColor = Color(0xFF888888)
+                ),
                 modifier = Modifier.fillMaxWidth()
             )
             if (name.isNotEmpty() && !isValid) {

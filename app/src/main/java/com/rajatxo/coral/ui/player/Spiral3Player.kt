@@ -110,6 +110,7 @@ import com.rajatxo.coral.ui.lyrics.LyricsSheet
 import com.rajatxo.coral.ui.theme.CalSansFamily
 import com.rajatxo.coral.util.CoralPalette
 import com.rajatxo.coral.util.PaletteCache
+import com.rajatxo.coral.util.adaptiveContrastColor
 import com.rajatxo.coral.util.extractPalette
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -150,7 +151,14 @@ fun Spiral3Player(
     onPrevClick: () -> Unit,
     onSeek: (Long) -> Unit,
     onDismiss: () -> Unit,
-    onAddToPlaylist: (Long) -> Unit = {}
+    onAddToPlaylist: (Long) -> Unit = {},
+    /**
+     * Called when the user taps the Trash icon in the player 3-dot menu.
+     * HomeScreen wires this to a system delete dialog via
+     * MediaStore.createDeleteRequest — the actual file deletion is
+     * gated by user confirmation in the OS dialog.
+     */
+    onSongDelete: (Long) -> Unit = {}
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -160,6 +168,12 @@ fun Spiral3Player(
         color = Color.Black.copy(alpha = 0.6f),
         offset = Offset(1f, 1f),
         blurRadius = 3f
+    )
+    // ★ Tiny artist-name shadow — less than the song title's shadow.
+    val artistShadow = Shadow(
+        color = Color.Black.copy(alpha = 0.35f),
+        offset = Offset(0.5f, 0.5f),
+        blurRadius = 2f
     )
 
     // Sound + haptics for the glass capsule swipe (same as TabCapsule nav bar)
@@ -234,6 +248,10 @@ fun Spiral3Player(
     var palette by remember(albumArtUri) {
         mutableStateOf(PaletteCache.get(albumArtUri) ?: CoralPalette.Default)
     }
+    // ★ Adaptive accent color — palette.accent can be dark when album art
+    //   is dark, making shuffle/loop icons invisible. Brightens the accent
+    //   against the dark background so the active state is always readable.
+    val adaptiveAccent = adaptiveContrastColor(palette.accent, palette.tertiary)
     LaunchedEffect(albumArtUri) {
         if (albumArtUri != null) {
             // If already cached, skip extraction entirely
@@ -843,7 +861,7 @@ fun Spiral3Player(
                     imageVector = CoralIcons.HeartFilled,
                     contentDescription = null,
                     colorFilter = ColorFilter.tint(
-                        if (isFavorite) palette.accent else Color.White
+                        if (isFavorite) adaptiveAccent else Color.White
                     ),
                     modifier = Modifier.size(80.dp)
                 )
@@ -969,6 +987,7 @@ fun Spiral3Player(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Start,
+                        style = TextStyle(shadow = artistShadow),
                         modifier = Modifier.fillMaxWidth().graphicsLayer {
                             alpha = artistOutAlpha
                             renderEffect = blurRenderEffect(6f * (1f - artistOutAlpha))
@@ -983,6 +1002,7 @@ fun Spiral3Player(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Start,
+                        style = TextStyle(shadow = artistShadow),
                         modifier = Modifier.fillMaxWidth().graphicsLayer {
                             alpha = artistInAlpha
                             renderEffect = blurRenderEffect(6f * (1f - artistInAlpha))
@@ -998,6 +1018,7 @@ fun Spiral3Player(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Start,
+                        style = TextStyle(shadow = artistShadow),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -1039,6 +1060,27 @@ fun Spiral3Player(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    // ★ Delete this song (Trash icon, top of menu)
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = androidx.compose.material3.ripple(bounded = false)
+                            ) {
+                                songId?.let { onSongDelete(it) }
+                                toggleMenu()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = CoralIcons.Trash,
+                            contentDescription = "Delete this song",
+                            tint = Color(0xFFFF6B6B),
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                     // Sleep Timer (icon only)
                     Box(
                         modifier = Modifier
@@ -1080,7 +1122,7 @@ fun Spiral3Player(
                         Icon(
                             imageVector = CoralIcons.Shuffle,
                             contentDescription = "Shuffle",
-                            tint = if (shuffleEnabled) palette.accent else Color.White,
+                            tint = if (shuffleEnabled) adaptiveAccent else Color.White,
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -1115,7 +1157,7 @@ fun Spiral3Player(
                                 else -> CoralIcons.Repeat
                             },
                             contentDescription = "Loop",
-                            tint = if (repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) palette.accent else Color.White,
+                            tint = if (repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) adaptiveAccent else Color.White,
                             modifier = Modifier.size(22.dp)
                         )
                     }

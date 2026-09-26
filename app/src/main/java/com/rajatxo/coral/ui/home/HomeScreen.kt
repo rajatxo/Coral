@@ -175,6 +175,26 @@ fun HomeScreen(
     // this stores the song ID and shows a playlist picker dialog.
     var songToAddToPlaylist by remember { mutableStateOf<Long?>(null) }
 
+    // ★ Song-delete confirmation state — set when user taps the Trash icon
+    //   in the player's 3-dot menu. We use a simple AlertDialog for
+    //   confirmation, then use MediaStore.createDeleteRequest (Android 10+)
+    //   to safely delete the file. The system shows its own confirmation
+    //   dialog before the actual deletion happens.
+    var songToDelete by remember { mutableStateOf<Long?>(null) }
+    val homeScope = rememberCoroutineScope()
+    val deleteLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            // Deletion approved — refresh the library so the song disappears.
+            songToDelete = null
+            homeScope.launch { onRefresh() }
+        } else {
+            // User canceled — just clear the state.
+            songToDelete = null
+        }
+    }
+
     // --- System back button handling ---
     // When the playlist detail overlay is open, the system back button
     // should dismiss it (set selectedPlaylist = null) instead of closing
@@ -326,6 +346,17 @@ fun HomeScreen(
         androidx.compose.runtime.LaunchedEffect(currentSongId) {
             if (currentSongId != null && miniPlayerDismissed) {
                 miniPlayerDismissed = false
+            }
+        }
+        // ★ Record playback history when the current song changes.
+        //   Used by the Speed Dial "Based on: Last Played" mode to bias
+        //   the grid toward songs by the most-recently-played artist.
+        androidx.compose.runtime.LaunchedEffect(currentSongId, currentSongArtist) {
+            if (currentSongId != null && !currentSongArtist.isNullOrBlank()) {
+                com.rajatxo.coral.data.prefs.PlaybackHistory.recordPlayback(
+                    songId = currentSongId,
+                    artist = currentSongArtist
+                )
             }
         }
         val onSongClickWithReset: (Song) -> Unit = { song ->
@@ -877,6 +908,9 @@ fun HomeScreen(
                     onDismiss = onFullPlayerDismiss,
                     onAddToPlaylist = { songId ->
                         songToAddToPlaylist = songId
+                    },
+                    onSongDelete = { songId ->
+                        songToDelete = songId
                     }
                 )
             } else if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.SPIRAL_3) {
@@ -895,6 +929,9 @@ fun HomeScreen(
                     onDismiss = onFullPlayerDismiss,
                     onAddToPlaylist = { songId ->
                         songToAddToPlaylist = songId
+                    },
+                    onSongDelete = { songId ->
+                        songToDelete = songId
                     }
                 )
             } else {
@@ -946,6 +983,88 @@ fun HomeScreen(
         }
 
         // --- Add to playlist dialog (from FullPlayer 3-dot menu) ---
+        // ★ Delete-song confirmation dialog — shown when user taps the Trash
+        //   icon in the player's 3-dot menu. Confirms with the user, then
+        //   uses MediaStore.createDeleteRequest (Android 10+) for safe
+        //   deletion. The system shows its own confirmation dialog before
+        //   the file is actually removed from internal storage.
+        if (songToDelete != null) {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { songToDelete = null },
+                containerColor = com.rajatxo.coral.ui.components.CoralColors.SurfaceVariant,
+                titleContentColor = Color.White,
+                title = {
+                    androidx.compose.material3.Text(
+                        "Delete this song?",
+                        color = Color.White
+                    )
+                },
+                text = {
+                    androidx.compose.material3.Text(
+                        "This will permanently delete the file from your device's internal storage. " +
+                        "The system will ask you to confirm one more time before the file is removed.",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 14.sp
+                    )
+                },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(
+                        onClick = {
+                            val id = songToDelete ?: return@TextButton
+                            // Build the song's MediaStore URI and trigger
+                            // the system delete dialog.
+                            val songUri = android.content.ContentUris.withAppendedId(
+                                android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                                id
+                            )
+                            homeScope.launch {
+                                try {
+                                    val pendingIntent = if (android.os.Build.VERSION.SDK_INT >=
+                                        android.os.Build.VERSION_CODES.Q) {
+                                        android.provider.MediaStore.createDeleteRequest(
+                                            context.contentResolver,
+                                            listOf(songUri)
+                                        )
+                                    } else {
+                                        // Android 9 and below — direct delete
+                                        context.contentResolver.delete(songUri, null, null)
+                                        null
+                                    }
+                                    if (pendingIntent != null) {
+                                        val request = androidx.activity.result.IntentSenderRequest
+                                            .Builder(pendingIntent.intentSender)
+                                            .build()
+                                        deleteLauncher.launch(request)
+                                    } else {
+                                        // Already deleted (Android 9-) — refresh.
+                                        songToDelete = null
+                                        onRefresh()
+                                    }
+                                } catch (_: Exception) {
+                                    songToDelete = null
+                                }
+                            }
+                        }
+                    ) {
+                        androidx.compose.material3.Text(
+                            "Delete",
+                            color = Color(0xFFFF6B6B),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(onClick = { songToDelete = null }) {
+                        androidx.compose.material3.Text(
+                            "Cancel",
+                            color = Color(0xFF888888)
+                        )
+                    }
+                }
+            )
+        }
+
         if (songToAddToPlaylist != null) {
             val playlistsState by com.rajatxo.coral.data.store.PlaylistStore.playlists.collectAsState()
             androidx.compose.material3.AlertDialog(

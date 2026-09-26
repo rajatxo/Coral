@@ -161,3 +161,91 @@ private fun boostSaturation(color: Color, factor: Float, valueFactor: Float = 1.
         alpha = color.alpha
     )
 }
+
+/**
+ * Compute the relative luminance of a color (per WCAG 2.1).
+ *
+ * Returns a value in [0, 1] where:
+ *   - 0 = pure black
+ *   - 1 = pure white
+ *   - < 0.5 = dark color
+ *   - ≥ 0.5 = light color
+ *
+ * Used by [adaptiveContrastColor] to decide whether to use a light or
+ * dark color for text/icons based on the background they sit on.
+ */
+fun luminanceOf(color: Color): Float {
+    // Linear sRGB → relative luminance (WCAG formula)
+    val r = if (color.red <= 0.03928f) color.red / 12.92f
+            else Math.pow(((color.red + 0.055) / 1.055).toDouble(), 2.4).toFloat()
+    val g = if (color.green <= 0.03928f) color.green / 12.92f
+            else Math.pow(((color.green + 0.055) / 1.055).toDouble(), 2.4).toFloat()
+    val b = if (color.blue <= 0.03928f) color.blue / 12.92f
+            else Math.pow(((color.blue + 0.055) / 1.055).toDouble(), 2.4).toFloat()
+    return 0.2126f * r + 0.7152f * g + 0.0722f * b
+}
+
+/**
+ * Adaptive contrast color — returns a color that's readable against
+ * the given [background] color.
+ *
+ * Use case: the player's shuffle/loop icon tints to palette.accent when
+ * active. If the album art is dark (95% black), palette.accent is also
+ * dark → the icon becomes invisible. This function detects that and
+ * brightens the accent color so it's readable against the dark bg.
+ *
+ * @param color    The intended color (e.g. palette.accent).
+ * @param background The background the color will sit on (e.g.
+ *                  palette.tertiary or the album art's dominant color).
+ * @return Either [color] (if it has good contrast) or a brightened
+ *         version (boosted lightness) so it pops against [background].
+ */
+fun adaptiveContrastColor(color: Color, background: Color): Color {
+    val colorLum = luminanceOf(color)
+    val bgLum = luminanceOf(background)
+
+    // If the colors are similar in luminance (both dark or both light),
+    // the contrast is poor. Compute the delta — anything < 0.3 means
+    // the contrast ratio is below ~3:1 (WCAG AA large text minimum).
+    val delta = kotlin.math.abs(colorLum - bgLum)
+    if (delta >= 0.3f) return color  // already good contrast
+
+    // Poor contrast — boost the color in the OPPOSITE direction of the bg.
+    // Dark bg → brighten the color; light bg → darken the color.
+    return if (bgLum < 0.5f) {
+        // Background is dark — brighten [color] by boosting its value (HSV)
+        val hsv = FloatArray(3)
+        android.graphics.Color.RGBToHSV(
+            (color.red * 255).toInt(),
+            (color.green * 255).toInt(),
+            (color.blue * 255).toInt(),
+            hsv
+        )
+        hsv[2] = (hsv[2] + 0.5f).coerceIn(0.5f, 1f)  // push to at least 50% lightness
+        hsv[1] = (hsv[1] * 0.7f).coerceIn(0f, 1f)     // slightly desaturate for vividness
+        val rgb = android.graphics.Color.HSVToColor(hsv)
+        Color(
+            red = ((rgb shr 16) and 0xFF) / 255f,
+            green = ((rgb shr 8) and 0xFF) / 255f,
+            blue = (rgb and 0xFF) / 255f,
+            alpha = color.alpha
+        )
+    } else {
+        // Background is light — darken [color]
+        val hsv = FloatArray(3)
+        android.graphics.Color.RGBToHSV(
+            (color.red * 255).toInt(),
+            (color.green * 255).toInt(),
+            (color.blue * 255).toInt(),
+            hsv
+        )
+        hsv[2] = (hsv[2] - 0.5f).coerceIn(0f, 0.5f)
+        val rgb = android.graphics.Color.HSVToColor(hsv)
+        Color(
+            red = ((rgb shr 16) and 0xFF) / 255f,
+            green = ((rgb shr 8) and 0xFF) / 255f,
+            blue = (rgb and 0xFF) / 255f,
+            alpha = color.alpha
+        )
+    }
+}

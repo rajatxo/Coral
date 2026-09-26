@@ -348,24 +348,42 @@ object CoralIcons {
         lineTo(18f, 9f)
     }
 
-    /** Two crossed arrows — shuffle. */
+    /** Two crossed arrows — shuffle.
+     *
+     *  Replaced with the standard lucide-shuffle path (the version with
+     *  the S-curve crossover lines) per user request. The old simple
+     *  cross-paths version is replaced in-place so all callers
+     *  (CoralPlayer bottom row, Spiral2/Spiral3 menu capsule) get the
+     *  new look without changing their code.
+     */
     val Shuffle: ImageVector = stroke("Shuffle") {
-        // top arrow
-        moveTo(16f, 3f)
-        lineToRelative(5f, 0f)
-        lineToRelative(0f, 5f)
-        moveTo(21f, 3f)
-        lineToRelative(-7f, 7f)
-        moveTo(3f, 21f)
-        lineToRelative(7f, -7f)
-        // bottom arrow
-        moveTo(16f, 21f)
-        lineToRelative(5f, 0f)
-        lineToRelative(0f, -5f)
-        moveTo(21f, 21f)
-        lineToRelative(-5f, -5f)
-        moveTo(3f, 3f)
-        lineToRelative(5f, 5f)
+        // top-right arrow tip (18,2) → 22,6 → 18,10
+        moveTo(18f, 2f)
+        lineToRelative(4f, 4f)
+        lineToRelative(-4f, 4f)
+        // bottom-right arrow tip (18,14) → 22,18 → 18,22
+        moveTo(18f, 14f)
+        lineToRelative(4f, 4f)
+        lineToRelative(-4f, 4f)
+        // top curve: from (2,18) horizontal, then a 4-unit arc bends
+        // downward at (3.3, 1.7), continues through (5.454, 8.6) which
+        // bends upward at (3.3, 1.7) — ends at (22,6) joining top arrow.
+        moveTo(2f, 18f)
+        horizontalLineToRelative(1.973f)
+        arcToRelative(4f, 4f, 0f, false, false, 3.3f, -1.7f)
+        lineToRelative(5.454f, -8.6f)
+        arcToRelative(4f, 4f, 0f, false, true, 3.3f, -1.7f)
+        horizontalLineToRelative(6f)
+        // bottom curve start: short hook at (2,6)
+        moveTo(2f, 6f)
+        horizontalLineToRelative(1.972f)
+        arcToRelative(4f, 4f, 0f, false, true, 3.6f, 2.2f)
+        // bottom curve end: (22,18) → (-6.041, ...) horizontal then a
+        // small arc to (-.359, -.45)
+        moveTo(22f, 18f)
+        horizontalLineToRelative(-6.041f)
+        arcToRelative(4f, 4f, 0f, false, true, -3.3f, -1.8f)
+        lineToRelative(-0.359f, -0.45f)
     }
 
     /** Circular arrows — repeat. */
@@ -1082,6 +1100,39 @@ object CoralIcons {
         // Vertical stem of the "T" letter
         moveTo(12f, 11f)
         verticalLineToRelative(6f)
+    }
+
+    /**
+     * Trash — lucide-trash style.
+     * A trash can with two vertical lines inside (the "lids").
+     * Used by the player 3-dot menu to delete the current song.
+     */
+    val Trash: ImageVector = stroke("Trash") {
+        // Two vertical lines inside the can (the "lids")
+        moveTo(10f, 11f)
+        verticalLineToRelative(6f)
+        moveTo(14f, 11f)
+        verticalLineToRelative(6f)
+        // Can body: starts at top-left of body, goes down, across bottom,
+        // back up the right side, with rounded top.
+        // (19,6) → v+14 → arc 2,2 to (-2,-2) [bottom-right corner]
+        // → h-14 → arc 2,2 (-2,2) [bottom-left] → v-14 → close
+        moveTo(19f, 6f)
+        verticalLineToRelative(14f)
+        arcToRelative(2f, 2f, 0f, false, true, -2f, 2f)
+        horizontalLineTo(7f)
+        arcToRelative(2f, 2f, 0f, false, true, -2f, -2f)
+        verticalLineTo(6f)
+        // Top horizontal bar (the lid rest)
+        moveTo(3f, 6f)
+        horizontalLineToRelative(18f)
+        // Top lid handle (small rounded rect)
+        moveTo(8f, 6f)
+        verticalLineTo(4f)
+        arcToRelative(2f, 2f, 0f, false, true, 2f, -2f)
+        horizontalLineToRelative(4f)
+        arcToRelative(2f, 2f, 0f, false, true, 2f, 2f)
+        verticalLineTo(6f)
     }
 
 }
