@@ -504,13 +504,53 @@ class LyricsRepository(private val context: Context) {
      * Convert a [LrcLibCandidate] into a [Lyric] object that the
      * LyricsSheet can render. Prefers synced lyrics; falls back to
      * plain. Returns null if the candidate has no usable lyrics text.
+     *
+     * @param offsetMs Optional offset in MILLISECONDS to shift all
+     *   line + word timestamps. Positive = push lyrics later in time
+     *   (e.g. lyrics fire 2s after the song's actual timeline).
+     *   Negative = pull lyrics earlier.
+     *
+     *   Used by the Lyrics Picker when the user picks a candidate whose
+     *   duration differs from the song's actual duration. We compute:
+     *
+     *     offsetMs = (songDurationMs) − (candidate.durationSec × 1000)
+     *
+     *   If song = 3:45 (225000ms) and candidate = 3:43 (223000ms),
+     *   offsetMs = +2000 → every line is shifted +2s later in the song.
+     *   This means the user gets a perfectly-synced experience in one
+     *   tap, even if the candidate's timeline was for a slightly
+     *   different release of the song.
+     *
+     *   The offset is applied to BOTH line.timeMs AND word timestamps
+     *   so word-by-word karaoke stays in sync too.
      */
-    suspend fun candidateToLyric(candidate: LrcLibCandidate): Lyric? = withContext(Dispatchers.IO) {
+    suspend fun candidateToLyric(
+        candidate: LrcLibCandidate,
+        offsetMs: Long = 0L
+    ): Lyric? = withContext(Dispatchers.IO) {
         val text = candidate.syncedLyrics ?: candidate.plainLyrics
         if (text.isNullOrBlank()) return@withContext null
 
-        val lines = LrcParser.parse(text)
-        if (lines.isEmpty()) return@withContext null
+        val parsedLines = LrcParser.parse(text)
+        if (parsedLines.isEmpty()) return@withContext null
+
+        // Apply offset to line timestamps (skip instrumental lines at -1)
+        val lines = if (offsetMs != 0L) {
+            parsedLines.map { line ->
+                if (line.timeMs < 0) line
+                else line.copy(
+                    timeMs = (line.timeMs + offsetMs).coerceAtLeast(0L),
+                    words = line.words?.map { word ->
+                        word.copy(
+                            startTime = (word.startTime + offsetMs).coerceAtLeast(0L),
+                            endTime = (word.endTime + offsetMs).coerceAtLeast(0L)
+                        )
+                    }
+                )
+            }
+        } else {
+            parsedLines
+        }
 
         val isSynced = candidate.hasSynced && lines.any { it.timeMs >= 0 }
         Lyric(

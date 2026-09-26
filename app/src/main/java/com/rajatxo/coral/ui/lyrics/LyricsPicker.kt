@@ -1,6 +1,12 @@
 package com.rajatxo.coral.ui.lyrics
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -41,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -86,7 +93,10 @@ fun LyricsPicker(
     albumName: String?,
     durationMs: Long?,
     onDismiss: () -> Unit,
-    onCandidateSelected: (LrcLibCandidate) -> Unit
+    // ★ Signature change: pass back BOTH the candidate AND the offset to apply.
+    //   The caller (LyricsSheet) will pass offsetMs to candidateToLyric() so
+    //   the lyrics timeline shifts to perfectly match the user's local song.
+    onCandidateSelected: (candidate: LrcLibCandidate, offsetMs: Long) -> Unit
 ) {
     val context = LocalContext.current
     val repository = remember { LyricsRepository(context) }
@@ -310,7 +320,15 @@ fun LyricsPicker(
                                 songDurationMs = durationMs,
                                 onClick = {
                                     coroutineScope.launch {
-                                        onCandidateSelected(candidate)
+                                        // ★ Compute the offset: (song duration) − (candidate duration)
+                                        //   Positive = candidate is shorter → push lyrics later.
+                                        //   Negative = candidate is longer → pull lyrics earlier.
+                                        //   Zero = perfect timeline match, no offset needed.
+                                        val candidateDurationMs = (candidate.durationSec * 1000).toLong()
+                                        val offsetMs = if (durationMs != null && durationMs > 0) {
+                                            durationMs - candidateDurationMs
+                                        } else 0L
+                                        onCandidateSelected(candidate, offsetMs)
                                     }
                                 }
                             )
@@ -352,49 +370,129 @@ private fun CandidateCapsule(
 ) {
     val pillShape = RoundedCornerShape(32.dp)
 
-    // Duration delta in seconds (null = no song duration to compare).
-    // songDurationMs is Long? → divide by 1000 → Long?. Convert to Int for compare.
+    // Duration delta in seconds (null = no song duration to compare)
     val songDurationSec: Int? = songDurationMs?.let { (it / 1000).toInt() }
     val deltaSec: Int? = songDurationSec?.let { abs(candidate.durationSec - it) }
+    val isExactMatch = deltaSec != null && deltaSec == 0 && candidate.hasSynced
 
-    // Match quality: green (≤2s), yellow (≤5s), red (>5s or no duration)
-    val matchColor = when {
-        deltaSec == null -> Color.White.copy(alpha = 0.3f)
-        deltaSec <= 2 -> Color(0xFF4ADE80) // green
-        deltaSec <= 5 -> Color(0xFFFACC15) // yellow
-        else -> Color(0xFFFF6B6B)          // coral red
+    // Vibrant match colors (saturated, used for gradient + accent)
+    // Each branch provides: primary color, secondary color (deeper),
+    // match label, and the gradient color stops for the capsule fill.
+    data class MatchStyle(
+        val primary: Color,
+        val secondary: Color,
+        val label: String,
+        val gradientStops: Array<Pair<Float, Color>>
+    ) {
+        // Array equals by reference is fine here — we only compare by identity
+        override fun equals(other: Any?): Boolean = this === other
+        override fun hashCode(): Int = System.identityHashCode(this)
     }
-    val matchLabel = when {
-        deltaSec == null -> "—"
-        deltaSec == 0 -> "exact"
-        deltaSec <= 2 -> "+${deltaSec}s"
-        deltaSec <= 5 -> "±${deltaSec}s"
-        else -> "−${deltaSec}s"
+
+    val matchStyle = when {
+        deltaSec == null -> MatchStyle(
+            primary = Color.White.copy(alpha = 0.4f),
+            secondary = Color.White.copy(alpha = 0.15f),
+            label = "—",
+            gradientStops = arrayOf(
+                0.0f to Color.White.copy(alpha = 0.18f),
+                1.0f to Color.White.copy(alpha = 0.04f)
+            )
+        )
+        deltaSec == 0 -> MatchStyle(
+            primary = Color(0xFF4ADE80),         // saturated green
+            secondary = Color(0xFF16A34A),       // deep green
+            label = "exact",
+            gradientStops = arrayOf(
+                0.0f to Color(0xFF4ADE80).copy(alpha = 0.42f),
+                0.5f to Color(0xFF16A34A).copy(alpha = 0.30f),
+                1.0f to Color(0xFF052E16).copy(alpha = 0.55f)
+            )
+        )
+        deltaSec <= 2 -> MatchStyle(
+            primary = Color(0xFFA3E635),         // lime-yellow
+            secondary = Color(0xFF65A30D),       // olive
+            label = "+${deltaSec}s",
+            gradientStops = arrayOf(
+                0.0f to Color(0xFFA3E635).copy(alpha = 0.38f),
+                0.5f to Color(0xFF65A30D).copy(alpha = 0.26f),
+                1.0f to Color(0xFF1A2E05).copy(alpha = 0.55f)
+            )
+        )
+        deltaSec <= 5 -> MatchStyle(
+            primary = Color(0xFFFACC15),         // vivid yellow
+            secondary = Color(0xFFCA8A04),       // amber
+            label = "±${deltaSec}s",
+            gradientStops = arrayOf(
+                0.0f to Color(0xFFFACC15).copy(alpha = 0.34f),
+                0.5f to Color(0xFFCA8A04).copy(alpha = 0.22f),
+                1.0f to Color(0xFF422006).copy(alpha = 0.55f)
+            )
+        )
+        else -> MatchStyle(
+            primary = Color(0xFFFF6B6B),         // coral red
+            secondary = Color(0xFFDC2626),       // deep red
+            label = "−${deltaSec}s",
+            gradientStops = arrayOf(
+                0.0f to Color(0xFFFF6B6B).copy(alpha = 0.34f),
+                0.5f to Color(0xFFDC2626).copy(alpha = 0.24f),
+                1.0f to Color(0xFF2E0505).copy(alpha = 0.55f)
+            )
+        )
     }
+    val primaryColor = matchStyle.primary
+    val secondaryColor = matchStyle.secondary
+    val matchLabel = matchStyle.label
+    val matchGradient = matchStyle.gradientStops
+
+    // ★ Flower animation — only on exact match. Petals bloom out from
+    //   the duration circle for ~1.2s, then loop gently. Drawn on a
+    //   Canvas so it scales smoothly with the capsule.
+    val showFlower = isExactMatch
+    val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "flower")
+    val flowerAngle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(durationMillis = 8000, easing = LinearEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+        ),
+        label = "flowerAngle"
+    )
+    val flowerScale by infiniteTransition.animateFloat(
+        initialValue = 0.85f,
+        targetValue = 1.0f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(900, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "flowerScale"
+    )
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(72.dp)
             .clip(pillShape)
-            .background(Color.Black.copy(alpha = 0.35f))
-            .border(1.dp, matchColor.copy(alpha = 0.25f), pillShape)
+            // ★ Vibrant gradient fill — no border. Saturated, premium look.
+            .background(Color.Black.copy(alpha = 0.4f))
+            .background(Brush.verticalGradient(colorStops = matchGradient))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
             )
     ) {
-        // Glossy overlay
+        // Glossy top highlight (gives the glass feel)
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
-                            0.0f to matchColor.copy(alpha = 0.05f),
-                            0.5f to Color.Transparent,
-                            1.0f to Color.White.copy(alpha = 0.02f)
+                            0.0f to Color.White.copy(alpha = 0.10f),
+                            0.4f to Color.Transparent,
+                            1.0f to Color.Black.copy(alpha = 0.15f)
                         )
                     )
                 )
@@ -405,27 +503,83 @@ private fun CandidateCapsule(
                 .padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Duration circle (left) — shows candidate duration + match color
+            // ─── Duration circle (left) ───
+            // On exact match: flower petals bloom around it
             Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(CircleShape)
-                    .background(matchColor.copy(alpha = 0.12f))
-                    .border(1.dp, matchColor.copy(alpha = 0.4f), CircleShape),
+                modifier = Modifier.size(56.dp),
                 contentAlignment = Alignment.Center
             ) {
-                val mins = candidate.durationSec / 60
-                val secs = candidate.durationSec % 60
-                Text(
-                    text = String.format(java.util.Locale.US, "%d:%02d", mins, secs),
-                    color = matchColor,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = CalSansFamily
-                )
+                // Flower overlay (drawn first, behind the circle)
+                if (showFlower) {
+                    androidx.compose.foundation.Canvas(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .graphicsLayer {
+                                scaleX = flowerScale
+                                scaleY = flowerScale
+                                rotationZ = flowerAngle
+                            }
+                    ) {
+                        val canvasSize = size.minDimension
+                        val center = androidx.compose.ui.geometry.Offset(canvasSize / 2f, canvasSize / 2f)
+                        val petalLength = canvasSize * 0.55f
+                        val petalWidth = canvasSize * 0.12f
+                        val petalCount = 6
+                        val petalColor = Color(0xFF4ADE80).copy(alpha = 0.55f)
+                        val petalStroke = androidx.compose.ui.graphics.drawscope.Stroke(
+                            width = petalWidth,
+                            cap = androidx.compose.ui.graphics.StrokeCap.Round
+                        )
+                        for (i in 0 until petalCount) {
+                            val angleDeg = (360f / petalCount) * i
+                            val angleRad = Math.toRadians(angleDeg.toDouble())
+                            val endX = center.x + (Math.cos(angleRad) * petalLength).toFloat()
+                            val endY = center.y + (Math.sin(angleRad) * petalLength).toFloat()
+                            drawLine(
+                                color = petalColor,
+                                start = center,
+                                end = androidx.compose.ui.geometry.Offset(endX, endY),
+                                strokeWidth = petalWidth,
+                                cap = androidx.compose.ui.graphics.StrokeCap.Round
+                            )
+                        }
+                        // Center sparkle dot
+                        drawCircle(
+                            color = Color.White.copy(alpha = 0.7f),
+                            radius = canvasSize * 0.06f,
+                            center = center
+                        )
+                    }
+                }
+
+                // The duration circle itself — solid vibrant color
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(primaryColor, secondaryColor),
+                                radius = 1.2f
+                            )
+                        )
+                        .border(1.dp, Color.White.copy(alpha = 0.3f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val mins = candidate.durationSec / 60
+                    val secs = candidate.durationSec % 60
+                    Text(
+                        text = String.format(java.util.Locale.US, "%d:%02d", mins, secs),
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = CalSansFamily
+                    )
+                }
             }
             Spacer(Modifier.size(12.dp))
-            // Track info (middle)
+
+            // ─── Track info (middle) ───
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = candidate.trackName,
@@ -444,48 +598,67 @@ private fun CandidateCapsule(
                             append(candidate.albumName)
                         }
                     },
-                    color = Color.White.copy(alpha = 0.5f),
+                    color = Color.White.copy(alpha = 0.6f),
                     fontSize = 12.sp,
                     fontFamily = CalSansFamily,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                // Sync badge
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Spacer(Modifier.height(4.dp))
+
+                // ─── Combined SYNCED + delta small capsule pill ───
+                // Replaces the old split badge + plain text.
+                // One pill, two segments joined: [SYNCED  +2s] or [PLAIN  −12s]
+                val badgeShape = RoundedCornerShape(10.dp)
+                Row(
+                    modifier = Modifier
+                        .clip(badgeShape)
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        .border(1.dp, primaryColor.copy(alpha = 0.5f), badgeShape)
+                ) {
+                    // Segment 1: SYNCED / PLAIN
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(
-                                if (candidate.hasSynced) Color(0xFF4ADE80).copy(alpha = 0.15f)
-                                else Color.White.copy(alpha = 0.08f)
-                            )
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                            .background(primaryColor.copy(alpha = 0.20f))
+                            .padding(horizontal = 7.dp, vertical = 2.dp)
                     ) {
                         Text(
                             text = if (candidate.hasSynced) "SYNCED" else "PLAIN",
-                            color = if (candidate.hasSynced) Color(0xFF4ADE80) else Color.White.copy(alpha = 0.5f),
+                            color = primaryColor,
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = CalSansFamily
                         )
                     }
-                    Spacer(Modifier.size(6.dp))
-                    Text(
-                        text = matchLabel,
-                        color = matchColor,
-                        fontSize = 10.sp,
-                        fontFamily = CalSansFamily
-                    )
+                    // Segment 2: delta label
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 7.dp, vertical = 2.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = matchLabel,
+                            color = Color.White,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = CalSansFamily
+                        )
+                    }
                 }
             }
-            // Chevron (right)
+
+            // ─── Chevron (right) ───
             Icon(
                 imageVector = CoralIcons.ChevronsRight,
                 contentDescription = "Use these lyrics",
-                tint = Color.White.copy(alpha = 0.3f),
+                tint = Color.White.copy(alpha = 0.5f),
                 modifier = Modifier.size(20.dp)
             )
             Spacer(Modifier.size(8.dp))
         }
     }
 }
+
+/** Tiny 4-tuple helper (Kotlin's built-in Triple only goes to 3). */
+private data class Quad<T>(val a: T, val b: T, val c: T, val d: T)
+

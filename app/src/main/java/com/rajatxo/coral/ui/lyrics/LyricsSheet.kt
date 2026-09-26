@@ -634,7 +634,9 @@ fun LyricsSheet(
 
         // ★ Lyrics Picker overlay — shown when user taps "Pick Lyrics"
         //   from the 3-dot menu. User picks a candidate, we convert it
-        //   to a Lyric, cache it, and swap into the active lyric state.
+        //   to a Lyric (applying the auto-offset so a +2s candidate syncs
+        //   perfectly to the song's actual timeline), cache it, and swap
+        //   into the active lyric state.
         if (showLyricsPicker) {
             LyricsPicker(
                 trackName = trackName,
@@ -642,23 +644,29 @@ fun LyricsSheet(
                 albumName = albumName,
                 durationMs = durationMs,
                 onDismiss = { showLyricsPicker = false },
-                onCandidateSelected = { candidate ->
+                onCandidateSelected = { candidate, offsetMs ->
                     coroutineScope.launch {
                         isLoading = true
                         errorMessage = null
-                        val lyricFromCandidate = repository.candidateToLyric(candidate)
+                        // ★ Pass offsetMs to candidateToLyric — it shifts
+                        //   all line + word timestamps by this amount so
+                        //   the candidate's timeline fits the user's song.
+                        val lyricFromCandidate = repository.candidateToLyric(candidate, offsetMs)
                         if (lyricFromCandidate != null) {
-                            // Cache the chosen candidate so next time we hit
-                            // the cache instead of re-searching.
-                            // We pass the candidate's trackName/artistName so
-                            // the cache key matches what the user picked.
-                            val cacheRepo = LyricsRepository(context)
-                            // Use the song's actual name as cache key, so it
-                            // loads correctly next time the same song plays.
-                            cacheRepo.cacheLyricsPublic(trackName, artistName, lyricFromCandidate)
+                            // Cache the offset-applied lyric under the song's
+                            // actual name so it auto-loads next time.
+                            repository.cacheLyricsPublic(trackName, artistName, lyricFromCandidate)
                             lyric = lyricFromCandidate
                             onLyricsFetched?.invoke(lyricFromCandidate)
                             showLyricsPicker = false
+                            // ★ Show a brief confirmation message with the offset applied
+                            errorMessage = if (offsetMs == 0L) {
+                                "✓ Perfect sync — no offset needed"
+                            } else {
+                                val offsetSec = offsetMs / 1000.0
+                                val sign = if (offsetMs > 0) "+" else ""
+                                "✓ Synced with ${sign}${"%.1f".format(offsetSec)}s offset"
+                            }
                         } else {
                             errorMessage = "Could not parse that candidate's lyrics"
                         }
