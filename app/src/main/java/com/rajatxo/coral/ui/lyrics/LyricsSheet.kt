@@ -127,6 +127,11 @@ fun LyricsSheet(
     // Menu + dialog state
     var showMenu by remember { mutableStateOf(false) }
 
+    // ★ Lyrics picker overlay state — when true, opens the LyricsPicker
+    //   full-screen overlay showing all LrcLib candidates for the song.
+    //   User can pick the candidate whose duration matches their local file.
+    var showLyricsPicker by remember { mutableStateOf(false) }
+
     // Paste-lyrics dialog state — when the user picks "Paste Lyrics"
     // from the menu, this dialog opens with a multi-line text field
     // where they can paste LRC-formatted lyrics (with [mm:ss.xxx]
@@ -377,6 +382,31 @@ fun LyricsSheet(
                                 )
                             }
                         )
+                        // ★ Pick Lyrics — opens the LyricsPicker overlay
+                        //   showing all LrcLib candidates. User picks one
+                        //   based on duration match. Solves the wrong-sync
+                        //   problem when a song has multiple releases.
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "Pick Lyrics",
+                                    color = Color.White,
+                                    fontFamily = CalSansFamily
+                                )
+                            },
+                            onClick = {
+                                showMenu = false
+                                showLyricsPicker = true
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    CoralIcons.ListMusic,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        )
                         DropdownMenuItem(
                             text = {
                                 Text(
@@ -597,6 +627,42 @@ fun LyricsSheet(
                         }
                     ) {
                         Text("Cancel", color = Color.White.copy(alpha = 0.6f), fontFamily = CalSansFamily)
+                    }
+                }
+            )
+        }
+
+        // ★ Lyrics Picker overlay — shown when user taps "Pick Lyrics"
+        //   from the 3-dot menu. User picks a candidate, we convert it
+        //   to a Lyric, cache it, and swap into the active lyric state.
+        if (showLyricsPicker) {
+            LyricsPicker(
+                trackName = trackName,
+                artistName = artistName,
+                albumName = albumName,
+                durationMs = durationMs,
+                onDismiss = { showLyricsPicker = false },
+                onCandidateSelected = { candidate ->
+                    coroutineScope.launch {
+                        isLoading = true
+                        errorMessage = null
+                        val lyricFromCandidate = repository.candidateToLyric(candidate)
+                        if (lyricFromCandidate != null) {
+                            // Cache the chosen candidate so next time we hit
+                            // the cache instead of re-searching.
+                            // We pass the candidate's trackName/artistName so
+                            // the cache key matches what the user picked.
+                            val cacheRepo = LyricsRepository(context)
+                            // Use the song's actual name as cache key, so it
+                            // loads correctly next time the same song plays.
+                            cacheRepo.cacheLyricsPublic(trackName, artistName, lyricFromCandidate)
+                            lyric = lyricFromCandidate
+                            onLyricsFetched?.invoke(lyricFromCandidate)
+                            showLyricsPicker = false
+                        } else {
+                            errorMessage = "Could not parse that candidate's lyrics"
+                        }
+                        isLoading = false
                     }
                 }
             )

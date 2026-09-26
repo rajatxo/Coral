@@ -9,12 +9,44 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+
+/**
+ * A candidate track returned by LrcLib's /api/search endpoint.
+ *
+ * Each candidate represents one possible set of lyrics for the song
+ * the user is playing. The Lyrics Picker UI shows all candidates so
+ * the user can choose the one whose duration best matches their song
+ * (some songs have multiple releases — single, album version, radio
+ * edit, remaster — each with different timelines).
+ *
+ * @param id             LrcLib internal track ID.
+ * @param trackName      Track name as registered on LrcLib.
+ * @param artistName     Artist name as registered on LrcLib.
+ * @param albumName      Album name (nullable).
+ * @param durationSec    Track duration in SECONDS (note: Lyric uses ms).
+ * @param hasSynced      True if syncedLyrics (LRC timestamps) is present.
+ * @param hasPlain       True if plainLyrics (unsynced text) is present.
+ * @param syncedLyrics   Raw LRC text with timestamps, or null.
+ * @param plainLyrics    Raw plain text lyrics, or null.
+ */
+data class LrcLibCandidate(
+    val id: Int,
+    val trackName: String,
+    val artistName: String,
+    val albumName: String?,
+    val durationSec: Int,
+    val hasSynced: Boolean,
+    val hasPlain: Boolean,
+    val syncedLyrics: String?,
+    val plainLyrics: String?
+)
 
 /**
  * Fetches lyrics from LrcLib (https://lrclib.net) and caches them on disk.
@@ -348,6 +380,150 @@ class LyricsRepository(private val context: Context) {
     }
 
     /**
+     * Search LrcLib for ALL candidate lyric sets matching a song.
+     *
+     * Unlike [fetchFromLrcLib] which uses the precise `/api/get` endpoint
+     * (returns exactly ONE match by duration), this hits `/api/search`
+     * which returns a LIST of candidate tracks. Each candidate has its
+     * own duration, synced/plain lyrics, album name, etc.
+     *
+     * Why this exists: some songs have multiple releases (single,
+     * album version, radio edit, remaster, live) and each release can
+     * have a different timeline. The auto-fetched lyrics may sync to
+     * the wrong version. This method lets the user manually pick the
+     * release that matches their local file's duration.
+     *
+     * Inspired by vivi-music's approach (they sort by duration delta
+     * and pick best-match automatically) — but Coral exposes all
+     * candidates to the user so they can override the auto-pick.
+     *
+     * @param track       Song title.
+     * @param artist      Artist name.
+     * @param album       Album name (optional, narrows results).
+     * @return List of [LrcLibCandidate]s, sorted by:
+     *           1. Has syncedLyrics (synced first, plain last)
+     *           2. Duration delta from [durationMs] ascending
+     *         Empty list if no results or network failure.
+     */
+    suspend fun searchLyricsOnLrcLib(
+        track: String,
+        artist: String,
+        album: String? = null,
+        durationMs: Long? = null
+    ): List<LrcLibCandidate> = withContext(Dispatchers.IO) {
+        if (track.isBlank()) return@withContext emptyList()
+
+        // Strategy: try the most specific query first (track + artist + album),
+        // then fall back to track + artist, then to track only. Return the
+        // first non-empty result. This matches vivi-music's cascading approach.
+        val queries = buildList {
+            add(Triple(track, artist, album))
+            add(Triple(track, artist, null))
+            add(Triple(track, null, null))
+        }
+
+        for ((qTrack, qArtist, qAlbum) in queries) {
+            val results = runSearch(qTrack, qArtist, qAlbum)
+            if (results.isNotEmpty()) {
+                // Sort: synced first, then by duration delta ascending
+                val durationSec = durationMs?.div(1000) ?: -1
+                return@withContext results.sortedWith(
+                    compareByDescending<LrcLibCandidate> { it.hasSynced }
+                        .thenBy { candidate ->
+                            if (durationSec <= 0) 0
+                            else kotlin.math.abs(candidate.durationSec - durationSec)
+                        }
+                )
+            }
+        }
+
+        emptyList()
+    }
+
+    /** Raw HTTP call to /api/search. Returns parsed list (may be empty). */
+    private fun runSearch(
+        track: String,
+        artist: String?,
+        album: String?
+    ): List<LrcLibCandidate> {
+        return try {
+            val urlBuilder = StringBuilder("https://lrclib.net/api/search?")
+            urlBuilder.append("track_name=").append(encode(track))
+            if (!artist.isNullOrBlank()) {
+                urlBuilder.append("&artist_name=").append(encode(artist))
+            }
+            if (!album.isNullOrBlank()) {
+                urlBuilder.append("&album_name=").append(encode(album))
+            }
+
+            val url = URL(urlBuilder.toString())
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.setRequestProperty("Accept", "application/json")
+            conn.connectTimeout = 8000
+            conn.readTimeout = 8000
+            conn.instanceFollowRedirects = true
+
+            if (conn.responseCode != 200) return emptyList()
+
+            val body = conn.inputStream.bufferedReader().use { it.readText() }
+            val array = json.parseToJsonElement(body).jsonArray
+
+            array.mapNotNull { element ->
+                try {
+                    val obj = element.jsonObject
+                    val id = obj["id"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: return@mapNotNull null
+                    val trackName = obj["trackName"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                    val artistName = obj["artistName"]?.jsonPrimitive?.contentOrNull ?: ""
+                    val albumName = obj["albumName"]?.jsonPrimitive?.contentOrNull
+                    val duration = obj["duration"]?.jsonPrimitive?.contentOrNull?.toDoubleOrNull()?.toInt() ?: 0
+                    val synced = obj["syncedLyrics"]?.jsonPrimitive?.contentOrNull
+                    val plain = obj["plainLyrics"]?.jsonPrimitive?.contentOrNull
+
+                    LrcLibCandidate(
+                        id = id,
+                        trackName = trackName,
+                        artistName = artistName,
+                        albumName = albumName,
+                        durationSec = duration,
+                        hasSynced = !synced.isNullOrBlank(),
+                        hasPlain = !plain.isNullOrBlank(),
+                        syncedLyrics = synced,
+                        plainLyrics = plain
+                    )
+                } catch (_: Exception) {
+                    null
+                }
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    /**
+     * Convert a [LrcLibCandidate] into a [Lyric] object that the
+     * LyricsSheet can render. Prefers synced lyrics; falls back to
+     * plain. Returns null if the candidate has no usable lyrics text.
+     */
+    suspend fun candidateToLyric(candidate: LrcLibCandidate): Lyric? = withContext(Dispatchers.IO) {
+        val text = candidate.syncedLyrics ?: candidate.plainLyrics
+        if (text.isNullOrBlank()) return@withContext null
+
+        val lines = LrcParser.parse(text)
+        if (lines.isEmpty()) return@withContext null
+
+        val isSynced = candidate.hasSynced && lines.any { it.timeMs >= 0 }
+        Lyric(
+            synced = isSynced,
+            lines = lines,
+            source = LyricSource.NETWORK,
+            trackName = candidate.trackName,
+            artistName = candidate.artistName,
+            hasWordSync = lines.any { it.hasWordSync }
+        )
+    }
+
+    /**
      * Fetch from NetEase Cloud Music API.
      * Searches by keyword (artist + title), returns synced LRC.
      */
@@ -490,6 +666,15 @@ class LyricsRepository(private val context: Context) {
     private fun cacheLyrics(track: String, artist: String, lyric: Lyric) {
         val cacheFile = File(cacheDir, "${cacheKey(track, artist)}.json")
         writeCache(cacheFile, lyric)
+    }
+
+    /**
+     * Public cache-write API — used by the Lyrics Picker when the user
+     * manually selects a candidate. Caches the chosen candidate under
+     * the song's actual track/artist name so it loads on next play.
+     */
+    fun cacheLyricsPublic(track: String, artist: String, lyric: Lyric) {
+        cacheLyrics(track, artist, lyric)
     }
 
     // ---------- Cache ----------

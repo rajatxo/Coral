@@ -267,8 +267,19 @@ fun SearchScreen(
                         Spacer(Modifier.size(10.dp))
                         Box(modifier = Modifier.weight(1f)) {
                             if (query.isEmpty()) {
+                                // ★ First-install onboarding hint:
+                                //   Before the guide is dismissed → show the long hint
+                                //   ("Search songs... or type p. for playlists") so the
+                                //    user knows about the 'p.' prefix.
+                                //   After guide dismissed → switch to the short hint
+                                //   ("Search songs and playlists") since the user has
+                                //   already learned the prefix.
+                                val placeholder = if (!guideShown)
+                                    "Search songs... or type p. for playlists"
+                                else
+                                    "Search songs and playlists"
                                 Text(
-                                    text = "Search songs... or type p. for playlists",
+                                    text = placeholder,
                                     color = Color.White.copy(alpha = 0.35f),
                                     fontSize = 13.sp,
                                     fontFamily = CalSansFamily
