@@ -81,7 +81,13 @@ fun SongsScreen(
     capsuleRemaining: Long = 0L,
     onExtend: () -> Unit = {},
     onRefresh: suspend () -> Unit = {},
-    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null
+    /**
+     * The GraphicsLayer captured by HomeScreen's layerBackdrop. Passed
+     * through to the DuplicateSongsSheet so it can render real backdrop
+     * blur via RenderEffect + BlurEffect (the safe pattern Coral's
+     * HomeScreen header uses — doesn't crash like drawBackdrop).
+     */
+    graphicsLayer: androidx.compose.ui.graphics.layer.GraphicsLayer? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -234,7 +240,7 @@ fun SongsScreen(
         if (showDuplicateSheet && duplicateGroups.isNotEmpty()) {
             DuplicateSongsSheet(
                 duplicateGroups = duplicateGroups,
-                backdrop = backdrop,
+                graphicsLayer = graphicsLayer,
                 onDismiss = {
                     showDuplicateSheet = false
                     duplicateGroups = emptyList()

@@ -44,8 +44,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -53,9 +59,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.colorControls
 import com.rajatxo.coral.data.scanner.DuplicateDetector
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.icons.CoralIcons
@@ -122,7 +125,20 @@ import kotlinx.coroutines.launch
 @Composable
 fun DuplicateSongsSheet(
     duplicateGroups: List<DuplicateDetector.DuplicateGroup>,
-    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null,
+    /**
+     * The GraphicsLayer captured by HomeScreen's layerBackdrop. The sheet
+     * uses this to render a blurred snapshot of the page content behind it
+     * (real glass morphism). If null, falls back to fake glass.
+     *
+     * WHY this approach (not drawBackdrop):
+     *   Earlier sessions tried drawBackdrop inside SongsScreen / LazyColumn
+     *   items → crashes every time (GraphicsLayer gets mutated by multiple
+     *   consumers during scroll). Coral's HomeScreen header blur already
+     *   uses the safer RenderEffect + BlurEffect + drawLayer pattern on
+     *   API 31+ — we use the same approach here. It's stable, doesn't crash,
+     *   and works on every phone running Android 12 or later.
+     */
+    graphicsLayer: GraphicsLayer? = null,
     onDismiss: () -> Unit,
     onDuplicatesDeleted: () -> Unit
 ) {
@@ -169,44 +185,11 @@ fun DuplicateSongsSheet(
     }
 
     val sheetShape = RoundedCornerShape(24.dp)
-
-    // ★ Glass modifier — uses kyant's drawBackdrop to sample + blur the
-    //   SongsScreen content behind the sheet. This is the SAME pattern
-    //   ArchiveTune uses for its menu popups (BottomSheetMenu.kt) and
-    //   the SAME pattern Coral's TabCapsule (nav bar) uses.
-    //
-    //   Safe here because the sheet is a fixed overlay — NOT inside a
-    //   LazyColumn item. The earlier crashes were specifically about
-    //   drawBackdrop inside LazyColumn items that get recycled during
-    //   scroll, which caused the GraphicsLayer to be mutated by multiple
-    //   consumers. A standalone sheet doesn't have that problem.
-    //
-    //   If backdrop is null (shouldn't happen since HomeScreen always
-    //   provides one), we fall back to the fake-glass pattern (dark
-    //   fill + glossy gradient overlay, no blur).
-    val glassModifier = remember(backdrop) {
-        if (backdrop != null) {
-            Modifier.drawBackdrop(
-                backdrop = backdrop,
-                shape = { sheetShape },
-                effects = {
-                    // Boost saturation slightly for a vivid glass feel
-                    colorControls(
-                        brightness = 0.05f,
-                        contrast = 1f,
-                        saturation = 1.3f
-                    )
-                    // 20dp blur — AGSL-based real-time backdrop blur
-                    blur(20f.dp.toPx())
-                },
-                onDrawSurface = {
-                    drawRect(Color.Black.copy(alpha = 0.45f))
-                }
-            )
-        } else {
-            Modifier
-        }
-    }
+    // Use RenderEffect blur on API 31+ (Android 12+) — the same safe pattern
+    // Coral's HomeScreen header uses. Falls back to fake glass (no blur) on
+    // older devices.
+    val useRenderEffect = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
+    val hasRealBlur = graphicsLayer != null && useRenderEffect
 
     // Glass sheet overlay
     Box(
@@ -228,12 +211,34 @@ fun DuplicateSongsSheet(
                 .fillMaxWidth(0.88f)   // was 0.92f — smaller now
                 .fillMaxSize(0.72f)     // was 0.85f — smaller now
                 .clip(sheetShape)
-                // ★ Real glass blur via drawBackdrop (if backdrop available).
+                // ★ Real glass blur via drawLayer + BlurEffect (API 31+).
+                //   Same pattern Coral's HomeScreen header uses — stable,
+                //   doesn't crash, doesn't mutate the shared GraphicsLayer.
                 //   Falls back to fake glass (dark fill + glossy gradient)
-                //   if backdrop is null.
+                //   if graphicsLayer is null or API < 31.
                 .then(
-                    if (backdrop != null) {
-                        glassModifier
+                    if (hasRealBlur && graphicsLayer != null) {
+                        val layer = graphicsLayer
+                        Modifier
+                            .graphicsLayer {
+                                compositingStrategy = CompositingStrategy.Offscreen
+                                clip = true
+                                // 20dp CLAMP blur — full strength at all edges
+                                renderEffect = BlurEffect(
+                                    radiusX = 20.dp.toPx(),
+                                    radiusY = 20.dp.toPx()
+                                )
+                            }
+                            .drawWithContent {
+                                // Draw the captured screen content (the page
+                                // behind the sheet) — this is what gets blurred
+                                // by the renderEffect above.
+                                drawLayer(layer)
+                                // Dark tint over the blur for readability
+                                drawRect(Color.Black.copy(alpha = 0.45f))
+                                // Then draw the sheet content on top
+                                drawContent()
+                            }
                     } else {
                         Modifier
                             .background(Color.Black.copy(alpha = 0.65f))
