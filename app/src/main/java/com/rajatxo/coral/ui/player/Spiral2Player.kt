@@ -258,6 +258,9 @@ fun Spiral2Player(
     //   so the active state is always readable. Uses palette.tertiary as
     //   the background reference (the dominant dark color of the player).
     val adaptiveAccent = adaptiveContrastColor(palette.accent, palette.tertiary)
+    val density = LocalDensity.current
+    // (maxHeight is captured inside BoxWithConstraints below — it's a
+    // BoxWithConstraintsScope property, only accessible there.)
     LaunchedEffect(albumArtUri) {
         if (albumArtUri != null) {
             // If already cached, skip extraction entirely
@@ -762,6 +765,9 @@ fun Spiral2Player(
             }
     ) {
         val center = maxHeight / 2
+        // Capture maxHeight in a plain Dp variable for use inside non-
+        // composable lambdas (offset { }) that can't access BoxWithConstraintsScope.
+        val screenHeightDp = maxHeight
 
         // ═══════════════════════════════════════════════════════════════
         // PROFILE COVER (full-bleed top 65%) + BLUR BLEND (no black gradient)
@@ -1053,9 +1059,15 @@ fun Spiral2Player(
 
         // ─── Menu capsule popup (vertical pill, right side, icons only) ─
         // A vertical capsule (like Coral's play-pause but vertical) with
-        // only icons inside: Sleep Timer, Shuffle, Loop. Glass morphism
+        // only icons inside: Trash, Sleep Timer, Shuffle, Loop. Glass morphism
         // (drawBackdrop, same as prev/next buttons). Positioned on the
-        // right side, below the menu button — doesn't cover it.
+        // right side, ABOVE the 3-dot menu button — doesn't cover it.
+        //
+        // ★ The capsule sits above the 3-dot button (which is in the title
+        //   Row at offset y = 0.65 * maxHeight). We position the capsule
+        //   so its BOTTOM edge is at y = (0.65 * maxHeight) - 12dp gap.
+        //   The capsule height is dynamic (4 icons + spacing + padding), so
+        //   we use align(BottomEnd) with a calculated offset.
         if (showMoreMenu) {
             Box(
                 modifier = Modifier
@@ -1068,7 +1080,19 @@ fun Spiral2Player(
                 Column(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .offset(y = 350.dp)
+                        // ★ Position ABOVE the 3-dot menu button.
+                        //   The 3-dot is in the title Row at y = 0.65 * maxHeight.
+                        //   We anchor the capsule's top so its BOTTOM edge sits
+                        //   at (title Y) - 12dp gap. Capsule height ≈ 220dp
+                        //   (4 icons + 3 spacings + 24dp vertical padding).
+                        .offset {
+                            androidx.compose.ui.unit.IntOffset(
+                                x = 0,
+                                y = with(density) {
+                                    (screenHeightDp * 0.65f - 232.dp).toPx().toInt()
+                                }
+                            )
+                        }
                         .padding(end = 20.dp)
                         .width(52.dp)
                         .clip(RoundedCornerShape(26.dp))

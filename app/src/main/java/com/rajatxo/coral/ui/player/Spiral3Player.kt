@@ -252,6 +252,9 @@ fun Spiral3Player(
     //   is dark, making shuffle/loop icons invisible. Brightens the accent
     //   against the dark background so the active state is always readable.
     val adaptiveAccent = adaptiveContrastColor(palette.accent, palette.tertiary)
+    val density = LocalDensity.current
+    // (maxHeight is captured inside BoxWithConstraints below — it's a
+    // BoxWithConstraintsScope property, only accessible there.)
     LaunchedEffect(albumArtUri) {
         if (albumArtUri != null) {
             // If already cached, skip extraction entirely
@@ -700,6 +703,7 @@ fun Spiral3Player(
             }
     ) {
         val center = maxHeight / 2
+        val screenHeightDp = maxHeight
 
         // ═══════════════════════════════════════════════════════════════
         // SPIRAL COVER (square, normal size) + SYMMETRIC BLUR BLEND
@@ -1042,7 +1046,15 @@ fun Spiral3Player(
                 Column(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .offset(y = 350.dp)
+                        // ★ Position ABOVE the 3-dot menu button.
+                        .offset {
+                            androidx.compose.ui.unit.IntOffset(
+                                x = 0,
+                                y = with(density) {
+                                    (screenHeightDp * 0.65f - 232.dp).toPx().toInt()
+                                }
+                            )
+                        }
                         .padding(end = 20.dp)
                         .width(52.dp)
                         .clip(RoundedCornerShape(26.dp))

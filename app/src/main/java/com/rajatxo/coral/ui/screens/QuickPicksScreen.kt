@@ -862,6 +862,9 @@ private fun SpeedDialSection(
             val picked: List<Song> = if (speedDialMode == com.rajatxo.coral.data.prefs.SpeedDialModeManager.SpeedDialMode.LAST_PLAYED
                 && playbackHistory.isNotEmpty()) {
                 // ★ LAST_PLAYED mode — 80% from last-played artist + 20% other.
+                //   If the artist has fewer songs than the 80% target, the
+                //   remaining slots are filled with random songs from other
+                //   artists so all 3 pages (26 tiles) always show.
                 val lastArtist = playbackHistory.firstOrNull()?.artist
                 if (!lastArtist.isNullOrBlank()) {
                     val artistSongs = pool.filter {
@@ -871,8 +874,13 @@ private fun SpeedDialSection(
                         !it.artist.trim().equals(lastArtist.trim(), ignoreCase = true)
                     }.shuffled(Random(launchSeed + 200))
                     val eightyPct = (randomCount * 0.8f).toInt()
-                    val twentyPct = randomCount - eightyPct
-                    artistSongs.take(eightyPct) + otherSongs.take(twentyPct)
+                    // Take up to eightyPct from the artist — if the artist
+                    // has fewer songs, take all of them.
+                    val artistPicked = artistSongs.take(eightyPct)
+                    // Fill the rest of the 80% slot + the 20% slot with
+                    // other songs so we always reach randomCount total.
+                    val remainingNeeded = randomCount - artistPicked.size
+                    artistPicked + otherSongs.take(remainingNeeded)
                 } else {
                     pool.shuffled(Random(launchSeed + 100)).take(randomCount)
                 }
@@ -880,7 +888,22 @@ private fun SpeedDialSection(
                 // RANDOM mode — completely random (original behavior)
                 pool.shuffled(Random(launchSeed + 100)).take(randomCount)
             }
-            pinnedSongs + picked
+            // ★ Failsafe — if even the pool is too small (e.g., tiny library),
+            //   pad with whatever songs are available (with possible repeats
+            //   from the pool) so all 26 tiles always fill. Without this,
+            //   pages would be empty for small libraries.
+            val finalPicked = if (picked.size < randomCount && pool.isNotEmpty()) {
+                val stillNeeded = randomCount - picked.size
+                // Cycle through the pool to fill — repeats are acceptable
+                // because the user explicitly wants all pages filled.
+                val fillers = pool.shuffled(Random(launchSeed + 300))
+                    .filter { it.id !in picked.map(Song::id) }  // avoid dups
+                    .take(stillNeeded)
+                picked + fillers
+            } else {
+                picked
+            }
+            pinnedSongs + finalPicked
         }
     }
 
@@ -899,89 +922,99 @@ private fun SpeedDialSection(
     )
 
     // Section header — "Speed dial" text + chevron right beside it.
-    // Aligned with the first card: the LazyColumn has start=20dp padding,
-    // and each card has 4dp padding, so the first card's content starts at
-    // 24dp. To align the text with the first card's content, add 4dp start
-    // padding to the Row.
-    Row(
+    // The "Based on" capsule is rendered as an OVERLAY on top of the
+    // BugLineRefreshIndicator so it doesn't push the layout around
+    // when it appears/disappears. (No layout shift = no movement.)
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 4.dp),  // align with first card's content
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(start = 4.dp)  // align with first card's content
     ) {
-        // ★ "Speed dial" text — now clickable to show the "Based on" popup
-        Text(
-            text = "Speed dial",
-            color = textPrimary,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.SemiBold,
-            fontFamily = CalSansFamily,
-            modifier = Modifier.clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) {
-                showBasedOnPopup = !showBasedOnPopup
-            }
-        )
-        // Chevron right beside the text (no spacer, no weight).
-        Icon(
-            imageVector = CoralIcons.ChevronRight,
-            contentDescription = null,
-            tint = textSecondary,
-            modifier = Modifier.size(20.dp)
-        )
-        // ★ "Based on" capsule popup — fades in/out beside the chevron
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // ★ "Speed dial" text — now clickable to show the "Based on" popup
+            Text(
+                text = "Speed dial",
+                color = textPrimary,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = CalSansFamily,
+                modifier = Modifier.clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    showBasedOnPopup = !showBasedOnPopup
+                }
+            )
+            // Chevron right beside the text
+            Icon(
+                imageVector = CoralIcons.ChevronRight,
+                contentDescription = null,
+                tint = textSecondary,
+                modifier = Modifier.size(20.dp)
+            )
+            // ─── Bug-on-a-line pull-to-refresh indicator ──────────────
+            BugLineRefreshIndicator(
+                progress = pullProgress,
+                isRefreshing = isRefreshing,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(20.dp)
+            )
+        }
+        // ★ "Based on" capsule popup — OVERLAY on top of the BugLineRefreshIndicator.
+        //   Positioned absolutely beside the chevron so the underlying Row
+        //   doesn't shift when the capsule appears/disappears.
+        //   Made THIN: smaller text + tighter padding + smaller inner capsule.
         if (basedOnPopupAlpha > 0.01f) {
             val currentMode = speedDialMode
             val modeLabel = currentMode.displayName
-            // Inner capsule color — use the accent color from the
-            // current playing song's palette, or a fallback coral.
-            // (We don't have direct palette access here, so use coral red
-            //  as a sensible default — matches Coral's brand color.)
             val innerColor = Color(0xFFFF6B6B)
-            // Adaptive text color — white on dark inner, black on light inner
             val innerTextColor = if (com.rajatxo.coral.util.luminanceOf(innerColor) < 0.5f)
                 Color.White else Color.Black
-            // Outer white capsule + inner accent capsule
             Row(
                 modifier = Modifier
+                    .align(Alignment.CenterStart)
                     .graphicsLayer { alpha = basedOnPopupAlpha }
-                    .clip(RoundedCornerShape(14.dp))
+                    // Offset to sit just right of the chevron (~120dp from start)
+                    .offset(x = 122.dp)
+                    .clip(RoundedCornerShape(11.dp))  // thinner rounded corners
                     .background(Color.White)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
                     ) {
-                        // Tap to cycle modes
                         val newMode = if (currentMode == com.rajatxo.coral.data.prefs.SpeedDialModeManager.SpeedDialMode.RANDOM)
                             com.rajatxo.coral.data.prefs.SpeedDialModeManager.SpeedDialMode.LAST_PLAYED
                         else
                             com.rajatxo.coral.data.prefs.SpeedDialModeManager.SpeedDialMode.RANDOM
                         com.rajatxo.coral.data.prefs.SpeedDialModeManager.setMode(newMode)
                     }
-                    .padding(end = 4.dp),
+                    .padding(end = 3.dp, top = 2.dp, bottom = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = "Based on",
                     color = Color.Black,
-                    fontSize = 11.sp,
+                    fontSize = 9.sp,   // thinner — was 11sp
                     fontWeight = FontWeight.Medium,
                     fontFamily = CalSansFamily,
-                    modifier = Modifier.padding(start = 10.dp, end = 6.dp, top = 5.dp, bottom = 5.dp)
+                    modifier = Modifier.padding(start = 7.dp, end = 4.dp)
                 )
-                // Inner accent capsule
+                // Inner accent capsule — smaller
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(8.dp))  // thinner
                         .background(innerColor)
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     Text(
                         text = modeLabel,
                         color = innerTextColor,
-                        fontSize = 10.sp,
+                        fontSize = 8.sp,   // thinner — was 10sp
                         fontWeight = FontWeight.SemiBold,
                         fontFamily = CalSansFamily
                     )
@@ -995,14 +1028,6 @@ private fun SpeedDialSection(
                 }
             }
         }
-        // ─── Bug-on-a-line pull-to-refresh indicator ──────────────
-        BugLineRefreshIndicator(
-            progress = pullProgress,
-            isRefreshing = isRefreshing,
-            modifier = Modifier
-                .weight(1f)
-                .height(20.dp)
-        )
     }
 
     Spacer(modifier = Modifier.height(12.dp))
