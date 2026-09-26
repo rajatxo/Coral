@@ -80,7 +80,8 @@ fun SongsScreen(
     capsuleVisible: Boolean = false,
     capsuleRemaining: Long = 0L,
     onExtend: () -> Unit = {},
-    onRefresh: suspend () -> Unit = {}
+    onRefresh: suspend () -> Unit = {},
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -135,11 +136,19 @@ fun SongsScreen(
                 scope.launch {
                     try {
                         onRefresh()
-                        // ★ After refresh completes, scan for duplicates on a
-                        //   background thread so we don't block the main thread.
-                        //   If any are found, show the sheet.
+                        // ★ After refresh completes, re-scan MediaStore directly
+                        //   for duplicates. We can NOT use the `songs` parameter
+                        //   here because it's a snapshot from when SongsScreen
+                        //   was last composed — it doesn't include any songs
+                        //   added in this refresh cycle. By calling
+                        //   MusicScanner.scanMusic(context) we get the LIVE
+                        //   state of MediaStore, so we detect ALL copies
+                        //   (including 3+ duplicates of the same song).
+                        val freshSongs = withContext(Dispatchers.IO) {
+                            com.rajatxo.coral.data.scanner.MusicScanner.scanMusic(context)
+                        }
                         val groups = withContext(Dispatchers.IO) {
-                            DuplicateDetector.findDuplicates(songs)
+                            DuplicateDetector.findDuplicates(freshSongs)
                         }
                         if (groups.isNotEmpty()) {
                             duplicateGroups = groups
@@ -215,9 +224,17 @@ fun SongsScreen(
         // deletion goes through MediaStore.createDeleteRequest (Android 10+)
         // so the system shows a confirmation dialog before anything is
         // removed from internal storage.
+        //
+        // ★ Real glass morphism: the sheet uses drawBackdrop (kyant library)
+        //   to sample + blur the SongsScreen content behind it. This is the
+        //   same pattern ArchiveTune uses for its menu popups. Safe here
+        //   because the sheet is a fixed overlay (NOT inside a LazyColumn
+        //   item — the earlier crashes were specifically about drawBackdrop
+        //   inside LazyColumn items that get recycled).
         if (showDuplicateSheet && duplicateGroups.isNotEmpty()) {
             DuplicateSongsSheet(
                 duplicateGroups = duplicateGroups,
+                backdrop = backdrop,
                 onDismiss = {
                     showDuplicateSheet = false
                     duplicateGroups = emptyList()

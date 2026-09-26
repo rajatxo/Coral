@@ -53,6 +53,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.colorControls
 import com.rajatxo.coral.data.scanner.DuplicateDetector
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.icons.CoralIcons
@@ -119,6 +122,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun DuplicateSongsSheet(
     duplicateGroups: List<DuplicateDetector.DuplicateGroup>,
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null,
     onDismiss: () -> Unit,
     onDuplicatesDeleted: () -> Unit
 ) {
@@ -164,11 +168,51 @@ fun DuplicateSongsSheet(
         // sheet open so they can retry or modify their selection.
     }
 
+    val sheetShape = RoundedCornerShape(24.dp)
+
+    // ★ Glass modifier — uses kyant's drawBackdrop to sample + blur the
+    //   SongsScreen content behind the sheet. This is the SAME pattern
+    //   ArchiveTune uses for its menu popups (BottomSheetMenu.kt) and
+    //   the SAME pattern Coral's TabCapsule (nav bar) uses.
+    //
+    //   Safe here because the sheet is a fixed overlay — NOT inside a
+    //   LazyColumn item. The earlier crashes were specifically about
+    //   drawBackdrop inside LazyColumn items that get recycled during
+    //   scroll, which caused the GraphicsLayer to be mutated by multiple
+    //   consumers. A standalone sheet doesn't have that problem.
+    //
+    //   If backdrop is null (shouldn't happen since HomeScreen always
+    //   provides one), we fall back to the fake-glass pattern (dark
+    //   fill + glossy gradient overlay, no blur).
+    val glassModifier = remember(backdrop) {
+        if (backdrop != null) {
+            Modifier.drawBackdrop(
+                backdrop = backdrop,
+                shape = { sheetShape },
+                effects = {
+                    // Boost saturation slightly for a vivid glass feel
+                    colorControls(
+                        brightness = 0.05f,
+                        contrast = 1f,
+                        saturation = 1.3f
+                    )
+                    // 20dp blur — AGSL-based real-time backdrop blur
+                    blur(20f.dp.toPx())
+                },
+                onDrawSurface = {
+                    drawRect(Color.Black.copy(alpha = 0.45f))
+                }
+            )
+        } else {
+            Modifier
+        }
+    }
+
     // Glass sheet overlay
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.6f))
+            .background(Color.Black.copy(alpha = 0.5f))
             // Swallow stray taps so they don't leak to the SongsScreen
             // behind (which would play the song under the dimmed area)
             .clickable(
@@ -177,27 +221,34 @@ fun DuplicateSongsSheet(
                 onClick = onDismiss
             )
     ) {
-        // ─── Centered glass sheet ───
+        // ─── Centered glass sheet (smaller than before) ───
         Column(
             modifier = Modifier
                 .align(Alignment.Center)
-                .fillMaxWidth(0.92f)
-                .fillMaxSize(0.85f)
-                .clip(RoundedCornerShape(28.dp))
-                // ★ Fake glass: dark base + glossy vertical gradient overlay
-                // (Same pattern as SongsScreen capsules — no drawBackdrop
-                //  because that crashes inside scrolling composables.)
-                .background(Color.Black.copy(alpha = 0.65f))
-                .background(
-                    Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0.0f to Color.White.copy(alpha = 0.10f),  // sheen at top
-                            0.4f to Color.Transparent,
-                            1.0f to Color.White.copy(alpha = 0.04f)   // subtle bottom
-                        )
-                    )
+                .fillMaxWidth(0.88f)   // was 0.92f — smaller now
+                .fillMaxSize(0.72f)     // was 0.85f — smaller now
+                .clip(sheetShape)
+                // ★ Real glass blur via drawBackdrop (if backdrop available).
+                //   Falls back to fake glass (dark fill + glossy gradient)
+                //   if backdrop is null.
+                .then(
+                    if (backdrop != null) {
+                        glassModifier
+                    } else {
+                        Modifier
+                            .background(Color.Black.copy(alpha = 0.65f))
+                            .background(
+                                Brush.verticalGradient(
+                                    colorStops = arrayOf(
+                                        0.0f to Color.White.copy(alpha = 0.10f),
+                                        0.4f to Color.Transparent,
+                                        1.0f to Color.White.copy(alpha = 0.04f)
+                                    )
+                                )
+                            )
+                    }
                 )
-                .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(28.dp))
+                .border(1.dp, Color.White.copy(alpha = 0.18f), sheetShape)
                 // Block taps from leaking through to the backdrop
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
