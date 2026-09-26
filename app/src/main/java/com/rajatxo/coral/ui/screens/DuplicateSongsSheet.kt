@@ -44,14 +44,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.layer.GraphicsLayer
-import androidx.compose.ui.graphics.layer.drawLayer
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -125,20 +119,6 @@ import kotlinx.coroutines.launch
 @Composable
 fun DuplicateSongsSheet(
     duplicateGroups: List<DuplicateDetector.DuplicateGroup>,
-    /**
-     * The GraphicsLayer captured by HomeScreen's layerBackdrop. The sheet
-     * uses this to render a blurred snapshot of the page content behind it
-     * (real glass morphism). If null, falls back to fake glass.
-     *
-     * WHY this approach (not drawBackdrop):
-     *   Earlier sessions tried drawBackdrop inside SongsScreen / LazyColumn
-     *   items → crashes every time (GraphicsLayer gets mutated by multiple
-     *   consumers during scroll). Coral's HomeScreen header blur already
-     *   uses the safer RenderEffect + BlurEffect + drawLayer pattern on
-     *   API 31+ — we use the same approach here. It's stable, doesn't crash,
-     *   and works on every phone running Android 12 or later.
-     */
-    graphicsLayer: GraphicsLayer? = null,
     onDismiss: () -> Unit,
     onDuplicatesDeleted: () -> Unit
 ) {
@@ -185,17 +165,12 @@ fun DuplicateSongsSheet(
     }
 
     val sheetShape = RoundedCornerShape(24.dp)
-    // Use RenderEffect blur on API 31+ (Android 12+) — the same safe pattern
-    // Coral's HomeScreen header uses. Falls back to fake glass (no blur) on
-    // older devices.
-    val useRenderEffect = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
-    val hasRealBlur = graphicsLayer != null && useRenderEffect
 
     // Glass sheet overlay
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.5f))
+            .background(Color.Black.copy(alpha = 0.6f))
             // Swallow stray taps so they don't leak to the SongsScreen
             // behind (which would play the song under the dimmed area)
             .clickable(
@@ -204,57 +179,30 @@ fun DuplicateSongsSheet(
                 onClick = onDismiss
             )
     ) {
-        // ─── Centered glass sheet (smaller than before) ───
+        // ─── Centered glass sheet (small) ───
+        // Fake-glass pattern (dark fill + white border + glossy vertical
+        // gradient overlay) — same stable pattern used in SongsScreen
+        // capsules + SearchScreen. We do NOT use drawBackdrop here
+        // because it crashes inside page content / scrolling composables
+        // per earlier project notes.
         Column(
             modifier = Modifier
                 .align(Alignment.Center)
-                .fillMaxWidth(0.88f)   // was 0.92f — smaller now
-                .fillMaxSize(0.72f)     // was 0.85f — smaller now
+                .fillMaxWidth(0.88f)
+                .fillMaxSize(0.72f)
                 .clip(sheetShape)
-                // ★ Real glass blur via drawLayer + BlurEffect (API 31+).
-                //   Same pattern Coral's HomeScreen header uses — stable,
-                //   doesn't crash, doesn't mutate the shared GraphicsLayer.
-                //   Falls back to fake glass (dark fill + glossy gradient)
-                //   if graphicsLayer is null or API < 31.
-                .then(
-                    if (hasRealBlur && graphicsLayer != null) {
-                        val layer = graphicsLayer
-                        Modifier
-                            .graphicsLayer {
-                                compositingStrategy = CompositingStrategy.Offscreen
-                                clip = true
-                                // 20dp CLAMP blur — full strength at all edges
-                                renderEffect = BlurEffect(
-                                    radiusX = 20.dp.toPx(),
-                                    radiusY = 20.dp.toPx()
-                                )
-                            }
-                            .drawWithContent {
-                                // Draw the captured screen content (the page
-                                // behind the sheet) — this is what gets blurred
-                                // by the renderEffect above.
-                                drawLayer(layer)
-                                // Dark tint over the blur for readability
-                                drawRect(Color.Black.copy(alpha = 0.45f))
-                                // Then draw the sheet content on top
-                                drawContent()
-                            }
-                    } else {
-                        Modifier
-                            .background(Color.Black.copy(alpha = 0.65f))
-                            .background(
-                                Brush.verticalGradient(
-                                    colorStops = arrayOf(
-                                        0.0f to Color.White.copy(alpha = 0.10f),
-                                        0.4f to Color.Transparent,
-                                        1.0f to Color.White.copy(alpha = 0.04f)
-                                    )
-                                )
-                            )
-                    }
+                .background(Color.Black.copy(alpha = 0.75f))
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f to Color.White.copy(alpha = 0.10f),  // sheen at top
+                            0.4f to Color.Transparent,
+                            1.0f to Color.White.copy(alpha = 0.04f)   // subtle bottom
+                        )
+                    )
                 )
                 .border(1.dp, Color.White.copy(alpha = 0.18f), sheetShape)
-                // Block taps from leaking through to the backdrop
+                // Block taps from leaking through to the page behind
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
