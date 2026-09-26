@@ -1575,6 +1575,12 @@ private fun DraggableSearchFab(
                         awaitPointerEventScope {
                             while (true) {
                                 val down = awaitFirstDown()
+                                // ★ CRITICAL: consume the down event so the tap
+                                //   does NOT leak through to the song capsule
+                                //   visually behind the FAB. Without this, the
+                                //   underlying song's `clickable` also fires
+                                //   and the song starts playing.
+                                down.consume()
                                 pressStartTime = System.currentTimeMillis()
                                 isLongPressActivated = false
 
@@ -1609,6 +1615,9 @@ private fun DraggableSearchFab(
                                     val change = event.changes.firstOrNull() ?: break
 
                                     if (!change.pressed) {
+                                        // ★ Consume the up event too, so neither
+                                        //   the down nor the up leaks to siblings.
+                                        change.consume()
                                         // Finger lifted
                                         if (isLongPressActivated) {
                                             val newYFraction = (currentYpx / screenSize.height)

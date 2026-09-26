@@ -23,6 +23,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,6 +45,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -90,6 +93,46 @@ fun SearchScreen(
     // "p." prefix = playlist search. Otherwise = song search.
     val isPlaylistSearch = query.startsWith("p.", ignoreCase = true)
     val actualQuery = if (isPlaylistSearch) query.removePrefix("p.").removePrefix("P.").trim() else query.trim()
+
+    // ─── History save logic ─────────────────────────────────────────
+    //
+    // Bug fix: previously a LaunchedEffect(actualQuery) was saving every
+    //   intermediate keystroke (R → Ra → Raj → Raja → Rajat all ended up
+    //   in history).
+    //
+    // Now history is saved ONLY when:
+    //   1. User explicitly submits — taps the search icon in the field OR
+    //      presses the keyboard's IME Search action → saves the typed query.
+    //   2. User clicks a result → saves the *result's full name* instead
+    //      of the partial query. e.g. typing "Slo" and tapping "Slow Down"
+    //      saves "Slow Down" (and the artist "Chase Atlantic") to history.
+    //   3. User clicks a playlist result → saves the playlist's full name.
+    //
+    val submitSearch: () -> Unit = {
+        val trimmed = actualQuery.trim()
+        if (trimmed.isNotBlank()) {
+            SearchHistory.addSearch(trimmed, isPlaylistSearch)
+            keyboardController?.hide()
+        }
+    }
+
+    val onSongResultClick: (Song) -> Unit = { song ->
+        // Auto-complete: save the song's full title (not the partial query).
+        SearchHistory.addSearch(song.title, isPlaylist = false)
+        // Also save the artist name — if the user was searching for the
+        // artist (e.g. typed "Cha" looking for "Chase Atlantic"), the
+        // artist's full name ends up in history too.
+        if (song.artist.isNotBlank()) {
+            SearchHistory.addSearch(song.artist, isPlaylist = false)
+        }
+        onSongClick(song)
+    }
+
+    val onPlaylistResultClick: (Playlist) -> Unit = { playlist ->
+        // Auto-complete: save the playlist's full name (not "p.vib" → "Vibes").
+        SearchHistory.addSearch(playlist.name, isPlaylist = true)
+        onPlaylistClick(playlist)
+    }
 
     val songResults = remember(query, songs) {
         if (isPlaylistSearch || actualQuery.isBlank()) emptyList()
@@ -187,13 +230,25 @@ fun SearchScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        // Icon changes based on mode
-                        Icon(
-                            imageVector = if (isPlaylistSearch) CoralIcons.ListMusic else CoralIcons.Search,
-                            contentDescription = null,
-                            tint = if (isPlaylistSearch) Color(0xFFFF6B6B) else Color.White.copy(alpha = 0.4f),
-                            modifier = Modifier.size(18.dp)
-                        )
+                        // Search icon — tappable to submit the current query
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = { submitSearch() }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isPlaylistSearch) CoralIcons.ListMusic else CoralIcons.Search,
+                                contentDescription = "Search",
+                                tint = if (isPlaylistSearch) Color(0xFFFF6B6B) else Color.White.copy(alpha = 0.5f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                         Spacer(Modifier.size(10.dp))
                         Box(modifier = Modifier.weight(1f)) {
                             if (query.isEmpty()) {
@@ -214,6 +269,10 @@ fun SearchScreen(
                                 ),
                                 cursorBrush = SolidColor(Color(0xFFFF6B6B)),
                                 singleLine = true,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                keyboardActions = KeyboardActions(
+                                    onSearch = { submitSearch() }
+                                ),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .focusRequester(focusRequester)
@@ -395,11 +454,11 @@ fun SearchScreen(
 
                 // ─── Results ────────────────────────────────────────
                 hasQuery && hasResults -> {
-                    // Save to history when results are shown
-                    LaunchedEffect(actualQuery, isPlaylistSearch) {
-                        SearchHistory.addSearch(actualQuery, isPlaylistSearch)
-                    }
-
+                    // NOTE: History is NOT saved here on every keystroke.
+                    //   History is saved when:
+                    //     • User taps the search icon / presses IME Search (submitSearch)
+                    //     • User clicks a song result (saves song.title + song.artist)
+                    //     • User clicks a playlist result (saves playlist.name)
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 12.dp, end = 12.dp, bottom = 200.dp),
@@ -423,14 +482,14 @@ fun SearchScreen(
                             items(playlistResults, key = { it.id }) { playlist ->
                                 PlaylistResultCapsule(
                                     playlist = playlist,
-                                    onClick = { onPlaylistClick(playlist) }
+                                    onClick = { onPlaylistResultClick(playlist) }
                                 )
                             }
                         } else {
                             items(songResults, key = { it.id }) { song ->
                                 SearchResultCapsule(
                                     song = song,
-                                    onClick = { onSongClick(song) }
+                                    onClick = { onSongResultClick(song) }
                                 )
                             }
                         }
