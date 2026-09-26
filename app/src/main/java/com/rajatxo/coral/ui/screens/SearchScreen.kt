@@ -175,6 +175,19 @@ fun SearchScreen(
                     )
                 )
             )
+            // ★ CRITICAL: A plain `background()` modifier paints visually but
+            //   does NOT intercept touches in Compose. Without a pointer-input
+            //   modifier on this outer Box, taps that don't land on a specific
+            //   clickable child (e.g., a near-miss on the 28dp search icon)
+            //   fall through SearchScreen entirely and hit the song capsule
+            //   on the underlying page (QuickPicks/Songs) — causing the song
+            //   to start playing when the user thought they tapped the icon.
+            //   This no-op clickable swallows all such stray taps.
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {}
+            )
     ) {
         Column(
             modifier = Modifier
@@ -230,10 +243,12 @@ fun SearchScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        // Search icon — tappable to submit the current query
+                        // Search icon — tappable to submit the current query.
+                        // 44dp tap target (Material minimum) so a thumb tap
+                        // lands cleanly without leaking to the outer Box.
                         Box(
                             modifier = Modifier
-                                .size(28.dp)
+                                .size(44.dp)
                                 .clip(CircleShape)
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
