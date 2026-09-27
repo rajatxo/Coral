@@ -96,15 +96,32 @@ class SimpleCrossfadeController(
             //
             // REPEAT_MODE_ONE (loop song): load the SAME song — the
             // crossfade creates a seamless loop of the current song.
-            // Previously this always advanced to the next song, which
-            // broke loop-one mode (the song moved to the next instead
-            // of looping).
             //
-            // REPEAT_MODE_ALL / REPEAT_MODE_OFF: advance to the next
-            // song (wrapping around at the end of the queue).
+            // REPEAT_MODE_ALL / REPEAT_MODE_OFF + SHUFFLE ON: pick a
+            // RANDOM next index (excluding the current one) — this
+            // matches ExoPlayer's built-in shuffle behavior.
+            //
+            // REPEAT_MODE_ALL / REPEAT_MODE_OFF + SHUFFLE OFF: advance
+            // to the next song (wrapping around at the end of the queue).
+            //
+            // ★ BUG FIX: Previously this always used (current + 1) % count,
+            //   which ignored shuffle mode entirely. When the user enabled
+            //   shuffle + crossfade, songs played in sequential order
+            //   instead of random.
             val nextIndex = when (outgoing.repeatMode) {
                 Player.REPEAT_MODE_ONE -> outgoing.currentMediaItemIndex
-                else -> (outgoing.currentMediaItemIndex + 1) % outgoing.mediaItemCount
+                else -> {
+                    if (outgoing.shuffleModeEnabled && outgoing.mediaItemCount > 1) {
+                        // Pick a random index that's NOT the current one
+                        var randomIdx: Int
+                        do {
+                            randomIdx = (0 until outgoing.mediaItemCount).random()
+                        } while (randomIdx == outgoing.currentMediaItemIndex)
+                        randomIdx
+                    } else {
+                        (outgoing.currentMediaItemIndex + 1) % outgoing.mediaItemCount
+                    }
+                }
             }
             val mediaItems = (0 until outgoing.mediaItemCount).map {
                 outgoing.getMediaItemAt(it)
@@ -126,7 +143,13 @@ class SimpleCrossfadeController(
             // Fix: sync the standby's repeatMode BEFORE loading media.
             // This ensures both players always have the same repeat mode,
             // so the crossfade always reads the correct one.
+            //
+            // ★ Also sync shuffleModeEnabled — same reasoning. Without
+            //   this, the standby player doesn't know shuffle is on,
+            //   so after handoff the new active player's shuffle flag
+            //   is wrong, and the NEXT crossfade would ignore shuffle.
             incoming.repeatMode = outgoing.repeatMode
+            incoming.shuffleModeEnabled = outgoing.shuffleModeEnabled
 
             incoming.setMediaItems(mediaItems, nextIndex, 0)
             incoming.prepare()
