@@ -972,57 +972,10 @@ fun SpiralPlayer(
                 )
             }
 
-            Spacer(modifier = Modifier.height(2.dp))
+            // ─── Gap between artist name and lyrics strip (~24dp) ──
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // ─── Artist name (LEFT-aligned) ──
-            Box(modifier = Modifier.fillMaxWidth()) {
-                if (xfActive && xfIncomingArtist.isNotEmpty()) {
-                    val artistOutAlpha = kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
-                    val artistInAlpha = kotlin.math.sin(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
-                    Text(
-                        text = artist,
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 16.sp,
-                        fontFamily = CalSansFamily,
-                        fontWeight = FontWeight.Normal,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Start,
-                        modifier = Modifier.fillMaxWidth().graphicsLayer {
-                            alpha = artistOutAlpha
-                            renderEffect = blurRenderEffect(6f * (1f - artistOutAlpha))
-                        }
-                    )
-                    Text(
-                        text = xfIncomingArtist,
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 16.sp,
-                        fontFamily = CalSansFamily,
-                        fontWeight = FontWeight.Normal,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Start,
-                        modifier = Modifier.fillMaxWidth().graphicsLayer {
-                            alpha = artistInAlpha
-                            renderEffect = blurRenderEffect(6f * (1f - artistInAlpha))
-                        }
-                    )
-                } else {
-                    Text(
-                        text = artist,
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 16.sp,
-                        fontFamily = CalSansFamily,
-                        fontWeight = FontWeight.Normal,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Start,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-
-            // ─── Lyrics strip (same as Spiral 2.0 — 1-line synced, marquee) ──
+            // ─── Lyrics strip (1-line synced, LEFT-aligned, marquee) ──
             // Tap to open the full lyrics page.
             Crossfade(
                 targetState = lyricStripText,
@@ -1049,29 +1002,31 @@ fun SpiralPlayer(
                     ) {
                         Text(
                             text = fadedText,
-                            fontSize = 18.sp,
+                            fontSize = 15.sp,
                             fontFamily = CalSansFamily,
                             maxLines = 1,
                             style = TextStyle(shadow = Shadow(
-                                color = Color.Black.copy(alpha = 0.7f),
+                                color = Color.Black.copy(alpha = 0.6f),
                                 offset = Offset(1f, 1f),
-                                blurRadius = 4f
+                                blurRadius = 3f
                             ))
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Icon(
                             imageVector = CoralIcons.ChevronRightThick,
                             contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.7f),
-                            modifier = Modifier.size(18.dp)
+                            tint = Color.White.copy(alpha = 0.5f),
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(2.dp))
+            // ─── Gap between lyrics and seek bar (~8dp) ──
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // ─── Smooth seek bar (same as Spiral 2.0 — Box-based, trackHeight) ──
+            // ─── Seek bar (~5dp thick, rounded pill, thickens on drag) ──
+            // Same as Spiral 2.0: Box-based, trackHeight animation.
             var seekbarWidthPx by remember { mutableFloatStateOf(1f) }
             Box(
                 modifier = Modifier
@@ -1118,11 +1073,10 @@ fun SpiralPlayer(
                 )
             }
 
-            // Time labels
+            // Time labels (~0:32 / -2:33, small gray, left and right)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
                     text = formatTime((displayProgress * durationMs).toLong()),
@@ -1138,57 +1092,22 @@ fun SpiralPlayer(
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            // ─── Gap between timestamps and transport (~32dp) ──
+            Spacer(modifier = Modifier.height(32.dp))
 
-            // ─── Volume bar (speaker icons + ThinSlider) ──
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = CoralIcons.VolumeLow,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.5f),
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(Modifier.width(10.dp))
-                com.rajatxo.coral.ui.components.ThinSlider(
-                    value = volume,
-                    onValueChange = { frac ->
-                        val newVol = (frac * maxVolume).toInt().coerceIn(0, maxVolume)
-                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
-                    },
-                    idleHeight = 6.dp,
-                    activeHeight = 10.dp,
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(Modifier.width(10.dp))
-                Icon(
-                    imageVector = CoralIcons.VolumeHigh,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.5f),
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // ─── Transport: prev · play/pause · next ──
-            // Same layout as Spiral 2.0 but:
-            //   - NO glass circles on prev/next (just plain icons)
-            //   - NO white circle on play/pause (just plain icon)
+            // ─── Transport: prev · play/pause · next (PLAIN icons, no circles) ──
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Previous (plain icon, no glass)
+                // Previous
                 Icon(
                     imageVector = CoralIcons.SkipPrev,
                     contentDescription = "Previous",
                     tint = Color.White,
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(32.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = androidx.compose.material3.ripple(bounded = false)
@@ -1197,14 +1116,14 @@ fun SpiralPlayer(
                             view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                         }
                 )
-                Spacer(modifier = Modifier.width(32.dp))
-                // Play/Pause (plain icon, no circle)
+                Spacer(modifier = Modifier.width(40.dp))
+                // Play/Pause (plain icon, larger, no circle)
                 Icon(
                     imageVector = if (isPlaying) CoralIcons.PauseLucide else CoralIcons.PlayLucide,
                     contentDescription = "Play/Pause",
                     tint = Color.White,
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(44.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = androidx.compose.material3.ripple(bounded = false)
@@ -1213,14 +1132,14 @@ fun SpiralPlayer(
                             view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                         }
                 )
-                Spacer(modifier = Modifier.width(32.dp))
-                // Next (plain icon, no glass)
+                Spacer(modifier = Modifier.width(40.dp))
+                // Next
                 Icon(
                     imageVector = CoralIcons.SkipNext,
                     contentDescription = "Next",
                     tint = Color.White,
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(32.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = androidx.compose.material3.ripple(bounded = false)
@@ -1231,33 +1150,57 @@ fun SpiralPlayer(
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            // ─── Gap between transport and volume bar (~28dp) ──
+            Spacer(modifier = Modifier.height(28.dp))
 
-            // ─── Bottom row: lyrics · shuffle · loop · queue ──
+            // ─── Volume bar (speaker icons + thin slider, same thickness as seek bar) ──
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Lyrics
                 Icon(
-                    imageVector = CoralIcons.Music,
-                    contentDescription = "Lyrics",
-                    tint = if (showLyrics) Color.White else Color.White.copy(alpha = 0.5f),
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { showLyrics = true }
+                    imageVector = CoralIcons.VolumeLow,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.5f),
+                    modifier = Modifier.size(18.dp)
                 )
+                Spacer(Modifier.width(10.dp))
+                com.rajatxo.coral.ui.components.ThinSlider(
+                    value = volume,
+                    onValueChange = { frac ->
+                        val newVol = (frac * maxVolume).toInt().coerceIn(0, maxVolume)
+                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                    },
+                    idleHeight = 5.dp,
+                    activeHeight = 10.dp,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(Modifier.width(10.dp))
+                Icon(
+                    imageVector = CoralIcons.VolumeHigh,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.5f),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            // ─── Gap between volume bar and bottom row (~20dp) ──
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // ─── Bottom row: shuffle · repeat · loop · queue (evenly spaced) ──
+            // Loop/∞ has a circle highlight when active.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 // Shuffle
                 Icon(
                     imageVector = CoralIcons.Shuffle,
                     contentDescription = "Shuffle",
                     tint = if (shuffleEnabled) Color.White else Color.White.copy(alpha = 0.5f),
                     modifier = Modifier
-                        .size(24.dp)
+                        .size(22.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
@@ -1269,10 +1212,10 @@ fun SpiralPlayer(
                             view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                         }
                 )
-                // Loop
+                // Repeat (cycles OFF → ALL → ONE)
                 Box(
                     modifier = Modifier
-                        .size(24.dp)
+                        .size(22.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
@@ -1291,29 +1234,42 @@ fun SpiralPlayer(
                     contentAlignment = Alignment.Center
                 ) {
                     when (repeatMode) {
-                        Player.REPEAT_MODE_ONE -> Text("1", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                        Player.REPEAT_MODE_ALL -> Text("\u221E", color = Color.White, fontSize = 16.sp)
+                        Player.REPEAT_MODE_ONE -> Text("1", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Player.REPEAT_MODE_ALL -> Text("\u221E", color = Color.White, fontSize = 15.sp)
                         else -> Icon(
                             imageVector = CoralIcons.Repeat,
-                            contentDescription = "Loop",
+                            contentDescription = "Repeat",
                             tint = Color.White.copy(alpha = 0.5f),
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }
+                // Lyrics
+                Icon(
+                    imageVector = CoralIcons.Music,
+                    contentDescription = "Lyrics",
+                    tint = if (showLyrics) Color.White else Color.White.copy(alpha = 0.5f),
+                    modifier = Modifier
+                        .size(22.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { showLyrics = true }
+                )
                 // Queue
                 Icon(
                     imageVector = CoralIcons.Queue,
                     contentDescription = "Queue",
                     tint = Color.White.copy(alpha = 0.5f),
                     modifier = Modifier
-                        .size(24.dp)
+                        .size(22.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
                         ) { songId?.let { onAddToPlaylist(it) } }
                 )
             }
+
 
         }
 
