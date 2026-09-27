@@ -79,9 +79,12 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -106,6 +109,7 @@ import com.rajatxo.coral.util.PaletteCache
 import com.rajatxo.coral.util.extractPalette
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Immersive player — BitChord-style.
@@ -410,6 +414,83 @@ fun SpiralPlayer(
         (currentPositionMs.toFloat() / durationMs).coerceIn(0f, 1f)
     else 0f
     val displayProgress = dragFraction ?: progress
+
+    // ─── Lyrics (1-line synced preview, same as Spiral 2.0) ──
+    val lyricsRepository = remember { com.rajatxo.coral.data.lyrics.LyricsRepository(context) }
+    var lyricData by remember { mutableStateOf<com.rajatxo.coral.data.lyrics.Lyric?>(null) }
+    var isLyricsLoading by remember { mutableStateOf(false) }
+    var embeddedLyrics by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(title, artist) {
+        lyricData = null
+        embeddedLyrics = null
+        if (title.isBlank()) { isLyricsLoading = false; return@LaunchedEffect }
+        isLyricsLoading = true
+        val fetchDurationMs = durationMs
+        val cached = withContext(kotlinx.coroutines.Dispatchers.IO) {
+            lyricsRepository.getLyrics(title, artist, albumName, fetchDurationMs)
+        }
+        if (cached != null) {
+            lyricData = cached
+            isLyricsLoading = false
+            return@LaunchedEffect
+        }
+        try {
+            val fetched = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                lyricsRepository.fetchFromNetwork(title, artist, albumName, fetchDurationMs)
+            }
+            if (fetched != null) lyricData = fetched
+        } catch (_: Exception) { }
+        isLyricsLoading = false
+    }
+    val activeLineIndex = if (lyricData != null && lyricData!!.synced && lyricData!!.lines.isNotEmpty()) {
+        findActiveLineIndex(lyricData!!.lines, currentPositionMs)
+    } else -1
+    val lyricLineText = when {
+        isLyricsLoading && lyricData == null -> "Loading..."
+        lyricData != null && lyricData!!.synced && activeLineIndex >= 0 ->
+            lyricData!!.lines[activeLineIndex].text.ifBlank { "♪" }
+        lyricData != null && lyricData!!.synced && lyricData!!.lines.isNotEmpty() -> {
+            val nearestIndex = activeLineIndex.coerceAtLeast(0)
+                .coerceAtMost(lyricData!!.lines.lastIndex)
+            lyricData!!.lines[nearestIndex].text.ifBlank { "♪" }
+        }
+        lyricData != null && !lyricData!!.synced && lyricData!!.lines.isNotEmpty() -> "♪"
+        else -> "No Lyrics Available"
+    }
+    // Build word-by-word annotated string for the lyrics strip
+    val lyricStripText = if (lyricData != null && lyricData!!.synced && activeLineIndex >= 0) {
+        val activeLine = lyricData!!.lines[activeLineIndex]
+        if (activeLine.hasWordSync && activeLine.words != null) {
+            androidx.compose.ui.text.buildAnnotatedString {
+                activeLine.words.forEach { word ->
+                    val isWordActiveOrPast = currentPositionMs >= word.startTime
+                    if (isWordActiveOrPast) {
+                        withStyle(androidx.compose.ui.text.SpanStyle(
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )) { append(word.text) }
+                    } else {
+                        withStyle(androidx.compose.ui.text.SpanStyle(
+                            color = Color.White.copy(alpha = 0.35f)
+                        )) { append(word.text) }
+                    }
+                    append(" ")
+                }
+            }
+        } else {
+            androidx.compose.ui.text.buildAnnotatedString {
+                withStyle(androidx.compose.ui.text.SpanStyle(color = Color.White)) {
+                    append(lyricLineText)
+                }
+            }
+        }
+    } else {
+        androidx.compose.ui.text.buildAnnotatedString {
+            withStyle(androidx.compose.ui.text.SpanStyle(
+                color = Color.White
+            )) { append(lyricLineText) }
+        }
+    }
 
     // ─── System volume (so the volume slider reflects hardware keys) ─
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
@@ -941,41 +1022,125 @@ fun SpiralPlayer(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // ─── Seek bar (BitChord ThinSlider — no glass, thickens on drag) ──
-            com.rajatxo.coral.ui.components.ThinSlider(
-                value = displayProgress,
-                onValueChange = { frac -> dragFraction = frac },
-                onValueChangeFinished = {
-                    dragFraction?.let { frac ->
-                        if (durationMs > 0) onSeek((frac * durationMs).toLong())
+            // ─── Lyrics strip (same as Spiral 2.0 — 1-line synced, marquee) ──
+            // Tap to open the full lyrics page.
+            Crossfade(
+                targetState = lyricStripText,
+                animationSpec = tween(durationMillis = 400),
+                label = "lyricsLineFade"
+            ) { fadedText ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { showLyrics = true },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .basicMarquee(
+                                initialDelayMillis = 1_200,
+                                velocity = 40.dp
+                            ),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = fadedText,
+                            fontSize = 18.sp,
+                            fontFamily = CalSansFamily,
+                            maxLines = 1,
+                            style = TextStyle(shadow = Shadow(
+                                color = Color.Black.copy(alpha = 0.7f),
+                                offset = Offset(1f, 1f),
+                                blurRadius = 4f
+                            ))
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = CoralIcons.ChevronRightThick,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.7f),
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
-                    dragFraction = null
                 }
-            )
-            // Time labels below the slider
+            }
+
+            Spacer(modifier = Modifier.height(2.dp))
+
+            // ─── Smooth seek bar (same as Spiral 2.0 — Box-based, trackHeight) ──
+            var seekbarWidthPx by remember { mutableFloatStateOf(1f) }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(24.dp)
+                    .onSizeChanged { seekbarWidthPx = it.width.toFloat() }
+                    .pointerInput(durationMs) {
+                        detectDragGestures(
+                            onDragStart = { isDragging = true },
+                            onDragEnd = {
+                                isDragging = false
+                                dragFraction?.let { frac ->
+                                    if (durationMs > 0) onSeek((frac * durationMs).toLong())
+                                }
+                                dragFraction = null
+                            },
+                            onDragCancel = { isDragging = false; dragFraction = null },
+                            onDrag = { change, _ ->
+                                if (durationMs > 0 && seekbarWidthPx > 0) {
+                                    val frac = (change.position.x / seekbarWidthPx).coerceIn(0f, 1f)
+                                    dragFraction = frac
+                                }
+                            }
+                        )
+                    }
+            ) {
+                // Track (dim white)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(trackHeight)
+                        .clip(RoundedCornerShape(trackHeight / 2))
+                        .align(Alignment.CenterStart)
+                        .background(Color.White.copy(alpha = 0.2f))
+                )
+                // Progress (bright white)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(displayProgress)
+                        .height(trackHeight)
+                        .clip(RoundedCornerShape(trackHeight / 2))
+                        .align(Alignment.CenterStart)
+                        .background(Color.White)
+                )
+            }
+
+            // Time labels
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = formatTime((displayProgress * durationMs).toLong()),
-                    color = Color.White.copy(alpha = 0.55f),
-                    fontSize = 12.sp,
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 11.sp,
                     fontFamily = CalSansFamily
                 )
                 Text(
-                    text = "-" + formatTime(durationMs - (displayProgress * durationMs).toLong()),
-                    color = Color.White.copy(alpha = 0.55f),
-                    fontSize = 12.sp,
+                    text = "-" + formatTime(((1f - displayProgress) * durationMs).toLong()),
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 11.sp,
                     fontFamily = CalSansFamily
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // ─── Volume bar (speaker icons + ThinSlider, BitChord style) ──
+            // ─── Volume bar (speaker icons + ThinSlider) ──
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -1006,15 +1171,18 @@ fun SpiralPlayer(
                 )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // ─── Transport: prev · play/pause · next (NO glass, plain icons) ──
+            // ─── Transport: prev · play/pause · next ──
+            // Same layout as Spiral 2.0 but:
+            //   - NO glass circles on prev/next (just plain icons)
+            //   - NO white circle on play/pause (just plain icon)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Previous
+                // Previous (plain icon, no glass)
                 Icon(
                     imageVector = CoralIcons.SkipPrev,
                     contentDescription = "Previous",
@@ -1030,30 +1198,23 @@ fun SpiralPlayer(
                         }
                 )
                 Spacer(modifier = Modifier.width(32.dp))
-                // Play/Pause
-                Box(
+                // Play/Pause (plain icon, no circle)
+                Icon(
+                    imageVector = if (isPlaying) CoralIcons.PauseLucide else CoralIcons.PlayLucide,
+                    contentDescription = "Play/Pause",
+                    tint = Color.White,
                     modifier = Modifier
-                        .size(64.dp)
-                        .clip(CircleShape)
-                        .background(Color.White)
+                        .size(40.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = androidx.compose.material3.ripple(bounded = false)
                         ) {
                             onPlayPauseClick()
                             view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = if (isPlaying) CoralIcons.PauseLucide else CoralIcons.PlayLucide,
-                        contentDescription = "Play/Pause",
-                        tint = Color.Black,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
+                        }
+                )
                 Spacer(modifier = Modifier.width(32.dp))
-                // Next
+                // Next (plain icon, no glass)
                 Icon(
                     imageVector = CoralIcons.SkipNext,
                     contentDescription = "Next",
@@ -1070,7 +1231,7 @@ fun SpiralPlayer(
                 )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // ─── Bottom row: lyrics · shuffle · loop · queue ──
             Row(
@@ -1108,7 +1269,7 @@ fun SpiralPlayer(
                             view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                         }
                 )
-                // Loop (cycles OFF → ALL → ONE)
+                // Loop
                 Box(
                     modifier = Modifier
                         .size(24.dp)
@@ -1140,7 +1301,7 @@ fun SpiralPlayer(
                         )
                     }
                 }
-                // Queue (add to playlist)
+                // Queue
                 Icon(
                     imageVector = CoralIcons.Queue,
                     contentDescription = "Queue",
@@ -1153,6 +1314,7 @@ fun SpiralPlayer(
                         ) { songId?.let { onAddToPlaylist(it) } }
                 )
             }
+
         }
 
 
@@ -1174,6 +1336,26 @@ fun SpiralPlayer(
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────
+
+/** Find the index of the lyric line that should currently be active. */
+private fun findActiveLineIndex(lines: List<com.rajatxo.coral.data.lyrics.LyricLine>, positionMs: Long): Int {
+    if (lines.isEmpty()) return -1
+    var lo = 0
+    var hi = lines.lastIndex
+    var result = -1
+    while (lo <= hi) {
+        val mid = (lo + hi) / 2
+        if (lines[mid].timeMs in 0..positionMs) {
+            result = mid
+            lo = mid + 1
+        } else if (lines[mid].timeMs > positionMs) {
+            hi = mid - 1
+        } else {
+            lo = mid + 1
+        }
+    }
+    return result
+}
 
 /** m:ss formatter — used for both elapsed and remaining times. */
 private fun formatTime(ms: Long): String {
