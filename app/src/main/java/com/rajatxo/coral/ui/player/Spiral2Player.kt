@@ -495,7 +495,18 @@ fun Spiral2Player(
     // player auto-pauses. This is exactly the "song randomly stops" bug.
     // Embedded lyrics are still picked up when the user opens the lyrics
     // sheet (passive interaction, no playback interference).
-    LaunchedEffect(title, artist, durationMs) {
+    //
+    // ★ BUG FIX: Previously this LaunchedEffect keyed on (title, artist,
+    //   durationMs). The problem: durationMs starts at 0L, then updates
+    //   to the real value when MediaController connects. That update
+    //   re-triggered this effect, which reset lyricData = null and re-
+    //   fetched. If the second fetch failed (or returned a different
+    //   result), the strip would lose its lyrics even though the lyrics
+    //   page still had them (the sheet caches independently).
+    //   Fix: key on (title, artist) ONLY. durationMs is captured at fetch
+    //   time via a separate remember — the fetch uses whatever durationMs
+    //   is when it actually runs.
+    LaunchedEffect(title, artist) {
         // Hard reset for every song change — no stale lyrics from the
         // previous track can leak through. If nothing is found, the strip
         // shows "No Lyrics Available" (empty), which is what we want.
@@ -508,6 +519,12 @@ fun Spiral2Player(
         // Mark loading as soon as we start looking. The strip shows
         // "Loading..." while this is true.
         isLyricsLoading = true
+
+        // Capture the current durationMs at fetch time. If it's still 0
+        // (MediaController hasn't connected yet), we still try the fetch —
+        // the smart-scoring algorithm handles durationMs = 0 by skipping
+        // the duration bonus.
+        val fetchDurationMs = durationMs
 
         // 1. Try IMPORTED lyrics first (user pasted or .lrc-imported).
         //    These are the highest priority — the user explicitly chose
@@ -537,7 +554,7 @@ fun Spiral2Player(
 
         // 2. Try network-fetched cache (instant, fully offline, no file handles)
         val cached = withContext(kotlinx.coroutines.Dispatchers.IO) {
-            lyricsRepository.getLyrics(title, artist, albumName, durationMs)
+            lyricsRepository.getLyrics(title, artist, albumName, fetchDurationMs)
         }
         if (cached != null) {
             lyricData = cached
@@ -564,7 +581,7 @@ fun Spiral2Player(
         //    instant and works offline — no re-fetch needed.
         try {
             val fetched = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                lyricsRepository.fetchFromNetwork(title, artist, albumName, durationMs)
+                lyricsRepository.fetchFromNetwork(title, artist, albumName, fetchDurationMs)
             }
             if (fetched != null) {
                 lyricData = fetched

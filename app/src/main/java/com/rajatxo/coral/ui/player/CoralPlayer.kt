@@ -777,7 +777,11 @@ fun CoralPlayer(
                 // Lyrics preview (3-line synced) ────────────────────────
                 val lyricsRepository = remember { com.rajatxo.coral.data.lyrics.LyricsRepository(context) }
                 var lyricData by remember { mutableStateOf<com.rajatxo.coral.data.lyrics.Lyric?>(null) }
-                androidx.compose.runtime.LaunchedEffect(title, artist, durationMs) {
+                // ★ Key on (title, artist) ONLY — not durationMs.
+                //   durationMs starts at 0L then updates when MediaController
+                //   connects. If we key on it, the effect re-runs and resets
+                //   lyricData, causing the strip to lose lyrics.
+                androidx.compose.runtime.LaunchedEffect(title, artist) {
                     try {
                         lyricData = lyricsRepository.getLyrics(
                             track = title, artist = artist, album = albumName, durationMs = durationMs
