@@ -39,6 +39,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
@@ -1147,9 +1148,15 @@ fun SpiralPlayer(
                         .background(Color.White.copy(alpha = 0.2f))
                 )
                 // Progress (bright white)
+                // ★ Ensure the progress Box has a minimum width equal to
+                //   trackHeight so the left rounded corner always shows —
+                //   even at 0-1% progress (start of song). Without this,
+                //   the fill is too narrow for the corner radius to render,
+                //   making the left edge look like a sharp 90° angle.
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(displayProgress)
+                        .widthIn(min = trackHeight)
+                        .fillMaxWidth(displayProgress.coerceAtLeast(0f))
                         .height(trackHeight)
                         .clip(RoundedCornerShape(trackHeight / 2))
                         .align(Alignment.CenterStart)
@@ -1237,7 +1244,9 @@ fun SpiralPlayer(
             // ─── Gap between transport and volume bar (~28dp) ──
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ─── Volume bar (speaker icons + thin slider, same thickness as seek bar) ──
+            // ─── Volume bar (speaker icons + Box-based slider, same as timeline) ──
+            // ★ Uses the SAME Box-based approach as the seek bar (not ThinSlider)
+            //   for buttery smooth dragging. trackHeight animation thickens on drag.
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -1249,16 +1258,54 @@ fun SpiralPlayer(
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(Modifier.width(10.dp))
-                com.rajatxo.coral.ui.components.ThinSlider(
-                    value = volume,
-                    onValueChange = { frac ->
-                        val newVol = (frac * maxVolume).toInt().coerceIn(0, maxVolume)
-                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
-                    },
-                    idleHeight = 6.dp,
-                    activeHeight = 10.dp,
-                    modifier = Modifier.weight(1f)
+                // Box-based volume slider (same pattern as seek bar)
+                var volumeDragging by remember { mutableStateOf(false) }
+                val volTrackHeight by animateDpAsState(
+                    targetValue = if (volumeDragging) 10.dp else 6.dp,
+                    animationSpec = tween(200),
+                    label = "volTrackHeight"
                 )
+                var volBarWidthPx by remember { mutableFloatStateOf(1f) }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(24.dp)
+                        .onSizeChanged { volBarWidthPx = it.width.toFloat() }
+                        .pointerInput(Unit) {
+                            detectDragGestures(
+                                onDragStart = { volumeDragging = true },
+                                onDragEnd = { volumeDragging = false },
+                                onDragCancel = { volumeDragging = false },
+                                onDrag = { change, _ ->
+                                    if (volBarWidthPx > 0) {
+                                        val frac = (change.position.x / volBarWidthPx).coerceIn(0f, 1f)
+                                        val newVol = (frac * maxVolume).toInt().coerceIn(0, maxVolume)
+                                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                                    }
+                                }
+                            )
+                        }
+                ) {
+                    // Track (dim white)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(volTrackHeight)
+                            .clip(RoundedCornerShape(volTrackHeight / 2))
+                            .align(Alignment.CenterStart)
+                            .background(Color.White.copy(alpha = 0.2f))
+                    )
+                    // Progress (bright white)
+                    Box(
+                        modifier = Modifier
+                            .widthIn(min = volTrackHeight)
+                            .fillMaxWidth(volume.coerceIn(0f, 1f))
+                            .height(volTrackHeight)
+                            .clip(RoundedCornerShape(volTrackHeight / 2))
+                            .align(Alignment.CenterStart)
+                            .background(Color.White)
+                    )
+                }
                 Spacer(Modifier.width(10.dp))
                 Icon(
                     imageVector = CoralIcons.VolumeHigh,
