@@ -1177,7 +1177,7 @@ fun SpiralPlayer(
             }
 
             // ─── Gap between timestamps and transport (~32dp) ──
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(15.dp))
 
             // ─── Transport: prev · play/pause · next (PLAIN icons, no circles) ──
             Row(
@@ -1191,7 +1191,7 @@ fun SpiralPlayer(
                     contentDescription = "Previous",
                     tint = Color.White,
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(44.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = androidx.compose.material3.ripple(bounded = false)
@@ -1200,7 +1200,7 @@ fun SpiralPlayer(
                             view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                         }
                 )
-                Spacer(modifier = Modifier.width(40.dp))
+                Spacer(modifier = Modifier.width(35.dp))
                 // Play/Pause (plain icon, larger, no circle)
                 Icon(
                     imageVector = if (isPlaying) CoralIcons.PauseLucide else CoralIcons.PlayLucide,
@@ -1216,14 +1216,14 @@ fun SpiralPlayer(
                             view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                         }
                 )
-                Spacer(modifier = Modifier.width(40.dp))
+                Spacer(modifier = Modifier.width(35.dp))
                 // Next
                 Icon(
                     imageVector = CoralIcons.SkipNext,
                     contentDescription = "Next",
                     tint = Color.White,
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(44.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = androidx.compose.material3.ripple(bounded = false)
