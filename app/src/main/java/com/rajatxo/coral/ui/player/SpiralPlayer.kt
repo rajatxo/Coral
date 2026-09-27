@@ -405,7 +405,7 @@ fun SpiralPlayer(
     // ─── Seek bar state (buttery smooth, no thumb, thickens on drag) ──
     var isDragging by remember { mutableStateOf(false) }
     val trackHeight by animateDpAsState(
-        targetValue = if (isDragging) 10.dp else 5.dp,  // idle 5dp = same as volume bar's idleHeight
+        targetValue = if (isDragging) 10.dp else 7.dp,  // idle 5dp = same as volume bar's idleHeight
         animationSpec = tween(200),
         label = "trackHeight"
     )
@@ -971,6 +971,7 @@ fun SpiralPlayer(
                         ) { toggleMenu() }
                 )
             }
+            Spacer(modifier = Modifier.height(3.dp))
 
             // ─── Artist name (LEFT-aligned, same as Spiral 2.0) ──
             Box(modifier = Modifier.fillMaxWidth()) {
@@ -979,8 +980,8 @@ fun SpiralPlayer(
                     val artistInAlpha = kotlin.math.sin(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
                     Text(
                         text = artist,
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 16.sp,
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontSize = 17.sp,
                         fontFamily = CalSansFamily,
                         fontWeight = FontWeight.Normal,
                         maxLines = 1,
@@ -994,8 +995,8 @@ fun SpiralPlayer(
                     )
                     Text(
                         text = xfIncomingArtist,
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 16.sp,
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontSize = 17.sp,
                         fontFamily = CalSansFamily,
                         fontWeight = FontWeight.Normal,
                         maxLines = 1,
@@ -1010,8 +1011,8 @@ fun SpiralPlayer(
                 } else {
                     Text(
                         text = artist,
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 16.sp,
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontSize = 17.sp,
                         fontFamily = CalSansFamily,
                         fontWeight = FontWeight.Normal,
                         maxLines = 1,
@@ -1024,7 +1025,7 @@ fun SpiralPlayer(
             }
 
             // ─── Gap between artist name and lyrics strip (~16dp) ──
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(17.dp))
 
             // ─── Lyrics strip (1-line synced, LEFT-aligned, marquee) ──
             // Tap to open the full lyrics page.
@@ -1053,7 +1054,7 @@ fun SpiralPlayer(
                     ) {
                         Text(
                             text = fadedText,
-                            fontSize = 18.sp,
+                            fontSize = 19.sp,
                             fontFamily = CalSansFamily,
                             maxLines = 1,
                             style = TextStyle(shadow = textShadow)
@@ -1070,7 +1071,7 @@ fun SpiralPlayer(
             }
 
             // ─── Gap between lyrics and seek bar (~8dp) ──
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(5.dp))
 
             // ─── Seek bar (~5dp thick, rounded pill, thickens on drag) ──
             // Same as Spiral 2.0: Box-based, trackHeight animation.
@@ -1218,7 +1219,7 @@ fun SpiralPlayer(
                         val newVol = (frac * maxVolume).toInt().coerceIn(0, maxVolume)
                         audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
                     },
-                    idleHeight = 5.dp,
+                    idleHeight = 7.dp,
                     activeHeight = 10.dp,
                     modifier = Modifier.weight(1f)
                 )
