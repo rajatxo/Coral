@@ -280,18 +280,18 @@ class LyricsRepository(private val context: Context) {
             return@withContext lrcLibResult
         }
 
-        // 2. NetEase Cloud Music — large Chinese lyrics database
-        val netEaseResult = fetchFromNetEase(track, artist, durationMs)
-        if (netEaseResult != null) {
-            cacheLyrics(track, artist, netEaseResult)
-            return@withContext netEaseResult
-        }
-
-        // 3. KuGou — another large lyrics database
+        // 2. KuGou — large lyrics database, good synced LRC coverage
         val kuGouResult = fetchFromKuGou(track, artist, durationMs)
         if (kuGouResult != null) {
             cacheLyrics(track, artist, kuGouResult)
             return@withContext kuGouResult
+        }
+
+        // 3. NetEase Cloud Music — large Chinese lyrics database (last resort)
+        val netEaseResult = fetchFromNetEase(track, artist, durationMs)
+        if (netEaseResult != null) {
+            cacheLyrics(track, artist, netEaseResult)
+            return@withContext netEaseResult
         }
 
         null
