@@ -889,6 +889,29 @@ fun SpiralPlayer(
             )
         }
 
+        // ★ Bottom gradient overlay — BEHIND the controls (rendered before
+        //   the content column). Dark black at the very bottom, fading to
+        //   transparent at the top. Only covers the bottom portion.
+        //   Transparent at the song title position so the album cover + colors
+        //   show through. Gets darker toward the bottom for readability.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .height(400.dp)
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f to Color.Transparent,
+                            0.3f to Color(0xFF05050A).copy(alpha = 0.3f),
+                            0.6f to Color(0xFF05050A).copy(alpha = 0.7f),
+                            0.85f to Color(0xFF05050A).copy(alpha = 0.95f),
+                            1.0f to Color(0xFF05050A)
+                        )
+                    )
+                )
+        )
+
         // (5) Content column — Apple Music / BitChord style controls
         //     LEFT-aligned title + artist (with 3-dot menu on RIGHT)
         //     ThinSlider seek bar (no glass, thickens on drag)
@@ -1154,7 +1177,7 @@ fun SpiralPlayer(
             }
 
             // ─── Gap between timestamps and transport (~32dp) ──
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             // ─── Transport: prev · play/pause · next (PLAIN icons, no circles) ──
             Row(
@@ -1212,7 +1235,7 @@ fun SpiralPlayer(
             }
 
             // ─── Gap between transport and volume bar (~28dp) ──
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // ─── Volume bar (speaker icons + thin slider, same thickness as seek bar) ──
             Row(
@@ -1246,7 +1269,7 @@ fun SpiralPlayer(
             }
 
             // ─── Gap between volume bar and bottom row (~20dp) ──
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // ─── Bottom row: shuffle · repeat · loop · queue (evenly spaced) ──
             // Loop/∞ has a circle highlight when active.
@@ -1333,30 +1356,6 @@ fun SpiralPlayer(
 
 
         }
-
-        // ★ Bottom gradient overlay — dark black at the very bottom, fading
-        //   to transparent at the top. Only covers the bottom ~40% of the
-        //   screen. Transparent at the song title position (so the album
-        //   cover + colors show through). Gets darker toward the bottom
-        //   for readability of controls.
-        //   Does NOT touch the top — the top stays as-is (album cover visible).
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .height(400.dp)
-                .background(
-                    Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0.0f to Color.Transparent,          // top of gradient — fully transparent (song title area)
-                            0.3f to Color(0xFF05050A).copy(alpha = 0.3f),   // slight darkening
-                            0.6f to Color(0xFF05050A).copy(alpha = 0.7f),   // mostly dark
-                            0.85f to Color(0xFF05050A).copy(alpha = 0.95f), // near solid
-                            1.0f to Color(0xFF05050A)                       // solid black at the very bottom
-                        )
-                    )
-                )
-        )
 
 
         if (showLyrics) {

@@ -309,41 +309,44 @@ object CoralIcons {
     }
 
     /** Skip to next — triangle + bar. */
+    /** Lucide fast-forward (filled) — double right-pointing triangle. */
     val SkipNext: ImageVector = filled("SkipNext") {
-        // Heroicons forward (filled) — double right-pointing triangle
-        // M5.055 7.06C3.805 6.347 2.25 7.25 2.25 8.69v8.122c0 1.44 1.555 2.343 2.805 1.628L12 14.471v2.34c0 1.44 1.555 2.343 2.805 1.628l7.108-4.061c1.26-.72 1.26-2.536 0-3.256l-7.108-4.061C13.555 6.346 12 7.249 12 8.689v2.34L5.055 7.061Z
-        moveTo(5.055f, 7.06f)
-        arcToRelative(2.805f, 2.805f, 0f, false, false, -2.805f, 1.63f)
-        verticalLineToRelative(8.122f)
-        arcToRelative(2.805f, 2.805f, 0f, false, false, 2.805f, 1.628f)
-        lineToRelative(6.945f, -3.969f)
-        verticalLineToRelative(2.34f)
-        arcToRelative(2.805f, 2.805f, 0f, false, false, 2.805f, 1.628f)
-        lineToRelative(7.108f, -4.061f)
-        arcToRelative(1.628f, 1.628f, 0f, false, false, 0f, -3.256f)
-        lineToRelative(-7.108f, -4.061f)
-        arcToRelative(2.805f, 2.805f, 0f, false, false, -2.805f, 1.628f)
-        verticalLineToRelative(2.34f)
-        lineToRelative(-6.945f, -3.968f)
+        moveTo(12f, 6f)
+        arcToRelative(2f, 2f, 0f, false, true, 3.414f, -1.414f)
+        lineToRelative(6f, 6f)
+        arcToRelative(2f, 2f, 0f, false, true, 0f, 2.828f)
+        lineToRelative(-6f, 6f)
+        arcTo(2f, 2f, 0f, false, true, 12f, 18f)
+        close()
+        moveTo(2f, 6f)
+        arcTo(2f, 2f, 0f, false, true, 3.414f, -1.414f)
+        lineToRelative(6f, 6f)
+        arcToRelative(2f, 2f, 0f, false, true, 0f, 2.828f)
+        lineToRelative(-6f, 6f)
+        arcTo(2f, 2f, 0f, false, true, 2f, 18f)
         close()
     }
 
     /** Heroicons backward (filled) — double left-pointing triangle. */
+    /** Lucide rewind (filled) — double left-pointing triangle. */
     val SkipPrev: ImageVector = filled("SkipPrev") {
-        // M9.195 18.44c1.25.714 2.805-.189 2.805-1.629v-2.34l6.945 3.968c1.25.715 2.805-.188 2.805-1.628V8.69c0-1.44-1.555-2.343-2.805-1.628L12 11.029v-2.34c0-1.44-1.555-2.343-2.805-1.628l-7.108 4.061c-1.26.72-1.26 2.536 0 3.256l7.108 4.061Z
-        moveTo(9.195f, 18.44f)
-        arcToRelative(2.805f, 2.805f, 0f, false, false, 2.805f, -1.629f)
-        verticalLineToRelative(-2.34f)
-        lineToRelative(6.945f, 3.968f)
-        arcToRelative(2.805f, 2.805f, 0f, false, false, 2.805f, -1.628f)
-        verticalLineToRelative(-8.122f)
-        arcToRelative(2.805f, 2.805f, 0f, false, false, -2.805f, -1.628f)
-        lineTo(12f, 11.029f)
-        verticalLineToRelative(-2.34f)
-        arcToRelative(2.805f, 2.805f, 0f, false, false, -2.805f, -1.628f)
-        lineToRelative(-7.108f, 4.061f)
-        arcToRelative(1.628f, 1.628f, 0f, false, false, 0f, 3.256f)
-        lineToRelative(7.108f, 4.061f)
+        moveTo(12f, 6f)
+        arcTo(2f, 2f, 0f, false, false, 3.414f, -1.414f)
+        lineToRelative(-6f, 6f)
+        arcTo(2f, 2f, 0f, false, false, 0f, 2.828f)
+        lineTo(6f, 6f)
+        arcTo(2f, 2f, 0f, false, false, 3.414f, 7.414f)
+        lineTo(-6f, -6f)
+        arcTo(2f, 2f, 0f, false, false, 0f, -2.828f)
+        lineToRelative(6f, -6f)
+        arcTo(2f, 2f, 0f, false, false, 3.414f, -7.414f)
+        close()
+        moveTo(22f, 6f)
+        arcTo(2f, 2f, 0f, false, false, 25.414f, -1.414f)
+        lineToRelative(-6f, 6f)
+        arcTo(2f, 2f, 0f, false, false, 0f, 2.828f)
+        lineTo(6f, 6f)
+        arcTo(2f, 2f, 0f, false, false, -3.414f, -7.414f)
         close()
     }
 
@@ -563,42 +566,39 @@ object CoralIcons {
     }
 
     /** Lucide play — filled triangle (MIT licensed). */
+    /** Lucide play (filled) — solid triangle. */
     val PlayLucide: ImageVector = filled("PlayLucide") {
-        // Heroicons play (filled) — solid triangle with rounded corners
-        // M4.5 5.653c0-1.427 1.529-2.33 2.779-1.643l11.54 6.347c1.295.712 1.295 2.573 0 3.286L7.28 19.99c-1.25.687-2.779-.217-2.779-1.643V5.653Z
-        moveTo(4.5f, 5.653f)
-        arcToRelative(2.779f, 2.779f, 0f, false, true, 2.779f, -1.643f)
-        lineToRelative(11.54f, 6.347f)
-        arcToRelative(1.643f, 1.643f, 0f, false, true, 0f, 3.286f)
-        lineToRelative(-11.54f, 6.347f)
-        arcToRelative(2.779f, 2.779f, 0f, false, true, -2.779f, -1.643f)
-        verticalLineToRelative(-12.694f)
+        moveTo(5f, 5f)
+        arcTo(2f, 2f, 0f, false, true, 8.008f, 3.272f)
+        lineToRelative(11.997f, 6.998f)
+        arcTo(2f, 2f, 0f, false, true, 20.008f, 13.728f)
+        lineToRelative(-12f, 7f)
+        arcTo(2f, 2f, 0f, false, true, 5f, 19f)
         close()
     }
 
     /** Heroicons pause (filled) — two vertical bars with rounded corners. */
+    /** Lucide pause (filled) — two rounded rectangles. */
     val PauseLucide: ImageVector = filled("PauseLucide") {
-        // Left bar: M6.75 5.25a.75.75 0 0 1 .75-.75H9a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75H7.5a.75.75 0 0 1-.75-.75V5.25Z
-        moveTo(6.75f, 5.25f)
-        arcToRelative(0.75f, 0.75f, 0f, false, true, 0.75f, -0.75f)
-        horizontalLineToRelative(1.5f)
-        arcToRelative(0.75f, 0.75f, 0f, false, true, 0.75f, 0.75f)
-        verticalLineToRelative(13.5f)
-        arcToRelative(0.75f, 0.75f, 0f, false, true, -0.75f, 0.75f)
-        horizontalLineToRelative(-1.5f)
-        arcToRelative(0.75f, 0.75f, 0f, false, true, -0.75f, -0.75f)
-        verticalLineToRelative(-13.5f)
+        // Right bar: rect x=14 y=3 w=5 h=18 rx=1
+        moveTo(15f, 3f)
+        arcTo(1f, 1f, 0f, false, false, 14f, 4f)
+        verticalLineTo(20f)
+        arcTo(1f, 1f, 0f, false, false, 15f, 21f)
+        horizontalLineTo(18f)
+        arcTo(1f, 1f, 0f, false, false, 19f, 20f)
+        verticalLineTo(4f)
+        arcTo(1f, 1f, 0f, false, false, 18f, 3f)
         close()
-        // Right bar: M14.25 5.25a.75.75 0 0 1 .75-.75H16.5a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75H15a.75.75 0 0 1-.75-.75V5.25Z
-        moveTo(14.25f, 5.25f)
-        arcToRelative(0.75f, 0.75f, 0f, false, true, 0.75f, -0.75f)
-        horizontalLineToRelative(1.5f)
-        arcToRelative(0.75f, 0.75f, 0f, false, true, 0.75f, 0.75f)
-        verticalLineToRelative(13.5f)
-        arcToRelative(0.75f, 0.75f, 0f, false, true, -0.75f, 0.75f)
-        horizontalLineToRelative(-1.5f)
-        arcToRelative(0.75f, 0.75f, 0f, false, true, -0.75f, -0.75f)
-        verticalLineToRelative(-13.5f)
+        // Left bar: rect x=5 y=3 w=5 h=18 rx=1
+        moveTo(6f, 3f)
+        arcTo(1f, 1f, 0f, false, false, 5f, 4f)
+        verticalLineTo(20f)
+        arcTo(1f, 1f, 0f, false, false, 6f, 21f)
+        horizontalLineTo(9f)
+        arcTo(1f, 1f, 0f, false, false, 10f, 20f)
+        verticalLineTo(4f)
+        arcTo(1f, 1f, 0f, false, false, 9f, 3f)
         close()
     }
 
