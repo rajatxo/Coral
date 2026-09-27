@@ -405,7 +405,7 @@ fun SpiralPlayer(
     // ─── Seek bar state (buttery smooth, no thumb, thickens on drag) ──
     var isDragging by remember { mutableStateOf(false) }
     val trackHeight by animateDpAsState(
-        targetValue = if (isDragging) 10.dp else 4.dp,
+        targetValue = if (isDragging) 10.dp else 5.dp,  // idle 5dp = same as volume bar's idleHeight
         animationSpec = tween(200),
         label = "trackHeight"
     )
@@ -972,8 +972,59 @@ fun SpiralPlayer(
                 )
             }
 
-            // ─── Gap between artist name and lyrics strip (~24dp) ──
-            Spacer(modifier = Modifier.height(24.dp))
+            // ─── Artist name (LEFT-aligned, same as Spiral 2.0) ──
+            Box(modifier = Modifier.fillMaxWidth()) {
+                if (xfActive && xfIncomingArtist.isNotEmpty()) {
+                    val artistOutAlpha = kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
+                    val artistInAlpha = kotlin.math.sin(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
+                    Text(
+                        text = artist,
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 16.sp,
+                        fontFamily = CalSansFamily,
+                        fontWeight = FontWeight.Normal,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Start,
+                        style = TextStyle(shadow = textShadow),
+                        modifier = Modifier.fillMaxWidth().graphicsLayer {
+                            alpha = artistOutAlpha
+                            renderEffect = blurRenderEffect(6f * (1f - artistOutAlpha))
+                        }
+                    )
+                    Text(
+                        text = xfIncomingArtist,
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 16.sp,
+                        fontFamily = CalSansFamily,
+                        fontWeight = FontWeight.Normal,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Start,
+                        style = TextStyle(shadow = textShadow),
+                        modifier = Modifier.fillMaxWidth().graphicsLayer {
+                            alpha = artistInAlpha
+                            renderEffect = blurRenderEffect(6f * (1f - artistInAlpha))
+                        }
+                    )
+                } else {
+                    Text(
+                        text = artist,
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 16.sp,
+                        fontFamily = CalSansFamily,
+                        fontWeight = FontWeight.Normal,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Start,
+                        style = TextStyle(shadow = textShadow),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            // ─── Gap between artist name and lyrics strip (~16dp) ──
+            Spacer(modifier = Modifier.height(16.dp))
 
             // ─── Lyrics strip (1-line synced, LEFT-aligned, marquee) ──
             // Tap to open the full lyrics page.
@@ -1002,14 +1053,10 @@ fun SpiralPlayer(
                     ) {
                         Text(
                             text = fadedText,
-                            fontSize = 15.sp,
+                            fontSize = 18.sp,
                             fontFamily = CalSansFamily,
                             maxLines = 1,
-                            style = TextStyle(shadow = Shadow(
-                                color = Color.Black.copy(alpha = 0.6f),
-                                offset = Offset(1f, 1f),
-                                blurRadius = 3f
-                            ))
+                            style = TextStyle(shadow = textShadow)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Icon(
