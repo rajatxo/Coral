@@ -405,7 +405,7 @@ fun SpiralPlayer(
     // ─── Seek bar state (buttery smooth, no thumb, thickens on drag) ──
     var isDragging by remember { mutableStateOf(false) }
     val trackHeight by animateDpAsState(
-        targetValue = if (isDragging) 10.dp else 7.dp,  // idle 5dp = same as volume bar's idleHeight
+        targetValue = if (isDragging) 10.dp else 6.dp,  // idle 6dp = same as volume bar
         animationSpec = tween(200),
         label = "trackHeight"
     )
@@ -1028,44 +1028,57 @@ fun SpiralPlayer(
             Spacer(modifier = Modifier.height(17.dp))
 
             // ─── Lyrics strip (1-line synced, LEFT-aligned, marquee) ──
-            // Tap to open the full lyrics page.
-            Crossfade(
-                targetState = lyricStripText,
-                animationSpec = tween(durationMillis = 400),
-                label = "lyricsLineFade"
-            ) { fadedText ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { showLyrics = true },
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+            // ★ FIXED HEIGHT — the Crossfade is wrapped in a Box with a
+            //   fixed height (28dp = 19sp text line height) so that when
+            //   the text changes from "Loading..." to actual lyrics (which
+            //   may have different glyph heights for Japanese/Russian
+            //   characters), the controls below DON'T shift up or down.
+            //   Everything stays in its exact position.
+            //   Tap to open the full lyrics page.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(28.dp)  // fixed height = 19sp text + padding
+            ) {
+                Crossfade(
+                    targetState = lyricStripText,
+                    animationSpec = tween(durationMillis = 400),
+                    label = "lyricsLineFade",
+                    modifier = Modifier.fillMaxSize()
+                ) { fadedText ->
                     Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .basicMarquee(
-                                initialDelayMillis = 1_200,
-                                velocity = 40.dp
-                            ),
+                            .fillMaxSize()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { showLyrics = true },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = fadedText,
-                            fontSize = 19.sp,
-                            fontFamily = CalSansFamily,
-                            maxLines = 1,
-                            style = TextStyle(shadow = textShadow)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(
-                            imageVector = CoralIcons.ChevronRightThick,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.5f),
-                            modifier = Modifier.size(16.dp)
-                        )
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .basicMarquee(
+                                    initialDelayMillis = 1_200,
+                                    velocity = 40.dp
+                                ),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = fadedText,
+                                fontSize = 19.sp,
+                                fontFamily = CalSansFamily,
+                                maxLines = 1,
+                                style = TextStyle(shadow = textShadow)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = CoralIcons.ChevronRightThick,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.5f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -1219,7 +1232,7 @@ fun SpiralPlayer(
                         val newVol = (frac * maxVolume).toInt().coerceIn(0, maxVolume)
                         audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
                     },
-                    idleHeight = 7.dp,
+                    idleHeight = 6.dp,
                     activeHeight = 10.dp,
                     modifier = Modifier.weight(1f)
                 )
