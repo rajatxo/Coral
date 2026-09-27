@@ -875,6 +875,9 @@ fun HomeScreen(
                     onDismiss = onFullPlayerDismiss,
                     onAddToPlaylist = { songId ->
                         songToAddToPlaylist = songId
+                    },
+                    onSongDelete = { songId ->
+                        songToDelete = songId
                     }
                 )
             } else if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.SPIRAL_2) {

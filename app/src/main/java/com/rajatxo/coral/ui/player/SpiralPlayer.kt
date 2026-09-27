@@ -50,6 +50,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -86,6 +87,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rajatxo.coral.audio.CrossfadeVisualState
+import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import coil3.compose.AsyncImage
 import com.kyant.backdrop.backdrops.layerBackdrop
@@ -137,7 +139,8 @@ fun SpiralPlayer(
     onPrevClick: () -> Unit,
     onSeek: (Long) -> Unit,
     onDismiss: () -> Unit,
-    onAddToPlaylist: (Long) -> Unit = {}
+    onAddToPlaylist: (Long) -> Unit = {},
+    onSongDelete: (Long) -> Unit = {}
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -367,6 +370,30 @@ fun SpiralPlayer(
     var showLyrics by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
     var showHeartPop by remember { mutableStateOf(false) }
+    // ★ Menu icon rotation animation (rotates 90° when menu opens)
+    val menuRotation = remember { androidx.compose.animation.core.Animatable(0f) }
+    val menuCoroutineScope = rememberCoroutineScope()
+    fun toggleMenu() {
+        menuCoroutineScope.launch {
+            if (showMoreMenu) {
+                showMoreMenu = false
+                menuRotation.animateTo(0f)
+            } else {
+                showMoreMenu = true
+                menuRotation.animateTo(90f)
+            }
+        }
+    }
+
+    // ★ Shuffle + Repeat state (synced from MediaController)
+    var shuffleEnabled by remember { mutableStateOf(false) }
+    var repeatMode by remember { mutableIntStateOf(Player.REPEAT_MODE_OFF) }
+    LaunchedEffect(mediaController) {
+        mediaController?.let { controller ->
+            controller.shuffleModeEnabled.let { shuffleEnabled = it }
+            controller.repeatMode.let { repeatMode = it }
+        }
+    }
     LaunchedEffect(showHeartPop) {
         if (showHeartPop) { delay(800); showHeartPop = false }
     }
@@ -781,11 +808,12 @@ fun SpiralPlayer(
             )
         }
 
-        // (5) Content column — centered below the 3-dot indicator
-        //     Song name sits just below the dots, then artist, then the
-        //     Timeline capsule (animated progress bar), then Lyrics capsule,
-        //     then the triple-circle control pod.
-        var timelinePillWidthPx by remember { mutableFloatStateOf(1f) }
+        // (5) Content column — Apple Music / BitChord style controls
+        //     LEFT-aligned title + artist (with 3-dot menu on RIGHT)
+        //     ThinSlider seek bar (no glass, thickens on drag)
+        //     Volume bar (speaker icons + ThinSlider)
+        //     Transport: prev · play/pause · next (no glass)
+        //     Bottom row: lyrics · shuffle · loop · queue
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -793,64 +821,79 @@ fun SpiralPlayer(
                 .offset(y = center + 18.dp)
                 .padding(horizontal = 28.dp)
         ) {
-            // Song title — ultra-smooth blend transition
-            // Both texts overlap at the SAME position (no offset). The old text
-            // fades out with a gentle blur while the new text fades in from a
-            // gentle blur. The alphas use an equal-power curve (cos²/sin²) so
-            // the total opacity stays constant — they DISSOLVE into each other
-            // rather than both being half-visible (which looks cluttered).
-            // Synced with cover blend (xfProgress).
-            Box(modifier = Modifier.fillMaxWidth()) {
-                if (xfActive && xfIncomingTitle.isNotEmpty()) {
-                    val titleOutAlpha = kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
-                    val titleInAlpha = kotlin.math.sin(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
-                    Text(
-                        text = title,
-                        color = Color.White,
-                        fontSize = 24.sp,
-                        fontFamily = CalSansFamily,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(shadow = textShadow),
-                        modifier = Modifier.fillMaxWidth().graphicsLayer {
-                            alpha = titleOutAlpha
-                            renderEffect = blurRenderEffect(8f * (1f - titleOutAlpha))
-                        },
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        text = xfIncomingTitle,
-                        color = Color.White,
-                        fontSize = 24.sp,
-                        fontFamily = CalSansFamily,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(shadow = textShadow),
-                        modifier = Modifier.fillMaxWidth().graphicsLayer {
-                            alpha = titleInAlpha
-                            renderEffect = blurRenderEffect(8f * (1f - titleInAlpha))
-                        },
-                        textAlign = TextAlign.Center
-                    )
-                } else {
-                    Text(
-                        text = title,
-                        color = Color.White,
-                        fontSize = 24.sp,
-                        fontFamily = CalSansFamily,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(shadow = textShadow),
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center
-                    )
+            // ─── Song title + 3-dot menu (LEFT-aligned title, menu RIGHT) ──
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Title (LEFT-aligned, takes remaining width)
+                Box(modifier = Modifier.weight(1f)) {
+                    if (xfActive && xfIncomingTitle.isNotEmpty()) {
+                        val titleOutAlpha = kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
+                        val titleInAlpha = kotlin.math.sin(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
+                        Text(
+                            text = title,
+                            color = Color.White,
+                            fontSize = 24.sp,
+                            fontFamily = CalSansFamily,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = TextStyle(shadow = textShadow),
+                            textAlign = TextAlign.Start,
+                            modifier = Modifier.fillMaxWidth().graphicsLayer {
+                                alpha = titleOutAlpha
+                                renderEffect = blurRenderEffect(8f * (1f - titleOutAlpha))
+                            }
+                        )
+                        Text(
+                            text = xfIncomingTitle,
+                            color = Color.White,
+                            fontSize = 24.sp,
+                            fontFamily = CalSansFamily,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = TextStyle(shadow = textShadow),
+                            textAlign = TextAlign.Start,
+                            modifier = Modifier.fillMaxWidth().graphicsLayer {
+                                alpha = titleInAlpha
+                                renderEffect = blurRenderEffect(8f * (1f - titleInAlpha))
+                            }
+                        )
+                    } else {
+                        Text(
+                            text = title,
+                            color = Color.White,
+                            fontSize = 24.sp,
+                            fontFamily = CalSansFamily,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = TextStyle(shadow = textShadow),
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Start
+                        )
+                    }
                 }
+                // 3-dot menu (RIGHT side)
+                Icon(
+                    imageVector = CoralIcons.Ellipsis,
+                    contentDescription = "Menu",
+                    tint = Color.White,
+                    modifier = Modifier
+                        .size(28.dp)
+                        .graphicsLayer { rotationZ = menuRotation.value }
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { toggleMenu() }
+                )
             }
+
             Spacer(modifier = Modifier.height(2.dp))
-            // Artist name — ultra-smooth blend transition (same as title)
+
+            // ─── Artist name (LEFT-aligned) ──
             Box(modifier = Modifier.fillMaxWidth()) {
                 if (xfActive && xfIncomingArtist.isNotEmpty()) {
                     val artistOutAlpha = kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
@@ -863,7 +906,7 @@ fun SpiralPlayer(
                         fontWeight = FontWeight.Normal,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
+                        textAlign = TextAlign.Start,
                         modifier = Modifier.fillMaxWidth().graphicsLayer {
                             alpha = artistOutAlpha
                             renderEffect = blurRenderEffect(6f * (1f - artistOutAlpha))
@@ -877,7 +920,7 @@ fun SpiralPlayer(
                         fontWeight = FontWeight.Normal,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
+                        textAlign = TextAlign.Start,
                         modifier = Modifier.fillMaxWidth().graphicsLayer {
                             alpha = artistInAlpha
                             renderEffect = blurRenderEffect(6f * (1f - artistInAlpha))
@@ -892,7 +935,7 @@ fun SpiralPlayer(
                         fontWeight = FontWeight.Normal,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
+                        textAlign = TextAlign.Start,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -900,241 +943,97 @@ fun SpiralPlayer(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ─── TIMELINE CAPSULE (reveal glass effect) ─────────────────
-            // Think of it like glass covered by dry detergent bubbles:
-            // - The UNFILLED portion (right) is covered by a faded/opaque
-            //   white overlay — the glass is obscured (dulled).
-            // - The FILLED portion (left) has NO overlay — the clear glass
-            //   morphism shows through (vibrant, alive).
-            // As you slide, the faded overlay retreats and the clear glass
-            // is "revealed". "Timeline" text at extreme left, time on right.
-            // Draggable to seek.
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-                    .clip(RoundedCornerShape(26.dp))
-                    .graphicsLayer { alpha = timelineAlpha }
-                    .onSizeChanged { timelinePillWidthPx = it.width.toFloat() }
-                    .pointerInput(durationMs) {
-                        detectDragGestures(
-                            onDragStart = { isDragging = true },
-                            onDragEnd = {
-                                isDragging = false
-                                dragFraction?.let { frac ->
-                                    if (durationMs > 0) onSeek((frac * durationMs).toLong())
-                                }
-                                dragFraction = null
-                            },
-                            onDragCancel = { isDragging = false; dragFraction = null },
-                            onDrag = { change, _ ->
-                                if (durationMs > 0 && timelinePillWidthPx > 0) {
-                                    val frac = (change.position.x / timelinePillWidthPx).coerceIn(0f, 1f)
-                                    dragFraction = frac
-                                }
-                            }
-                        )
+            // ─── Seek bar (BitChord ThinSlider — no glass, thickens on drag) ──
+            com.rajatxo.coral.ui.components.ThinSlider(
+                value = displayProgress,
+                onValueChange = { frac -> dragFraction = frac },
+                onValueChangeFinished = {
+                    dragFraction?.let { frac ->
+                        if (durationMs > 0) onSeek((frac * durationMs).toLong())
                     }
-                    .drawBackdrop(
-                        backdrop = glassBackdrop,
-                        shape = { RoundedCornerShape(26.dp) },
-                        effects = {
-                            vibrancy()
-                            colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.5f)
-                            blur(12f.dp.toPx())
-                        },
-                        onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
-                    )
+                    dragFraction = null
+                }
+            )
+            // Time labels below the slider
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // ── Layer 1: Dynamic accent color fill (rounded capsule end) ──
-                // Uses the song's accent color at 55% opacity. The fill's right
-                // edge is ROUNDED (clip with capsule shape) so it looks like a
-                // capsule end, not a vertical cut.
-                if (displayProgress > 0.001f) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(displayProgress)
-                            .clip(RoundedCornerShape(26.dp))
-                            .background(timelineAccentColor.copy(alpha = 0.55f))
-                    )
-                    // Subtle white highlight on top of the fill for vibrancy
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(displayProgress)
-                            .clip(RoundedCornerShape(26.dp))
-                            .background(Color.White.copy(alpha = 0.08f))
-                    )
-                }
-
-                // ── Layer 2: Charging animation gradient highlight ──────
-                // A gradient highlight at the EXACT current position that
-                // fades toward the LEFT (the played area). Think of it like
-                // a charging indicator — the bright spot is at the current
-                // position, and it trails off to the left.
-                // The gradient: transparent at the left edge of the played area
-                // → bright accent color at the current position (right edge).
-                if (displayProgress > 0.01f) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(displayProgress)
-                            .clip(RoundedCornerShape(26.dp))
-                            .background(
-                                Brush.horizontalGradient(
-                                    colorStops = arrayOf(
-                                        0.0f to Color.Transparent,                           // left edge: transparent
-                                        0.7f to timelineAccentColor.copy(alpha = 0.2f),      // 70%: faint
-                                        1.0f to timelineAccentColor.copy(alpha = 0.9f)       // current position: bright
-                                    )
-                                )
-                            )
-                    )
-                }
-
-                // ── Layer 3: Content — "Timeline" at extreme left, time right ──
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 20.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    // Extreme left: "Timeline" label
-                    Text(
-                        text = "Timeline",
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontFamily = CalSansFamily,
-                        fontWeight = FontWeight.Medium
-                    )
-                    // Right: current time / total time
-                    Text(
-                        text = "${formatTime((displayProgress * durationMs).toLong())} / ${formatTime(durationMs)}",
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 12.sp,
-                        fontFamily = CalSansFamily,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
+                Text(
+                    text = formatTime((displayProgress * durationMs).toLong()),
+                    color = Color.White.copy(alpha = 0.55f),
+                    fontSize = 12.sp,
+                    fontFamily = CalSansFamily
+                )
+                Text(
+                    text = "-" + formatTime(durationMs - (displayProgress * durationMs).toLong()),
+                    color = Color.White.copy(alpha = 0.55f),
+                    fontSize = 12.sp,
+                    fontFamily = CalSansFamily
+                )
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // ─── Lyrics glass pill (tappable → lyrics sheet) ──────────
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-                    .clip(RoundedCornerShape(26.dp))
-                    .drawBackdrop(
-                        backdrop = glassBackdrop,
-                        shape = { RoundedCornerShape(26.dp) },
-                        effects = {
-                            vibrancy()
-                            colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.5f)
-                            blur(12f.dp.toPx())
-                        },
-                        onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
-                    )
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { showLyrics = true }
-                    .padding(horizontal = 20.dp),
-                contentAlignment = Alignment.CenterStart
+            // ─── Volume bar (speaker icons + ThinSlider, BitChord style) ──
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = CoralIcons.Music,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Lyrics",
-                            color = Color.White,
-                            fontSize = 14.sp,
-                            fontFamily = CalSansFamily,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        repeat(6) { i ->
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.White.copy(alpha = 0.3f + i * 0.12f))
-                            )
-                        }
-                    }
-                    Text(
-                        text = "Open",
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 14.sp,
-                        fontFamily = CalSansFamily
-                    )
-                }
+                Icon(
+                    imageVector = CoralIcons.VolumeLow,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.5f),
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+                com.rajatxo.coral.ui.components.ThinSlider(
+                    value = volume,
+                    onValueChange = { frac ->
+                        val newVol = (frac * maxVolume).toInt().coerceIn(0, maxVolume)
+                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                    },
+                    idleHeight = 6.dp,
+                    activeHeight = 10.dp,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(Modifier.width(10.dp))
+                Icon(
+                    imageVector = CoralIcons.VolumeHigh,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.5f),
+                    modifier = Modifier.size(20.dp)
+                )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // ─── Triple-circle control pod ─────────────────────────────
-            // Glass circle | White play circle | Glass circle
-            // Small gap between each (removed overlap for breathing room).
+            // ─── Transport: prev · play/pause · next (NO glass, plain icons) ──
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left — Rewind (previous)
-                Box(
+                // Previous
+                Icon(
+                    imageVector = CoralIcons.SkipPrev,
+                    contentDescription = "Previous",
+                    tint = Color.White,
                     modifier = Modifier
-                        .size(64.dp)
-                        .clip(CircleShape)
-                        .drawBackdrop(
-                            backdrop = glassBackdrop,
-                            shape = { CircleShape },
-                            effects = {
-                                vibrancy()
-                                colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.5f)
-                                blur(12f.dp.toPx())
-                            },
-                            onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
-                        )
+                        .size(36.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = androidx.compose.material3.ripple(bounded = false)
                         ) {
                             onPrevClick()
                             view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = CoralIcons.Rewind,
-                        contentDescription = "Previous",
-                        tint = Color.White,
-                        modifier = Modifier.size(26.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(16.dp))
-                // Center — Play/Pause (solid white, slightly larger)
+                        }
+                )
+                Spacer(modifier = Modifier.width(32.dp))
+                // Play/Pause
                 Box(
                     modifier = Modifier
-                        .size(72.dp)
-                        .zIndex(1f)
+                        .size(64.dp)
                         .clip(CircleShape)
                         .background(Color.White)
                         .clickable(
@@ -1153,38 +1052,106 @@ fun SpiralPlayer(
                         modifier = Modifier.size(28.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(16.dp))
-                // Right — FastForward (next)
-                Box(
+                Spacer(modifier = Modifier.width(32.dp))
+                // Next
+                Icon(
+                    imageVector = CoralIcons.SkipNext,
+                    contentDescription = "Next",
+                    tint = Color.White,
                     modifier = Modifier
-                        .size(64.dp)
-                        .clip(CircleShape)
-                        .drawBackdrop(
-                            backdrop = glassBackdrop,
-                            shape = { CircleShape },
-                            effects = {
-                                vibrancy()
-                                colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.5f)
-                                blur(12f.dp.toPx())
-                            },
-                            onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.25f)) }
-                        )
+                        .size(36.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = androidx.compose.material3.ripple(bounded = false)
                         ) {
                             onNextClick()
                             view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // ─── Bottom row: lyrics · shuffle · loop · queue ──
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Lyrics
+                Icon(
+                    imageVector = CoralIcons.Music,
+                    contentDescription = "Lyrics",
+                    tint = if (showLyrics) Color.White else Color.White.copy(alpha = 0.5f),
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { showLyrics = true }
+                )
+                // Shuffle
+                Icon(
+                    imageVector = CoralIcons.Shuffle,
+                    contentDescription = "Shuffle",
+                    tint = if (shuffleEnabled) Color.White else Color.White.copy(alpha = 0.5f),
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            mediaController?.let {
+                                it.shuffleModeEnabled = !it.shuffleModeEnabled
+                                shuffleEnabled = it.shuffleModeEnabled
+                            }
+                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        }
+                )
+                // Loop (cycles OFF → ALL → ONE)
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            mediaController?.let {
+                                val newMode = when (it.repeatMode) {
+                                    Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                                    Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                                    else -> Player.REPEAT_MODE_OFF
+                                }
+                                it.repeatMode = newMode
+                                repeatMode = newMode
+                            }
+                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = CoralIcons.FastForward,
-                        contentDescription = "Next",
-                        tint = Color.White,
-                        modifier = Modifier.size(26.dp)
-                    )
+                    when (repeatMode) {
+                        Player.REPEAT_MODE_ONE -> Text("1", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Player.REPEAT_MODE_ALL -> Text("\u221E", color = Color.White, fontSize = 16.sp)
+                        else -> Icon(
+                            imageVector = CoralIcons.Repeat,
+                            contentDescription = "Loop",
+                            tint = Color.White.copy(alpha = 0.5f),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
+                // Queue (add to playlist)
+                Icon(
+                    imageVector = CoralIcons.Queue,
+                    contentDescription = "Queue",
+                    tint = Color.White.copy(alpha = 0.5f),
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { songId?.let { onAddToPlaylist(it) } }
+                )
             }
         }
 

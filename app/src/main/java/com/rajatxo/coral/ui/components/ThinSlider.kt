@@ -1,16 +1,14 @@
 package com.rajatxo.coral.ui.components
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -19,133 +17,102 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import java.util.Locale
 
 /**
- * Apple Music-style thin scrubber.
+ * BitChord-style thin slider — a hairline capsule with no thumb knob,
+ * which thickens under your finger and settles back when you let go.
  *
- *  - 3dp tall track with rounded corners
- *  - Filled portion uses coral (#FF6B6B)
- *  - Background portion uses white at 20 % alpha
- *  - 6dp radius white thumb that follows the position
- *  - Tap anywhere to jump there
- *  - Drag to scrub; commit seek on release
+ * Inspired by BitChord's ThinSlider (Apple Music scrubber style), adapted
+ * for Coral. No glass/blur, no loading sheen — just the core capsule
+ * + thickens-on-drag behavior.
  *
- * Phase 4 will polish this with a spring animation on release and haptic
- * feedback on tap. For now it's functional.
+ * Used for both the seek bar and the volume bar in SpiralPlayer.
+ *
+ * @param value               Current position 0f..1f
+ * @param onValueChange       Called continuously during drag
+ * @param onValueChangeFinished Called when the drag ends (commit the seek)
+ * @param idleHeight         Bar thickness when not dragging (default 6dp)
+ * @param activeHeight        Bar thickness while dragging (default 12dp)
+ * @param activeColor         Played/filled color (default white 92%)
+ * @param inactiveColor       Unplayed/track color (default white 26%)
  */
 @Composable
 fun ThinSlider(
-    positionMs: Long,
-    durationMs: Long,
-    onSeek: (Long) -> Unit,
-    modifier: Modifier = Modifier
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+    onValueChangeFinished: (() -> Unit)? = null,
+    idleHeight: Dp = 6.dp,
+    activeHeight: Dp = 12.dp,
+    activeColor: Color = Color.White.copy(alpha = 0.92f),
+    inactiveColor: Color = Color.White.copy(alpha = 0.26f),
 ) {
-    // While dragging, we keep the dragged position locally and only commit it
-    // to the player on drag end. This lets the user scrub ahead of the actual
-    // playback position smoothly without the position fighting back.
-    var dragPositionMs by remember { mutableStateOf<Long?>(null) }
-    val displayPosition = dragPositionMs ?: positionMs
+    var dragging by remember { mutableStateOf(false) }
+    val height by animateDpAsState(
+        targetValue = if (dragging) activeHeight else idleHeight,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "sliderHeight",
+    )
 
-    val progress = if (durationMs > 0) {
-        (displayPosition.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
-    } else 0f
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            // Generous invisible touch target — the visible bar is only ~6dp.
+            .height(activeHeight + 22.dp)
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    dragging = true
+                    onValueChange((down.position.x / size.width).coerceIn(0f, 1f))
 
-    Column(modifier = modifier) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(28.dp)
-                .pointerInput(durationMs) {
-                    detectTapGestures { offset ->
-                        val ratio = (offset.x / size.width).coerceIn(0f, 1f)
-                        val newPos = (ratio * durationMs).toLong()
-                        onSeek(newPos)
-                    }
-                }
-                .pointerInput(durationMs) {
-                    detectHorizontalDragGestures(
-                        onDragStart = { offset ->
-                            val ratio = (offset.x / size.width).coerceIn(0f, 1f)
-                            dragPositionMs = (ratio * durationMs).toLong()
-                        },
-                        onDragEnd = {
-                            dragPositionMs?.let { onSeek(it) }
-                            dragPositionMs = null
-                        },
-                        onDragCancel = { dragPositionMs = null },
-                        onHorizontalDrag = { change, _ ->
-                            val ratio = (change.position.x / size.width).coerceIn(0f, 1f)
-                            dragPositionMs = (ratio * durationMs).toLong()
-                            change.consume()
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val pointer = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!pointer.pressed) {
+                            pointer.consume()
+                            break
                         }
-                    )
-                },
-            contentAlignment = Alignment.Center
+                        if (pointer.positionChanged()) {
+                            onValueChange((pointer.position.x / size.width).coerceIn(0f, 1f))
+                            pointer.consume()
+                        }
+                    }
+
+                    dragging = false
+                    onValueChangeFinished?.invoke()
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(
+            Modifier
+                .fillMaxWidth()
+                .height(height),
         ) {
-            Canvas(modifier = Modifier.fillMaxWidth().height(28.dp)) {
-                val trackWidth = size.width
-                val trackY = size.height / 2f
-                val trackHeight = 3.dp.toPx()
-                val cornerRadius = CornerRadius(trackHeight / 2f, trackHeight / 2f)
-                val thumbRadius = 6.dp.toPx()
-                val thumbX = trackWidth * progress
-
-                // Background track
+            val radius = CornerRadius(size.height / 2f)
+            // Unplayed track
+            drawRoundRect(color = inactiveColor, cornerRadius = radius)
+            // Played fill
+            val filled = size.width * value.coerceIn(0f, 1f)
+            if (filled > 0f) {
                 drawRoundRect(
-                    color = Color.White.copy(alpha = 0.22f),
-                    topLeft = Offset(0f, trackY - trackHeight / 2f),
-                    size = Size(trackWidth, trackHeight),
-                    cornerRadius = cornerRadius
-                )
-
-                // Filled portion (coral)
-                drawRoundRect(
-                    color = Color(0xFFFF6B6B),
-                    topLeft = Offset(0f, trackY - trackHeight / 2f),
-                    size = Size(thumbX, trackHeight),
-                    cornerRadius = cornerRadius
-                )
-
-                // Thumb (white dot)
-                drawCircle(
-                    color = Color.White,
-                    radius = thumbRadius,
-                    center = Offset(thumbX, trackY)
+                    color = activeColor,
+                    size = Size(
+                        filled.coerceAtLeast(size.height),
+                        size.height,
+                    ),
+                    cornerRadius = radius,
                 )
             }
         }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 6.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = formatTime(displayPosition),
-                color = Color(0xFFB0B0B0),
-                fontSize = 11.sp
-            )
-            Text(
-                text = formatTime(durationMs),
-                color = Color(0xFFB0B0B0),
-                fontSize = 11.sp
-            )
-        }
     }
-}
-
-private fun formatTime(ms: Long): String {
-    if (ms <= 0) return "0:00"
-    val totalSec = ms / 1000
-    val mm = totalSec / 60
-    val ss = totalSec % 60
-    return String.format(Locale.US, "%d:%02d", mm, ss)
 }
