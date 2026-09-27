@@ -540,10 +540,17 @@ fun HomeScreen(
         //
         // On API < 31: fall back to drawBackdrop (has the edge-sampling
         // weakness, but most devices are API 31+).
-        if ((selectedTab == CoralTab.QuickPicks || selectedTab == CoralTab.Songs) && !showSearch) {
+        if (!showSearch) {
             // ─── Dynamic header title ──
-            // "Quick picks" for the Quick Picks tab, "Songs" for the Songs tab.
-            val headerTitle = if (selectedTab == CoralTab.QuickPicks) "Quick picks" else "Songs"
+            // Each tab gets its own title in the header.
+            val headerTitle = when (selectedTab) {
+                CoralTab.QuickPicks -> "Quick picks"
+                CoralTab.Songs -> "Songs"
+                CoralTab.Playlists -> "Playlists"
+                CoralTab.Artists -> "Artists"
+                CoralTab.Albums -> "Albums"
+                CoralTab.Discover -> "Discover"
+            }
 
             val useRenderEffect =
                 android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
@@ -687,28 +694,6 @@ fun HomeScreen(
                         modifier = Modifier.size(24.dp)
                     )
                 }
-            }
-        } else if (!showSearch) {
-            // --- Settings icon for non-QuickPicks pages (top-right) ---
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .statusBarsPadding()
-                    .padding(end = 16.dp, top = 16.dp)
-                    .size(40.dp)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { showSettings = true }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = CoralIcons.Cog,
-                    contentDescription = "Settings",
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
             }
         }
 
