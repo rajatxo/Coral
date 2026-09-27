@@ -1,5 +1,6 @@
 package com.rajatxo.coral.data.prefs
 
+import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -7,14 +8,8 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * PlayerStyleManager — holds the user's preferred player design style.
  *
- * Two styles:
- *   - CORAL: the immersive blurred-bg player (100% blur + medium-blur
- *     bridge + sharp art with symmetric fades + glass capsule + smooth
- *     seekbar + glossy capsule play/pause)
- *   - PROFILE: the dating-app profile style player (full-bleed art 65% +
- *     vertical action pill + left-aligned text + info chips)
- *
- * Default: Spiral 2.0
+ * Default: Spiral 2.0 (on first install). Once the user changes the style,
+ * it's persisted in SharedPreferences and restored on app restart.
  */
 object PlayerStyleManager {
 
@@ -24,10 +19,24 @@ object PlayerStyleManager {
     const val SPIRAL_2 = "Spiral 2.0"
     const val SPIRAL_3 = "Spiral 3.0"
 
+    private const val PREFS_NAME = "coral_prefs"
+    private const val KEY_PLAYER_STYLE = "player_style_v1"
+
+    private lateinit var prefs: android.content.SharedPreferences
+
     private val _playerStyle = MutableStateFlow(SPIRAL_2)
     val playerStyle: StateFlow<String> = _playerStyle.asStateFlow()
 
+    fun init(context: Context) {
+        prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val saved = prefs.getString(KEY_PLAYER_STYLE, null)
+        if (saved != null) {
+            _playerStyle.value = saved
+        }
+    }
+
     fun setPlayerStyle(style: String) {
         _playerStyle.value = style
+        prefs.edit().putString(KEY_PLAYER_STYLE, style).apply()
     }
 }

@@ -29,6 +29,7 @@ class CoralApplication : Application() {
         com.rajatxo.coral.data.prefs.LyricsAnimationManager.init(this)
         com.rajatxo.coral.data.prefs.PlaybackHistory.init(this)
         com.rajatxo.coral.data.prefs.SpeedDialModeManager.init(this)
+        com.rajatxo.coral.data.prefs.PlayerStyleManager.init(this)
         com.rajatxo.coral.data.premium.SleepTimer.init(this) {
             // onComplete callback — we can't call MediaController directly
             // from the Application class, so we just set the flag. The
