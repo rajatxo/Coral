@@ -1334,6 +1334,29 @@ fun SpiralPlayer(
 
         }
 
+        // ★ Bottom gradient overlay — dark black at the very bottom, fading
+        //   to transparent at the top. Only covers the bottom ~40% of the
+        //   screen. Transparent at the song title position (so the album
+        //   cover + colors show through). Gets darker toward the bottom
+        //   for readability of controls.
+        //   Does NOT touch the top — the top stays as-is (album cover visible).
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .height(400.dp)
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f to Color.Transparent,          // top of gradient — fully transparent (song title area)
+                            0.3f to Color(0xFF05050A).copy(alpha = 0.3f),   // slight darkening
+                            0.6f to Color(0xFF05050A).copy(alpha = 0.7f),   // mostly dark
+                            0.85f to Color(0xFF05050A).copy(alpha = 0.95f), // near solid
+                            1.0f to Color(0xFF05050A)                       // solid black at the very bottom
+                        )
+                    )
+                )
+        )
 
 
         if (showLyrics) {

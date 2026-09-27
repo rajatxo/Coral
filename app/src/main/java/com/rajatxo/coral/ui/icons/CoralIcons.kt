@@ -310,27 +310,40 @@ object CoralIcons {
 
     /** Skip to next — triangle + bar. */
     val SkipNext: ImageVector = filled("SkipNext") {
-        moveTo(5f, 4f)
-        lineTo(17f, 12f)
-        lineTo(5f, 20f)
-        close()
-        moveTo(18f, 4f)
-        horizontalLineToRelative(2f)
-        verticalLineToRelative(16f)
-        horizontalLineToRelative(-2f)
+        // Heroicons forward (filled) — double right-pointing triangle
+        // M5.055 7.06C3.805 6.347 2.25 7.25 2.25 8.69v8.122c0 1.44 1.555 2.343 2.805 1.628L12 14.471v2.34c0 1.44 1.555 2.343 2.805 1.628l7.108-4.061c1.26-.72 1.26-2.536 0-3.256l-7.108-4.061C13.555 6.346 12 7.249 12 8.689v2.34L5.055 7.061Z
+        moveTo(5.055f, 7.06f)
+        arcToRelative(2.805f, 2.805f, 0f, false, false, -2.805f, 1.63f)
+        verticalLineToRelative(8.122f)
+        arcToRelative(2.805f, 2.805f, 0f, false, false, 2.805f, 1.628f)
+        lineToRelative(6.945f, -3.969f)
+        verticalLineToRelative(2.34f)
+        arcToRelative(2.805f, 2.805f, 0f, false, false, 2.805f, 1.628f)
+        lineToRelative(7.108f, -4.061f)
+        arcToRelative(1.628f, 1.628f, 0f, false, false, 0f, -3.256f)
+        lineToRelative(-7.108f, -4.061f)
+        arcToRelative(2.805f, 2.805f, 0f, false, false, -2.805f, 1.628f)
+        verticalLineToRelative(2.34f)
+        lineToRelative(-6.945f, -3.968f)
         close()
     }
 
-    /** Skip to previous — bar + triangle. */
+    /** Heroicons backward (filled) — double left-pointing triangle. */
     val SkipPrev: ImageVector = filled("SkipPrev") {
-        moveTo(19f, 4f)
-        lineTo(7f, 12f)
-        lineTo(19f, 20f)
-        close()
-        moveTo(4f, 4f)
-        horizontalLineToRelative(2f)
-        verticalLineToRelative(16f)
-        horizontalLineToRelative(-2f)
+        // M9.195 18.44c1.25.714 2.805-.189 2.805-1.629v-2.34l6.945 3.968c1.25.715 2.805-.188 2.805-1.628V8.69c0-1.44-1.555-2.343-2.805-1.628L12 11.029v-2.34c0-1.44-1.555-2.343-2.805-1.628l-7.108 4.061c-1.26.72-1.26 2.536 0 3.256l7.108 4.061Z
+        moveTo(9.195f, 18.44f)
+        arcToRelative(2.805f, 2.805f, 0f, false, false, 2.805f, -1.629f)
+        verticalLineToRelative(-2.34f)
+        lineToRelative(6.945f, 3.968f)
+        arcToRelative(2.805f, 2.805f, 0f, false, false, 2.805f, -1.628f)
+        verticalLineToRelative(-8.122f)
+        arcToRelative(2.805f, 2.805f, 0f, false, false, -2.805f, -1.628f)
+        lineTo(12f, 11.029f)
+        verticalLineToRelative(-2.34f)
+        arcToRelative(2.805f, 2.805f, 0f, false, false, -2.805f, -1.628f)
+        lineToRelative(-7.108f, 4.061f)
+        arcToRelative(1.628f, 1.628f, 0f, false, false, 0f, 3.256f)
+        lineToRelative(7.108f, 4.061f)
         close()
     }
 
@@ -551,38 +564,41 @@ object CoralIcons {
 
     /** Lucide play — filled triangle (MIT licensed). */
     val PlayLucide: ImageVector = filled("PlayLucide") {
-        moveTo(5f, 5f)
-        arcToRelative(2f, 2f, 0f, false, true, 3.008f, -1.728f)
-        lineToRelative(11.997f, 6.998f)
-        arcToRelative(2f, 2f, 0f, false, true, 0.003f, 3.458f)
-        lineToRelative(-12f, 7f)
-        arcToRelative(2f, 2f, 0f, false, true, -3.008f, -1.728f)
+        // Heroicons play (filled) — solid triangle with rounded corners
+        // M4.5 5.653c0-1.427 1.529-2.33 2.779-1.643l11.54 6.347c1.295.712 1.295 2.573 0 3.286L7.28 19.99c-1.25.687-2.779-.217-2.779-1.643V5.653Z
+        moveTo(4.5f, 5.653f)
+        arcToRelative(2.779f, 2.779f, 0f, false, true, 2.779f, -1.643f)
+        lineToRelative(11.54f, 6.347f)
+        arcToRelative(1.643f, 1.643f, 0f, false, true, 0f, 3.286f)
+        lineToRelative(-11.54f, 6.347f)
+        arcToRelative(2.779f, 2.779f, 0f, false, true, -2.779f, -1.643f)
+        verticalLineToRelative(-12.694f)
         close()
     }
 
-    /** Lucide pause — two rounded rectangles (MIT licensed). */
+    /** Heroicons pause (filled) — two vertical bars with rounded corners. */
     val PauseLucide: ImageVector = filled("PauseLucide") {
-        // Right bar
-        moveTo(14f, 3f)
-        horizontalLineToRelative(5f)
-        arcToRelative(1f, 1f, 0f, false, true, 1f, 1f)
-        verticalLineToRelative(16f)
-        arcToRelative(1f, 1f, 0f, false, true, -1f, 1f)
-        horizontalLineToRelative(-5f)
-        arcToRelative(1f, 1f, 0f, false, true, -1f, -1f)
-        verticalLineToRelative(-16f)
-        arcToRelative(1f, 1f, 0f, false, true, 1f, -1f)
+        // Left bar: M6.75 5.25a.75.75 0 0 1 .75-.75H9a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75H7.5a.75.75 0 0 1-.75-.75V5.25Z
+        moveTo(6.75f, 5.25f)
+        arcToRelative(0.75f, 0.75f, 0f, false, true, 0.75f, -0.75f)
+        horizontalLineToRelative(1.5f)
+        arcToRelative(0.75f, 0.75f, 0f, false, true, 0.75f, 0.75f)
+        verticalLineToRelative(13.5f)
+        arcToRelative(0.75f, 0.75f, 0f, false, true, -0.75f, 0.75f)
+        horizontalLineToRelative(-1.5f)
+        arcToRelative(0.75f, 0.75f, 0f, false, true, -0.75f, -0.75f)
+        verticalLineToRelative(-13.5f)
         close()
-        // Left bar
-        moveTo(5f, 3f)
-        horizontalLineToRelative(5f)
-        arcToRelative(1f, 1f, 0f, false, true, 1f, 1f)
-        verticalLineToRelative(16f)
-        arcToRelative(1f, 1f, 0f, false, true, -1f, 1f)
-        horizontalLineToRelative(-5f)
-        arcToRelative(1f, 1f, 0f, false, true, -1f, -1f)
-        verticalLineToRelative(-16f)
-        arcToRelative(1f, 1f, 0f, false, true, 1f, -1f)
+        // Right bar: M14.25 5.25a.75.75 0 0 1 .75-.75H16.5a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75H15a.75.75 0 0 1-.75-.75V5.25Z
+        moveTo(14.25f, 5.25f)
+        arcToRelative(0.75f, 0.75f, 0f, false, true, 0.75f, -0.75f)
+        horizontalLineToRelative(1.5f)
+        arcToRelative(0.75f, 0.75f, 0f, false, true, 0.75f, 0.75f)
+        verticalLineToRelative(13.5f)
+        arcToRelative(0.75f, 0.75f, 0f, false, true, -0.75f, 0.75f)
+        horizontalLineToRelative(-1.5f)
+        arcToRelative(0.75f, 0.75f, 0f, false, true, -0.75f, -0.75f)
+        verticalLineToRelative(-13.5f)
         close()
     }
 
@@ -677,37 +693,66 @@ object CoralIcons {
         lineToRelative(3f, -3f)
     }
 
-    /** Speaker with one small wave — low volume. */
-    val VolumeLow: ImageVector = stroke("VolumeLow") {
-        // Speaker body (trapezoid pointing right)
-        moveTo(11f, 5f)
-        lineTo(6f, 9f)
-        horizontalLineTo(2f)
-        verticalLineToRelative(6f)
-        horizontalLineToRelative(4f)
-        lineToRelative(5f, 4f)
+    /** Heroicons volume-off (filled) — speaker with X (muted/low). */
+    val VolumeLow: ImageVector = filled("VolumeLow") {
+        moveTo(13.5f, 4.06f)
+        arcToRelative(1.643f, 1.643f, 0f, false, false, -2.56f, -1.06f)
+        lineToRelative(-4.5f, 4.5f)
+        horizontalLineTo(4.508f)
+        arcToRelative(2.66f, 2.66f, 0f, false, false, -2.66f, 1.905f)
+        arcToRelative(9.76f, 9.76f, 0f, false, false, -0.348f, 2.595f)
+        curveToRelative(0f, 0.898f, 0.121f, 1.768f, 0.35f, 2.595f)
+        arcToRelative(2.66f, 2.66f, 0f, false, false, 2.659f, 1.905f)
+        horizontalLineToRelative(1.93f)
+        lineToRelative(4.5f, 4.5f)
+        arcToRelative(1.643f, 1.643f, 0f, false, false, 2.561f, -1.06f)
+        verticalLineToRelative(-15.88f)
         close()
-        // One small wave arc
-        moveTo(15.5f, 9.5f)
-        arcToRelative(2.5f, 2.5f, 0f, false, true, 0f, 5f)
+        moveTo(17.78f, 9.22f)
+        arcToRelative(0.75f, 0.75f, 0f, true, false, -1.06f, 1.06f)
+        lineTo(18.44f, 12f)
+        lineToRelative(-1.72f, 1.72f)
+        arcToRelative(0.75f, 0.75f, 0f, true, false, 1.06f, 1.06f)
+        lineToRelative(1.72f, -1.72f)
+        lineToRelative(1.72f, 1.72f)
+        arcToRelative(0.75f, 0.75f, 0f, true, false, 1.06f, -1.06f)
+        lineTo(20.56f, 12f)
+        lineToRelative(1.72f, -1.72f)
+        arcToRelative(0.75f, 0.75f, 0f, true, false, -1.06f, -1.06f)
+        lineToRelative(-1.72f, 1.72f)
+        lineToRelative(-1.72f, -1.72f)
+        close()
     }
 
     /** Speaker with two sound waves — high volume. */
-    val VolumeHigh: ImageVector = stroke("VolumeHigh") {
-        // Speaker body (trapezoid pointing right)
-        moveTo(11f, 5f)
-        lineTo(6f, 9f)
-        horizontalLineTo(2f)
-        verticalLineToRelative(6f)
-        horizontalLineToRelative(4f)
-        lineToRelative(5f, 4f)
+    val VolumeHigh: ImageVector = filled("VolumeHigh") {
+        moveTo(13.5f, 4.06f)
+        arcToRelative(1.643f, 1.643f, 0f, false, false, -2.56f, -1.06f)
+        lineToRelative(-4.5f, 4.5f)
+        horizontalLineTo(4.508f)
+        arcToRelative(2.66f, 2.66f, 0f, false, false, -2.66f, 1.905f)
+        arcToRelative(9.76f, 9.76f, 0f, false, false, -0.348f, 2.595f)
+        curveTo(0f, 0.898f, 0.121f, 1.768f, 0.35f, 2.595f)
+        arcToRelative(2.66f, 2.66f, 0f, false, false, 2.659f, 1.905f)
+        horizontalLineToRelative(1.93f)
+        lineToRelative(4.5f, 4.5f)
+        arcToRelative(1.643f, 1.643f, 0f, false, false, 2.561f, -1.06f)
+        verticalLineToRelative(-15.88f)
         close()
-        // Inner wave
-        moveTo(15.5f, 8.5f)
-        arcToRelative(5f, 5f, 0f, false, true, 0f, 7f)
-        // Outer wave
-        moveTo(19f, 5f)
-        arcToRelative(9f, 9f, 0f, false, true, 0f, 14f)
+        moveTo(18.584f, 5.106f)
+        arcToRelative(0.75f, 0.75f, 0f, false, true, 1.06f, 0f)
+        arcToRelative(9.98f, 9.98f, 0f, false, true, 0f, 13.788f)
+        arcToRelative(0.75f, 0.75f, 0f, false, true, -1.06f, -1.06f)
+        arcToRelative(8.25f, 8.25f, 0f, false, false, 0f, -11.668f)
+        arcToRelative(0.75f, 0.75f, 0f, false, true, 0f, -1.06f)
+        close()
+        moveTo(15.932f, 7.757f)
+        arcToRelative(0.75f, 0.75f, 0f, false, true, 1.061f, 0f)
+        arcToRelative(6f, 6f, 0f, false, true, 0f, 8.486f)
+        arcToRelative(0.75f, 0.75f, 0f, false, true, -1.06f, -1.061f)
+        arcToRelative(4.5f, 4.5f, 0f, false, false, 0f, -6.364f)
+        arcToRelative(0.75f, 0.75f, 0f, false, true, 0f, -1.06f)
+        close()
     }
 
     /** Right-pointing chevron — for tappable rows that navigate forward. */
