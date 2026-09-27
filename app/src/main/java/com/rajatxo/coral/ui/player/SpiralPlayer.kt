@@ -17,6 +17,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -75,6 +77,7 @@ import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -1272,18 +1275,37 @@ fun SpiralPlayer(
                         .height(24.dp)
                         .onSizeChanged { volBarWidthPx = it.width.toFloat() }
                         .pointerInput(Unit) {
-                            detectDragGestures(
-                                onDragStart = { volumeDragging = true },
-                                onDragEnd = { volumeDragging = false },
-                                onDragCancel = { volumeDragging = false },
-                                onDrag = { change, _ ->
-                                    if (volBarWidthPx > 0) {
-                                        val frac = (change.position.x / volBarWidthPx).coerceIn(0f, 1f)
-                                        val newVol = (frac * maxVolume).toInt().coerceIn(0, maxVolume)
-                                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                            // ★ Use awaitEachGesture (same as ThinSlider) — handles
+                            //   BOTH tap-to-set AND drag in one loop. Also consumes
+                            //   events so the parent Column's detectVerticalDragGestures
+                            //   (swipe-up-to-queue) doesn't interfere.
+                            awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                volumeDragging = true
+                                // Set volume on initial tap
+                                if (volBarWidthPx > 0) {
+                                    val frac = (down.position.x / volBarWidthPx).coerceIn(0f, 1f)
+                                    val newVol = (frac * maxVolume).toInt().coerceIn(0, maxVolume)
+                                    audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                                }
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    val pointer = event.changes.firstOrNull { it.id == down.id } ?: break
+                                    if (!pointer.pressed) {
+                                        pointer.consume()
+                                        break
+                                    }
+                                    if (pointer.positionChanged()) {
+                                        if (volBarWidthPx > 0) {
+                                            val frac = (pointer.position.x / volBarWidthPx).coerceIn(0f, 1f)
+                                            val newVol = (frac * maxVolume).toInt().coerceIn(0, maxVolume)
+                                            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                                        }
+                                        pointer.consume()
                                     }
                                 }
-                            )
+                                volumeDragging = false
+                            }
                         }
                 ) {
                     // Track (dim white)
