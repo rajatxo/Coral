@@ -58,9 +58,14 @@ fun PlaceholderScreen(
                 .statusBarsPadding()
                 .padding(start = 16.dp, end = 20.dp, top = 16.dp)
         ) {
-            // Header Row: capsule (weight=1f) + title text
+            // Header Row: Sleep timer capsule (if visible) — no big title text
+            // (the blur header from HomeScreen already shows the tab name)
+            // ★ Keep a 40dp height where the old title text was so the
+            //   capsule below stays at the same vertical position as before.
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp),  // match the old title height
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 com.rajatxo.coral.ui.components.SleepTimerCapsule(
@@ -68,17 +73,6 @@ fun PlaceholderScreen(
                     remainingMs = capsuleRemaining,
                     onExtend = onExtend,
                     modifier = Modifier.weight(1f)
-                )
-                if (capsuleVisible && capsuleRemaining > 0) {
-                    Spacer(modifier = Modifier.height(20.dp))
-                }
-                // Big title (Quirk italic)
-                Text(
-                    text = tabName,
-                    color = Color.White,
-                    fontSize = 34.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = com.rajatxo.coral.ui.theme.QuirkFontFamily
                 )
             }
 

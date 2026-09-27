@@ -129,8 +129,14 @@ fun PlaylistsScreen(
         ) {
             // Header Row: Sleep timer capsule (if visible) — no big title text
             // (the blur header from HomeScreen already shows "Playlists")
+            // ★ Keep a 40dp Spacer where the old title text was so the
+            //   capsule below stays at the same vertical position as before.
+            //   Without this, removing the text collapses the Row and the
+            //   capsule moves up.
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp),  // match the old title height
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 com.rajatxo.coral.ui.components.SleepTimerCapsule(
@@ -139,17 +145,11 @@ fun PlaylistsScreen(
                     onExtend = onExtend,
                     modifier = Modifier.weight(1f)
                 )
-                if (capsuleVisible && capsuleRemaining > 0) {
-                    Spacer(modifier = Modifier.height(20.dp))
-                }
             }
 
             Spacer(modifier = Modifier.size(8.dp))
 
-            // === ONE big capsule: New + Playlist Name + Grid/Wheel ===
-            // The playlist name capsule (from the old Big Capsule 2) is
-            // now BETWEEN "New" and "Grid/Wheel" — same capsule, just
-            // repositioned. Removed the "All Tags" capsule entirely.
+            // === Big Capsule 1: New + Grid/Wheel ===
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -160,7 +160,7 @@ fun PlaylistsScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                // "New" capsule (left side) — creates a new playlist
+                // "New" capsule (left side)
                 Row(
                     modifier = Modifier
                         .height(32.dp)
@@ -190,10 +190,46 @@ fun PlaylistsScreen(
                     )
                 }
 
-                // ★ Playlist Name capsule (center) — shows the playlist
-                //   name when rotating the wheel, or "All Playlist" by
-                //   default. Clickable to open the centered playlist.
-                //   Repositioned from the old Big Capsule 2.
+                Spacer(modifier = Modifier.weight(1f))
+
+                // Grid/Wheel toggle capsule (right side)
+                Row(
+                    modifier = Modifier
+                        .height(32.dp)
+                        .width(IntrinsicSize.Max)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.White)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { useWheel = !useWheel }
+                        )
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (useWheel) "Grid" else "Wheel",
+                        color = Color.Black,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.size(4.dp))
+
+            // === Big Capsule 2: All Playlist (playlist name pill) + All Tags ===
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(CoralColors.SurfaceVariant)
+                    .padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // Playlist name capsule — shows playlist name on rotate, 3s timeout
                 val pillLuminance = 0.299f * accentColor.red +
                     0.587f * accentColor.green +
                     0.114f * accentColor.blue
@@ -217,8 +253,6 @@ fun PlaylistsScreen(
                         .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Render "All Playlist" transparent underneath so the
-                    // capsule is always sized to the default text width.
                     Box(contentAlignment = Alignment.Center) {
                         Text(
                             text = "All Playlist",
@@ -237,38 +271,42 @@ fun PlaylistsScreen(
                     }
                 }
 
-                // Spacer pushes Grid/Wheel to the right
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Grid/Wheel toggle capsule (right side)
+                // "All Tags" capsule (right side)
                 Row(
                     modifier = Modifier
                         .height(32.dp)
                         .width(IntrinsicSize.Max)
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color.White)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { useWheel = !useWheel }
-                        )
                         .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "Wheel",
-                            color = Color.Transparent,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = if (useWheel) "Grid" else "Wheel",
-                            color = Color.Black,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
+                    Text(
+                        text = "All Tags",
+                        color = Color.Black,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.size(4.dp))
+
+            // === Big Capsule 3 (wheel mode only) — empty placeholder ===
+            if (useWheel) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(CoralColors.SurfaceVariant)
+                        .padding(horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    // Empty — placeholder for future content
                 }
             }
         }
