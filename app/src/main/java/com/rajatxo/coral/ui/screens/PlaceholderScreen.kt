@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -49,7 +50,20 @@ fun PlaceholderScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(CoralColors.Surface)
+            .background(Color(0xFF05050A))  // darkBase
+            .background(
+                // Same gradient style as QuickPicks/Songs — vibrant top
+                // fading to dark bottom. Uses a coral accent as the
+                // vibrant top (PlaceholderScreen has no album art palette).
+                Brush.verticalGradient(
+                    colorStops = arrayOf(
+                        0.0f  to Color(0xFFFF6B6B).copy(alpha = 0.45f),
+                        0.30f to Color(0xFFFF6B6B).copy(alpha = 0.15f),
+                        0.55f to Color(0xFFFF6B6B).copy(alpha = 0.04f),
+                        1.0f  to Color(0xFF05050A)
+                    )
+                )
+            )
     ) {
         // Header Column: Row(capsule + title) + capsule placeholder below
         Column(

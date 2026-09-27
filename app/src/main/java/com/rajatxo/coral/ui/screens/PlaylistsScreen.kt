@@ -115,7 +115,23 @@ fun PlaylistsScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(CoralColors.Surface)) {
+    Box(modifier = Modifier
+        .fillMaxSize()
+        .background(Color(0xFF05050A))  // darkBase
+        .background(
+            // Same gradient style as QuickPicks/Songs — vibrant top
+            // fading to dark bottom. Uses accentColor as the vibrant
+            // top (since PlaylistsScreen doesn't have album art palette).
+            Brush.verticalGradient(
+                colorStops = arrayOf(
+                    0.0f  to accentColor.copy(alpha = 0.85f),
+                    0.30f to accentColor.copy(alpha = 0.28f),
+                    0.55f to accentColor.copy(alpha = 0.08f),
+                    1.0f  to Color(0xFF05050A)
+                )
+            )
+        )
+    ) {
         // Header Column: Row(capsule + title) + big capsule with inner items
         // zIndex(1f) keeps the header ABOVE the wheel so the Grid/Wheel
         // toggle capsule stays clickable (otherwise the wheel's pointerInput
@@ -149,7 +165,7 @@ fun PlaylistsScreen(
 
             Spacer(modifier = Modifier.size(8.dp))
 
-            // === Big Capsule 1: New + Grid/Wheel ===
+            // === ONE big capsule: New + Playlist Name + Grid/Wheel ===
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -160,7 +176,7 @@ fun PlaylistsScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                // "New" capsule (left side)
+                // "New" capsule (left)
                 Row(
                     modifier = Modifier
                         .height(32.dp)
@@ -190,46 +206,9 @@ fun PlaylistsScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.weight(1f))
-
-                // Grid/Wheel toggle capsule (right side)
-                Row(
-                    modifier = Modifier
-                        .height(32.dp)
-                        .width(IntrinsicSize.Max)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color.White)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { useWheel = !useWheel }
-                        )
-                        .padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (useWheel) "Grid" else "Wheel",
-                        color = Color.Black,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.size(4.dp))
-
-            // === Big Capsule 2: All Playlist (playlist name pill) + All Tags ===
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(40.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(CoralColors.SurfaceVariant)
-                    .padding(horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                // Playlist name capsule — shows playlist name on rotate, 3s timeout
+                // ★ Playlist Name capsule (center) — shows the playlist name
+                //   when rotating the wheel, or "All Playlist" by default.
+                //   Clickable to open the centered playlist.
                 val pillLuminance = 0.299f * accentColor.red +
                     0.587f * accentColor.green +
                     0.114f * accentColor.blue
@@ -273,40 +252,27 @@ fun PlaylistsScreen(
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                // "All Tags" capsule (right side)
+                // Grid/Wheel toggle capsule (right)
                 Row(
                     modifier = Modifier
                         .height(32.dp)
                         .width(IntrinsicSize.Max)
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color.White)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { useWheel = !useWheel }
+                        )
                         .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "All Tags",
+                        text = if (useWheel) "Grid" else "Wheel",
                         color = Color.Black,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold
                     )
-                }
-            }
-
-            Spacer(modifier = Modifier.size(4.dp))
-
-            // === Big Capsule 3 (wheel mode only) — empty placeholder ===
-            if (useWheel) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(40.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(CoralColors.SurfaceVariant)
-                        .padding(horizontal = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    // Empty — placeholder for future content
                 }
             }
         }
