@@ -47,13 +47,15 @@ object CoralIcons {
 
     private fun filled(
         name: String,
+        viewportWidth: Float = 24f,
+        viewportHeight: Float = 24f,
         pathBuilder: PathBuilder.() -> Unit
     ): ImageVector = ImageVector.Builder(
         name = name,
         defaultWidth = 24.dp,
         defaultHeight = 24.dp,
-        viewportWidth = 24f,
-        viewportHeight = 24f
+        viewportWidth = viewportWidth,
+        viewportHeight = viewportHeight
     ).apply {
         path(
             fill = SolidColor(Color.Black),
@@ -310,39 +312,42 @@ object CoralIcons {
 
     /** Skip to next — triangle + bar. */
     /** Lucide fast-forward (filled) — double right-pointing triangle. */
-    val SkipNext: ImageVector = filled("SkipNext") {
-        moveTo(12f, 6f)
-        arcToRelative(2f, 2f, 0f, false, true, 3.414f, -1.414f)
-        lineToRelative(6f, 6f)
-        arcToRelative(2f, 2f, 0f, false, true, 0f, 2.828f)
-        lineToRelative(-6f, 6f)
-        arcToRelative(2f, 2f, 0f, false, true, -3.414f, -1.414f)
-        close()
-        moveTo(2f, 6f)
-        arcToRelative(2f, 2f, 0f, false, true, 3.414f, -1.414f)
-        lineToRelative(6f, 6f)
-        arcToRelative(2f, 2f, 0f, false, true, 0f, 2.828f)
-        lineToRelative(-6f, 6f)
-        arcToRelative(2f, 2f, 0f, false, true, -3.414f, -1.414f)
+    /** Phosphor fast-forward fill (MIT) — double right triangle. */
+    val SkipNext: ImageVector = filled("SkipNext", viewportWidth = 256f, viewportHeight = 256f) {
+        moveTo(256f, 128f)
+        arcToRelative(15.76f, 15.76f, 0f, false, true, -7.33f, 13.34f)
+        lineToRelative(-88.19f, 56.16f)
+        arcToRelative(15.91f, 15.91f, 0f, false, true, -24.48f, -13.34f)
+        lineToRelative(0f, -37.3f)
+        lineToRelative(-79.52f, 50.64f)
+        arcToRelative(15.91f, 15.91f, 0f, false, true, -24.48f, -13.34f)
+        lineToRelative(0f, -112.32f)
+        arcToRelative(15.91f, 15.91f, 0f, false, true, 24.48f, -13.34f)
+        lineToRelative(79.52f, 50.64f)
+        lineToRelative(0f, -37.3f)
+        arcToRelative(15.91f, 15.91f, 0f, false, true, 24.48f, -13.34f)
+        lineToRelative(88.19f, 56.16f)
+        arcToRelative(15.76f, 15.76f, 0f, false, true, 7.33f, 13.34f)
         close()
     }
 
     /** Heroicons backward (filled) — double left-pointing triangle. */
     /** Lucide rewind (filled) — double left-pointing triangle. */
-    val SkipPrev: ImageVector = filled("SkipPrev") {
-        moveTo(12f, 6f)
-        arcToRelative(2f, 2f, 0f, false, false, -3.414f, -1.414f)
-        lineToRelative(-6f, 6f)
-        arcToRelative(2f, 2f, 0f, false, false, 0f, 2.828f)
-        lineToRelative(6f, 6f)
-        arcToRelative(2f, 2f, 0f, false, false, 3.414f, -1.414f)
-        close()
-        moveTo(22f, 6f)
-        arcToRelative(2f, 2f, 0f, false, false, -3.414f, -1.414f)
-        lineToRelative(-6f, 6f)
-        arcToRelative(2f, 2f, 0f, false, false, 0f, 2.828f)
-        lineToRelative(6f, 6f)
-        arcToRelative(2f, 2f, 0f, false, false, 3.414f, -1.414f)
+    /** Phosphor rewind fill (MIT) — double left triangle. */
+    val SkipPrev: ImageVector = filled("SkipPrev", viewportWidth = 256f, viewportHeight = 256f) {
+        moveTo(232f, 71.84f)
+        lineToRelative(0f, 112.32f)
+        arcToRelative(15.92f, 15.92f, 0f, false, true, -24.48f, 13.34f)
+        lineToRelative(-79.52f, -50.64f)
+        lineToRelative(0f, 37.3f)
+        arcToRelative(15.92f, 15.92f, 0f, false, true, -24.48f, 13.34f)
+        lineToRelative(-88.19f, -56.16f)
+        arcToRelative(15.8f, 15.8f, 0f, false, true, 0f, -26.68f)
+        lineToRelative(88.19f, -56.16f)
+        arcTo(15.91f, 15.91f, 0f, false, true, 128f, 71.84f)
+        lineToRelative(0f, 37.3f)
+        lineToRelative(79.52f, -50.64f)
+        arcTo(15.91f, 15.91f, 0f, false, true, 232f, 71.84f)
         close()
     }
 
@@ -690,64 +695,66 @@ object CoralIcons {
     }
 
     /** Heroicons volume-off (filled) — speaker with X (muted/low). */
-    val VolumeLow: ImageVector = filled("VolumeLow") {
-        moveTo(13.5f, 4.06f)
-        arcToRelative(1.643f, 1.643f, 0f, false, false, -2.56f, -1.06f)
-        lineToRelative(-4.5f, 4.5f)
-        horizontalLineTo(4.508f)
-        arcToRelative(2.66f, 2.66f, 0f, false, false, -2.66f, 1.905f)
-        arcToRelative(9.76f, 9.76f, 0f, false, false, -0.348f, 2.595f)
-        curveToRelative(0f, 0.898f, 0.121f, 1.768f, 0.35f, 2.595f)
-        arcToRelative(2.66f, 2.66f, 0f, false, false, 2.659f, 1.905f)
-        horizontalLineToRelative(1.93f)
-        lineToRelative(4.5f, 4.5f)
-        arcToRelative(1.643f, 1.643f, 0f, false, false, 2.561f, -1.06f)
-        verticalLineToRelative(-15.88f)
+    /** Phosphor speaker-slash fill (MIT) — muted/low volume. */
+    val VolumeLow: ImageVector = filled("VolumeLow", viewportWidth = 256f, viewportHeight = 256f) {
+        moveTo(168f, 32f)
+        lineTo(168f, 224f)
+        arcToRelative(8f, 8f, 0f, false, true, -12.91f, 6.31f)
+        lineToRelative(-69.84f, -54.31f)
+        lineTo(40f, 176f)
+        arcToRelative(16f, 16f, 0f, false, true, -16f, -16f)
+        lineTo(24f, 96f)
+        arcTo(16f, 16f, 0f, false, true, 40f, 80f)
+        lineTo(85.25f, 80f)
+        lineToRelative(69.84f, -54.31f)
+        arcTo(8f, 8f, 0f, false, true, 168f, 32f)
         close()
-        moveTo(17.78f, 9.22f)
-        arcToRelative(0.75f, 0.75f, 0f, true, false, -1.06f, 1.06f)
-        lineTo(18.44f, 12f)
-        lineToRelative(-1.72f, 1.72f)
-        arcToRelative(0.75f, 0.75f, 0f, true, false, 1.06f, 1.06f)
-        lineToRelative(1.72f, -1.72f)
-        lineToRelative(1.72f, 1.72f)
-        arcToRelative(0.75f, 0.75f, 0f, true, false, 1.06f, -1.06f)
-        lineTo(20.56f, 12f)
-        lineToRelative(1.72f, -1.72f)
-        arcToRelative(0.75f, 0.75f, 0f, true, false, -1.06f, -1.06f)
-        lineToRelative(-1.72f, 1.72f)
-        lineToRelative(-1.72f, -1.72f)
+        moveTo(200f, 96f)
+        arcTo(8f, 8f, 0f, false, false, 192f, 104f)
+        lineTo(192f, 152f)
+        arcTo(8f, 8f, 0f, false, false, 208f, 152f)
+        lineTo(208f, 104f)
+        arcTo(8f, 8f, 0f, false, false, 200f, 96f)
         close()
     }
 
     /** Speaker with two sound waves — high volume. */
-    val VolumeHigh: ImageVector = filled("VolumeHigh") {
-        moveTo(13.5f, 4.06f)
-        arcToRelative(1.643f, 1.643f, 0f, false, false, -2.56f, -1.06f)
-        lineToRelative(-4.5f, 4.5f)
-        horizontalLineTo(4.508f)
-        arcToRelative(2.66f, 2.66f, 0f, false, false, -2.66f, 1.905f)
-        arcToRelative(9.76f, 9.76f, 0f, false, false, -0.348f, 2.595f)
-        curveTo(0f, 0.898f, 0.121f, 1.768f, 0.35f, 2.595f)
-        arcToRelative(2.66f, 2.66f, 0f, false, false, 2.659f, 1.905f)
-        horizontalLineToRelative(1.93f)
-        lineToRelative(4.5f, 4.5f)
-        arcToRelative(1.643f, 1.643f, 0f, false, false, 2.561f, -1.06f)
-        verticalLineToRelative(-15.88f)
+    /** Phosphor speaker-high fill (MIT) — speaker with sound waves. */
+    val VolumeHigh: ImageVector = filled("VolumeHigh", viewportWidth = 256f, viewportHeight = 256f) {
+        moveTo(160f, 32.25f)
+        lineTo(160f, 223.69f)
+        arcToRelative(8.29f, 8.29f, 0f, false, true, -3.91f, 7.18f)
+        arcTo(8f, 8f, 0f, false, true, 147.09f, 230.31f)
+        lineToRelative(-65.57f, -51f)
+        arcTo(4f, 4f, 0f, false, true, 80f, 176.16f)
+        lineTo(80f, 79.84f)
+        arcTo(4f, 4f, 0f, false, true, 81.55f, 76.69f)
+        lineToRelative(65.57f, -51f)
+        arcTo(8f, 8f, 0f, false, true, 157.12f, 25.85f)
+        arcTo(8.27f, 8.27f, 0f, false, true, 160f, 32.25f)
         close()
-        moveTo(18.584f, 5.106f)
-        arcToRelative(0.75f, 0.75f, 0f, false, true, 1.06f, 0f)
-        arcToRelative(9.98f, 9.98f, 0f, false, true, 0f, 13.788f)
-        arcToRelative(0.75f, 0.75f, 0f, false, true, -1.06f, -1.06f)
-        arcToRelative(8.25f, 8.25f, 0f, false, false, 0f, -11.668f)
-        arcToRelative(0.75f, 0.75f, 0f, false, true, 0f, -1.06f)
+        moveTo(60f, 80f)
+        lineTo(32f, 80f)
+        arcTo(16f, 16f, 0f, false, false, 16f, 96f)
+        lineToRelative(0f, 64f)
+        arcTo(16f, 16f, 0f, false, false, 32f, 176f)
+        lineTo(60f, 176f)
+        arcTo(4f, 4f, 0f, false, false, 64f, 172f)
+        lineTo(64f, 84f)
+        arcTo(4f, 4f, 0f, false, false, 60f, 80f)
         close()
-        moveTo(15.932f, 7.757f)
-        arcToRelative(0.75f, 0.75f, 0f, false, true, 1.061f, 0f)
-        arcToRelative(6f, 6f, 0f, false, true, 0f, 8.486f)
-        arcToRelative(0.75f, 0.75f, 0f, false, true, -1.06f, -1.061f)
-        arcToRelative(4.5f, 4.5f, 0f, false, false, 0f, -6.364f)
-        arcToRelative(0.75f, 0.75f, 0f, false, true, 0f, -1.06f)
+        moveTo(186.77f, 100.84f)
+        arcTo(8f, 8f, 0f, false, false, 186.05f, 112.14f)
+        arcTo(24f, 24f, 0f, false, true, 186.05f, 143.86f)
+        arcTo(8f, 8f, 0f, true, false, 198.05f, 154.44f)
+        arcTo(40f, 40f, 0f, false, false, 198.05f, 101.56f)
+        arcTo(8f, 8f, 0f, false, false, 186.77f, 100.84f)
+        close()
+        moveTo(227.66f, 74.67f)
+        arcTo(8f, 8f, 0f, true, false, 215.74f, 85.33f)
+        arcTo(64f, 64f, 0f, false, true, 215.74f, 170.67f)
+        arcTo(8f, 8f, 0f, true, false, 227.66f, 181.33f)
+        arcTo(80f, 80f, 0f, false, false, 227.66f, 74.67f)
         close()
     }
 

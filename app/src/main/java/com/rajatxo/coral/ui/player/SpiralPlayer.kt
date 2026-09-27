@@ -1106,8 +1106,8 @@ fun SpiralPlayer(
                 }
             }
 
-            // ─── Gap between lyrics and seek bar (~8dp) ──
-            Spacer(modifier = Modifier.height(5.dp))
+            // ─── Gap between lyrics and seek bar (~2dp — closer) ──
+            Spacer(modifier = Modifier.height(2.dp))
 
             // ─── Seek bar (~5dp thick, rounded pill, thickens on drag) ──
             // Same as Spiral 2.0: Box-based, trackHeight animation.
