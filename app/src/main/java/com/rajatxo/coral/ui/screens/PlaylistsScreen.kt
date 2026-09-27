@@ -127,7 +127,8 @@ fun PlaylistsScreen(
                 .padding(start = 16.dp, end = 20.dp, top = 16.dp)
                 .zIndex(1f)
         ) {
-            // Header Row: capsule (weight=1f) + title text
+            // Header Row: Sleep timer capsule (if visible) — no big title text
+            // (the blur header from HomeScreen already shows "Playlists")
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -141,24 +142,14 @@ fun PlaylistsScreen(
                 if (capsuleVisible && capsuleRemaining > 0) {
                     Spacer(modifier = Modifier.height(20.dp))
                 }
-                Text(
-                    text = "Playlists",
-                    color = Color.White,
-                    fontSize = 34.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = com.rajatxo.coral.ui.theme.QuirkFontFamily
-                )
             }
 
             Spacer(modifier = Modifier.size(8.dp))
 
-            // --- TWO big capsules, stacked vertically ---
-            // Big Capsule 1 (top):    [New] ........... [Grid/Wheel]
-            // Big Capsule 2 (below):  [All Playlist] [All Tags]
-            // Both capsules are the same size: 40dp height, 20dp rounded
-            // corners, SurfaceVariant background.
-
-            // === Big Capsule 1: New + Grid/Wheel ===
+            // === ONE big capsule: New + Playlist Name + Grid/Wheel ===
+            // The playlist name capsule (from the old Big Capsule 2) is
+            // now BETWEEN "New" and "Grid/Wheel" — same capsule, just
+            // repositioned. Removed the "All Tags" capsule entirely.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -169,11 +160,7 @@ fun PlaylistsScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                // "New" capsule (left side) — width matches "All Playlist"
-                // capsule below so the two big capsules align visually.
-                // Uses the double-Text trick: transparent "All Playlist"
-                // text underneath sizes the capsule to match, the visible
-                // "New" text + icon sit on top.
+                // "New" capsule (left side) — creates a new playlist
                 Row(
                     modifier = Modifier
                         .height(32.dp)
@@ -189,36 +176,68 @@ fun PlaylistsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
+                    Icon(
+                        imageVector = CoralIcons.Play,
+                        contentDescription = null,
+                        tint = Color.Black,
+                        modifier = Modifier.size(10.dp)
+                    )
+                    Text(
+                        text = "New",
+                        color = Color.Black,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                // ★ Playlist Name capsule (center) — shows the playlist
+                //   name when rotating the wheel, or "All Playlist" by
+                //   default. Clickable to open the centered playlist.
+                //   Repositioned from the old Big Capsule 2.
+                val pillLuminance = 0.299f * accentColor.red +
+                    0.587f * accentColor.green +
+                    0.114f * accentColor.blue
+                val pillTextColor = if (pillLuminance > 0.5f) Color.Black else Color.White
+
+                Row(
+                    modifier = Modifier
+                        .height(32.dp)
+                        .width(IntrinsicSize.Max)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(accentColor)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = {
+                                if (playlistPillText != "All Playlist" && centerPlaylist != null) {
+                                    centerPlaylist?.let { onPlaylistClick(it) }
+                                }
+                            }
+                        )
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Render "All Playlist" transparent underneath so the
+                    // capsule is always sized to the default text width.
                     Box(contentAlignment = Alignment.Center) {
-                        // Invisible sizer: sizes the capsule to "All Playlist"
                         Text(
                             text = "All Playlist",
                             color = Color.Transparent,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold
                         )
-                        // Visible content: icon + "New"
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(
-                                imageVector = CoralIcons.Play,
-                                contentDescription = null,
-                                tint = Color.Black,
-                                modifier = Modifier.size(10.dp)
-                            )
-                            Text(
-                                text = "New",
-                                color = Color.Black,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
+                        Text(
+                            text = playlistPillText,
+                            color = pillTextColor,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
 
-                // Spacer to push Grid/Wheel to the right
+                // Spacer pushes Grid/Wheel to the right
                 Spacer(modifier = Modifier.weight(1f))
 
                 // Grid/Wheel toggle capsule (right side)
@@ -250,110 +269,6 @@ fun PlaylistsScreen(
                             fontWeight = FontWeight.SemiBold
                         )
                     }
-                }
-            }
-
-            Spacer(modifier = Modifier.size(4.dp))
-
-            // === Big Capsule 2: All Playlist + All Tags ===
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(40.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(CoralColors.SurfaceVariant)
-                    .padding(horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                // "All Playlist" capsule — shows playlist name on rotate, 3s timeout
-                // Background = accent color (default #F4B400 golden yellow, or
-                // auto-detected from currently-playing song's album art).
-                // Text = black (auto-detected: luminance > 0.5 → black text).
-                val pillLuminance = 0.299f * accentColor.red +
-                    0.587f * accentColor.green +
-                    0.114f * accentColor.blue
-                val pillTextColor = if (pillLuminance > 0.5f) Color.Black else Color.White
-
-                Row(
-                    modifier = Modifier
-                        .height(32.dp)
-                        .width(IntrinsicSize.Max)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(accentColor)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = {
-                                if (playlistPillText != "All Playlist" && centerPlaylist != null) {
-                                    centerPlaylist?.let { onPlaylistClick(it) }
-                                }
-                            }
-                        )
-                        .padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Render "All Playlist" transparent underneath so the
-                    // capsule is always sized to the default text width,
-                    // regardless of the current playlist name.
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "All Playlist",
-                            color = Color.Transparent,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = playlistPillText,
-                            color = pillTextColor,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-
-                // Spacer pushes "All Tags" capsule to the very right,
-                // so it sits exactly below the Grid/Wheel capsule above.
-                Spacer(modifier = Modifier.weight(1f))
-
-                // "All Tags" capsule — fixed at the right end
-                Row(
-                    modifier = Modifier
-                        .height(32.dp)
-                        .width(IntrinsicSize.Max)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color.White)
-                        .padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "All Tags",
-                        color = Color.Black,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.size(4.dp))
-
-            // === Big Capsule 3 (below Big Capsule 2) — wheel mode only ===
-            // Only visible in wheel mode. Hidden in grid mode so it doesn't
-            // cover playlist cards.
-            if (useWheel) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(40.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(CoralColors.SurfaceVariant)
-                        .padding(horizontal = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    // Empty — placeholder for future content
                 }
             }
         }
