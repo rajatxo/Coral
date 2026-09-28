@@ -499,16 +499,21 @@ fun SpiralPlayer(
     // ─── System volume (so the volume slider reflects hardware keys) ─
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
     val maxVolume = remember { audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC) }
-    var volume by remember {
+    var systemVolume by remember {
         mutableFloatStateOf(
             if (maxVolume > 0) audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / maxVolume
             else 0f
         )
     }
+    // ★ Local drag volume — updates INSTANTLY during drag for smooth visual.
+    //   systemVolume lags because it goes through ContentObserver (async).
+    //   When not dragging, displayVolume = systemVolume (reflects hardware keys).
+    var dragVolume by remember { mutableFloatStateOf(-1f) }  // -1 = not dragging
+    val displayVolume = if (dragVolume >= 0f) dragVolume else systemVolume
     DisposableEffect(Unit) {
         val observer = object : android.database.ContentObserver(Handler(Looper.getMainLooper())) {
             override fun onChange(selfChange: Boolean) {
-                volume = if (maxVolume > 0)
+                systemVolume = if (maxVolume > 0)
                     audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / maxVolume
                 else 0f
             }
@@ -1284,9 +1289,10 @@ fun SpiralPlayer(
                                 val down = awaitFirstDown(requireUnconsumed = false)
                                 volumeDragging = true
                                 down.consume()
-                                // Set volume on initial tap
+                                // Set volume on initial tap + update dragVolume instantly
                                 if (volBarWidthPx > 0) {
                                     val frac = (down.position.x / volBarWidthPx).coerceIn(0f, 1f)
+                                    dragVolume = frac
                                     val newVol = (frac * maxVolume).toInt().coerceIn(0, maxVolume)
                                     audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
                                 }
@@ -1297,16 +1303,17 @@ fun SpiralPlayer(
                                         pointer.consume()
                                         break
                                     }
-                                    // ★ Always update — no positionChanged() check.
-                                    //   This makes the drag as smooth as the seek bar.
+                                    // ★ Always update dragVolume instantly — smooth visual
                                     if (volBarWidthPx > 0) {
                                         val frac = (pointer.position.x / volBarWidthPx).coerceIn(0f, 1f)
+                                        dragVolume = frac
                                         val newVol = (frac * maxVolume).toInt().coerceIn(0, maxVolume)
                                         audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
                                     }
                                     pointer.consume()
                                 }
                                 volumeDragging = false
+                                dragVolume = -1f  // reset — fall back to systemVolume
                             }
                         }
                 ) {
@@ -1323,7 +1330,7 @@ fun SpiralPlayer(
                     Box(
                         modifier = Modifier
                             .widthIn(min = volTrackHeight)
-                            .fillMaxWidth(volume.coerceIn(0f, 1f))
+                            .fillMaxWidth(displayVolume.coerceIn(0f, 1f))
                             .height(volTrackHeight)
                             .clip(RoundedCornerShape(volTrackHeight / 2))
                             .align(Alignment.CenterStart)
@@ -1340,13 +1347,15 @@ fun SpiralPlayer(
             }
 
             // ─── Gap between volume bar and bottom row (~20dp) ──
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // ─── Bottom row: shuffle · repeat · loop · queue (evenly spaced) ──
-            // Loop/∞ has a circle highlight when active.
+            // ─── Bottom row: shuffle · repeat · loop · queue ──
+            // Tighter spacing — use SpaceEvenly with horizontal padding.
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Shuffle
