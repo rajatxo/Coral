@@ -1275,13 +1275,15 @@ fun SpiralPlayer(
                         .height(24.dp)
                         .onSizeChanged { volBarWidthPx = it.width.toFloat() }
                         .pointerInput(Unit) {
-                            // ★ Use awaitEachGesture (same as ThinSlider) — handles
-                            //   BOTH tap-to-set AND drag in one loop. Also consumes
-                            //   events so the parent Column's detectVerticalDragGestures
-                            //   (swipe-up-to-queue) doesn't interfere.
+                            // ★ awaitEachGesture — handles BOTH tap-to-set AND drag.
+                            //   Removed the positionChanged() check — it was skipping
+                            //   frames where the position hadn't changed enough,
+                            //   making the drag feel choppy/laggy. Now we update the
+                            //   volume on EVERY pointer event for ultra-smooth tracking.
                             awaitEachGesture {
                                 val down = awaitFirstDown(requireUnconsumed = false)
                                 volumeDragging = true
+                                down.consume()
                                 // Set volume on initial tap
                                 if (volBarWidthPx > 0) {
                                     val frac = (down.position.x / volBarWidthPx).coerceIn(0f, 1f)
@@ -1295,14 +1297,14 @@ fun SpiralPlayer(
                                         pointer.consume()
                                         break
                                     }
-                                    if (pointer.positionChanged()) {
-                                        if (volBarWidthPx > 0) {
-                                            val frac = (pointer.position.x / volBarWidthPx).coerceIn(0f, 1f)
-                                            val newVol = (frac * maxVolume).toInt().coerceIn(0, maxVolume)
-                                            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
-                                        }
-                                        pointer.consume()
+                                    // ★ Always update — no positionChanged() check.
+                                    //   This makes the drag as smooth as the seek bar.
+                                    if (volBarWidthPx > 0) {
+                                        val frac = (pointer.position.x / volBarWidthPx).coerceIn(0f, 1f)
+                                        val newVol = (frac * maxVolume).toInt().coerceIn(0, maxVolume)
+                                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
                                     }
+                                    pointer.consume()
                                 }
                                 volumeDragging = false
                             }
