@@ -41,6 +41,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -142,6 +143,12 @@ fun UnifiedPlayerSheet(
     /** Mini player position state — for positionMs / durationMs. */
     positionMs: Long,
     durationMs: Long,
+    /**
+     * Called whenever the sheet's expansion fraction changes (0 = collapsed,
+     * 1 = expanded). HomeScreen uses this to slide the nav bar down + hide
+     * the search FAB when the player is expanded (Yuma-style).
+     */
+    onExpansionFractionChanged: (Float) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val density = LocalDensity.current
@@ -171,6 +178,14 @@ fun UnifiedPlayerSheet(
     // expansionFraction: 0 = collapsed (mini), 1 = expanded (full)
     val expansionFraction = remember { Animatable(0f) }
     val fraction = expansionFraction.value
+
+    // ─── Hoist expansion fraction to parent ──────────────────────
+    // snapshotFlow collects fraction changes without recomposing on every frame.
+    // HomeScreen uses this to slide the nav bar down + hide the search FAB.
+    LaunchedEffect(expansionFraction) {
+        snapshotFlow { expansionFraction.value }
+            .collect { onExpansionFractionChanged(it) }
+    }
 
     // Horizontal swipe-to-dismiss (only active when collapsed)
     val dismissOffsetX = remember { Animatable(0f) }
@@ -243,7 +258,11 @@ fun UnifiedPlayerSheet(
                                         contrast = 1f,
                                         saturation = 1.3f
                                     )
-                                    blur(18f)
+                                    // ★ Use 18.dp.toPx() — same blur strength as
+                                    //   the old standalone MiniPlayer. Just `blur(18f)`
+                                    //   would be 18 PIXELS (way too weak on high-DPI
+                                    //   screens). 18dp ≈ 50-70px on typical phones.
+                                    blur(18f.dp.toPx())
                                 },
                                 onDrawSurface = {
                                     drawRect(Color.Black.copy(alpha = 0.35f))
@@ -539,28 +558,50 @@ fun UnifiedPlayerSheet(
                 }
 
                 // ─── Layer 2: MiniPlayer content (alpha = 1 - fraction) ─
-                // Rendered at the bottom-center of the sheet, fixed at 240×64.
-                // At fraction=0, sheet IS 240×64, so MiniPlayer fills it.
-                // At fraction=1, sheet is full screen, MiniPlayer is at
-                // bottom-center (invisible due to alpha).
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .requiredSize(width = 240.dp, height = 64.dp)
-                        .graphicsLayer { alpha = (1f - fraction).coerceIn(0f, 1f) }
-                ) {
-                    MiniPlayerContent(
-                        title = currentSongTitle ?: "",
-                        artist = currentSongArtist ?: "",
-                        albumArtUri = currentSongArt,
-                        songId = currentSongId,
-                        isPlaying = isPlaying,
-                        positionMs = positionMs,
-                        durationMs = durationMs,
-                        onPlayPauseClick = onPlayPauseClick
+                // ★ RENDERED OUTSIDE the morphing sheet, anchored to the FIXED
+                //   COLLAPSED position. This way, the mini player content stays
+                //   visually anchored at the bottom-center (above nav bar)
+                //   during the entire morph — it doesn't move with the sheet's
+                //   bottom edge as the sheet grows to full screen.
+                //
+                //   At fraction=0: mini content is visible at the collapsed
+                //     position, perfectly aligned with the (also 240×64) sheet.
+                //   At fraction=1: mini content is invisible (alpha=0) but still
+                //     positioned at the collapsed spot (overlapped by SpiralPlayer
+                //     which is at full alpha).
+                //
+                // The mini content is rendered ABOVE the glass backdrop (after
+                // it in the modifier chain) so it appears on top of the glass.
+            }
+        }
+
+        // ─── MiniPlayer content — anchored at collapsed position ────
+        // Rendered as a sibling of the morphing sheet, in the outer Box.
+        // This decouples the mini content's position from the sheet's growing
+        // size — it stays put at the bottom-center, above the nav bar.
+        Box(
+            modifier = Modifier
+                .offset {
+                    IntOffset(
+                        x = ((screenWidthPx - with(density) { 240.dp.toPx() }) / 2f + dismissOffsetX.value).roundToInt(),
+                        y = collapsedY.roundToInt()
                     )
                 }
-            }
+                .requiredSize(width = 240.dp, height = 64.dp)
+                .graphicsLayer {
+                    alpha = (1f - fraction).coerceIn(0f, 1f)
+                }
+        ) {
+            MiniPlayerContent(
+                title = currentSongTitle ?: "",
+                artist = currentSongArtist ?: "",
+                albumArtUri = currentSongArt,
+                songId = currentSongId,
+                isPlaying = isPlaying,
+                positionMs = positionMs,
+                durationMs = durationMs,
+                onPlayPauseClick = onPlayPauseClick
+            )
         }
     }
 

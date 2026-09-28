@@ -47,6 +47,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -345,6 +346,15 @@ fun HomeScreen(
         // DECLARED HERE (before the content Box) so the wrapped callbacks
         // are in scope when the screens below use them.
         var miniPlayerDismissed by remember { mutableStateOf(false) }
+
+        // ─── Player expansion fraction (hoisted from UnifiedPlayerSheet) ──
+        // 0 = collapsed (mini player visible), 1 = expanded (full player).
+        // Drives:
+        //   • DraggableTabCapsule: slides DOWN off-screen as fraction → 1
+        //     (Yuma-style — nav bar hides when player is open)
+        //   • DraggableSearchFab: fades out as fraction → 1
+        var playerExpansionFraction by remember { mutableFloatStateOf(0f) }
+
         androidx.compose.runtime.LaunchedEffect(currentSongId) {
             if (currentSongId != null && miniPlayerDismissed) {
                 miniPlayerDismissed = false
@@ -518,13 +528,18 @@ fun HomeScreen(
                 miniBottomPaddingDp = miniPlayerPaddingBottom,
                 positionMs = miniPlayerPositionMs,
                 durationMs = miniPlayerDurationMs,
+                onExpansionFractionChanged = { fraction ->
+                    playerExpansionFraction = fraction
+                },
                 modifier = Modifier.fillMaxSize()
             )
         }
 
         // --- Draggable Floating Search Button ---
+        // Fades out as the player expands (alpha = 1 - fraction).
         DraggableSearchFab(
-            onSearchClick = { showSearch = true }
+            onSearchClick = { showSearch = true },
+            hideFraction = playerExpansionFraction
         )
 
         // ─── FIXED HEADER (Quick Picks page only) ───────────────────
@@ -724,7 +739,11 @@ fun HomeScreen(
                 selectedTab = tab
                 selectedPlaylist = null
             },
-            backdrop = glassBackdrop
+            backdrop = glassBackdrop,
+            // Yuma-style: nav bar slides DOWN off-screen as the player expands.
+            // At fraction=0 → nav bar in normal position.
+            // At fraction=1 → nav bar fully off-screen below.
+            playerExpansionFraction = playerExpansionFraction
         )
 
         // Add bottom padding to the content area when mini player is visible,
@@ -1464,7 +1483,10 @@ private fun MiniPlayer(
 
 @Composable
 private fun DraggableSearchFab(
-    onSearchClick: () -> Unit = {}
+    onSearchClick: () -> Unit = {},
+    // 0 = visible, 1 = hidden (faded out + non-interactive)
+    // Used to hide the FAB when the player is expanded.
+    hideFraction: Float = 0f
 ) {
     val savedPosition by com.rajatxo.coral.data.prefs.SearchFabPosition.position.collectAsState()
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -1522,6 +1544,9 @@ private fun DraggableSearchFab(
         modifier = Modifier
             .fillMaxSize()
             .onSizeChanged { screenSize = it }
+            // Fade out the entire FAB (including bubble + grid overlay)
+            // when the player is expanded. hideFraction = playerExpansionFraction.
+            .graphicsLayer { alpha = (1f - hideFraction).coerceIn(0f, 1f) }
     ) {
         if (screenSize.width > 0 && screenSize.height > 0) {
 
@@ -1929,7 +1954,10 @@ private fun DraggableTabCapsule(
     tabs: List<CoralTab>,
     activeTab: CoralTab,
     onTabSelected: (CoralTab) -> Unit,
-    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop?
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop?,
+    // Yuma-style: when player expands, the nav bar slides DOWN off-screen.
+    // 0 = normal position, 1 = fully off-screen below.
+    playerExpansionFraction: Float = 0f
 ) {
     val savedPosition by com.rajatxo.coral.data.prefs.TabCapsulePosition.position.collectAsState()
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -2111,19 +2139,27 @@ private fun DraggableTabCapsule(
             }
 
             // --- The capsule (positioned via offset, draggable) ---
+            // Yuma-style: slides DOWN off-screen as player expands.
+            // The slide distance is the capsule height + a small extra so it
+            // fully disappears below the screen edge. Animated implicitly by
+            // the playerExpansionFraction state (driven by UnifiedPlayerSheet).
+            val navSlideDownPx = (capsuleHeight + with(density) { 24.dp.toPx() }) * playerExpansionFraction
             Box(
                 modifier = Modifier
                     .offset {
                         androidx.compose.ui.unit.IntOffset(
                             (currentXpx - capsuleWidth / 2f).toInt()
                                 .coerceIn(0, (screenSize.width - capsuleWidth).toInt()),
-                            (currentYpx - capsuleHeight / 2f).toInt()
-                                .coerceIn(0, (screenSize.height - capsuleHeight).toInt())
+                            ((currentYpx - capsuleHeight / 2f).toInt()
+                                .coerceIn(0, (screenSize.height - capsuleHeight).toInt())) + navSlideDownPx.toInt()
                         )
                     }
                     .graphicsLayer {
                         scaleX = capsuleScale
                         scaleY = capsuleScale
+                        // Fade out as it slides down (so it doesn't visibly overlap
+                        // the UnifiedPlayerSheet's expanding glass above it).
+                        alpha = (1f - playerExpansionFraction).coerceIn(0f, 1f)
                     }
                     .pointerInput(tabs, activeTab) {
                         awaitPointerEventScope {
