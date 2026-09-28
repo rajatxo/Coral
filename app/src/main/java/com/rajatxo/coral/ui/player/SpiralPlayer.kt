@@ -499,23 +499,28 @@ fun SpiralPlayer(
     // ─── System volume (so the volume slider reflects hardware keys) ─
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
     val maxVolume = remember { audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC) }
+    // ★ isDraggingVolume flag — suppresses the ContentObserver during drag
+    //   so it doesn't fight with dragVolume. Without this, setStreamVolume
+    //   triggers the observer which updates systemVolume, which creates
+    //   a feedback loop causing the glitch.
+    var isDraggingVolume by remember { mutableStateOf(false) }
     var systemVolume by remember {
         mutableFloatStateOf(
             if (maxVolume > 0) audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / maxVolume
             else 0f
         )
     }
-    // ★ Local drag volume — updates INSTANTLY during drag for smooth visual.
-    //   systemVolume lags because it goes through ContentObserver (async).
-    //   When not dragging, displayVolume = systemVolume (reflects hardware keys).
     var dragVolume by remember { mutableFloatStateOf(-1f) }  // -1 = not dragging
     val displayVolume = if (dragVolume >= 0f) dragVolume else systemVolume
     DisposableEffect(Unit) {
         val observer = object : android.database.ContentObserver(Handler(Looper.getMainLooper())) {
             override fun onChange(selfChange: Boolean) {
-                systemVolume = if (maxVolume > 0)
-                    audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / maxVolume
-                else 0f
+                // ★ Skip during drag — dragVolume is the source of truth
+                if (!isDraggingVolume) {
+                    systemVolume = if (maxVolume > 0)
+                        audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / maxVolume
+                    else 0f
+                }
             }
         }
         context.contentResolver.registerContentObserver(
@@ -524,6 +529,22 @@ fun SpiralPlayer(
             observer
         )
         onDispose { context.contentResolver.unregisterContentObserver(observer) }
+    }
+    // ★ Fallback: poll volume every 500ms when NOT dragging.
+    //   The ContentObserver doesn't always fire for Bluetooth volume changes,
+    //   so this ensures the bar updates even on BT.
+    LaunchedEffect(Unit) {
+        while (true) {
+            if (!isDraggingVolume) {
+                val currentVol = if (maxVolume > 0)
+                    audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / maxVolume
+                else 0f
+                if (kotlin.math.abs(currentVol - systemVolume) > 0.01f) {
+                    systemVolume = currentVol
+                }
+            }
+            delay(500)
+        }
     }
 
     // ─── Root Box: 100% blurred album cover bg + sharp art moved down ───
@@ -1280,16 +1301,11 @@ fun SpiralPlayer(
                         .height(24.dp)
                         .onSizeChanged { volBarWidthPx = it.width.toFloat() }
                         .pointerInput(Unit) {
-                            // ★ awaitEachGesture — handles BOTH tap-to-set AND drag.
-                            //   Removed the positionChanged() check — it was skipping
-                            //   frames where the position hadn't changed enough,
-                            //   making the drag feel choppy/laggy. Now we update the
-                            //   volume on EVERY pointer event for ultra-smooth tracking.
                             awaitEachGesture {
                                 val down = awaitFirstDown(requireUnconsumed = false)
+                                isDraggingVolume = true
                                 volumeDragging = true
                                 down.consume()
-                                // Set volume on initial tap + update dragVolume instantly
                                 if (volBarWidthPx > 0) {
                                     val frac = (down.position.x / volBarWidthPx).coerceIn(0f, 1f)
                                     dragVolume = frac
@@ -1303,8 +1319,7 @@ fun SpiralPlayer(
                                         pointer.consume()
                                         break
                                     }
-                                    // ★ Always update dragVolume instantly — smooth visual
-                                    if (volBarWidthPx > 0) {
+                                if (volBarWidthPx > 0) {
                                         val frac = (pointer.position.x / volBarWidthPx).coerceIn(0f, 1f)
                                         dragVolume = frac
                                         val newVol = (frac * maxVolume).toInt().coerceIn(0, maxVolume)
@@ -1313,7 +1328,10 @@ fun SpiralPlayer(
                                     pointer.consume()
                                 }
                                 volumeDragging = false
-                                dragVolume = -1f  // reset — fall back to systemVolume
+                                isDraggingVolume = false
+                                // Sync systemVolume to the final drag value
+                                systemVolume = dragVolume
+                                dragVolume = -1f
                             }
                         }
                 ) {
@@ -1347,14 +1365,16 @@ fun SpiralPlayer(
             }
 
             // ─── Gap between volume bar and bottom row (~24dp) ──
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
             // ─── Bottom row: lyrics (left) · connectivity (center) · queue (right) ──
+            // ★ Using weight(1f) spacers between icons for proper gap control.
+            //   SpaceBetween with padding doesn't increase the gap between icons,
+            //   it just moves them inward from edges.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 25.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                    .padding(horizontal = 40.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Lyrics (left)
@@ -1369,6 +1389,8 @@ fun SpiralPlayer(
                             indication = null
                         ) { showLyrics = true }
                 )
+                // ★ Weight spacer — pushes icons apart
+                Spacer(modifier = Modifier.weight(1f))
                 // Connectivity / Bluetooth (center)
                 Icon(
                     imageVector = CoralIcons.Radio,
@@ -1384,6 +1406,8 @@ fun SpiralPlayer(
                             view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                         }
                 )
+                // ★ Weight spacer — pushes icons apart
+                Spacer(modifier = Modifier.weight(1f))
                 // Queue (right)
                 Icon(
                     imageVector = CoralIcons.Logs,
