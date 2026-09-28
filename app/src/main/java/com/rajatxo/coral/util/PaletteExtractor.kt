@@ -131,6 +131,17 @@ suspend fun extractPalette(
 
             // ★ Pick colors based on the selected palette style
             val result = when (style) {
+                com.rajatxo.coral.data.prefs.SpiralPaletteStyle.PaletteStyle.BLUR -> {
+                    // BLUR style — same as the original Vibrant extraction.
+                    // The background is the blurred album cover, so the palette
+                    // colors are only used for the base color + accent icons.
+                    CoralPalette(
+                        primary = boostSaturation(Color(dominant), 2.5f, 1.15f),
+                        secondary = boostSaturation(Color(lightVibrant ?: dominant), 2.0f, 1.1f),
+                        tertiary = boostSaturation(Color(darkVibrant ?: dominant), 1.8f, 0.92f),
+                        accent = boostSaturation(Color(vibrant ?: dominant), 2.5f, 1.15f)
+                    )
+                }
                 com.rajatxo.coral.data.prefs.SpiralPaletteStyle.PaletteStyle.VIBRANT -> {
                     // Maximum saturation — punchy, colorful, Apple Music style
                     CoralPalette(

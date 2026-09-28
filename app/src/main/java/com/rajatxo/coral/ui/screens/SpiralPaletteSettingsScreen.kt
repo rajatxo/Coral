@@ -145,6 +145,11 @@ private fun PaletteStyleCard(
 
     // Preview gradient — shows what this style looks like
     val previewGradient = when (style) {
+        SpiralPaletteStyle.PaletteStyle.BLUR -> arrayOf(
+            0.0f to Color(0xFF1A1A2E),
+            0.5f to Color(0xFF16213E),
+            1.0f to Color(0xFF05050A)
+        )
         SpiralPaletteStyle.PaletteStyle.VIBRANT -> arrayOf(
             0.0f to Color(0xFF6C5CE7),
             0.5f to Color(0xFFA29BFE),

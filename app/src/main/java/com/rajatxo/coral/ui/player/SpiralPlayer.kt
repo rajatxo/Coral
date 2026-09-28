@@ -552,29 +552,33 @@ fun SpiralPlayer(
     // Layout:
     //   (1) SOLID GRADIENT background using the album art's palette
     //       colors (primary → secondary → tertiary). No blurred image —
-    //       just vibrant dominant colors fading to dark. Matches the
-    //       "solid blur gradient" look the user requested.
+    //       (1a) If BLUR style: blurred album cover (96dp) fills screen.
+    //       (1b) If gradient style: solid palette gradient (primary→tertiary→dark).
     //   (2) SHARP album art in a SQUARE container at top.
-    //   (3) Bottom dark gradient overlay for control readability.
+    //   (3) Bottom dark gradient overlay for control readability (very subtle).
+    val paletteStyle by com.rajatxo.coral.data.prefs.SpiralPaletteStyle.style.collectAsState()
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .drawBehind {
-                // ★ Solid palette gradient — replaces the blurred album cover.
-                //   Uses the dominant/vibrant colors extracted from the album art.
-                //   Top = palette.primary (vibrant), fading to palette.tertiary (dark)
-                //   at the bottom. Fades to transparent on drag-down (dismiss).
-                drawRect(
-                    brush = Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0.0f to animatedTopColor,
-                            0.35f to animatedMidColor,
-                            0.65f to animatedBottomColor,
-                            1.0f to Color(0xFF05050A)
+                // ★ Don't fade the background on drag-down — the translationY
+                //   handles the dismiss visually (player slides down off screen).
+                //   Fading the background to transparent during drag causes the
+                //   gradient/blur to vanish prematurely, showing only the cover art.
+                if (paletteStyle == com.rajatxo.coral.data.prefs.SpiralPaletteStyle.PaletteStyle.BLUR) {
+                    drawRect(color = animatedBottomColor)
+                } else {
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.0f to animatedTopColor,
+                                0.35f to animatedMidColor,
+                                0.65f to animatedBottomColor,
+                                1.0f to Color(0xFF05050A)
+                            )
                         )
-                    ),
-                    alpha = bgAlpha
-                )
+                    )
+                }
             }
             .graphicsLayer {
                 translationY = dismissDragY.value
@@ -628,10 +632,23 @@ fun SpiralPlayer(
 
         // Background layer — wrapped with layerBackdrop so the glass capsule
         // can sample + blur the background behind it (liquid glass effect).
-        // ★ No more blurred album cover — the background is now a solid
-        //   palette gradient drawn in drawBehind above. This layer is
-        //   kept just for the layerBackdrop (glass blur sampling).
+        // Background layer — wrapped with layerBackdrop so the glass capsule
+        // can sample + blur the background behind it (liquid glass effect).
         Box(modifier = Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
+
+        // ★ If BLUR style: render the blurred album cover (96dp blur)
+        if (paletteStyle == com.rajatxo.coral.data.prefs.SpiralPaletteStyle.PaletteStyle.BLUR && albumArtUri != null) {
+            AsyncImage(
+                model = albumArtUri,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                colorFilter = bgSatFilter,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(96.dp)
+                    .graphicsLayer { alpha = outAlpha }
+            )
+        }
 
         // (2) Sharp album art — SQUARE container at top, moved down 24dp.
         Box(
@@ -857,11 +874,8 @@ fun SpiralPlayer(
             )
         }
 
-        // ★ Bottom gradient overlay — BEHIND the controls (rendered before
-        //   the content column). Dark black at the very bottom, fading to
-        //   transparent at the top. Only covers the bottom portion.
-        //   Transparent at the song title position so the album cover + colors
-        //   show through. Gets darker toward the bottom for readability.
+        // ★ Bottom gradient overlay — very subtle (10% intensity).
+        //   Only slightly darkens the bottom for control readability.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -871,10 +885,9 @@ fun SpiralPlayer(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
                             0.0f to Color.Transparent,
-                            0.3f to Color(0xFF05050A).copy(alpha = 0.3f),
-                            0.6f to Color(0xFF05050A).copy(alpha = 0.7f),
-                            0.85f to Color(0xFF05050A).copy(alpha = 0.95f),
-                            1.0f to Color(0xFF05050A)
+                            0.5f to Color(0xFF05050A).copy(alpha = 0.03f),
+                            0.8f to Color(0xFF05050A).copy(alpha = 0.06f),
+                            1.0f to Color(0xFF05050A).copy(alpha = 0.10f)
                         )
                     )
                 )

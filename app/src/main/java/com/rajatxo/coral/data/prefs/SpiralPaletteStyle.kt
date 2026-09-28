@@ -34,6 +34,7 @@ object SpiralPaletteStyle {
     private const val KEY_STYLE = "spiral_palette_style_v1"
 
     enum class PaletteStyle(val displayName: String, val description: String) {
+        BLUR("Blur", "Original blurred album cover — heavy 96dp blur"),
         VIBRANT("Vibrant", "Maximum saturation — punchy, colorful, Apple Music style"),
         DOMINANT("Dominant", "Most common color — natural, accurate to album art"),
         MUTED("Muted", "Soft, subtle tones — good for minimal albums"),
@@ -42,16 +43,16 @@ object SpiralPaletteStyle {
 
     private lateinit var prefs: android.content.SharedPreferences
 
-    private val _style = MutableStateFlow(PaletteStyle.VIBRANT)
+    private val _style = MutableStateFlow(PaletteStyle.BLUR)  // ★ Default = BLUR
     val style: StateFlow<PaletteStyle> = _style.asStateFlow()
 
     fun init(context: Context) {
         prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val saved = prefs.getString(KEY_STYLE, null)
-        _style.value = try {
-            saved?.let { PaletteStyle.valueOf(it) } ?: PaletteStyle.VIBRANT
+            _style.value = try {
+            saved?.let { PaletteStyle.valueOf(it) } ?: PaletteStyle.BLUR
         } catch (_: Exception) {
-            PaletteStyle.VIBRANT
+            PaletteStyle.BLUR
         }
     }
 
