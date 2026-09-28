@@ -47,7 +47,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -201,17 +200,13 @@ fun UnifiedPlayerSheet(
     // position (translationY) changes — from collapsedY (bottom, only
     // top ~64dp visible) to 0 (top, full screen visible).
     //
-    // The sheet uses scaleX to SHRINK HORIZONTALLY when collapsed (giving
-    // the pill appearance), and grows to full width when expanded.
-    // Yuma's formula: scaleX = (screenWidth - 2 * horizontalPadding) / screenWidth
-    // where horizontalPadding = 16dp at collapsed, 0dp at expanded.
+    // NO scaleX — it squashes the SpiralPlayer content inside, creating
+    // a "muddy" look during the morph. Instead, the sheet is always full
+    // width. The pill appearance when collapsed comes from the glass
+    // backdrop + border + rounded corners only.
     val currentY = lerp(collapsedY, expandedY, fraction)
     val currentCornerDp = with(density) { lerp(32.dp.toPx(), 0.dp.toPx(), fraction).toDp() }
     val sheetShape: Shape = RoundedCornerShape(currentCornerDp)
-    // Horizontal padding: 16dp at collapsed → 0dp at expanded (Yuma's exact values)
-    val horizontalPaddingPx = with(density) { lerp(16.dp.toPx(), 0.dp.toPx(), fraction) }
-    // scaleX: shrinks the sheet horizontally when collapsed
-    val sheetScaleX = (screenWidthPx - horizontalPaddingPx * 2f) / screenWidthPx
 
     // ─── Glass background ─────────────────────────────────────────
     val glassAlpha = (1f - fraction).coerceIn(0f, 1f)
@@ -244,13 +239,9 @@ fun UnifiedPlayerSheet(
                         y = currentY.roundToInt()
                     )
                 }
-                .graphicsLayer {
-                    // Yuma's scaleX shrink: sheet narrows horizontally when collapsed
-                    scaleX = sheetScaleX
-                    scaleY = 1f
-                    // Transform origin at top-center (shrinks toward top center)
-                    transformOrigin = TransformOrigin(0.5f, 0f)
-                }
+                // NO scaleX — it squashes the SpiralPlayer content inside.
+                // The sheet is always full width. The pill appearance when
+                // collapsed comes from glass + border + rounded corners.
                 .clip(sheetShape)
                 .then(
                     // Glass backdrop — samples home content behind.
