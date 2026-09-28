@@ -47,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -200,32 +201,40 @@ fun UnifiedPlayerSheet(
     // position (translationY) changes — from collapsedY (bottom, only
     // top ~64dp visible) to 0 (top, full screen visible).
     //
-    // The sheet is CLIPPED by the screen bounds naturally — the portion
-    // below the screen edge is invisible. As translationY decreases:
-    //   - Mini content (at top of sheet) moves UP with finger + fades out
-    //   - More of the full player becomes visible (top-to-bottom reveal)
-    //   - Nav bar slides down off-screen
+    // The sheet uses scaleX to SHRINK HORIZONTALLY when collapsed (giving
+    // the pill appearance), and grows to full width when expanded.
+    // Yuma's formula: scaleX = (screenWidth - 2 * horizontalPadding) / screenWidth
+    // where horizontalPadding = 16dp at collapsed, 0dp at expanded.
     val currentY = lerp(collapsedY, expandedY, fraction)
-    // Corner radius morphs: 32dp (rounded pill) → 0dp (full screen square)
     val currentCornerDp = with(density) { lerp(32.dp.toPx(), 0.dp.toPx(), fraction).toDp() }
     val sheetShape: Shape = RoundedCornerShape(currentCornerDp)
+    // Horizontal padding: 16dp at collapsed → 0dp at expanded (Yuma's exact values)
+    val horizontalPaddingPx = with(density) { lerp(16.dp.toPx(), 0.dp.toPx(), fraction) }
+    // scaleX: shrinks the sheet horizontally when collapsed
+    val sheetScaleX = (screenWidthPx - horizontalPaddingPx * 2f) / screenWidthPx
 
     // ─── Glass background ─────────────────────────────────────────
-    // Glass is at full strength when collapsed (mini player is mostly glass).
-    // Fades to 0 as fraction → 1 (SpiralPlayer's bg takes over).
     val glassAlpha = (1f - fraction).coerceIn(0f, 1f)
 
+    // ─── Yuma's spring spec (exactly matching) ────────────────────
+    // dampingRatio = 0.78 gives a slight bounce (not NoBouncy which feels stiff)
+    // stiffness = StiffnessMediumLow gives a smooth, medium-speed animation
+    val sheetSpring = spring<Float>(
+        dampingRatio = 0.78f,
+        stiffness = Spring.StiffnessMediumLow
+    )
+
     // ─── Gesture handling ──────────────────────────────────────────
+    // Gestures are on the SHEET only (not a full-screen overlay).
+    // detectDragGestures does NOT consume taps — taps pass through to
+    // the home content behind. This is critical: the user can still
+    // interact with the home screen when the sheet is collapsed.
     var dragDirection by remember { mutableStateOf<Int?>(null) }  // 0=H, 1=V
     var totalDragX by remember { mutableFloatStateOf(0f) }
     var totalDragY by remember { mutableFloatStateOf(0f) }
 
     Box(modifier = modifier.fillMaxSize()) {
-        // ─── The sheet (always full screen, positioned via translationY) ──
-        // Yuma-style: the sheet is full screen size at ALL times. Only its
-        // position changes. At collapsed, only the top ~64dp is visible
-        // (positioned above the nav bar). As translationY → 0, the sheet
-        // slides up, revealing more content top-to-bottom.
+        // ─── The sheet (always full screen, positioned via offset) ──
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -235,10 +244,16 @@ fun UnifiedPlayerSheet(
                         y = currentY.roundToInt()
                     )
                 }
+                .graphicsLayer {
+                    // Yuma's scaleX shrink: sheet narrows horizontally when collapsed
+                    scaleX = sheetScaleX
+                    scaleY = 1f
+                    // Transform origin at top-center (shrinks toward top center)
+                    transformOrigin = TransformOrigin(0.5f, 0f)
+                }
                 .clip(sheetShape)
                 .then(
                     // Glass backdrop — samples home content behind.
-                    // Fades out as fraction → 1 (SpiralPlayer's bg takes over).
                     if (glassBackdrop != null && glassAlpha > 0.01f) {
                         Modifier
                             .graphicsLayer { alpha = glassAlpha }
@@ -270,7 +285,7 @@ fun UnifiedPlayerSheet(
                         )
                     } else Modifier
                 )
-                // Gestures on the sheet
+                // Drag gestures — does NOT consume taps (taps pass through)
                 .pointerInput(Unit) {
                     detectDragGestures(
                         onDragStart = {
@@ -324,17 +339,13 @@ fun UnifiedPlayerSheet(
                                         }
                                     }
                                 }
-                                1 -> {  // VERTICAL — snap to nearest anchor
+                                1 -> {  // VERTICAL — snap to nearest anchor (Yuma's velocity-based logic)
+                                    // Yuma: if fraction > 0.5 → expand, else → collapse
+                                    // (Yuma also uses velocity, but for simplicity we use the 50% threshold)
                                     val targetFraction = if (expansionFraction.value > 0.5f) 1f else 0f
                                     val wasBelowHalf = expansionFraction.value < 0.5f
                                     scope.launch {
-                                        expansionFraction.animateTo(
-                                            targetFraction,
-                                            spring(
-                                                dampingRatio = Spring.DampingRatioNoBouncy,
-                                                stiffness = Spring.StiffnessMediumLow
-                                            )
-                                        )
+                                        expansionFraction.animateTo(targetFraction, sheetSpring)
                                     }
                                     if (targetFraction == 1f && wasBelowHalf) {
                                         view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
@@ -346,43 +357,19 @@ fun UnifiedPlayerSheet(
                             scope.launch {
                                 dismissOffsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
                                 val targetFraction = if (expansionFraction.value > 0.5f) 1f else 0f
-                                expansionFraction.animateTo(
-                                    targetFraction,
-                                    spring(
-                                        dampingRatio = Spring.DampingRatioNoBouncy,
-                                        stiffness = Spring.StiffnessMediumLow
-                                    )
-                                )
+                                expansionFraction.animateTo(targetFraction, sheetSpring)
                             }
                         }
                     )
-                }
-                // Tap (when collapsed) → expand
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    enabled = fraction < 0.5f
-                ) {
-                    scope.launch {
-                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                        expansionFraction.animateTo(
-                            1f,
-                            spring(
-                                dampingRatio = Spring.DampingRatioNoBouncy,
-                                stiffness = Spring.StiffnessMediumLow
-                            )
-                        )
-                    }
                 }
         ) {
             // ════════════════════════════════════════════════════════════
             // LAYER 1: Full player (alpha = fraction)
             // ════════════════════════════════════════════════════════════
-            // Renders at FULL SCREEN size inside the sheet. The sheet is
-            // also full screen, so the player fills it. At fraction=0 the
-            // player is invisible (alpha=0). As fraction → 1, the player
-            // fades in AND is progressively revealed top-to-bottom (because
-            // the sheet slides up, exposing more of its content).
+            // Fills the entire sheet. At fraction=0 the player is invisible
+            // (alpha=0). As fraction → 1, the player fades in AND is
+            // progressively revealed top-to-bottom (because the sheet
+            // slides up, exposing more of its content).
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -542,24 +529,36 @@ fun UnifiedPlayerSheet(
                 // ════════════════════════════════════════════════════════════
                 // LAYER 2: MiniPlayer content (alpha = 1 - fraction)
                 // ════════════════════════════════════════════════════════════
-                // Rendered at the TOP of the sheet (y=0 in sheet coords), on
-                // TOP of the full player. Moves UP with the sheet as it
-                // expands — the mini content follows the finger.
+                // Yuma-style: mini content is FULL WIDTH with 16dp horizontal
+                // padding (not 240dp fixed width). This matches the sheet's
+                // visible glass area — no mismatch between glass width and
+                // content width.
                 //
-                // At fraction=0: mini content at top of sheet, visible at
-                //   bottom of screen (above nav bar). Alpha=1.
-                // At fraction=1: mini content has moved up off-screen (or is
-                //   at the very top of the screen). Alpha=0 (invisible).
+                // Rendered at the TOP of the sheet, on TOP of the full player.
+                // Moves UP with the sheet as it expands — follows the finger.
                 //
-                // The mini content is 240dp × 64dp, centered horizontally.
-                // It's rendered AFTER the full player (higher z-index) so it
-                // appears on top.
+                // Tap on the mini content → expand (only enabled when collapsed).
+                // This is on the MINI CONTENT only, not the full sheet — so
+                // taps on the home content behind pass through.
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
-                        .requiredSize(width = 240.dp, height = 64.dp)
+                        .fillMaxWidth()
+                        .height(64.dp)
                         .graphicsLayer {
                             alpha = (1f - fraction).coerceIn(0f, 1f)
+                        }
+                        // Tap to expand — ONLY on the mini content area
+                        // (not the full sheet, so home content behind is tappable)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            enabled = fraction < 0.5f
+                        ) {
+                            scope.launch {
+                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                expansionFraction.animateTo(1f, sheetSpring)
+                            }
                         }
                 ) {
                     MiniPlayerContent(
@@ -598,7 +597,9 @@ private fun MiniPlayerContent(
     val isFavorite = songId != null && songId in favorites.songIds
 
     Row(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),  // Yuma-style: 16dp horizontal padding
         verticalAlignment = Alignment.CenterVertically
     ) {
         // --- Circular album art + progress ring (LEFT) ---
