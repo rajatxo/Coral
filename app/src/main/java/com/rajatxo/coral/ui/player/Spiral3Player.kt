@@ -663,12 +663,16 @@ fun Spiral3Player(
             .graphicsLayer {
                 // Follow finger: move down with drag.
                 translationY = dismissDragY.value
-                // Fade the WHOLE player to transparent FAST (quadratic curve)
-                // so the behind page shows through clearly even at small drag
-                // amounts. The blurred album cover looks like a solid color
-                // wash — fading it fast reveals the behind page cleanly.
-                val linearAlpha = 1f - dismissProgress
-                alpha = linearAlpha * linearAlpha
+                // SMOOTHSTEP fade for buttery visual transition.
+                //   smoothstep(p) = p² × (3 - 2p)
+                //   0% drag → alpha 1.0
+                //  25% drag → alpha 0.84
+                //  50% drag → alpha 0.50
+                //  75% drag → alpha 0.16
+                // 100% drag → alpha 0
+                val p = dismissProgress
+                val smooth = p * p * (3f - 2f * p)
+                alpha = 1f - smooth
                 // Shrink toward bottom-center so the player visually
                 // "blends into" the miniplayer position.
                 val scale = 1f - (dismissProgress * 0.15f)
@@ -680,14 +684,14 @@ fun Spiral3Player(
                 detectVerticalDragGestures(
                     onDragEnd = {
                         if (dismissDragY.value > dismissThreshold) {
-                            // Animate the player ALL the way down off-screen,
-                            // THEN call onDismiss(). We keep translationY at
-                            // screenHeightPx during the exit so the player
-                            // stays off-screen — no reappear.
+                            // Dismiss: smooth spring glide off-screen.
                             coroutineScope.launch {
                                 dismissDragY.animateTo(
                                     targetValue = screenHeightPx,
-                                    animationSpec = androidx.compose.animation.core.tween(200)
+                                    animationSpec = androidx.compose.animation.core.spring(
+                                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+                                        stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+                                    )
                                 )
                                 onDismiss()
                                 // Don't reset dismissDragY here — keep it at
@@ -696,11 +700,14 @@ fun Spiral3Player(
                                 // the player is re-opened (LaunchedEffect below).
                             }
                         } else {
-                            // Fast snap back to 0
+                            // Smooth spring snap-back to 0 (buttery, no overshoot).
                             coroutineScope.launch {
                                 dismissDragY.animateTo(
                                     targetValue = 0f,
-                                    animationSpec = androidx.compose.animation.core.tween(150)
+                                    animationSpec = androidx.compose.animation.core.spring(
+                                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+                                        stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+                                    )
                                 )
                             }
                         }
@@ -709,7 +716,10 @@ fun Spiral3Player(
                         coroutineScope.launch {
                             dismissDragY.animateTo(
                                 targetValue = 0f,
-                                animationSpec = androidx.compose.animation.core.tween(150)
+                                animationSpec = androidx.compose.animation.core.spring(
+                                    dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+                                    stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+                                )
                             )
                         }
                     },

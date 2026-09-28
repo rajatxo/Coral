@@ -589,18 +589,19 @@ fun SpiralPlayer(
             .graphicsLayer {
                 // Follow finger: move down with drag.
                 translationY = dismissDragY.value
-                // Fade the WHOLE player to transparent FAST (quadratic curve)
-                // so the behind page (songs list / playlist / quick pic) shows
-                // through clearly even at small drag amounts. The blurred album
-                // cover looks like a solid color wash — fading it fast reveals
-                // the behind page instead of a faded solid color.
+                // Fade the WHOLE player to transparent using a SMOOTHSTEP
+                // curve for buttery visual fade (no abrupt drops). Faster
+                // than linear so the behind page becomes visible cleanly
+                // even at small drag amounts, but smoother than quadratic.
+                //   smoothstep(p) = p² × (3 - 2p)
                 //   0% drag → alpha 1.0 (fully visible)
-                //  25% drag → alpha 0.56 (mostly visible)
-                //  50% drag → alpha 0.25 (mostly transparent — behind page clear)
-                //  75% drag → alpha 0.06 (almost invisible)
+                //  25% drag → alpha 0.84
+                //  50% drag → alpha 0.50
+                //  75% drag → alpha 0.16
                 // 100% drag → alpha 0    (fully transparent)
-                val linearAlpha = 1f - dismissProgress
-                alpha = linearAlpha * linearAlpha
+                val p = dismissProgress
+                val smooth = p * p * (3f - 2f * p)
+                alpha = 1f - smooth
                 // Shrink toward bottom-center so the player visually
                 // "blends into" the miniplayer position at the bottom of
                 // the screen. 0.85f keeps it subtle — full 1.0 shrink would
@@ -617,14 +618,16 @@ fun SpiralPlayer(
                 detectVerticalDragGestures(
                     onDragEnd = {
                         if (dismissDragY.value > dismissThreshold) {
-                            // Animate the player ALL the way down off-screen,
-                            // THEN call onDismiss(). We keep translationY at
-                            // screenHeightPx during the exit so the player
-                            // stays off-screen — no reappear.
+                            // Dismiss: glide off-screen with a smooth spring
+                            // (no overshoot — feels like a natural throw,
+                            // smoother than a hard tween cut).
                             coroutineScope.launch {
                                 dismissDragY.animateTo(
                                     targetValue = screenHeightPx,
-                                    animationSpec = androidx.compose.animation.core.tween(200)
+                                    animationSpec = androidx.compose.animation.core.spring(
+                                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+                                        stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+                                    )
                                 )
                                 onDismiss()
                                 // Don't reset dismissDragY here — keep it at
@@ -633,11 +636,16 @@ fun SpiralPlayer(
                                 // the player is re-opened (LaunchedEffect below).
                             }
                         } else {
-                            // Fast snap back to 0
+                            // Snap back to 0 — smooth spring glide back to
+                            // rest position. DampingRatioNoBouncy = no
+                            // overshoot, StiffnessMediumLow = buttery slow.
                             coroutineScope.launch {
                                 dismissDragY.animateTo(
                                     targetValue = 0f,
-                                    animationSpec = androidx.compose.animation.core.tween(150)
+                                    animationSpec = androidx.compose.animation.core.spring(
+                                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+                                        stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+                                    )
                                 )
                             }
                         }
@@ -646,7 +654,10 @@ fun SpiralPlayer(
                         coroutineScope.launch {
                             dismissDragY.animateTo(
                                 targetValue = 0f,
-                                animationSpec = androidx.compose.animation.core.tween(150)
+                                animationSpec = androidx.compose.animation.core.spring(
+                                    dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+                                    stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+                                )
                             )
                         }
                     },
@@ -964,7 +975,7 @@ fun SpiralPlayer(
         //   affecting the control icons (lyrics / connectivity / queue).
         //   - 400dp tall, anchored to bottom.
         //   - Transparent at the top (where the album cover + colors show).
-        //   - Dark black at the very bottom (for controls readability).
+        //   - Max ~20% black at the very bottom (subtle, not pure black).
         //   - Fades out along with the player during drag-down (because it's
         //     inside the root BoxWithConstraints which has the alpha
         //     graphicsLayer applied).
@@ -977,10 +988,10 @@ fun SpiralPlayer(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
                             0.0f to Color.Transparent,
-                            0.3f to Color(0xFF05050A).copy(alpha = 0.3f),
-                            0.6f to Color(0xFF05050A).copy(alpha = 0.7f),
-                            0.85f to Color(0xFF05050A).copy(alpha = 0.95f),
-                            1.0f to Color(0xFF05050A)
+                            0.3f to Color(0xFF05050A).copy(alpha = 0.05f),
+                            0.6f to Color(0xFF05050A).copy(alpha = 0.10f),
+                            0.85f to Color(0xFF05050A).copy(alpha = 0.15f),
+                            1.0f to Color(0xFF05050A).copy(alpha = 0.20f)
                         )
                     )
                 )
