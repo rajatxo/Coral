@@ -164,11 +164,13 @@ fun UnifiedPlayerSheet(
     }
 
     // ─── Mini (collapsed) dimensions ────────────────────────────────
-    val miniWidthPx = with(density) { 240.dp.toPx() }
+    // Only miniHeightPx is needed — to calculate collapsedY.
+    // The sheet itself is always full screen size (Yuma-style).
     val miniHeightPx = with(density) { 64.dp.toPx() }
-    val miniCornerPx = with(density) { 32.dp.toPx() }
 
-    // Collapsed Y: bottom of screen, with system bar inset + miniBottomPadding
+    // Collapsed Y: the sheet's translationY when collapsed.
+    // At this position, only the top ~64dp of the sheet is visible on screen
+    // (the rest is below the screen edge). The visible portion IS the mini player.
     val miniBottomPaddingPx = with(density) { miniBottomPaddingDp.toPx() }
     val collapsedY = screenHeightPx - systemNavInsetPx - miniBottomPaddingPx - miniHeightPx
     val expandedY = 0f
@@ -194,57 +196,49 @@ fun UnifiedPlayerSheet(
     val playerStyle by PlayerStyleManager.playerStyle.collectAsState()
 
     // ─── Current geometry (interpolated) ───────────────────────────
+    // Yuma approach: the sheet is ALWAYS FULL SCREEN SIZE. Only its
+    // position (translationY) changes — from collapsedY (bottom, only
+    // top ~64dp visible) to 0 (top, full screen visible).
+    //
+    // The sheet is CLIPPED by the screen bounds naturally — the portion
+    // below the screen edge is invisible. As translationY decreases:
+    //   - Mini content (at top of sheet) moves UP with finger + fades out
+    //   - More of the full player becomes visible (top-to-bottom reveal)
+    //   - Nav bar slides down off-screen
     val currentY = lerp(collapsedY, expandedY, fraction)
-    val currentWidthPx = lerp(miniWidthPx, screenWidthPx, fraction)
-    val currentHeightPx = lerp(miniHeightPx, screenHeightPx, fraction)
-    val currentCornerPx = lerp(miniCornerPx, 0f, fraction)
-    val currentCornerDp = with(density) { currentCornerPx.toDp() }
+    // Corner radius morphs: 32dp (rounded pill) → 0dp (full screen square)
+    val currentCornerDp = with(density) { lerp(32.dp.toPx(), 0.dp.toPx(), fraction).toDp() }
     val sheetShape: Shape = RoundedCornerShape(currentCornerDp)
 
-    // ─── Glass background (when sheet has glass backdrop) ─────────
-    // At fraction=0, glass is at full strength (mini pill is mostly glass).
-    // At fraction=1, glass fades to 0 — SpiralPlayer's blurred album cover
-    // takes over as the visible background.
+    // ─── Glass background ─────────────────────────────────────────
+    // Glass is at full strength when collapsed (mini player is mostly glass).
+    // Fades to 0 as fraction → 1 (SpiralPlayer's bg takes over).
     val glassAlpha = (1f - fraction).coerceIn(0f, 1f)
 
     // ─── Gesture handling ──────────────────────────────────────────
-    // Gestures are attached to the sheet container itself (NOT a full-screen
-    // overlay), so touches OUTSIDE the sheet fall through to the home content
-    // behind. The sheet's layout position (via .offset) is what determines
-    // hit testing — using .graphicsLayer.translationY would NOT move the
-    // hit-test region, so we use .offset for the sheet's actual position.
-    //
-    // Single pointerInput handles all gestures. Direction locks after 20px.
-    //   • Vertical drag UP (when collapsed) → expand
-    //   • Vertical drag DOWN (when expanded) → collapse
-    //   • Horizontal drag (when collapsed) → swipe-to-dismiss
     var dragDirection by remember { mutableStateOf<Int?>(null) }  // 0=H, 1=V
     var totalDragX by remember { mutableFloatStateOf(0f) }
     var totalDragY by remember { mutableFloatStateOf(0f) }
 
     Box(modifier = modifier.fillMaxSize()) {
-        // ─── The morphing sheet container ──────────────────────────
-        // Positioned with .offset { ... } (lambda version = deferred read,
-        // no recomposition on each frame). Size via .requiredSize.
-        // Both are needed for proper hit-testing — graphicsLayer.translationY
-        // would NOT move the touch region.
+        // ─── The sheet (always full screen, positioned via translationY) ──
+        // Yuma-style: the sheet is full screen size at ALL times. Only its
+        // position changes. At collapsed, only the top ~64dp is visible
+        // (positioned above the nav bar). As translationY → 0, the sheet
+        // slides up, revealing more content top-to-bottom.
         Box(
             modifier = Modifier
+                .fillMaxSize()
                 .offset {
                     IntOffset(
-                        x = ((screenWidthPx - currentWidthPx) / 2f + dismissOffsetX.value).roundToInt(),
+                        x = dismissOffsetX.value.roundToInt(),
                         y = currentY.roundToInt()
                     )
                 }
-                .requiredSize(
-                    width = with(density) { currentWidthPx.toDp() },
-                    height = with(density) { currentHeightPx.toDp() }
-                )
                 .clip(sheetShape)
                 .then(
-                    // Glass backdrop — always samples home content behind.
-                    // At fraction=1, SpiralPlayer's bg covers the glass, so
-                    // we can skip drawing it for performance.
+                    // Glass backdrop — samples home content behind.
+                    // Fades out as fraction → 1 (SpiralPlayer's bg takes over).
                     if (glassBackdrop != null && glassAlpha > 0.01f) {
                         Modifier
                             .graphicsLayer { alpha = glassAlpha }
@@ -258,10 +252,6 @@ fun UnifiedPlayerSheet(
                                         contrast = 1f,
                                         saturation = 1.3f
                                     )
-                                    // ★ Use 18.dp.toPx() — same blur strength as
-                                    //   the old standalone MiniPlayer. Just `blur(18f)`
-                                    //   would be 18 PIXELS (way too weak on high-DPI
-                                    //   screens). 18dp ≈ 50-70px on typical phones.
                                     blur(18f.dp.toPx())
                                 },
                                 onDrawSurface = {
@@ -280,7 +270,7 @@ fun UnifiedPlayerSheet(
                         )
                     } else Modifier
                 )
-                // Gestures (only on the sheet, not the full screen)
+                // Gestures on the sheet
                 .pointerInput(Unit) {
                     detectDragGestures(
                         onDragStart = {
@@ -293,7 +283,6 @@ fun UnifiedPlayerSheet(
                             totalDragX += dragAmount.x
                             totalDragY += dragAmount.y
 
-                            // Lock direction once drag exceeds 20px in either axis
                             if (dragDirection == null) {
                                 if (abs(totalDragX) > 20f || abs(totalDragY) > 20f) {
                                     dragDirection = if (abs(totalDragX) > abs(totalDragY)) 0 else 1
@@ -308,8 +297,7 @@ fun UnifiedPlayerSheet(
                                         }
                                     }
                                 }
-                                1 -> {  // VERTICAL
-                                    // Convert drag pixels to fraction delta
+                                1 -> {  // VERTICAL — translationY follows finger
                                     val fractionDelta = -dragAmount.y / sheetTravelDistance
                                     scope.launch {
                                         expansionFraction.snapTo(
@@ -323,7 +311,6 @@ fun UnifiedPlayerSheet(
                             when (dragDirection) {
                                 0 -> {  // HORIZONTAL
                                     if (fraction < 0.1f && abs(totalDragX) > screenWidthPx * 0.4f) {
-                                        // Past 40% threshold → dismiss
                                         val target = if (totalDragX < 0) -screenWidthPx else screenWidthPx
                                         scope.launch {
                                             dismissOffsetX.animateTo(target, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
@@ -332,14 +319,12 @@ fun UnifiedPlayerSheet(
                                             dismissOffsetX.snapTo(0f)
                                         }
                                     } else {
-                                        // Spring back
                                         scope.launch {
                                             dismissOffsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
                                         }
                                     }
                                 }
-                                1 -> {  // VERTICAL
-                                    // Snap to nearest anchor based on current fraction
+                                1 -> {  // VERTICAL — snap to nearest anchor
                                     val targetFraction = if (expansionFraction.value > 0.5f) 1f else 0f
                                     val wasBelowHalf = expansionFraction.value < 0.5f
                                     scope.launch {
@@ -351,7 +336,6 @@ fun UnifiedPlayerSheet(
                                             )
                                         )
                                     }
-                                    // Haptic feedback when crossing the threshold
                                     if (targetFraction == 1f && wasBelowHalf) {
                                         view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                                     }
@@ -391,19 +375,17 @@ fun UnifiedPlayerSheet(
                     }
                 }
         ) {
-            // ─── Layer 1: Full player (alpha = fraction) ───────
-            // Always rendered at FULL SCREEN size, clipped by the sheet's
-            // morphing shape. As fraction → 1, the sheet grows to full
-            // screen and the full player becomes fully visible.
+            // ════════════════════════════════════════════════════════════
+            // LAYER 1: Full player (alpha = fraction)
+            // ════════════════════════════════════════════════════════════
+            // Renders at FULL SCREEN size inside the sheet. The sheet is
+            // also full screen, so the player fills it. At fraction=0 the
+            // player is invisible (alpha=0). As fraction → 1, the player
+            // fades in AND is progressively revealed top-to-bottom (because
+            // the sheet slides up, exposing more of its content).
             Box(
                 modifier = Modifier
-                    // Required to override parent's smaller constraints when
-                    // the sheet is collapsed (sheet is 240×64, but SpiralPlayer
-                    // needs full screen dimensions to lay out correctly).
-                    .requiredSize(
-                        width = with(density) { screenWidthPx.toDp() },
-                        height = with(density) { screenHeightPx.toDp() }
-                    )
+                    .fillMaxSize()
                     .graphicsLayer { alpha = fraction }
             ) {
                     when (playerStyle) {
@@ -557,51 +539,41 @@ fun UnifiedPlayerSheet(
                     }
                 }
 
-                // ─── Layer 2: MiniPlayer content (alpha = 1 - fraction) ─
-                // ★ RENDERED OUTSIDE the morphing sheet, anchored to the FIXED
-                //   COLLAPSED position. This way, the mini player content stays
-                //   visually anchored at the bottom-center (above nav bar)
-                //   during the entire morph — it doesn't move with the sheet's
-                //   bottom edge as the sheet grows to full screen.
+                // ════════════════════════════════════════════════════════════
+                // LAYER 2: MiniPlayer content (alpha = 1 - fraction)
+                // ════════════════════════════════════════════════════════════
+                // Rendered at the TOP of the sheet (y=0 in sheet coords), on
+                // TOP of the full player. Moves UP with the sheet as it
+                // expands — the mini content follows the finger.
                 //
-                //   At fraction=0: mini content is visible at the collapsed
-                //     position, perfectly aligned with the (also 240×64) sheet.
-                //   At fraction=1: mini content is invisible (alpha=0) but still
-                //     positioned at the collapsed spot (overlapped by SpiralPlayer
-                //     which is at full alpha).
+                // At fraction=0: mini content at top of sheet, visible at
+                //   bottom of screen (above nav bar). Alpha=1.
+                // At fraction=1: mini content has moved up off-screen (or is
+                //   at the very top of the screen). Alpha=0 (invisible).
                 //
-                // The mini content is rendered ABOVE the glass backdrop (after
-                // it in the modifier chain) so it appears on top of the glass.
-            }
-        }
-
-        // ─── MiniPlayer content — anchored at collapsed position ────
-        // Rendered as a sibling of the morphing sheet, in the outer Box.
-        // This decouples the mini content's position from the sheet's growing
-        // size — it stays put at the bottom-center, above the nav bar.
-        Box(
-            modifier = Modifier
-                .offset {
-                    IntOffset(
-                        x = ((screenWidthPx - with(density) { 240.dp.toPx() }) / 2f + dismissOffsetX.value).roundToInt(),
-                        y = collapsedY.roundToInt()
+                // The mini content is 240dp × 64dp, centered horizontally.
+                // It's rendered AFTER the full player (higher z-index) so it
+                // appears on top.
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .requiredSize(width = 240.dp, height = 64.dp)
+                        .graphicsLayer {
+                            alpha = (1f - fraction).coerceIn(0f, 1f)
+                        }
+                ) {
+                    MiniPlayerContent(
+                        title = currentSongTitle ?: "",
+                        artist = currentSongArtist ?: "",
+                        albumArtUri = currentSongArt,
+                        songId = currentSongId,
+                        isPlaying = isPlaying,
+                        positionMs = positionMs,
+                        durationMs = durationMs,
+                        onPlayPauseClick = onPlayPauseClick
                     )
                 }
-                .requiredSize(width = 240.dp, height = 64.dp)
-                .graphicsLayer {
-                    alpha = (1f - fraction).coerceIn(0f, 1f)
-                }
-        ) {
-            MiniPlayerContent(
-                title = currentSongTitle ?: "",
-                artist = currentSongArtist ?: "",
-                albumArtUri = currentSongArt,
-                songId = currentSongId,
-                isPlaying = isPlaying,
-                positionMs = positionMs,
-                durationMs = durationMs,
-                onPlayPauseClick = onPlayPauseClick
-            )
+            }
         }
     }
 
