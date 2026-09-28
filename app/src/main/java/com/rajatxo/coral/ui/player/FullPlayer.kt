@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -105,7 +106,10 @@ fun FullPlayer(
     onPrevClick: () -> Unit,
     onSeek: (Long) -> Unit,
     onDismiss: () -> Unit,
-    onAddToPlaylist: (Long) -> Unit = {}
+    onAddToPlaylist: (Long) -> Unit = {},
+    // ─── Unified sheet integration ──────────────────────────────────
+    // See SpiralPlayer.kt for documentation — same pattern.
+    sheetAlpha: Float = 1f
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -201,7 +205,10 @@ fun FullPlayer(
     val displayProgress = dragFraction ?: progress
 
     // ─── Root Box: solid black ─────────────────────────────────────────
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+    Box(modifier = Modifier.fillMaxSize()
+        .background(Color.Black)
+        .graphicsLayer { this.alpha = sheetAlpha }
+    ) {
 
         // (1) Full-bleed album art — top 65% of screen ──────────────────
         Box(

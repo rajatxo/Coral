@@ -475,35 +475,50 @@ fun HomeScreen(
         val miniPlayerPaddingBottom = (miniPlayerBottomFromScreenBottom - systemNavInset)
             .coerceAtLeast(0.dp)
 
-        AnimatedVisibility(
-            visible = currentSongTitle != null && !miniPlayerDismissed,
-            enter = slideInVertically { it } + fadeIn(),
-            exit = slideOutVertically { it } + fadeOut(),
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(bottom = miniPlayerPaddingBottom)
-        ) {
-            MiniPlayer(
-                title = currentSongTitle ?: "",
-                artist = currentSongArtist ?: "",
-                albumArtUri = currentSongArt,
-                songId = currentSongId,
+        // ═══════════════════════════════════════════════════════════════
+        // UNIFIED PLAYER SHEET (YumaPlayer-style morph)
+        // ═══════════════════════════════════════════════════════════════
+        // Replaces the old AnimatedVisibility(showFullPlayer) + standalone
+        // MiniPlayer pattern. A single composable morphs between:
+        //   • Collapsed (fraction=0): glass mini pill at bottom-center
+        //   • Expanded  (fraction=1): full screen player UI
+        // Driven by `expansionFraction: Animatable<Float>` — gestures:
+        //   • Tap / swipe up on collapsed → expand
+        //   • Drag down on expanded → collapse
+        //   • Swipe left/right on collapsed → dismiss
+        // The glass backdrop samples the home content behind continuously —
+        // same kyant library used by the nav bar TabCapsule.
+        if (currentSongTitle != null && !miniPlayerDismissed) {
+            com.rajatxo.coral.ui.player.UnifiedPlayerSheet(
+                mediaController = mediaController,
+                currentSongId = currentSongId,
+                currentSongTitle = currentSongTitle,
+                currentSongArtist = currentSongArtist,
+                currentSongAlbum = currentSongAlbum,
+                currentSongArt = currentSongArt,
                 isPlaying = isPlaying,
-                positionMs = miniPlayerPositionMs,
-                durationMs = miniPlayerDurationMs,
                 onPlayPauseClick = onPlayPauseClick,
                 onNextClick = onNextClick,
-                onClick = onMiniPlayerClick,
-                onSwipeUp = onMiniPlayerClick,
+                onPrevClick = onPrevClick,
+                onSeek = onSeek,
+                onDismiss = onFullPlayerDismiss,
+                onAddToPlaylist = { songId ->
+                    songToAddToPlaylist = songId
+                },
+                onSongDelete = { songId ->
+                    songToDelete = songId
+                },
                 onSwipeDismiss = {
                     // Pause playback + hide the mini player.
                     // The mini player reappears when a new song is selected.
                     if (isPlaying) onPlayPauseClick()
                     miniPlayerDismissed = true
                 },
-                isFullPlayerOpen = showFullPlayer,
-                backdrop = glassBackdrop
+                glassBackdrop = glassBackdrop,
+                miniBottomPaddingDp = miniPlayerPaddingBottom,
+                positionMs = miniPlayerPositionMs,
+                durationMs = miniPlayerDurationMs,
+                modifier = Modifier.fillMaxSize()
             )
         }
 
@@ -844,117 +859,10 @@ fun HomeScreen(
             )
         }
 
-        // Full-screen now-playing screen
-        // Conditionally renders CoralPlayer (immersive blurred-bg style)
-        // or FullPlayer (dating-app profile style) based on the user's
-        // Player Design Style preference in Settings → Appearance.
-        val playerStyle by com.rajatxo.coral.data.prefs.PlayerStyleManager.playerStyle.collectAsState()
-        AnimatedVisibility(
-            visible = showFullPlayer,
-            enter = slideInVertically { it } + fadeIn(),
-            exit = fadeOut(animationSpec = tween(200))
-        ) {
-            if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.CORAL) {
-                com.rajatxo.coral.ui.player.CoralPlayer(
-                    mediaController = mediaController,
-                    songId = currentSongId,
-                    title = currentSongTitle ?: "",
-                    artist = currentSongArtist ?: "",
-                    albumName = currentSongAlbum,
-                    albumArtUri = currentSongArt,
-                    isPlaying = isPlaying,
-                    onPlayPauseClick = onPlayPauseClick,
-                    onNextClick = onNextClick,
-                    onPrevClick = onPrevClick,
-                    onSeek = onSeek,
-                    onDismiss = onFullPlayerDismiss,
-                    onAddToPlaylist = { songId ->
-                        songToAddToPlaylist = songId
-                    }
-                )
-            } else if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.SPIRAL) {
-                com.rajatxo.coral.ui.player.SpiralPlayer(
-                    mediaController = mediaController,
-                    songId = currentSongId,
-                    title = currentSongTitle ?: "",
-                    artist = currentSongArtist ?: "",
-                    albumName = currentSongAlbum,
-                    albumArtUri = currentSongArt,
-                    isPlaying = isPlaying,
-                    onPlayPauseClick = onPlayPauseClick,
-                    onNextClick = onNextClick,
-                    onPrevClick = onPrevClick,
-                    onSeek = onSeek,
-                    onDismiss = onFullPlayerDismiss,
-                    onAddToPlaylist = { songId ->
-                        songToAddToPlaylist = songId
-                    },
-                    onSongDelete = { songId ->
-                        songToDelete = songId
-                    }
-                )
-            } else if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.SPIRAL_2) {
-                com.rajatxo.coral.ui.player.Spiral2Player(
-                    mediaController = mediaController,
-                    songId = currentSongId,
-                    title = currentSongTitle ?: "",
-                    artist = currentSongArtist ?: "",
-                    albumName = currentSongAlbum,
-                    albumArtUri = currentSongArt,
-                    isPlaying = isPlaying,
-                    onPlayPauseClick = onPlayPauseClick,
-                    onNextClick = onNextClick,
-                    onPrevClick = onPrevClick,
-                    onSeek = onSeek,
-                    onDismiss = onFullPlayerDismiss,
-                    onAddToPlaylist = { songId ->
-                        songToAddToPlaylist = songId
-                    },
-                    onSongDelete = { songId ->
-                        songToDelete = songId
-                    }
-                )
-            } else if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.SPIRAL_3) {
-                com.rajatxo.coral.ui.player.Spiral3Player(
-                    mediaController = mediaController,
-                    songId = currentSongId,
-                    title = currentSongTitle ?: "",
-                    artist = currentSongArtist ?: "",
-                    albumName = currentSongAlbum,
-                    albumArtUri = currentSongArt,
-                    isPlaying = isPlaying,
-                    onPlayPauseClick = onPlayPauseClick,
-                    onNextClick = onNextClick,
-                    onPrevClick = onPrevClick,
-                    onSeek = onSeek,
-                    onDismiss = onFullPlayerDismiss,
-                    onAddToPlaylist = { songId ->
-                        songToAddToPlaylist = songId
-                    },
-                    onSongDelete = { songId ->
-                        songToDelete = songId
-                    }
-                )
-            } else {
-                FullPlayer(
-                    mediaController = mediaController,
-                    songId = currentSongId,
-                    title = currentSongTitle ?: "",
-                    artist = currentSongArtist ?: "",
-                    albumName = currentSongAlbum,
-                    albumArtUri = currentSongArt,
-                    isPlaying = isPlaying,
-                    onPlayPauseClick = onPlayPauseClick,
-                    onNextClick = onNextClick,
-                    onPrevClick = onPrevClick,
-                    onSeek = onSeek,
-                    onDismiss = onFullPlayerDismiss,
-                    onAddToPlaylist = { songId ->
-                        songToAddToPlaylist = songId
-                    }
-                )
-            }
-        }
+        // Full-screen now-playing screen is now handled by UnifiedPlayerSheet
+        // above (YumaPlayer-style morph). The old AnimatedVisibility + player
+        // style switcher block has been removed — UnifiedPlayerSheet handles
+        // all player styles internally based on PlayerStyleManager preference.
 
         // Full-screen playlist detail overlay (covers nav rail + everything)
         AnimatedVisibility(
