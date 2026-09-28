@@ -1436,14 +1436,31 @@ fun SpiralPlayer(
             )
         }
 
-        // ★ Apple Music style queue sheet — slides up from bottom
-        if (showQueue) {
-            com.rajatxo.coral.ui.screens.AppleQueueSheet(
-                visible = showQueue,
-                mediaController = mediaController,
-                onDismiss = { showQueue = false },
-                accentColor = palette.accent
+        // ─── Queue page (simple slide up from bottom) ──────────────
+        val queueOffset = remember { androidx.compose.animation.core.Animatable(1f) }
+        LaunchedEffect(showQueue) {
+            queueOffset.animateTo(
+                targetValue = if (showQueue) 0f else 1f,
+                animationSpec = androidx.compose.animation.core.spring(
+                    dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+                    stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+                )
             )
+        }
+        if (showQueue || queueOffset.value < 1f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        translationY = size.height * queueOffset.value
+                        alpha = 1f - queueOffset.value * 0.3f
+                    }
+            ) {
+                com.rajatxo.coral.ui.screens.QueueScreen(
+                    mediaController = mediaController,
+                    onDismiss = { showQueue = false }
+                )
+            }
         }
     }
 }

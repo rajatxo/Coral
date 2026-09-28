@@ -1604,16 +1604,32 @@ fun Spiral2Player(
             )
         }
 
-        // ─── Queue page (Apple Music style) ──
-        // Only render when queue is open — prevents any content from
-        // showing through the player when the queue is closed.
-        if (showQueue) {
-            com.rajatxo.coral.ui.screens.AppleQueueSheet(
-                visible = showQueue,
-                mediaController = mediaController,
-                onDismiss = { showQueue = false },
-                accentColor = adaptiveAccent
+        // ─── Queue page (smooth slide up from bottom) ──────────────
+        // Uses Animatable for buttery smooth slide animation.
+        val queueOffset = remember { androidx.compose.animation.core.Animatable(1f) }
+        LaunchedEffect(showQueue) {
+            queueOffset.animateTo(
+                targetValue = if (showQueue) 0f else 1f,
+                animationSpec = androidx.compose.animation.core.spring(
+                    dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+                    stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+                )
             )
+        }
+        if (showQueue || queueOffset.value < 1f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        translationY = size.height * queueOffset.value
+                        alpha = 1f - queueOffset.value * 0.3f
+                    }
+            ) {
+                com.rajatxo.coral.ui.screens.QueueScreen(
+                    mediaController = mediaController,
+                    onDismiss = { showQueue = false }
+                )
+            }
         }
     }
 }
