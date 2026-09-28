@@ -1437,7 +1437,7 @@ fun SpiralPlayer(
         }
 
         // ★ Apple Music style queue sheet — slides up from bottom
-        if (showQueue || true) {
+        if (showQueue) {
             com.rajatxo.coral.ui.screens.AppleQueueSheet(
                 visible = showQueue,
                 mediaController = mediaController,
