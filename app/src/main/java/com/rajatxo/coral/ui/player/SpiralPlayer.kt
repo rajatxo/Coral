@@ -957,15 +957,34 @@ fun SpiralPlayer(
             )
         }
 
-        // ★ Bottom gradient overlay REMOVED from the player.
-        //   The black fade gradient now lives on the BACKGROUND PAGE (home
-        //   screen content) instead of on the player. This way:
-        //     - When the player is open, the home screen behind it has the
-        //       gradient at the bottom (for miniplayer readability when
-        //       the player fades during drag-down).
-        //     - The gradient does NOT affect any control icons on the player
-        //       (lyrics / connectivity / queue icons stay clean).
-        //   See HomeScreen.kt push-back Box for the new gradient location.
+        // ★ Bottom black fade gradient — ON THE PLAYER'S BACKGROUND
+        //   (behind the controls, on the player UI). Drawn BEFORE the
+        //   content column so it sits BEHIND the controls, not on top of
+        //   them. Provides readability for the bottom controls area without
+        //   affecting the control icons (lyrics / connectivity / queue).
+        //   - 400dp tall, anchored to bottom.
+        //   - Transparent at the top (where the album cover + colors show).
+        //   - Dark black at the very bottom (for controls readability).
+        //   - Fades out along with the player during drag-down (because it's
+        //     inside the root BoxWithConstraints which has the alpha
+        //     graphicsLayer applied).
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .height(400.dp)
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f to Color.Transparent,
+                            0.3f to Color(0xFF05050A).copy(alpha = 0.3f),
+                            0.6f to Color(0xFF05050A).copy(alpha = 0.7f),
+                            0.85f to Color(0xFF05050A).copy(alpha = 0.95f),
+                            1.0f to Color(0xFF05050A)
+                        )
+                    )
+                )
+        )
 
         // (5) Content column — Apple Music / BitChord style controls
         //     LEFT-aligned title + artist (with 3-dot menu on RIGHT)
