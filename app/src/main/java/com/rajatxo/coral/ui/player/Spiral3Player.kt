@@ -75,6 +75,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.zIndex
@@ -237,9 +238,8 @@ fun Spiral3Player(
     val coroutineScope = rememberCoroutineScope()
     val screenHeightPx = with(LocalDensity.current) { LocalView.current.rootView.height.toFloat() }
     val dismissThreshold = screenHeightPx * 0.15f  // 15% of screen height = close
-    // Background alpha: 1 (opaque) at rest, fades to 0 (transparent) as
-    // you drag down. This reveals the songs list behind the player.
-    val bgAlpha = (1f - (dismissDragY.value / dismissThreshold)).coerceIn(0f, 1f)
+    // Drag progress 0 → 1. Used for both alpha (fade) and scale (shrink).
+    val dismissProgress = (dismissDragY.value / dismissThreshold).coerceIn(0f, 1f)
 
     // ─── Palette (extracted from album art, cached in PaletteCache) ───
     // Read from PaletteCache FIRST (instant — no black flash). The mini
@@ -645,17 +645,30 @@ fun Spiral3Player(
     // the album art (extracted from it) so there's no jarring flash — the
     // blurred art fills over it seamlessly once it loads.
     // The whole player is wrapped in a vertical drag gesture: drag down to
-    // dismiss (fade + translate down), like ArchiveTune/Spotify.
+    // dismiss (fade + translate down + shrink toward miniplayer position).
+    // Reverse of swiping UP the miniplayer: player fades to transparent so
+    // the background page (songs list / playlist / quick pic) shows through,
+    // and shrinks toward bottom-center to visually blend into the miniplayer.
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .drawBehind {
-                // Background fades to transparent as you drag down, revealing
-                // the songs list (home screen) behind the player.
-                drawRect(color = animatedBottomColor, alpha = bgAlpha)
+                // Base color drawn fully opaque — whole-player fade is
+                // handled by graphicsLayer#alpha below.
+                drawRect(color = animatedBottomColor)
             }
             .graphicsLayer {
+                // Follow finger: move down with drag.
                 translationY = dismissDragY.value
+                // Fade the WHOLE player to transparent — reveals the
+                // background page behind the player.
+                alpha = 1f - dismissProgress
+                // Shrink toward bottom-center so the player visually
+                // "blends into" the miniplayer position.
+                val scale = 1f - (dismissProgress * 0.15f)
+                scaleX = scale
+                scaleY = scale
+                transformOrigin = TransformOrigin(0.5f, 1f)
             }
             .pointerInput(Unit) {
                 detectVerticalDragGestures(

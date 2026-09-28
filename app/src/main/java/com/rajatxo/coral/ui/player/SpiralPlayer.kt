@@ -73,6 +73,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.zIndex
@@ -212,18 +213,20 @@ fun SpiralPlayer(
     val dragThreshold = 60f
 
     // ─── Drag-down-to-dismiss (fast, like back button) ─────────────
-    // Drag down → player moves down with your finger.
-    // As you drag, the background fades to TRANSPARENT so the songs list
-    // (home screen behind the player) becomes visible through it.
+    // Drag down → player moves down with your finger, fades to transparent,
+    // AND shrinks slightly toward bottom-center so it visually "blends into"
+    // the miniplayer position. This is the reverse of swiping UP the
+    // miniplayer (which fades + slides up to reveal the player screen).
+    // As you drag, the background page (songs list / playlist / quick pic)
+    // becomes visible through the fading player.
     // Release past threshold → fast snap down + close.
     // Release before threshold → fast snap back to 0.
     val dismissDragY = remember { androidx.compose.animation.core.Animatable(0f) }
     val coroutineScope = rememberCoroutineScope()
     val screenHeightPx = with(LocalDensity.current) { LocalView.current.rootView.height.toFloat() }
     val dismissThreshold = screenHeightPx * 0.15f  // 15% of screen height = close
-    // Background alpha: 1 (opaque) at rest, fades to 0 (transparent) as
-    // you drag down. This reveals the songs list behind the player.
-    val bgAlpha = (1f - (dismissDragY.value / dismissThreshold)).coerceIn(0f, 1f)
+    // Drag progress 0 → 1. Used for both alpha (fade) and scale (shrink).
+    val dismissProgress = (dismissDragY.value / dismissThreshold).coerceIn(0f, 1f)
 
     // ─── Palette (extracted from album art, cached in PaletteCache) ───
     // Read from PaletteCache FIRST (instant — no black flash). The mini
@@ -246,7 +249,7 @@ fun SpiralPlayer(
                     )
                 } catch (_: Exception) { }
                 // Extract palette + cache it for next time
-                extractPalette(context, albumArtUri, com.rajatxo.coral.data.prefs.SpiralPaletteStyle.style.value)?.let {
+                extractPalette(context, albumArtUri)?.let {
                     palette = it
                     PaletteCache.put(albumArtUri, it)
                 }
@@ -548,40 +551,54 @@ fun SpiralPlayer(
         }
     }
 
-    // ─── Root Box: solid palette gradient bg + sharp art ────────────
+    // ─── Root Box: 100% blurred album cover bg + sharp art moved down ───
     // Layout:
-    //   (1) SOLID GRADIENT background using the album art's palette
-    //       colors (primary → secondary → tertiary). No blurred image —
-    //       (1a) If BLUR style: blurred album cover (96dp) fills screen.
-    //       (1b) If gradient style: solid palette gradient (primary→tertiary→dark).
-    //   (2) SHARP album art in a SQUARE container at top.
-    //   (3) Bottom dark gradient overlay for control readability (very subtle).
-    val paletteStyle by com.rajatxo.coral.data.prefs.SpiralPaletteStyle.style.collectAsState()
+    //   (1) BLURRED album cover (100% blur = 96dp radius) fills entire
+    //       screen as the background. RenderEffect on Android 12+.
+    //   (2) SHARP album art in a SQUARE container (aspectRatio 1f)
+    //       anchored TopCenter + offset 24dp down (creates a gap at
+    //       the top where the status bar sits on the blurred bg, not on
+    //       the sharp art). Has alpha masks at BOTH top (64dp fade) AND
+    //       bottom (140dp fade) using graphicsLayer + Offscreen +
+    //       drawWithContent + DstIn. Result: sharp in the middle, fading
+    //       to transparent at both edges — smoothly revealing the blurred
+    //       bg above (status bar area) and below (controls area).
+    // Use the palette's dominant color as the base background. This matches
+    // the album art (extracted from it) so there's no jarring flash — the
+    // blurred art fills over it seamlessly once it loads.
+    // The whole player is wrapped in a vertical drag gesture: drag down to
+    // dismiss (fade + translate down + shrink), like the reverse of the
+    // miniplayer swipe-up-to-open gesture. As the player fades + shrinks
+    // toward bottom-center, the background page (songs list / playlist /
+    // quick pic) becomes visible through it — the player visually "blends
+    // into" the miniplayer position at the bottom of the screen.
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .drawBehind {
-                // ★ Don't fade the background on drag-down — the translationY
-                //   handles the dismiss visually (player slides down off screen).
-                //   Fading the background to transparent during drag causes the
-                //   gradient/blur to vanish prematurely, showing only the cover art.
-                if (paletteStyle == com.rajatxo.coral.data.prefs.SpiralPaletteStyle.PaletteStyle.BLUR) {
-                    drawRect(color = animatedBottomColor)
-                } else {
-                    drawRect(
-                        brush = Brush.verticalGradient(
-                            colorStops = arrayOf(
-                                0.0f to animatedTopColor,
-                                0.35f to animatedMidColor,
-                                0.65f to animatedBottomColor,
-                                1.0f to Color(0xFF05050A)
-                            )
-                        )
-                    )
-                }
+                // Base color (dominant palette color) drawn fully opaque.
+                // The whole-player fade is handled by graphicsLayer#alpha
+                // below — so we don't fade this rect individually.
+                drawRect(color = animatedBottomColor)
             }
             .graphicsLayer {
+                // Follow finger: move down with drag.
                 translationY = dismissDragY.value
+                // Fade the WHOLE player (blurred bg + sharp art + controls)
+                // to transparent as you drag down — reveals the background
+                // page (songs list / playlist / quick pic) behind the player.
+                alpha = 1f - dismissProgress
+                // Shrink toward bottom-center so the player visually
+                // "blends into" the miniplayer position at the bottom of
+                // the screen. 0.85f keeps it subtle — full 1.0 shrink would
+                // collapse too aggressively and look glitchy.
+                val scale = 1f - (dismissProgress * 0.15f)
+                scaleX = scale
+                scaleY = scale
+                // Transform origin at bottom-center — the player shrinks
+                // toward the miniplayer's anchor point at the bottom of
+                // the screen, not toward the screen center.
+                transformOrigin = TransformOrigin(0.5f, 1f)
             }
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
@@ -631,13 +648,14 @@ fun SpiralPlayer(
         val center = maxHeight / 2
 
         // Background layer — wrapped with layerBackdrop so the glass capsule
-        // can sample + blur the background behind it (liquid glass effect).
-        // Background layer — wrapped with layerBackdrop so the glass capsule
-        // can sample + blur the background behind it (liquid glass effect).
+        // can sample + blur the album cover behind it (liquid glass effect).
         Box(modifier = Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
 
-        // ★ If BLUR style: render the blurred album cover (96dp blur)
-        if (paletteStyle == com.rajatxo.coral.data.prefs.SpiralPaletteStyle.PaletteStyle.BLUR && albumArtUri != null) {
+        // (1) Blurred album cover — fills entire screen as the background.
+        //     96dp blur radius = ~100% blur (very heavy, image becomes a
+        //     smooth color wash with subtle variations). Modifier.blur
+        //     uses RenderEffect on Android 12+ (hardware-accelerated).
+        if (albumArtUri != null) {
             AsyncImage(
                 model = albumArtUri,
                 contentDescription = null,
@@ -650,7 +668,59 @@ fun SpiralPlayer(
             )
         }
 
-        // (2) Sharp album art — SQUARE container at top, moved down 24dp.
+        // Medium-blur bridge layer (32dp blur) — sits between the heavy-blur
+        // bg (96dp) and the sharp art (0dp). Has a bell-curve alpha mask
+        // that makes it visible only in the transition zone (around the
+        // sharp art's bottom edge, ~48% down the screen). This creates a
+        // gradual blur: sharp → 32dp → 96dp. The texture change is spread
+        // across two stages instead of one, so the transition looks
+        // seamless — like one continuous image, not "sharp then blurred".
+        if (albumArtUri != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen; alpha = outAlpha }
+                    .drawWithContent {
+                        drawContent()
+                        // Bell-curve alpha mask via DstIn:
+                        //   0-40%  : transparent (sharp art area, medium-blur hidden)
+                        //   40-48% : fade in (sharp art fading out, medium-blur fading in)
+                        //   48-55% : fully opaque (medium-blur dominates)
+                        //   55-85% : fade out (transitioning to heavy-blur)
+                        //   85-100%: transparent (heavy-blur dominates)
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colorStops = arrayOf(
+                                    0.00f to Color.Transparent,
+                                    0.40f to Color.Transparent,
+                                    0.48f to Color.Black,
+                                    0.55f to Color.Black,
+                                    0.70f to Color.Black.copy(alpha = 0.4f),
+                                    0.85f to Color.Transparent,
+                                    1.00f to Color.Transparent
+                                )
+                            ),
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
+            ) {
+                AsyncImage(
+                    model = albumArtUri,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    colorFilter = bgSatFilter,
+                    modifier = Modifier.fillMaxSize().blur(32.dp)
+                )
+            }
+        }
+
+        // (2) Sharp album art — SQUARE container at top, moved down 24dp
+        //     (so the status bar sits on the blurred bg, not on the art).
+        //     Has alpha masks at BOTH top (64dp) and bottom (140dp) that
+        //     fade opaque → transparent using BlendMode.DstIn. Result:
+        //     sharp in the middle, fading to transparent at both edges —
+        //     smoothly revealing the blurred bg above (status bar area)
+        //     and below (controls area).
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -874,8 +944,11 @@ fun SpiralPlayer(
             )
         }
 
-        // ★ Bottom gradient overlay — very subtle (10% intensity).
-        //   Only slightly darkens the bottom for control readability.
+        // ★ Bottom gradient overlay — BEHIND the controls (rendered before
+        //   the content column). Dark black at the very bottom, fading to
+        //   transparent at the top. Only covers the bottom portion.
+        //   Transparent at the song title position so the album cover + colors
+        //   show through. Gets darker toward the bottom for readability.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -885,9 +958,10 @@ fun SpiralPlayer(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
                             0.0f to Color.Transparent,
-                            0.5f to Color(0xFF05050A).copy(alpha = 0.03f),
-                            0.8f to Color(0xFF05050A).copy(alpha = 0.06f),
-                            1.0f to Color(0xFF05050A).copy(alpha = 0.10f)
+                            0.3f to Color(0xFF05050A).copy(alpha = 0.3f),
+                            0.6f to Color(0xFF05050A).copy(alpha = 0.7f),
+                            0.85f to Color(0xFF05050A).copy(alpha = 0.95f),
+                            1.0f to Color(0xFF05050A)
                         )
                     )
                 )
