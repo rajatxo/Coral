@@ -1346,87 +1346,51 @@ fun SpiralPlayer(
                 )
             }
 
-            // ─── Gap between volume bar and bottom row (~20dp) ──
-            Spacer(modifier = Modifier.height(20.dp))
+            // ─── Gap between volume bar and bottom row (~24dp) ──
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // ─── Bottom row: shuffle · repeat · loop · queue ──
-            // Tighter spacing — use SpaceEvenly with horizontal padding.
+            // ─── Bottom row: lyrics (left) · connectivity (center) · queue (right) ──
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Shuffle
+                // Lyrics (left)
                 Icon(
-                    imageVector = CoralIcons.Shuffle,
-                    contentDescription = "Shuffle",
-                    tint = if (shuffleEnabled) Color.White else Color.White.copy(alpha = 0.5f),
-                    modifier = Modifier
-                        .size(22.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            mediaController?.let {
-                                it.shuffleModeEnabled = !it.shuffleModeEnabled
-                                shuffleEnabled = it.shuffleModeEnabled
-                            }
-                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                        }
-                )
-                // Repeat (cycles OFF → ALL → ONE)
-                Box(
-                    modifier = Modifier
-                        .size(22.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            mediaController?.let {
-                                val newMode = when (it.repeatMode) {
-                                    Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
-                                    Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-                                    else -> Player.REPEAT_MODE_OFF
-                                }
-                                it.repeatMode = newMode
-                                repeatMode = newMode
-                            }
-                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    when (repeatMode) {
-                        Player.REPEAT_MODE_ONE -> Text("1", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                        Player.REPEAT_MODE_ALL -> Text("\u221E", color = Color.White, fontSize = 15.sp)
-                        else -> Icon(
-                            imageVector = CoralIcons.Repeat,
-                            contentDescription = "Repeat",
-                            tint = Color.White.copy(alpha = 0.5f),
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                }
-                // Lyrics
-                Icon(
-                    imageVector = CoralIcons.Music,
+                    imageVector = CoralIcons.MessageSquareQuote,
                     contentDescription = "Lyrics",
                     tint = if (showLyrics) Color.White else Color.White.copy(alpha = 0.5f),
                     modifier = Modifier
-                        .size(22.dp)
+                        .size(24.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
                         ) { showLyrics = true }
                 )
-                // Queue
+                // Connectivity / Bluetooth (center)
                 Icon(
-                    imageVector = CoralIcons.Queue,
+                    imageVector = CoralIcons.Radio,
+                    contentDescription = "Connectivity",
+                    tint = Color.White.copy(alpha = 0.5f),
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            // TODO: open audio output / bluetooth picker
+                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        }
+                )
+                // Queue (right)
+                Icon(
+                    imageVector = CoralIcons.Logs,
                     contentDescription = "Queue",
                     tint = Color.White.copy(alpha = 0.5f),
                     modifier = Modifier
-                        .size(22.dp)
+                        .size(24.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null

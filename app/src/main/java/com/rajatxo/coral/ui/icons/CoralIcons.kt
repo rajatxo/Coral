@@ -1183,4 +1183,90 @@ object CoralIcons {
         verticalLineTo(6f)
     }
 
+    /**
+     * Lucide message-square-quote (MIT) — speech bubble with quote marks.
+     * Used for the lyrics button in the Spiral player bottom row.
+     */
+    val MessageSquareQuote: ImageVector = stroke("MessageSquareQuote") {
+        // M14 14a2 2 0 0 0 2-2V8h-2
+        moveTo(14f, 14f)
+        arcTo(2f, 2f, 0f, false, false, 16f, 12f)
+        verticalLineTo(8f)
+        horizontalLineToRelative(-2f)
+        // M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z
+        moveTo(22f, 17f)
+        arcToRelative(2f, 2f, 0f, false, true, -2f, 2f)
+        horizontalLineTo(6.828f)
+        arcToRelative(2f, 2f, 0f, false, false, -1.414f, 0.586f)
+        lineToRelative(-2.202f, 2.202f)
+        arcToRelative(0.71f, 0.71f, 0f, false, true, -1.212f, -0.502f)
+        verticalLineTo(5f)
+        arcToRelative(2f, 2f, 0f, false, true, 2f, -2f)
+        horizontalLineToRelative(16f)
+        arcToRelative(2f, 2f, 0f, false, true, 2f, 2f)
+        close()
+        // M8 14a2 2 0 0 0 2-2V8H8
+        moveTo(8f, 14f)
+        arcTo(2f, 2f, 0f, false, false, 10f, 12f)
+        verticalLineTo(8f)
+        horizontalLineToRelative(-2f)
+    }
+
+    /**
+     * Lucide radio (MIT) — radio/connectivity icon with waves.
+     * Used for the bluetooth/audio output button in the Spiral player bottom row.
+     */
+    val Radio: ImageVector = stroke("Radio") {
+        // M16.247 7.761a6 6 0 0 1 0 8.478
+        moveTo(16.247f, 7.761f)
+        arcTo(6f, 6f, 0f, false, true, 16.247f, 16.239f)
+        // M19.075 4.933a10 10 0 0 1 0 14.134
+        moveTo(19.075f, 4.933f)
+        arcTo(10f, 10f, 0f, false, true, 19.075f, 19.067f)
+        // M4.925 19.067a10 10 0 0 1 0-14.134
+        moveTo(4.925f, 19.067f)
+        arcTo(10f, 10f, 0f, false, true, 4.925f, 4.933f)
+        // M7.753 16.239a6 6 0 0 1 0-8.478
+        moveTo(7.753f, 16.239f)
+        arcTo(6f, 6f, 0f, false, true, 7.753f, 7.761f)
+        // Circle cx=12 cy=12 r=2
+        moveTo(14f, 12f)
+        arcTo(2f, 2f, 0f, true, true, 10f, 12f)
+        arcTo(2f, 2f, 0f, true, true, 14f, 12f)
+    }
+
+    /**
+     * Lucide logs (MIT) — list with dots and lines.
+     * Used for the queue button in the Spiral player bottom row.
+     */
+    val Logs: ImageVector = stroke("Logs") {
+        // M3 5h1
+        moveTo(3f, 5f)
+        horizontalLineToRelative(1f)
+        // M3 12h1
+        moveTo(3f, 12f)
+        horizontalLineToRelative(1f)
+        // M3 19h1
+        moveTo(3f, 19f)
+        horizontalLineToRelative(1f)
+        // M8 5h1
+        moveTo(8f, 5f)
+        horizontalLineToRelative(1f)
+        // M8 12h1
+        moveTo(8f, 12f)
+        horizontalLineToRelative(1f)
+        // M8 19h1
+        moveTo(8f, 19f)
+        horizontalLineToRelative(1f)
+        // M13 5h8
+        moveTo(13f, 5f)
+        horizontalLineToRelative(8f)
+        // M13 12h8
+        moveTo(13f, 12f)
+        horizontalLineToRelative(8f)
+        // M13 19h8
+        moveTo(13f, 19f)
+        horizontalLineToRelative(8f)
+    }
+
 }
