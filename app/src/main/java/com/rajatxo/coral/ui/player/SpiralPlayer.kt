@@ -1364,17 +1364,16 @@ fun SpiralPlayer(
                 )
             }
 
-            // ─── Gap between volume bar and bottom row (~24dp) ──
-            Spacer(modifier = Modifier.height(28.dp))
+            // ─── Gap between volume bar and bottom row (VERTICAL — increased) ──
+            Spacer(modifier = Modifier.height(40.dp))
 
             // ─── Bottom row: lyrics (left) · connectivity (center) · queue (right) ──
-            // ★ Using weight(1f) spacers between icons for proper gap control.
-            //   SpaceBetween with padding doesn't increase the gap between icons,
-            //   it just moves them inward from edges.
+            // Horizontal spacing unchanged — SpaceBetween with 20dp padding.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 40.dp),
+                    .padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Lyrics (left)
@@ -1389,8 +1388,6 @@ fun SpiralPlayer(
                             indication = null
                         ) { showLyrics = true }
                 )
-                // ★ Weight spacer — pushes icons apart
-                Spacer(modifier = Modifier.weight(1f))
                 // Connectivity / Bluetooth (center)
                 Icon(
                     imageVector = CoralIcons.Radio,
@@ -1406,8 +1403,6 @@ fun SpiralPlayer(
                             view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                         }
                 )
-                // ★ Weight spacer — pushes icons apart
-                Spacer(modifier = Modifier.weight(1f))
                 // Queue (right)
                 Icon(
                     imageVector = CoralIcons.Logs,
