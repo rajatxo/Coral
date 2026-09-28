@@ -653,16 +653,22 @@ fun Spiral3Player(
         modifier = Modifier
             .fillMaxSize()
             .drawBehind {
-                // Base color drawn fully opaque — whole-player fade is
-                // handled by graphicsLayer#alpha below.
-                drawRect(color = animatedBottomColor)
+                // Solid base color fades to transparent VERY fast (2x linear)
+                // so it's gone almost immediately when drag starts. Prevents
+                // the dominant palette color from bleeding through during
+                // drag-down — the behind page becomes visible cleanly.
+                val colorAlpha = (1f - dismissProgress * 2f).coerceIn(0f, 1f)
+                drawRect(color = animatedBottomColor, alpha = colorAlpha)
             }
             .graphicsLayer {
                 // Follow finger: move down with drag.
                 translationY = dismissDragY.value
-                // Fade the WHOLE player to transparent — reveals the
-                // background page behind the player.
-                alpha = 1f - dismissProgress
+                // Fade the WHOLE player to transparent FAST (quadratic curve)
+                // so the behind page shows through clearly even at small drag
+                // amounts. The blurred album cover looks like a solid color
+                // wash — fading it fast reveals the behind page cleanly.
+                val linearAlpha = 1f - dismissProgress
+                alpha = linearAlpha * linearAlpha
                 // Shrink toward bottom-center so the player visually
                 // "blends into" the miniplayer position.
                 val scale = 1f - (dismissProgress * 0.15f)

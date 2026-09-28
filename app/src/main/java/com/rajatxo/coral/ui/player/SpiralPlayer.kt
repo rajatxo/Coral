@@ -576,18 +576,31 @@ fun SpiralPlayer(
         modifier = Modifier
             .fillMaxSize()
             .drawBehind {
-                // Base color (dominant palette color) drawn fully opaque.
-                // The whole-player fade is handled by graphicsLayer#alpha
-                // below — so we don't fade this rect individually.
-                drawRect(color = animatedBottomColor)
+                // Solid base color fades to transparent VERY fast (2x linear)
+                // so it's gone almost immediately when drag starts. This
+                // prevents the dominant palette color from bleeding through
+                // during drag-down — the behind page becomes visible cleanly.
+                //   0% drag → alpha 1.0
+                //  25% drag → alpha 0.5
+                //  50% drag → alpha 0.0 (fully transparent by halfway)
+                val colorAlpha = (1f - dismissProgress * 2f).coerceIn(0f, 1f)
+                drawRect(color = animatedBottomColor, alpha = colorAlpha)
             }
             .graphicsLayer {
                 // Follow finger: move down with drag.
                 translationY = dismissDragY.value
-                // Fade the WHOLE player (blurred bg + sharp art + controls)
-                // to transparent as you drag down — reveals the background
-                // page (songs list / playlist / quick pic) behind the player.
-                alpha = 1f - dismissProgress
+                // Fade the WHOLE player to transparent FAST (quadratic curve)
+                // so the behind page (songs list / playlist / quick pic) shows
+                // through clearly even at small drag amounts. The blurred album
+                // cover looks like a solid color wash — fading it fast reveals
+                // the behind page instead of a faded solid color.
+                //   0% drag → alpha 1.0 (fully visible)
+                //  25% drag → alpha 0.56 (mostly visible)
+                //  50% drag → alpha 0.25 (mostly transparent — behind page clear)
+                //  75% drag → alpha 0.06 (almost invisible)
+                // 100% drag → alpha 0    (fully transparent)
+                val linearAlpha = 1f - dismissProgress
+                alpha = linearAlpha * linearAlpha
                 // Shrink toward bottom-center so the player visually
                 // "blends into" the miniplayer position at the bottom of
                 // the screen. 0.85f keeps it subtle — full 1.0 shrink would
@@ -944,28 +957,15 @@ fun SpiralPlayer(
             )
         }
 
-        // ★ Bottom gradient overlay — BEHIND the controls (rendered before
-        //   the content column). Dark black at the very bottom, fading to
-        //   transparent at the top. Only covers the bottom portion.
-        //   Transparent at the song title position so the album cover + colors
-        //   show through. Gets darker toward the bottom for readability.
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .height(400.dp)
-                .background(
-                    Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0.0f to Color.Transparent,
-                            0.3f to Color(0xFF05050A).copy(alpha = 0.3f),
-                            0.6f to Color(0xFF05050A).copy(alpha = 0.7f),
-                            0.85f to Color(0xFF05050A).copy(alpha = 0.95f),
-                            1.0f to Color(0xFF05050A)
-                        )
-                    )
-                )
-        )
+        // ★ Bottom gradient overlay REMOVED from the player.
+        //   The black fade gradient now lives on the BACKGROUND PAGE (home
+        //   screen content) instead of on the player. This way:
+        //     - When the player is open, the home screen behind it has the
+        //       gradient at the bottom (for miniplayer readability when
+        //       the player fades during drag-down).
+        //     - The gradient does NOT affect any control icons on the player
+        //       (lyrics / connectivity / queue icons stay clean).
+        //   See HomeScreen.kt push-back Box for the new gradient location.
 
         // (5) Content column — Apple Music / BitChord style controls
         //     LEFT-aligned title + artist (with 3-dot menu on RIGHT)

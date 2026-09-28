@@ -446,6 +446,32 @@ fun HomeScreen(
                     onExtend = onExtend
                 )
             }
+
+            // ★ Bottom black fade gradient — ON THE BACKGROUND PAGE (home
+            //   screen content), not on the player. Provides readability for
+            //   the miniplayer area when the player fades during drag-down.
+            //   - Drawn AFTER the tab content so it sits on top of it.
+            //   - Fades in sync with the push-back dim (stronger when player
+            //     is open, fully visible when player is closed).
+            //   - Does NOT affect any control icons on the player — those
+            //     are on the player layer (above this), not on this background.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .height(400.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.0f to Color.Transparent,
+                                0.3f to Color(0xFF05050A).copy(alpha = 0.3f),
+                                0.6f to Color(0xFF05050A).copy(alpha = 0.7f),
+                                0.85f to Color(0xFF05050A).copy(alpha = 0.95f),
+                                1.0f to Color(0xFF05050A)
+                            )
+                        )
+                    )
+            )
         }
 
         // --- Mini player (bottom-center, TRACKS the nav bar) ---
