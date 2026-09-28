@@ -169,6 +169,7 @@ fun HomeScreen(
     var showSleepTimer by remember { mutableStateOf(false) }
     var showFontPicker by remember { mutableStateOf(false) }
     var showLyricsSettings by remember { mutableStateOf(false) }
+    var showSpiralPalette by remember { mutableStateOf(false) }
 
     // --- Add to playlist from FullPlayer ---
     // When user taps "Add to playlist" in the FullPlayer 3-dot menu,
@@ -201,7 +202,7 @@ fun HomeScreen(
     // the app. Same for the full player, song picker, and other overlays.
     androidx.activity.compose.BackHandler(
         enabled = selectedPlaylist != null || showFullPlayer || showSongPicker ||
-                  showPremium || showSettings || showSearch || showEqualizer || showSleepTimer || showFontPicker || showLyricsSettings
+                  showPremium || showSettings || showSearch || showEqualizer || showSleepTimer || showFontPicker || showLyricsSettings || showSpiralPalette
     ) {
         when {
             showFullPlayer -> onFullPlayerDismiss()
@@ -213,6 +214,7 @@ fun HomeScreen(
             showSleepTimer -> { showSleepTimer = false }
             showFontPicker -> { showFontPicker = false }
             showLyricsSettings -> { showLyricsSettings = false }
+            showSpiralPalette -> { showSpiralPalette = false }
             selectedPlaylist != null -> { selectedPlaylist = null }
         }
     }
@@ -788,6 +790,13 @@ fun HomeScreen(
             )
         }
 
+        // --- Spiral palette settings screen ---
+        if (showSpiralPalette) {
+            com.rajatxo.coral.ui.screens.SpiralPaletteSettingsScreen(
+                onBackClick = { showSpiralPalette = false }
+            )
+        }
+
         // --- Search screen (full-screen overlay, opened by search FAB) ---
         if (showSearch) {
             com.rajatxo.coral.ui.screens.SearchScreen(
@@ -827,6 +836,10 @@ fun HomeScreen(
                 onOpenLyrics = {
                     showSettings = false
                     showLyricsSettings = true
+                },
+                onOpenSpiralPalette = {
+                    showSettings = false
+                    showSpiralPalette = true
                 }
             )
         }

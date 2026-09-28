@@ -71,6 +71,19 @@ object PaletteCache {
  * Returns null on any failure (caller keeps the previous palette).
  */
 suspend fun extractPalette(context: Context, artUri: Uri?): CoralPalette? {
+    return extractPalette(context, artUri, com.rajatxo.coral.data.prefs.SpiralPaletteStyle.PaletteStyle.VIBRANT)
+}
+
+/**
+ * Extracts a [CoralPalette] from album art using the specified style.
+ * Different styles pick different swatches and apply different saturation
+ * boosts, giving the user control over the Spiral player's background look.
+ */
+suspend fun extractPalette(
+    context: Context,
+    artUri: Uri?,
+    style: com.rajatxo.coral.data.prefs.SpiralPaletteStyle.PaletteStyle
+): CoralPalette? {
     if (artUri == null) return null
     return withContext(Dispatchers.IO) {
         try {
@@ -103,30 +116,63 @@ suspend fun extractPalette(context: Context, artUri: Uri?): CoralPalette? {
                 BitmapFactory.decodeStream(it, null, decodeOptions)
             } ?: return@withContext null
 
-            val palette = Palette.from(bitmap).generate()
+            val palette2 = Palette.from(bitmap).generate()
             // Recycle the bitmap immediately — we only need the palette colors,
             // not the bitmap pixels. Without this, bitmaps can accumulate
             // and cause OOM crashes after several song changes.
             bitmap.recycle()
-            val dominant = palette.dominantSwatch?.rgb
-            val darkVibrant = palette.darkVibrantSwatch?.rgb ?: dominant
-            val darkMuted = palette.darkMutedSwatch?.rgb ?: darkVibrant ?: dominant
-            val vibrant = palette.vibrantSwatch?.rgb ?: palette.lightVibrantSwatch?.rgb ?: dominant
-            val lightVibrant = palette.lightVibrantSwatch?.rgb ?: vibrant ?: dominant
+            val dominant = palette2.dominantSwatch?.rgb
+            val darkVibrant = palette2.darkVibrantSwatch?.rgb ?: dominant
+            val darkMuted = palette2.darkMutedSwatch?.rgb ?: darkVibrant ?: dominant
+            val vibrant = palette2.vibrantSwatch?.rgb ?: palette2.lightVibrantSwatch?.rgb ?: dominant
+            val lightVibrant = palette2.lightVibrantSwatch?.rgb ?: vibrant ?: dominant
 
             if (dominant == null) return@withContext null
 
-            // Boost saturation + brightness for vibrant mesh gradient bg
-            // (Apple Music-style). 2-2.5x saturation makes the colors feel
-            // ALIVE; the slight value (brightness) boost on primary/accent
-            // makes them pop without washing out. Tertiary is slightly
-            // darkened for text legibility at the bottom of the screen.
-            CoralPalette(
-                primary = boostSaturation(Color(dominant), 2.5f, 1.15f),
-                secondary = boostSaturation(Color(lightVibrant ?: dominant), 2.0f, 1.1f),
-                tertiary = boostSaturation(Color(darkVibrant ?: dominant), 1.8f, 0.92f),
-                accent = boostSaturation(Color(vibrant ?: dominant), 2.5f, 1.15f)
-            )
+            // ★ Pick colors based on the selected palette style
+            val result = when (style) {
+                com.rajatxo.coral.data.prefs.SpiralPaletteStyle.PaletteStyle.VIBRANT -> {
+                    // Maximum saturation — punchy, colorful, Apple Music style
+                    CoralPalette(
+                        primary = boostSaturation(Color(dominant), 2.5f, 1.15f),
+                        secondary = boostSaturation(Color(lightVibrant ?: dominant), 2.0f, 1.1f),
+                        tertiary = boostSaturation(Color(darkVibrant ?: dominant), 1.8f, 0.92f),
+                        accent = boostSaturation(Color(vibrant ?: dominant), 2.5f, 1.15f)
+                    )
+                }
+                com.rajatxo.coral.data.prefs.SpiralPaletteStyle.PaletteStyle.DOMINANT -> {
+                    // Most common color — natural, accurate to album art
+                    CoralPalette(
+                        primary = boostSaturation(Color(dominant), 1.5f, 1.05f),
+                        secondary = boostSaturation(Color(dominant), 1.3f, 0.95f),
+                        tertiary = boostSaturation(Color(darkVibrant ?: dominant), 1.2f, 0.85f),
+                        accent = boostSaturation(Color(vibrant ?: dominant), 1.8f, 1.1f)
+                    )
+                }
+                com.rajatxo.coral.data.prefs.SpiralPaletteStyle.PaletteStyle.MUTED -> {
+                    // Soft, subtle tones — good for minimal albums
+                    val muted = palette2.mutedSwatch?.rgb ?: darkMuted ?: dominant
+                    val lightMuted = palette2.lightMutedSwatch?.rgb ?: muted
+                    CoralPalette(
+                        primary = boostSaturation(Color(muted), 1.8f, 1.0f),
+                        secondary = boostSaturation(Color(lightMuted), 1.5f, 1.05f),
+                        tertiary = boostSaturation(Color(darkMuted ?: muted), 1.5f, 0.80f),
+                        accent = boostSaturation(Color(vibrant ?: muted), 2.0f, 1.1f)
+                    )
+                }
+                com.rajatxo.coral.data.prefs.SpiralPaletteStyle.PaletteStyle.DEEP -> {
+                    // Dark, rich, moody — good for night listening
+                    CoralPalette(
+                        primary = boostSaturation(Color(darkVibrant ?: dominant), 2.0f, 0.85f),
+                        secondary = boostSaturation(Color(darkMuted ?: dominant), 1.8f, 0.80f),
+                        tertiary = boostSaturation(Color(darkMuted ?: dominant), 1.5f, 0.65f),
+                        accent = boostSaturation(Color(vibrant ?: dominant), 2.5f, 0.90f)
+                    )
+                }
+            }
+
+            // object. Rename the Palette result to avoid confusion.
+            result
         } catch (_: Exception) {
             null
         }

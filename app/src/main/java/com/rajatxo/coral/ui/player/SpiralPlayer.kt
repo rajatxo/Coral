@@ -246,7 +246,7 @@ fun SpiralPlayer(
                     )
                 } catch (_: Exception) { }
                 // Extract palette + cache it for next time
-                extractPalette(context, albumArtUri)?.let {
+                extractPalette(context, albumArtUri, com.rajatxo.coral.data.prefs.SpiralPaletteStyle.style.value)?.let {
                     palette = it
                     PaletteCache.put(albumArtUri, it)
                 }

@@ -61,7 +61,8 @@ fun SettingsScreen(
     onOpenEqualizer: () -> Unit,
     onOpenSleepTimer: () -> Unit,
     onOpenFontPicker: () -> Unit,
-    onOpenLyrics: () -> Unit
+    onOpenLyrics: () -> Unit,
+    onOpenSpiralPalette: () -> Unit
 ) {
     val isPremium by PremiumManager.isPremium.collectAsState()
     val currentFont by com.rajatxo.coral.data.prefs.FontManager.currentFont.collectAsState()
@@ -187,6 +188,15 @@ fun SettingsScreen(
                 subtitle = "Highlight animation in Lyrics Picker",
                 value = currentLyricsAnim.displayName,
                 onClick = onOpenLyrics
+            )
+            // Spiral Palette Style — controls background gradient colors
+            val currentSpiralPalette by com.rajatxo.coral.data.prefs.SpiralPaletteStyle.style.collectAsState()
+            SettingsRow(
+                icon = CoralIcons.Music,
+                title = "Spiral Palette",
+                subtitle = "Background gradient color style",
+                value = currentSpiralPalette.displayName,
+                onClick = onOpenSpiralPalette
             )
             // Player Design Style — toggle between Coral (immersive blurred
             // bg) and Profile (dating-app style with vertical pill + chips)
