@@ -377,6 +377,7 @@ fun SpiralPlayer(
     val isFavorite = songId != null && songId in favorites.songIds
     var showLyrics by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
+    var showQueue by remember { mutableStateOf(false) }  // ★ Apple Music queue sheet
     var showHeartPop by remember { mutableStateOf(false) }
     // ★ Menu icon rotation animation (rotates 90° when menu opens)
     val menuRotation = remember { androidx.compose.animation.core.Animatable(0f) }
@@ -1413,7 +1414,7 @@ fun SpiralPlayer(
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
-                        ) { songId?.let { onAddToPlaylist(it) } }
+                        ) { showQueue = true }
                 )
             }
 
@@ -1432,6 +1433,16 @@ fun SpiralPlayer(
                 onDismiss = { showLyrics = false },
                 onSeek = onSeek,
                 albumArtUri = albumArtUri
+            )
+        }
+
+        // ★ Apple Music style queue sheet — slides up from bottom
+        if (showQueue || true) {
+            com.rajatxo.coral.ui.screens.AppleQueueSheet(
+                visible = showQueue,
+                mediaController = mediaController,
+                onDismiss = { showQueue = false },
+                accentColor = palette.accent
             )
         }
     }
