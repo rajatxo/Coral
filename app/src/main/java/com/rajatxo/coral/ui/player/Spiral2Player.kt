@@ -1604,13 +1604,17 @@ fun Spiral2Player(
             )
         }
 
-        // ─── Queue page (Apple Music style — slides up from bottom) ──
-        com.rajatxo.coral.ui.screens.AppleQueueSheet(
-            visible = showQueue,
-            mediaController = mediaController,
-            onDismiss = { showQueue = false },
-            accentColor = adaptiveAccent
-        )
+        // ─── Queue page (Apple Music style) ──
+        // Only render when queue is open — prevents any content from
+        // showing through the player when the queue is closed.
+        if (showQueue) {
+            com.rajatxo.coral.ui.screens.AppleQueueSheet(
+                visible = showQueue,
+                mediaController = mediaController,
+                onDismiss = { showQueue = false },
+                accentColor = adaptiveAccent
+            )
+        }
     }
 }
 
