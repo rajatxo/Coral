@@ -548,30 +548,33 @@ fun SpiralPlayer(
         }
     }
 
-    // ─── Root Box: 100% blurred album cover bg + sharp art moved down ───
+    // ─── Root Box: solid palette gradient bg + sharp art ────────────
     // Layout:
-    //   (1) BLURRED album cover (100% blur = 96dp radius) fills entire
-    //       screen as the background. RenderEffect on Android 12+.
-    //   (2) SHARP album art in a SQUARE container (aspectRatio 1f)
-    //       anchored TopCenter + offset 24dp down (creates a gap at
-    //       the top where the status bar sits on the blurred bg, not on
-    //       the sharp art). Has alpha masks at BOTH top (64dp fade) AND
-    //       bottom (140dp fade) using graphicsLayer + Offscreen +
-    //       drawWithContent + DstIn. Result: sharp in the middle, fading
-    //       to transparent at both edges — smoothly revealing the blurred
-    //       bg above (status bar area) and below (controls area).
-    // Use the palette's dominant color as the base background. This matches
-    // the album art (extracted from it) so there's no jarring flash — the
-    // blurred art fills over it seamlessly once it loads.
-    // The whole player is wrapped in a vertical drag gesture: drag down to
-    // dismiss (fade + translate down), like ArchiveTune/Spotify.
+    //   (1) SOLID GRADIENT background using the album art's palette
+    //       colors (primary → secondary → tertiary). No blurred image —
+    //       just vibrant dominant colors fading to dark. Matches the
+    //       "solid blur gradient" look the user requested.
+    //   (2) SHARP album art in a SQUARE container at top.
+    //   (3) Bottom dark gradient overlay for control readability.
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .drawBehind {
-                // Background fades to transparent as you drag down, revealing
-                // the songs list (home screen) behind the player.
-                drawRect(color = animatedBottomColor, alpha = bgAlpha)
+                // ★ Solid palette gradient — replaces the blurred album cover.
+                //   Uses the dominant/vibrant colors extracted from the album art.
+                //   Top = palette.primary (vibrant), fading to palette.tertiary (dark)
+                //   at the bottom. Fades to transparent on drag-down (dismiss).
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f to animatedTopColor,
+                            0.35f to animatedMidColor,
+                            0.65f to animatedBottomColor,
+                            1.0f to Color(0xFF05050A)
+                        )
+                    ),
+                    alpha = bgAlpha
+                )
             }
             .graphicsLayer {
                 translationY = dismissDragY.value
@@ -624,79 +627,13 @@ fun SpiralPlayer(
         val center = maxHeight / 2
 
         // Background layer — wrapped with layerBackdrop so the glass capsule
-        // can sample + blur the album cover behind it (liquid glass effect).
+        // can sample + blur the background behind it (liquid glass effect).
+        // ★ No more blurred album cover — the background is now a solid
+        //   palette gradient drawn in drawBehind above. This layer is
+        //   kept just for the layerBackdrop (glass blur sampling).
         Box(modifier = Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
 
-        // (1) Blurred album cover — fills entire screen as the background.
-        //     96dp blur radius = ~100% blur (very heavy, image becomes a
-        //     smooth color wash with subtle variations). Modifier.blur
-        //     uses RenderEffect on Android 12+ (hardware-accelerated).
-        if (albumArtUri != null) {
-            AsyncImage(
-                model = albumArtUri,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                colorFilter = bgSatFilter,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .blur(96.dp)
-                    .graphicsLayer { alpha = outAlpha }
-            )
-        }
-
-        // Medium-blur bridge layer (32dp blur) — sits between the heavy-blur
-        // bg (96dp) and the sharp art (0dp). Has a bell-curve alpha mask
-        // that makes it visible only in the transition zone (around the
-        // sharp art's bottom edge, ~48% down the screen). This creates a
-        // gradual blur: sharp → 32dp → 96dp. The texture change is spread
-        // across two stages instead of one, so the transition looks
-        // seamless — like one continuous image, not "sharp then blurred".
-        if (albumArtUri != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen; alpha = outAlpha }
-                    .drawWithContent {
-                        drawContent()
-                        // Bell-curve alpha mask via DstIn:
-                        //   0-40%  : transparent (sharp art area, medium-blur hidden)
-                        //   40-48% : fade in (sharp art fading out, medium-blur fading in)
-                        //   48-55% : fully opaque (medium-blur dominates)
-                        //   55-85% : fade out (transitioning to heavy-blur)
-                        //   85-100%: transparent (heavy-blur dominates)
-                        drawRect(
-                            brush = Brush.verticalGradient(
-                                colorStops = arrayOf(
-                                    0.00f to Color.Transparent,
-                                    0.40f to Color.Transparent,
-                                    0.48f to Color.Black,
-                                    0.55f to Color.Black,
-                                    0.70f to Color.Black.copy(alpha = 0.4f),
-                                    0.85f to Color.Transparent,
-                                    1.00f to Color.Transparent
-                                )
-                            ),
-                            blendMode = BlendMode.DstIn
-                        )
-                    }
-            ) {
-                AsyncImage(
-                    model = albumArtUri,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    colorFilter = bgSatFilter,
-                    modifier = Modifier.fillMaxSize().blur(32.dp)
-                )
-            }
-        }
-
-        // (2) Sharp album art — SQUARE container at top, moved down 24dp
-        //     (so the status bar sits on the blurred bg, not on the art).
-        //     Has alpha masks at BOTH top (64dp) and bottom (140dp) that
-        //     fade opaque → transparent using BlendMode.DstIn. Result:
-        //     sharp in the middle, fading to transparent at both edges —
-        //     smoothly revealing the blurred bg above (status bar area)
-        //     and below (controls area).
+        // (2) Sharp album art — SQUARE container at top, moved down 24dp.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
