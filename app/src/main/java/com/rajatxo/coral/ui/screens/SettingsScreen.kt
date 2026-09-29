@@ -159,21 +159,25 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         // ═══════════════════════════════════════════════════════════════
-        // App UI — top of settings, prominent selection for the app's
-        // overall design language. Coral (glass morphism) is default.
-        // Spiral/Spiral 2.0/Spiral 3.0 are the legacy UIs.
+        // App UI — top of settings. Controls the ENTIRE app UI (not just
+        // the player). Two options:
+        //   CYNTHIA — the NEW UI (default). Glass morphism-first.
+        //   ASTRA   — the EXISTING UI we built so far.
         // ═══════════════════════════════════════════════════════════════
+        val currentAppUI by com.rajatxo.coral.data.prefs.AppUIManager.appUI.collectAsState()
         SettingsSection(title = "App UI") {
-            // Player Design Style — tap to cycle through Coral, Spiral, etc.
             SettingsRow(
                 icon = CoralIcons.Music,
                 title = "App Design",
-                subtitle = "Tap to change — Coral is the new glass-first UI",
-                value = playerStyle,
+                subtitle = "Tap to change — Cynthia is the new UI, Astra is the current one",
+                value = currentAppUI,
                 onClick = {
-                    val styles = listOf(PlayerStyleManager.CORAL, PlayerStyleManager.PROFILE, PlayerStyleManager.SPIRAL, PlayerStyleManager.SPIRAL_2, PlayerStyleManager.SPIRAL_3)
-                    val currentIdx = styles.indexOf(playerStyle)
-                    PlayerStyleManager.setPlayerStyle(styles[(currentIdx + 1) % styles.size])
+                    val styles = listOf(
+                        com.rajatxo.coral.data.prefs.AppUIManager.CYNTHIA,
+                        com.rajatxo.coral.data.prefs.AppUIManager.ASTRA
+                    )
+                    val currentIdx = styles.indexOf(currentAppUI)
+                    com.rajatxo.coral.data.prefs.AppUIManager.setAppUI(styles[(currentIdx + 1) % styles.size])
                 }
             )
         }

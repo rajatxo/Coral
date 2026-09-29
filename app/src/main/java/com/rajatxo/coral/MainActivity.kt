@@ -531,7 +531,17 @@ fun CoralApp() {
                 )
             }
             else -> {
-                HomeScreen(
+                // ★ Route based on App UI selection:
+                //   CYNTHIA → new UI (pure black screen for now)
+                //   ASTRA   → existing UI (everything we built so far)
+                val currentAppUI by com.rajatxo.coral.data.prefs.AppUIManager.appUI.collectAsState()
+
+                if (currentAppUI == com.rajatxo.coral.data.prefs.AppUIManager.CYNTHIA) {
+                    // ─── CYNTHIA — new UI ───
+                    com.rajatxo.coral.ui.cynthia.CynthiaHomeScreen()
+                } else {
+                    // ─── ASTRA — existing UI ───
+                    HomeScreen(
                     songs = songs,
                     mediaController = mediaController,
                     currentSongId = currentSongId,
@@ -596,6 +606,7 @@ fun CoralApp() {
                     onSongEnded = { mediaController?.pause() },
                     onRefresh = onRefreshSongs
                 )
+                }  // end else (ASTRA)
             }
         }
     }
