@@ -537,7 +537,7 @@ fun CoralApp() {
                 val currentAppUI by com.rajatxo.coral.data.prefs.AppUIManager.appUI.collectAsState()
 
                 if (currentAppUI == com.rajatxo.coral.data.prefs.AppUIManager.CYNTHIA) {
-                    // ─── CYNTHIA — new UI (full copy of Astra, modifiable freely) ───
+                    // ─── CYNTHIA — new UI skeleton (clean, glass-ready) ───
                     com.rajatxo.coral.ui.cynthia.CynthiaHomeScreen(
                         songs = songs,
                         mediaController = mediaController,

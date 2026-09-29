@@ -159,25 +159,34 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         // ═══════════════════════════════════════════════════════════════
-        // App UI — top of settings. Controls the ENTIRE app UI (not just
-        // the player). Two options:
-        //   CYNTHIA — the NEW UI (default). Glass morphism-first.
+        // App UI — two separate buttons. Tap Cynthia or Astra to switch.
+        //   CYNTHIA — the NEW UI (default). Glass morphism-first skeleton.
         //   ASTRA   — the EXISTING UI we built so far.
         // ═══════════════════════════════════════════════════════════════
         val currentAppUI by com.rajatxo.coral.data.prefs.AppUIManager.appUI.collectAsState()
         SettingsSection(title = "App UI") {
+            // Cynthia button
             SettingsRow(
                 icon = CoralIcons.Music,
-                title = "App Design",
-                subtitle = "Tap to change — Cynthia is the new UI, Astra is the current one",
-                value = currentAppUI,
+                title = "Cynthia",
+                subtitle = "New UI — glass morphism first",
+                value = if (currentAppUI == com.rajatxo.coral.data.prefs.AppUIManager.CYNTHIA) "Active" else "",
                 onClick = {
-                    val styles = listOf(
-                        com.rajatxo.coral.data.prefs.AppUIManager.CYNTHIA,
+                    com.rajatxo.coral.data.prefs.AppUIManager.setAppUI(
+                        com.rajatxo.coral.data.prefs.AppUIManager.CYNTHIA
+                    )
+                }
+            )
+            // Astra button
+            SettingsRow(
+                icon = CoralIcons.Music,
+                title = "Astra",
+                subtitle = "Current UI — Spiral + glass pill",
+                value = if (currentAppUI == com.rajatxo.coral.data.prefs.AppUIManager.ASTRA) "Active" else "",
+                onClick = {
+                    com.rajatxo.coral.data.prefs.AppUIManager.setAppUI(
                         com.rajatxo.coral.data.prefs.AppUIManager.ASTRA
                     )
-                    val currentIdx = styles.indexOf(currentAppUI)
-                    com.rajatxo.coral.data.prefs.AppUIManager.setAppUI(styles[(currentIdx + 1) % styles.size])
                 }
             )
         }
