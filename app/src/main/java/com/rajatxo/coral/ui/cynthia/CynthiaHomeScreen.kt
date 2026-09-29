@@ -127,95 +127,103 @@ fun CynthiaHomeScreen(
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // ROOT — ONE LayerBackdrop, all glass elements inside this Box
+    // ROOT GLASS BACKDROP — matches Astra's exact pattern
     // ═══════════════════════════════════════════════════════════════
-    val rootBackdrop: LayerBackdrop = rememberLayerBackdrop()
+    val graphicsLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
+    val rootBackdrop: LayerBackdrop = rememberLayerBackdrop(
+        graphicsLayer = graphicsLayer
+    ) {
+        drawContent()
+    }
 
+    // Outer Box: black background (NOT on the same chain as layerBackdrop)
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)  // Pure black base
-            .layerBackdrop(rootBackdrop)  // ★ Captures everything inside this Box
+            .background(Color.Black)
     ) {
-        // ─── Tab content ───
-        // Placeholder for now — just shows the tab name centered.
-        // We'll build glass page content here (Quick Picks cards, Songs list, etc.)
+        // Inner Box: layerBackdrop captures all page content
+        // Glass elements (nav bar, mini player) sample from this backdrop
         Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = selectedTab.label,
-                color = Color.White.copy(alpha = 0.3f),
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Light,
-                fontFamily = CalSansFamily
-            )
-        }
-
-        // ─── Top bar: settings gear (top-right) ───
-        // Lets the user access Settings → switch to Astra
-        Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.End
+                .fillMaxSize()
+                .layerBackdrop(rootBackdrop)
         ) {
+            // ─── Tab content ───
             Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.1f))
-                    .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { showSettings = true }
-                    ),
+                modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = CoralIcons.Settings,
-                    contentDescription = "Settings",
-                    tint = Color.White,
-                    modifier = Modifier.size(22.dp)
+                Text(
+                    text = selectedTab.label,
+                    color = Color.White.copy(alpha = 0.3f),
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Light,
+                    fontFamily = CalSansFamily
                 )
             }
-        }
 
-        // ─── Glass nav bar (bottom) ───
-        // Uses the SAME TabCapsule component as Astra, with GM.
-        // 3 tabs: Quick Picks, Songs, Playlists.
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(bottom = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            TabCapsule(
-                tabs = cynthiaTabs,
-                activeTab = selectedTab,
-                onTabSelected = { tab ->
-                    selectedTab = tab
-                },
-                backdrop = rootBackdrop  // ★ Samples the root backdrop (GM)
-            )
-        }
+            // ─── Top bar: settings gear (top-right) ───
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.1f))
+                        .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { showSettings = true }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = CoralIcons.Settings,
+                        contentDescription = "Settings",
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
 
-        // ─── Settings overlay ───
-        if (showSettings) {
-            SettingsScreen(
-                onBackClick = { showSettings = false },
-                onOpenPremium = { showSettings = false },
-                onOpenEqualizer = { showSettings = false },
-                onOpenSleepTimer = { showSettings = false },
-                onOpenFontPicker = { showSettings = false },
-                onOpenLyrics = { showSettings = false },
-                onOpenSpiralPalette = { showSettings = false }
-            )
+            // ─── Glass nav bar (bottom) ───
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(bottom = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                TabCapsule(
+                    tabs = cynthiaTabs,
+                    activeTab = selectedTab,
+                    onTabSelected = { tab ->
+                        selectedTab = tab
+                    },
+                    backdrop = rootBackdrop
+                )
+            }
+
+            // ─── Settings overlay ───
+            if (showSettings) {
+                SettingsScreen(
+                    onBackClick = { showSettings = false },
+                    onOpenPremium = { showSettings = false },
+                    onOpenEqualizer = { showSettings = false },
+                    onOpenSleepTimer = { showSettings = false },
+                    onOpenFontPicker = { showSettings = false },
+                    onOpenLyrics = { showSettings = false },
+                    onOpenSpiralPalette = { showSettings = false }
+                )
+            }
         }
     }
 }
