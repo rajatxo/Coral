@@ -1,6 +1,7 @@
 package com.rajatxo.coral
 
 import android.app.Application
+import coil3.request.crossfade
 import com.rajatxo.coral.data.prefs.FontManager
 import com.rajatxo.coral.data.store.PlaylistStore
 import kotlinx.coroutines.CoroutineScope
@@ -53,6 +54,10 @@ class CoralApplication : Application() {
                         .maxSizeBytes(50L * 1024 * 1024)  // 50MB
                         .build()
                 }
+                .crossfade(100)  // ★ Global 100ms crossfade — ALL AsyncImage instances
+                // crossfade automatically when their model changes. No need for
+                // per-request crossfade. This ensures the old image stays visible
+                // and crossfades to the new image smoothly on song change.
                 .build()
         }
 

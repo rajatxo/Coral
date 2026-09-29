@@ -748,19 +748,9 @@ fun SpiralPlayer(
                 }
         ) {
             if (albumArtUri != null) {
-                // ★ Crossfade the sharp art at 100ms — matches the blur's crossfade
-                //   timing so both layers change at the SAME rate. Without this,
-                //   the sharp art changes instantly while the blur crossfades 300ms,
-                //   causing the old blur to show behind the new sharp art.
-                val ctx = LocalContext.current
-                val sharpRequest = remember(albumArtUri) {
-                    coil3.request.ImageRequest.Builder(ctx)
-                        .data(albumArtUri)
-                        .crossfade(100)  // 100ms = ultra fast, near-instant but smooth
-                        .build()
-                }
+                // ★ Pass URI directly — global ImageLoader crossfade handles it
                 AsyncImage(
-                    model = sharpRequest,
+                    model = albumArtUri,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -816,16 +806,9 @@ fun SpiralPlayer(
                         )
                     }
             ) {
-                // ★ Crossfade incoming sharp art at 100ms — matches blur timing
-                val ctx2 = LocalContext.current
-                val incomingSharpRequest = remember(xfIncomingArt) {
-                    coil3.request.ImageRequest.Builder(ctx2)
-                        .data(xfIncomingArt)
-                        .crossfade(100)
-                        .build()
-                }
+                // ★ Pass URI directly — global ImageLoader crossfade handles it
                 AsyncImage(
-                    model = incomingSharpRequest,
+                    model = xfIncomingArt,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()

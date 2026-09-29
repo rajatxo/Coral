@@ -68,15 +68,13 @@ fun MeshBackground(
             }
     ) {
         if (albumArtUri != null) {
-            val context = androidx.compose.ui.platform.LocalContext.current
-            val request = remember(albumArtUri) {
-                ImageRequest.Builder(context)
-                    .data(albumArtUri)
-                    .crossfade(100)  // 100ms — ultra fast, matches sharp art crossfade
-                    .build()
-            }
+            // ★ Pass URI directly — no remember/ImageRequest. The global
+            //   ImageLoader crossfade (100ms) handles the transition
+            //   automatically. Using remember(albumArtUri) was causing a new
+            //   request object each song change, which could desync from
+            //   Coil's internal crossfade state.
             AsyncImage(
-                model = request,
+                model = albumArtUri,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 colorFilter = colorFilter,
