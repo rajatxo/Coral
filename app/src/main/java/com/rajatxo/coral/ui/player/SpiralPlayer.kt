@@ -459,16 +459,38 @@ fun SpiralPlayer(
     val displayProgress = dragFraction ?: progress
 
     // ─── Lyrics (1-line synced preview, same as Spiral 2.0) ──
+    // ★ Lyrics priority (matches LyricsSheet):
+    //   1. IMPORTED (pasted / .lrc file) — top priority, user chose these
+    //   2. CACHED fetched (from LrcLib/NetEase/KuGou via getLyrics)
+    //   3. NETWORK fetch (fetchFromNetwork)
+    // Before this fix, the strip only checked #2 and #3 — it never looked
+    // at imported lyrics. So when the user pasted correct lyrics (which
+    // the LyricsSheet showed), the strip kept showing the old wrong ones.
     val lyricsRepository = remember { com.rajatxo.coral.data.lyrics.LyricsRepository(context) }
     var lyricData by remember { mutableStateOf<com.rajatxo.coral.data.lyrics.Lyric?>(null) }
     var isLyricsLoading by remember { mutableStateOf(false) }
     var embeddedLyrics by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(title, artist) {
+    // ★ Refresh trigger — bumped when the user saves/pastes lyrics in the
+    //   LyricsSheet. This re-runs the LaunchedEffect to pick up the new lyrics.
+    var lyricsRefreshTrigger by remember { mutableStateOf(0) }
+    LaunchedEffect(title, artist, lyricsRefreshTrigger) {
         lyricData = null
         embeddedLyrics = null
         if (title.isBlank()) { isLyricsLoading = false; return@LaunchedEffect }
         isLyricsLoading = true
         val fetchDurationMs = durationMs
+
+        // ★ 1. Check IMPORTED lyrics first (pasted / .lrc file) — top priority
+        val imported = withContext(kotlinx.coroutines.Dispatchers.IO) {
+            lyricsRepository.getImportedLrc(title, artist)
+        }
+        if (imported != null) {
+            lyricData = imported
+            isLyricsLoading = false
+            return@LaunchedEffect
+        }
+
+        // ★ 2. Check cached fetched lyrics (from a previous Fetch/Search)
         val cached = withContext(kotlinx.coroutines.Dispatchers.IO) {
             lyricsRepository.getLyrics(title, artist, albumName, fetchDurationMs)
         }
@@ -477,6 +499,8 @@ fun SpiralPlayer(
             isLyricsLoading = false
             return@LaunchedEffect
         }
+
+        // ★ 3. Network fetch (LrcLib → NetEase → KuGou)
         try {
             val fetched = withContext(kotlinx.coroutines.Dispatchers.IO) {
                 lyricsRepository.fetchFromNetwork(title, artist, albumName, fetchDurationMs)
@@ -1408,7 +1432,11 @@ fun SpiralPlayer(
                 isPlaying = isPlaying,
                 onDismiss = { showLyrics = false },
                 onSeek = onSeek,
-                albumArtUri = albumArtUri
+                albumArtUri = albumArtUri,
+                // ★ When the user saves/pastes/imports lyrics in the sheet,
+                //   bump the refresh trigger → the strip's LaunchedEffect
+                //   re-runs → picks up the new imported lyrics immediately.
+                onLyricsFetched = { lyricsRefreshTrigger++ }
             )
         }
 
