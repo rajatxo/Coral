@@ -3,6 +3,7 @@ package com.rajatxo.coral.ui.player
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawBehind
@@ -16,6 +17,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import com.rajatxo.coral.data.prefs.SpiralPaletteStyle
 import com.rajatxo.coral.util.CoralPalette
 
@@ -67,8 +70,19 @@ fun MeshBackground(
         }
 
         if (albumArtUri != null) {
+            // ★ Crossfade: Coil keeps the OLD image visible until the new one
+            //   is fully loaded, then crossfades. Without this, the old image
+            //   clears instantly when albumArtUri changes → transparent gap →
+            //   home page visible behind. Crossfade = seamless song change.
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val request = remember(albumArtUri) {
+                ImageRequest.Builder(context)
+                    .data(albumArtUri)
+                    .crossfade(300)  // 300ms crossfade — old → new
+                    .build()
+            }
             AsyncImage(
-                model = albumArtUri,
+                model = request,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 colorFilter = colorFilter,

@@ -35,7 +35,7 @@ import kotlinx.coroutines.flow.asStateFlow
 object SpiralPaletteStyle {
 
     private const val PREFS_NAME = "coral_prefs"
-    private const val KEY_STYLE = "spiral_palette_style_v2"
+    private const val KEY_STYLE = "spiral_palette_style_v3"  // bumped v2→v3 to reset default to SUNSET
 
     enum class MeshType {
         NONE,               // just the blurred image, no color overlay
@@ -168,16 +168,16 @@ object SpiralPaletteStyle {
 
     private lateinit var prefs: android.content.SharedPreferences
 
-    private val _style = MutableStateFlow(PaletteStyle.BLUR)
+    private val _style = MutableStateFlow(PaletteStyle.SUNSET)
     val style: StateFlow<PaletteStyle> = _style.asStateFlow()
 
     fun init(context: Context) {
         prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val saved = prefs.getString(KEY_STYLE, null)
         _style.value = try {
-            saved?.let { PaletteStyle.valueOf(it) } ?: PaletteStyle.BLUR
+            saved?.let { PaletteStyle.valueOf(it) } ?: PaletteStyle.SUNSET
         } catch (_: Exception) {
-            PaletteStyle.BLUR
+            PaletteStyle.SUNSET
         }
     }
 

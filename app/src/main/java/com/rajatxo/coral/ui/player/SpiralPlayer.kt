@@ -228,18 +228,21 @@ fun SpiralPlayer(
     val dismissProgress = (dismissDragY.value / dismissThreshold).coerceIn(0f, 1f)
 
     // ─── Palette (extracted from album art, cached in PaletteCache) ───
-    // Read from PaletteCache FIRST (instant — no black flash). The mini
-    // player already extracted and cached the palette while the song was
-    // playing. If not cached, extract async + store for next time.
-    var palette by remember(albumArtUri) {
-        mutableStateOf(PaletteCache.get(albumArtUri) ?: CoralPalette.Default)
-    }
+    // ★ remember WITHOUT albumArtUri key — so the palette state is NOT
+    //   recreated when the song changes. This keeps the PREVIOUS song's
+    //   palette visible until the new one is extracted. Without this,
+    //   the palette would reset to CoralPalette.Default (dark grey) on
+    //   every song change, causing a "darkish blur" flash before the
+    //   new palette loads.
+    var palette by remember { mutableStateOf(PaletteCache.get(albumArtUri) ?: CoralPalette.Default) }
     LaunchedEffect(albumArtUri) {
         if (albumArtUri != null) {
-            // If already cached, skip extraction entirely
+            // If already cached, use it instantly (no flash)
             val cached = PaletteCache.get(albumArtUri)
-            if (cached == null) {
-                // Preload into Coil cache (full size, for the blurred bg)
+            if (cached != null) {
+                palette = cached
+            } else {
+                // Not cached — preload into Coil cache (full size, for the blurred bg)
                 try {
                     coil3.ImageLoader(context).execute(
                         coil3.request.ImageRequest.Builder(context)
@@ -247,7 +250,8 @@ fun SpiralPlayer(
                             .build()
                     )
                 } catch (_: Exception) { }
-                // Extract palette + cache it for next time
+                // Extract palette + cache it. The old palette stays visible
+                // during extraction — no dark flash.
                 extractPalette(context, albumArtUri)?.let {
                     palette = it
                     PaletteCache.put(albumArtUri, it)
