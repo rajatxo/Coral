@@ -72,7 +72,7 @@ fun MeshBackground(
             val request = remember(albumArtUri) {
                 ImageRequest.Builder(context)
                     .data(albumArtUri)
-                    .crossfade(300)
+                    .crossfade(100)  // 100ms — ultra fast, matches sharp art crossfade
                     .build()
             }
             AsyncImage(

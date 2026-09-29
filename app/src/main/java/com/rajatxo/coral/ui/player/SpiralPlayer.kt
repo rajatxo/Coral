@@ -97,6 +97,8 @@ import com.rajatxo.coral.audio.CrossfadeVisualState
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
@@ -732,8 +734,19 @@ fun SpiralPlayer(
                 }
         ) {
             if (albumArtUri != null) {
+                // ★ Crossfade the sharp art at 100ms — matches the blur's crossfade
+                //   timing so both layers change at the SAME rate. Without this,
+                //   the sharp art changes instantly while the blur crossfades 300ms,
+                //   causing the old blur to show behind the new sharp art.
+                val ctx = LocalContext.current
+                val sharpRequest = remember(albumArtUri) {
+                    coil3.request.ImageRequest.Builder(ctx)
+                        .data(albumArtUri)
+                        .crossfade(100)  // 100ms = ultra fast, near-instant but smooth
+                        .build()
+                }
                 AsyncImage(
-                    model = albumArtUri,
+                    model = sharpRequest,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -789,8 +802,16 @@ fun SpiralPlayer(
                         )
                     }
             ) {
+                // ★ Crossfade incoming sharp art at 100ms — matches blur timing
+                val ctx2 = LocalContext.current
+                val incomingSharpRequest = remember(xfIncomingArt) {
+                    coil3.request.ImageRequest.Builder(ctx2)
+                        .data(xfIncomingArt)
+                        .crossfade(100)
+                        .build()
+                }
                 AsyncImage(
-                    model = xfIncomingArt,
+                    model = incomingSharpRequest,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
