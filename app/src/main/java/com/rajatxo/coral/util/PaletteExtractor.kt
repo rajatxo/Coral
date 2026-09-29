@@ -71,7 +71,7 @@ object PaletteCache {
  * Returns null on any failure (caller keeps the previous palette).
  */
 suspend fun extractPalette(context: Context, artUri: Uri?): CoralPalette? {
-    return extractPalette(context, artUri, com.rajatxo.coral.data.prefs.SpiralPaletteStyle.PaletteStyle.VIBRANT)
+    return extractPalette(context, artUri, com.rajatxo.coral.data.prefs.SpiralPaletteStyle.PaletteStyle.BLUR)
 }
 
 /**
@@ -96,12 +96,7 @@ suspend fun extractPalette(
             val imageHeight = boundsOptions.outHeight
             if (imageWidth <= 0 || imageHeight <= 0) return@withContext null
 
-            // Step 2: compute inSampleSize so the decoded bitmap is at
-            // most 256x256. We only need the palette colors, not the
-            // full-res image, so a small bitmap is plenty and saves
-            // a ton of memory + time.
-            // Without this, decoding a 4MB album art (e.g. 3000x3000)
-            // blocks for ~1 second on slow devices — that was the ANR.
+            // Step 2: compute inSampleSize so the decoded bitmap is at most 256x256
             var sampleSize = 1
             while (imageWidth / (sampleSize * 2) >= 256 && imageHeight / (sampleSize * 2) >= 256) {
                 sampleSize *= 2
@@ -110,80 +105,36 @@ suspend fun extractPalette(
             // Step 3: re-open the stream and decode at the reduced size
             val decodeOptions = BitmapFactory.Options().apply {
                 inSampleSize = sampleSize
-                inPreferredConfig = android.graphics.Bitmap.Config.RGB_565  // half memory, fine for palette
+                inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
             }
             val bitmap = context.contentResolver.openInputStream(artUri)?.use {
                 BitmapFactory.decodeStream(it, null, decodeOptions)
             } ?: return@withContext null
 
             val palette2 = Palette.from(bitmap).generate()
-            // Recycle the bitmap immediately — we only need the palette colors,
-            // not the bitmap pixels. Without this, bitmaps can accumulate
-            // and cause OOM crashes after several song changes.
             bitmap.recycle()
             val dominant = palette2.dominantSwatch?.rgb
             val darkVibrant = palette2.darkVibrantSwatch?.rgb ?: dominant
             val darkMuted = palette2.darkMutedSwatch?.rgb ?: darkVibrant ?: dominant
             val vibrant = palette2.vibrantSwatch?.rgb ?: palette2.lightVibrantSwatch?.rgb ?: dominant
             val lightVibrant = palette2.lightVibrantSwatch?.rgb ?: vibrant ?: dominant
+            val muted = palette2.mutedSwatch?.rgb ?: darkMuted ?: dominant
+            val lightMuted = palette2.lightMutedSwatch?.rgb ?: muted
 
             if (dominant == null) return@withContext null
 
-            // ★ Pick colors based on the selected palette style
-            val result = when (style) {
-                com.rajatxo.coral.data.prefs.SpiralPaletteStyle.PaletteStyle.BLUR -> {
-                    // BLUR style — same as the original Vibrant extraction.
-                    // The background is the blurred album cover, so the palette
-                    // colors are only used for the base color + accent icons.
-                    CoralPalette(
-                        primary = boostSaturation(Color(dominant), 2.5f, 1.15f),
-                        secondary = boostSaturation(Color(lightVibrant ?: dominant), 2.0f, 1.1f),
-                        tertiary = boostSaturation(Color(darkVibrant ?: dominant), 1.8f, 0.92f),
-                        accent = boostSaturation(Color(vibrant ?: dominant), 2.5f, 1.15f)
-                    )
-                }
-                com.rajatxo.coral.data.prefs.SpiralPaletteStyle.PaletteStyle.VIBRANT -> {
-                    // Maximum saturation — punchy, colorful, Apple Music style
-                    CoralPalette(
-                        primary = boostSaturation(Color(dominant), 2.5f, 1.15f),
-                        secondary = boostSaturation(Color(lightVibrant ?: dominant), 2.0f, 1.1f),
-                        tertiary = boostSaturation(Color(darkVibrant ?: dominant), 1.8f, 0.92f),
-                        accent = boostSaturation(Color(vibrant ?: dominant), 2.5f, 1.15f)
-                    )
-                }
-                com.rajatxo.coral.data.prefs.SpiralPaletteStyle.PaletteStyle.DOMINANT -> {
-                    // Most common color — natural, accurate to album art
-                    CoralPalette(
-                        primary = boostSaturation(Color(dominant), 1.5f, 1.05f),
-                        secondary = boostSaturation(Color(dominant), 1.3f, 0.95f),
-                        tertiary = boostSaturation(Color(darkVibrant ?: dominant), 1.2f, 0.85f),
-                        accent = boostSaturation(Color(vibrant ?: dominant), 1.8f, 1.1f)
-                    )
-                }
-                com.rajatxo.coral.data.prefs.SpiralPaletteStyle.PaletteStyle.MUTED -> {
-                    // Soft, subtle tones — good for minimal albums
-                    val muted = palette2.mutedSwatch?.rgb ?: darkMuted ?: dominant
-                    val lightMuted = palette2.lightMutedSwatch?.rgb ?: muted
-                    CoralPalette(
-                        primary = boostSaturation(Color(muted), 1.8f, 1.0f),
-                        secondary = boostSaturation(Color(lightMuted), 1.5f, 1.05f),
-                        tertiary = boostSaturation(Color(darkMuted ?: muted), 1.5f, 0.80f),
-                        accent = boostSaturation(Color(vibrant ?: muted), 2.0f, 1.1f)
-                    )
-                }
-                com.rajatxo.coral.data.prefs.SpiralPaletteStyle.PaletteStyle.DEEP -> {
-                    // Dark, rich, moody — good for night listening
-                    CoralPalette(
-                        primary = boostSaturation(Color(darkVibrant ?: dominant), 2.0f, 0.85f),
-                        secondary = boostSaturation(Color(darkMuted ?: dominant), 1.8f, 0.80f),
-                        tertiary = boostSaturation(Color(darkMuted ?: dominant), 1.5f, 0.65f),
-                        accent = boostSaturation(Color(vibrant ?: dominant), 2.5f, 0.90f)
-                    )
-                }
-            }
+            // ★ Apply per-style color transformations
+            // Each style has its own saturation, brightness, and hue shift.
+            val sat = style.saturationBoost
+            val bri = style.brightnessFactor
+            val hue = style.hueShiftDeg
 
-            // object. Rename the Palette result to avoid confusion.
-            result
+            CoralPalette(
+                primary = transformColor(Color(dominant), sat, bri, hue),
+                secondary = transformColor(Color(lightVibrant ?: dominant), sat, bri, hue),
+                tertiary = transformColor(Color(darkVibrant ?: dominant), sat * 0.8f, bri * 0.85f, hue),
+                accent = transformColor(Color(vibrant ?: dominant), sat.coerceAtMost(3f), bri, hue)
+            )
         } catch (_: Exception) {
             null
         }
@@ -191,16 +142,10 @@ suspend fun extractPalette(
 }
 
 /**
- * Boosts the saturation of a [Color] by the given factor (1.0 = no change,
- * 1.5 = 50% more saturated, 2.0 = double saturation).
- *
- * Also boosts the value (brightness) by [valueFactor] (1.0 = no change,
- * 1.15 = 15% brighter). Useful for making colors feel more vibrant —
- * saturation alone can darken, so a slight value bump keeps them glowing.
- *
- * Convert to HSV, scale S and V, keep H unchanged, convert back.
+ * Transform a color: boost saturation, adjust brightness, and shift hue.
+ * All three transforms are applied in HSV space.
  */
-private fun boostSaturation(color: Color, factor: Float, valueFactor: Float = 1.0f): Color {
+private fun transformColor(color: Color, satBoost: Float, brightnessFactor: Float, hueShiftDeg: Float): Color {
     val hsv = FloatArray(3)
     android.graphics.Color.RGBToHSV(
         (color.red * 255).toInt(),
@@ -208,8 +153,14 @@ private fun boostSaturation(color: Color, factor: Float, valueFactor: Float = 1.
         (color.blue * 255).toInt(),
         hsv
     )
-    hsv[1] = (hsv[1] * factor).coerceIn(0f, 1f)
-    hsv[2] = (hsv[2] * valueFactor).coerceIn(0f, 1f)
+    // Saturation
+    hsv[1] = if (satBoost == 0f) 0f else (hsv[1] * satBoost).coerceIn(0f, 1f)
+    // Brightness
+    hsv[2] = (hsv[2] * brightnessFactor).coerceIn(0f, 1f)
+    // Hue shift (degrees → 0-360)
+    if (hueShiftDeg != 0f) {
+        hsv[0] = (hsv[0] + hueShiftDeg + 360f) % 360f
+    }
     val rgb = android.graphics.Color.HSVToColor(hsv)
     return Color(
         red = ((rgb shr 16) and 0xFF) / 255f,

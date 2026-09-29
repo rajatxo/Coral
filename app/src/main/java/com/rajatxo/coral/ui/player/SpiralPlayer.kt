@@ -262,6 +262,10 @@ fun SpiralPlayer(
     val animatedBottomColor by animateColorAsState(palette.tertiary,  tween(600), label = "bottom")
     val animatedAccentColor by animateColorAsState(palette.accent,    tween(600), label = "accent")
 
+    // ─── Palette style (from Settings → Spiral Palette) ──────────
+    // Controls blur radius + mesh overlay type. Default = BLUR (96dp, no overlay).
+    val paletteStyle by com.rajatxo.coral.data.prefs.SpiralPaletteStyle.style.collectAsState()
+
     // Visual crossfade state (broadcast by SimpleCrossfadeController)
     val xfActive by CrossfadeVisualState.isActive.collectAsState()
     val xfProgress by CrossfadeVisualState.progress.collectAsState()
@@ -645,68 +649,19 @@ fun SpiralPlayer(
         // can sample + blur the album cover behind it (liquid glass effect).
         Box(modifier = Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
 
-        // (1) Blurred album cover — fills entire screen as the background.
-        //     96dp blur radius = ~100% blur (very heavy, image becomes a
-        //     smooth color wash with subtle variations). Modifier.blur
-        //     uses RenderEffect on Android 12+ (hardware-accelerated).
-        if (albumArtUri != null) {
-            AsyncImage(
-                model = albumArtUri,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                colorFilter = bgSatFilter,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .blur(96.dp)
-                    .graphicsLayer { alpha = outAlpha }
-            )
-        }
-
-        // Medium-blur bridge layer (32dp blur) — sits between the heavy-blur
-        // bg (96dp) and the sharp art (0dp). Has a bell-curve alpha mask
-        // that makes it visible only in the transition zone (around the
-        // sharp art's bottom edge, ~48% down the screen). This creates a
-        // gradual blur: sharp → 32dp → 96dp. The texture change is spread
-        // across two stages instead of one, so the transition looks
-        // seamless — like one continuous image, not "sharp then blurred".
-        if (albumArtUri != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen; alpha = outAlpha }
-                    .drawWithContent {
-                        drawContent()
-                        // Bell-curve alpha mask via DstIn:
-                        //   0-40%  : transparent (sharp art area, medium-blur hidden)
-                        //   40-48% : fade in (sharp art fading out, medium-blur fading in)
-                        //   48-55% : fully opaque (medium-blur dominates)
-                        //   55-85% : fade out (transitioning to heavy-blur)
-                        //   85-100%: transparent (heavy-blur dominates)
-                        drawRect(
-                            brush = Brush.verticalGradient(
-                                colorStops = arrayOf(
-                                    0.00f to Color.Transparent,
-                                    0.40f to Color.Transparent,
-                                    0.48f to Color.Black,
-                                    0.55f to Color.Black,
-                                    0.70f to Color.Black.copy(alpha = 0.4f),
-                                    0.85f to Color.Transparent,
-                                    1.00f to Color.Transparent
-                                )
-                            ),
-                            blendMode = BlendMode.DstIn
-                        )
-                    }
-            ) {
-                AsyncImage(
-                    model = albumArtUri,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    colorFilter = bgSatFilter,
-                    modifier = Modifier.fillMaxSize().blur(32.dp)
-                )
-            }
-        }
+        // (1) MeshBackground — renders the blurred (or sharp) album cover
+        //     + color mesh overlay based on the selected palette style.
+        //     Blur radius + mesh type + color treatment all come from
+        //     SpiralPaletteStyle (Settings → Spiral Palette).
+        //     12 styles available: BLUR, VIBRANT_MESH, DOMINANT_WASH,
+        //     NEON_PULSE, PASTEL_DREAM, MIDNIGHT, SUNSET, OCEAN,
+        //     MONOCHROME, RAINBOW_MESH, VINTAGE, AURORA.
+        MeshBackground(
+            albumArtUri = albumArtUri,
+            palette = palette,
+            style = paletteStyle,
+            modifier = Modifier.graphicsLayer { alpha = outAlpha }
+        )
 
         // (2) Sharp album art — SQUARE container at top, moved down 24dp
         //     (so the status bar sits on the blurred bg, not on the art).
