@@ -158,6 +158,29 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
+        // ═══════════════════════════════════════════════════════════════
+        // App UI — top of settings, prominent selection for the app's
+        // overall design language. Coral (glass morphism) is default.
+        // Spiral/Spiral 2.0/Spiral 3.0 are the legacy UIs.
+        // ═══════════════════════════════════════════════════════════════
+        SettingsSection(title = "App UI") {
+            // Player Design Style — tap to cycle through Coral, Spiral, etc.
+            SettingsRow(
+                icon = CoralIcons.Music,
+                title = "App Design",
+                subtitle = "Tap to change — Coral is the new glass-first UI",
+                value = playerStyle,
+                onClick = {
+                    val styles = listOf(PlayerStyleManager.CORAL, PlayerStyleManager.PROFILE, PlayerStyleManager.SPIRAL, PlayerStyleManager.SPIRAL_2, PlayerStyleManager.SPIRAL_3)
+                    val currentIdx = styles.indexOf(playerStyle)
+                    PlayerStyleManager.setPlayerStyle(styles[(currentIdx + 1) % styles.size])
+                }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // --- Appearance ---
         SettingsSection(title = "Appearance") {
             SettingsRow(
                 icon = CoralIcons.Settings,
@@ -197,19 +220,6 @@ fun SettingsScreen(
                 subtitle = "Background gradient color style",
                 value = currentSpiralPalette.displayName,
                 onClick = onOpenSpiralPalette
-            )
-            // Player Design Style — toggle between Coral (immersive blurred
-            // bg) and Profile (dating-app style with vertical pill + chips)
-            SettingsRow(
-                icon = CoralIcons.Music,
-                title = "Player Design Style",
-                subtitle = "Choose your player layout",
-                value = playerStyle,
-                onClick = {
-                    val styles = listOf(PlayerStyleManager.CORAL, PlayerStyleManager.PROFILE, PlayerStyleManager.SPIRAL, PlayerStyleManager.SPIRAL_2, PlayerStyleManager.SPIRAL_3)
-                    val currentIdx = styles.indexOf(playerStyle)
-                    PlayerStyleManager.setPlayerStyle(styles[(currentIdx + 1) % styles.size])
-                }
             )
         }
 
