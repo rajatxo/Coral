@@ -8,8 +8,9 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * PlayerStyleManager — holds the user's preferred player design style.
  *
- * Default: Spiral (on first install). Once the user changes the style,
- * it's persisted in SharedPreferences and restored on app restart.
+ * Default: Coral (on first install). Coral is the new glass-morphism-first
+ * UI built from scratch with proper kyant backdrop architecture.
+ * Spiral/Spiral 2.0/Spiral 3.0 are the legacy UIs, kept as alternatives.
  */
 object PlayerStyleManager {
 
@@ -20,11 +21,11 @@ object PlayerStyleManager {
     const val SPIRAL_3 = "Spiral 3.0"
 
     private const val PREFS_NAME = "coral_prefs"
-    private const val KEY_PLAYER_STYLE = "player_style_v2"  // bumped v1→v2 to reset default to SPIRAL
+    private const val KEY_PLAYER_STYLE = "player_style_v3"  // bumped v2→v3 to reset default to CORAL
 
     private lateinit var prefs: android.content.SharedPreferences
 
-    private val _playerStyle = MutableStateFlow(SPIRAL)
+    private val _playerStyle = MutableStateFlow(CORAL)  // ★ Default = CORAL (new glass-first UI)
     val playerStyle: StateFlow<String> = _playerStyle.asStateFlow()
 
     fun init(context: Context) {
