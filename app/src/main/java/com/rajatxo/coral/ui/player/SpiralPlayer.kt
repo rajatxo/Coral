@@ -229,22 +229,34 @@ fun SpiralPlayer(
     // Drag progress 0 → 1. Drives the alpha fade (no scale, no TransformOrigin).
     val dismissProgress = (dismissDragY.value / dismissThreshold).coerceIn(0f, 1f)
 
-    // ─── Palette (extracted from album art, cached in PaletteCache) ───
-    // ★ remember WITHOUT albumArtUri key — so the palette state is NOT
-    //   recreated when the song changes. This keeps the PREVIOUS song's
-    //   palette visible until the new one is extracted. Without this,
-    //   the palette would reset to CoralPalette.Default (dark grey) on
-    //   every song change, causing a "darkish blur" flash before the
-    //   new palette loads.
+    // ─── Palette + displayed art (BitChord-style synced transition) ───
+    // ★ KEY INSIGHT: the image and palette must change at the SAME time.
+    //   Before: albumArtUri changed instantly → Coil crossfaded the image
+    //   at 100ms → but palette extraction took ~200ms → for 200ms you saw
+    //   NEW image + OLD colors = "old song blur" flash.
+    //
+    //   Fix: use `displayedArtUri` which LAGS behind `albumArtUri` until
+    //   the new palette is also ready. When albumArtUri changes:
+    //     1. Keep displayedArtUri at the OLD value (old blur stays visible)
+    //     2. Extract the new palette in the background
+    //     3. Once the palette is ready, set displayedArtUri = albumArtUri
+    //        AND palette = newPalette at the SAME TIME
+    //     4. Coil crossfades the image at 100ms, palette animates at 100ms
+    //        → both finish together → no mismatch
     var palette by remember { mutableStateOf(PaletteCache.get(albumArtUri) ?: CoralPalette.Default) }
+    var displayedArtUri by remember { mutableStateOf(albumArtUri) }
+
     LaunchedEffect(albumArtUri) {
-        if (albumArtUri != null) {
-            // If already cached, use it instantly (no flash)
+        if (displayedArtUri != null) {
             val cached = PaletteCache.get(albumArtUri)
             if (cached != null) {
+                // ★ Palette cached — update both at the same time
                 palette = cached
+                displayedArtUri = albumArtUri
             } else {
-                // Not cached — preload into Coil cache (full size, for the blurred bg)
+                // ★ Not cached — keep OLD art visible while extracting.
+                //   Preload image into Coil cache so it's ready instantly
+                //   when we flip the displayedArtUri.
                 try {
                     coil3.ImageLoader(context).execute(
                         coil3.request.ImageRequest.Builder(context)
@@ -252,11 +264,11 @@ fun SpiralPlayer(
                             .build()
                     )
                 } catch (_: Exception) { }
-                // Extract palette + cache it. The old palette stays visible
-                // during extraction — no dark flash.
                 extractPalette(context, albumArtUri)?.let {
                     palette = it
-                    PaletteCache.put(albumArtUri, it)
+                    PaletteCache.put(albumArtUri!!, it)
+                    // ★ NOW flip the displayed art — image + palette change together
+                    displayedArtUri = albumArtUri
                 }
             }
         }
@@ -676,8 +688,8 @@ fun SpiralPlayer(
         //     NEON_PULSE, PASTEL_DREAM, MIDNIGHT, SUNSET, OCEAN,
         //     MONOCHROME, RAINBOW_MESH, VINTAGE, AURORA.
         MeshBackground(
-            albumArtUri = albumArtUri,
-            palette = animatedPalette,  // ★ animated — colors transition at 100ms with the image
+            albumArtUri = displayedArtUri,  // ★ synced with palette — changes at the same time
+            palette = animatedPalette,
             style = paletteStyle,
             modifier = Modifier.graphicsLayer { alpha = outAlpha }
         )
@@ -747,10 +759,10 @@ fun SpiralPlayer(
                     )
                 }
         ) {
-            if (albumArtUri != null) {
+            if (displayedArtUri != null) {
                 // ★ Pass URI directly — global ImageLoader crossfade handles it
                 AsyncImage(
-                    model = albumArtUri,
+                    model = displayedArtUri,  // ★ synced with palette
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
