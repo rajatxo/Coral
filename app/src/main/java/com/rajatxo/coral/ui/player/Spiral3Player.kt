@@ -656,6 +656,9 @@ fun Spiral3Player(
             }
             .graphicsLayer {
                 translationY = dismissDragY.value
+                // Fade the WHOLE player to transparent during drag-down —
+                // reveals the behind page (songs list / playlist / quick picks).
+                alpha = bgAlpha
             }
             .pointerInput(Unit) {
                 detectVerticalDragGestures(

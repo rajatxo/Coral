@@ -224,6 +224,8 @@ fun SpiralPlayer(
     val coroutineScope = rememberCoroutineScope()
     val screenHeightPx = with(LocalDensity.current) { LocalView.current.rootView.height.toFloat() }
     val dismissThreshold = screenHeightPx * 0.15f  // 15% of screen height = close
+    // Drag progress 0 → 1. Drives the alpha fade (no scale, no TransformOrigin).
+    val dismissProgress = (dismissDragY.value / dismissThreshold).coerceIn(0f, 1f)
 
     // ─── Palette (extracted from album art, cached in PaletteCache) ───
     // Read from PaletteCache FIRST (instant — no black flash). The mini
@@ -573,33 +575,47 @@ fun SpiralPlayer(
         modifier = Modifier
             .fillMaxSize()
             .drawBehind {
-                // Solid base color — no fade during drag-down.
-                // The translationY handles the dismiss visually (player slides down off screen).
-                drawRect(color = animatedBottomColor)
+                // Solid base color fades to transparent during drag-down
+                // so the behind page (songs list / playlist / quick picks)
+                // shows through — no solid dominant colour blocking the view.
+                //   0% drag → alpha 1.0 (opaque)
+                //  50% drag → alpha 0.5
+                // 100% drag → alpha 0   (transparent)
+                drawRect(color = animatedBottomColor, alpha = (1f - dismissProgress).coerceIn(0f, 1f))
             }
             .graphicsLayer {
-                // Follow finger: move down with drag. No fade, no scale.
+                // Follow finger: move down with drag.
                 translationY = dismissDragY.value
+                // Fade the WHOLE player (blurred bg + sharp art + controls)
+                // to transparent as you drag — reveals the behind page.
+                // No scale, no TransformOrigin — just a clean alpha fade.
+                alpha = (1f - dismissProgress).coerceIn(0f, 1f)
             }
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
                     onDragEnd = {
                         if (dismissDragY.value > dismissThreshold) {
-                            // Animate the player ALL the way down off-screen,
-                            // THEN call onDismiss().
+                            // Smooth glide off-screen with FastOutSlowInEasing
+                            // for buttery deceleration.
                             coroutineScope.launch {
                                 dismissDragY.animateTo(
                                     targetValue = screenHeightPx,
-                                    animationSpec = androidx.compose.animation.core.tween(200)
+                                    animationSpec = androidx.compose.animation.core.tween(
+                                        durationMillis = 280,
+                                        easing = androidx.compose.animation.core.FastOutSlowInEasing
+                                    )
                                 )
                                 onDismiss()
                             }
                         } else {
-                            // Fast snap back to 0
+                            // Smooth spring back to 0 with FastOutSlowInEasing.
                             coroutineScope.launch {
                                 dismissDragY.animateTo(
                                     targetValue = 0f,
-                                    animationSpec = androidx.compose.animation.core.tween(150)
+                                    animationSpec = androidx.compose.animation.core.tween(
+                                        durationMillis = 220,
+                                        easing = androidx.compose.animation.core.FastOutSlowInEasing
+                                    )
                                 )
                             }
                         }
@@ -608,7 +624,10 @@ fun SpiralPlayer(
                         coroutineScope.launch {
                             dismissDragY.animateTo(
                                 targetValue = 0f,
-                                animationSpec = androidx.compose.animation.core.tween(150)
+                                animationSpec = androidx.compose.animation.core.tween(
+                                    durationMillis = 220,
+                                    easing = androidx.compose.animation.core.FastOutSlowInEasing
+                                )
                             )
                         }
                     },
