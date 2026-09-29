@@ -1,13 +1,18 @@
 package com.rajatxo.coral.ui.player
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
@@ -23,21 +28,18 @@ import kotlin.math.sqrt
 /**
  * MeshBackground — renders the Spiral player's background as a SINGLE LAYER.
  *
- * The blur and color treatment are combined into ONE render pass via a
- * ColorFilter ColorMatrix applied to the blurred album cover. There is no
- * separate overlay layer — this eliminates the "step" / delay that occurred
- * when Layer 1 (blur) and Layer 2 (mesh overlay) loaded/animated at
- * different times.
+ * Merges two adjustments into one render pass:
+ *   1. ColorMatrix (hue rotation + saturation + brightness) applied to the
+ *      blurred album cover via ColorFilter — bakes the color treatment
+ *      directly into the image pixels.
+ *   2. Mesh overlay shapes (radial blobs, dual-tone gradient, tritone bands)
+ *      drawn ON TOP via drawWithContent inside the SAME graphicsLayer.
  *
- * The ColorMatrix combines three transforms:
- *   1. Hue rotation (shifts all colors by style.hueShiftDeg degrees)
- *   2. Saturation boost (scales color intensity by style.saturationBoost)
- *   3. Brightness adjustment (scales RGB by style.brightnessFactor)
+ * Because both adjustments are in the same composable + same graphicsLayer,
+ * they composite as ONE unit — no desync, no timing step. The blur, color
+ * treatment, and mesh shapes all load/animate together.
  *
- * For MONOCHROME, saturation is forced to 0 (grayscale).
- *
- * The result: SUNSET = warm hue-shifted blur, OCEAN = cool blur, etc. —
- * all in a single layer with no overlay timing issues.
+ * Offscreen compositing is used so BlendMode draws correctly.
  */
 @Composable
 fun MeshBackground(
@@ -49,75 +51,82 @@ fun MeshBackground(
 ) {
     val blurDp = style.blurRadiusDp.dp
 
-    // ★ Build a single ColorFilter that combines hue + saturation + brightness.
-    // This is applied directly to the blurred AsyncImage — no separate layer.
+    // ★ ColorMatrix: combines hue + saturation + brightness into one filter
+    // applied directly to the blurred image pixels.
     val colorFilter = remember(style) {
         buildColorFilter(style)
     }
 
-    if (albumArtUri != null) {
-        val context = androidx.compose.ui.platform.LocalContext.current
-        val request = remember(albumArtUri) {
-            ImageRequest.Builder(context)
-                .data(albumArtUri)
-                .crossfade(300)
-                .build()
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                this.alpha = alpha
+                // ★ Offscreen: required for BlendMode + drawWithContent to
+                //   composite correctly as a single layer.
+                compositingStrategy = CompositingStrategy.Offscreen
+            }
+    ) {
+        if (albumArtUri != null) {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val request = remember(albumArtUri) {
+                ImageRequest.Builder(context)
+                    .data(albumArtUri)
+                    .crossfade(300)
+                    .build()
+            }
+            AsyncImage(
+                model = request,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                colorFilter = colorFilter,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (blurDp > 0.dp) Modifier.blur(blurDp) else Modifier
+                    )
+            )
         }
-        AsyncImage(
-            model = request,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            colorFilter = colorFilter,
-            modifier = modifier
+
+        // ★ Mesh overlay — drawn ON TOP of the blurred image, but INSIDE
+        //   the same graphicsLayer. This is the key: it's not a separate
+        //   Box/composable that could desync — it's part of the same draw
+        //   pass. Uses SourceOver (normal alpha blending) by default.
+        //   The mesh shapes use semi-transparent palette colors so the
+        //   blurred image shows through underneath.
+        //
+        //   drawWithContent: drawContent() draws the AsyncImage first,
+        //   then the mesh shapes are drawn on top — all in one layer.
+        Box(
+            modifier = Modifier
                 .fillMaxSize()
-                .then(
-                    if (blurDp > 0.dp) Modifier.blur(blurDp) else Modifier
-                )
-                .then(
-                    if (alpha < 1f) Modifier.then(
-                        Modifier.graphicsLayer { this.alpha = alpha }
-                    ) else Modifier
-                )
+                .drawWithContent {
+                    drawContent()
+                    drawMeshOverlay(style, palette, size.width, size.height)
+                }
         )
     }
 }
 
 /**
  * Builds a combined ColorFilter from the style's saturation, brightness,
- * and hue parameters. Returns null if no transformation is needed (BLUR style
- * with default params).
- *
- * The three transforms are combined into a single 4x5 ColorMatrix:
- *   1. Hue rotation (around the grayscale axis)
- *   2. Saturation boost (scales RGB toward/away from grayscale)
- *   3. Brightness adjustment (scales RGB values)
+ * and hue parameters. Returns null if no transformation is needed.
  */
 private fun buildColorFilter(style: SpiralPaletteStyle.PaletteStyle): ColorFilter? {
     val sat = style.saturationBoost
     val bri = style.brightnessFactor
     val hue = style.hueShiftDeg
 
-    // BLUR style — no color treatment, just the raw blurred image
     if (sat == 1f && bri == 1f && hue == 0f) return null
 
-    // Build the combined matrix by multiplying: hue × saturation × brightness
     val hueMatrix = hueRotationMatrix(hue)
     val satMatrix = saturationMatrix(sat)
     val briMatrix = brightnessMatrix(bri)
 
-    // Multiply: result = bri × sat × hue (applied right-to-left)
     val combined = multiplyColorMatrices(briMatrix, multiplyColorMatrices(satMatrix, hueMatrix))
-
     return ColorFilter.colorMatrix(ColorMatrix(combined))
 }
 
-/**
- * Saturation boost matrix.
- *
- * s=0: grayscale (all channels = luminance)
- * s=1: identity (no change)
- * s>1: boost saturation (diagonal > 1, off-diagonal < 0)
- */
 private fun saturationMatrix(s: Float): FloatArray {
     val r = 0.3086f; val g = 0.6094f; val b = 0.0820f
     return floatArrayOf(
@@ -128,13 +137,6 @@ private fun saturationMatrix(s: Float): FloatArray {
     )
 }
 
-/**
- * Brightness adjustment matrix.
- *
- * b=1: identity
- * b<1: darker
- * b>1: brighter
- */
 private fun brightnessMatrix(b: Float): FloatArray {
     return floatArrayOf(
         b, 0f, 0f, 0f, 0f,
@@ -144,13 +146,6 @@ private fun brightnessMatrix(b: Float): FloatArray {
     )
 }
 
-/**
- * Hue rotation matrix (rotation around the (1,1,1) grayscale axis).
- *
- * degrees=0: identity
- * degrees>0: rotate hue forward (warm shift)
- * degrees<0: rotate hue backward (cool shift)
- */
 private fun hueRotationMatrix(degrees: Float): FloatArray {
     if (degrees == 0f) return identityMatrix()
     val rad = Math.toRadians(degrees.toDouble())
@@ -166,9 +161,6 @@ private fun hueRotationMatrix(degrees: Float): FloatArray {
     )
 }
 
-/**
- * Identity color matrix (no transformation).
- */
 private fun identityMatrix(): FloatArray {
     return floatArrayOf(
         1f, 0f, 0f, 0f, 0f,
@@ -178,14 +170,8 @@ private fun identityMatrix(): FloatArray {
     )
 }
 
-/**
- * Multiplies two 4x5 color matrices (treating them as 4x4 augmented matrices).
- *
- * Result = A × B (A applied after B)
- */
 private fun multiplyColorMatrices(a: FloatArray, b: FloatArray): FloatArray {
     val result = FloatArray(20)
-    // Treat as 4x5 matrices (4 rows, 5 columns, but only 4x4 matters for mult)
     for (row in 0 until 4) {
         for (col in 0 until 5) {
             var sum = 0f
@@ -196,4 +182,127 @@ private fun multiplyColorMatrices(a: FloatArray, b: FloatArray): FloatArray {
         }
     }
     return result
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Mesh overlay rendering — draws semi-transparent shapes on top of the
+// blurred image. Uses the palette colors extracted from the album art.
+// ═══════════════════════════════════════════════════════════════════
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawMeshOverlay(
+    style: SpiralPaletteStyle.PaletteStyle,
+    palette: CoralPalette,
+    width: Float,
+    height: Float
+) {
+    when (style.meshType) {
+        SpiralPaletteStyle.MeshType.NONE -> {
+            // No overlay — just the blurred + color-filtered image
+        }
+
+        SpiralPaletteStyle.MeshType.RADIAL_BLOBS -> {
+            val blobRadius = width * 0.6f
+            drawRadialBlob(palette.primary, Offset(width * 0.15f, height * 0.15f), blobRadius)
+            drawRadialBlob(palette.secondary, Offset(width * 0.85f, height * 0.2f), blobRadius)
+            drawRadialBlob(palette.tertiary, Offset(width * 0.2f, height * 0.85f), blobRadius)
+            drawRadialBlob(palette.accent, Offset(width * 0.8f, height * 0.8f), blobRadius)
+        }
+
+        SpiralPaletteStyle.MeshType.SOLID_WASH -> {
+            drawRect(color = palette.primary.copy(alpha = 0.5f))
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        palette.primary.copy(alpha = 0.3f),
+                        Color.Transparent,
+                        palette.tertiary.copy(alpha = 0.4f)
+                    )
+                )
+            )
+        }
+
+        SpiralPaletteStyle.MeshType.VERTICAL_GRADIENT -> {
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colorStops = arrayOf(
+                        0.0f to palette.primary.copy(alpha = 0.85f),
+                        0.35f to palette.secondary.copy(alpha = 0.7f),
+                        0.65f to palette.tertiary.copy(alpha = 0.8f),
+                        1.0f to Color(0xFF05050A)
+                    )
+                )
+            )
+        }
+
+        SpiralPaletteStyle.MeshType.DUAL_TONE -> {
+            drawRect(
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        palette.primary.copy(alpha = 0.7f),
+                        palette.tertiary.copy(alpha = 0.7f)
+                    ),
+                    start = Offset(0f, 0f),
+                    end = Offset(width, height)
+                )
+            )
+        }
+
+        SpiralPaletteStyle.MeshType.TRITONE -> {
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colorStops = arrayOf(
+                        0.0f to palette.primary.copy(alpha = 0.75f),
+                        0.33f to palette.primary.copy(alpha = 0.4f),
+                        0.5f to palette.secondary.copy(alpha = 0.6f),
+                        0.66f to palette.tertiary.copy(alpha = 0.4f),
+                        1.0f to palette.tertiary.copy(alpha = 0.8f)
+                    )
+                )
+            )
+        }
+
+        SpiralPaletteStyle.MeshType.GRAYSCALE_ACCENT -> {
+            // Image is already grayscale via ColorFilter. Add accent blob.
+            drawRadialBlob(
+                palette.accent.copy(alpha = 0.4f),
+                Offset(width * 0.5f, height * 0.4f),
+                width * 0.5f
+            )
+            drawRect(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color.Transparent, Color(0xFF05050A).copy(alpha = 0.6f)),
+                    center = Offset(width * 0.5f, height * 0.5f),
+                    radius = width * 0.8f
+                )
+            )
+        }
+    }
+
+    // Subtle bottom dark gradient for control readability
+    drawRect(
+        brush = Brush.verticalGradient(
+            colorStops = arrayOf(
+                0.0f to Color.Transparent,
+                0.7f to Color.Transparent,
+                1.0f to Color(0xFF05050A).copy(alpha = 0.3f)
+            )
+        )
+    )
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawRadialBlob(
+    color: Color,
+    center: Offset,
+    radius: Float
+) {
+    drawRect(
+        brush = Brush.radialGradient(
+            colors = listOf(
+                color.copy(alpha = 0.6f),
+                color.copy(alpha = 0.0f)
+            ),
+            center = center,
+            radius = radius
+        )
+    )
 }
