@@ -47,7 +47,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -346,15 +345,6 @@ fun HomeScreen(
         // DECLARED HERE (before the content Box) so the wrapped callbacks
         // are in scope when the screens below use them.
         var miniPlayerDismissed by remember { mutableStateOf(false) }
-
-        // ─── Player expansion fraction (hoisted from UnifiedPlayerSheet) ──
-        // 0 = collapsed (mini player visible), 1 = expanded (full player).
-        // Drives:
-        //   • DraggableTabCapsule: slides DOWN off-screen as fraction → 1
-        //     (Yuma-style — nav bar hides when player is open)
-        //   • DraggableSearchFab: fades out as fraction → 1
-        var playerExpansionFraction by remember { mutableFloatStateOf(0f) }
-
         androidx.compose.runtime.LaunchedEffect(currentSongId) {
             if (currentSongId != null && miniPlayerDismissed) {
                 miniPlayerDismissed = false
@@ -478,68 +468,48 @@ fun HomeScreen(
             .asPaddingValues()
             .calculateBottomPadding()
         val capsuleHeight = 52.dp
-        val miniPlayerGap = 6.dp  // gap between mini player bottom and nav bar top (original)
+        val miniPlayerGap = 10.dp  // gap between mini player bottom and nav bar top
         val navBarCenterFromBottom = configuration.screenHeightDp.dp * (1f - tabYFrac)
         val navBarTopFromBottom = navBarCenterFromBottom + (capsuleHeight / 2)
         val miniPlayerBottomFromScreenBottom = navBarTopFromBottom + miniPlayerGap
         val miniPlayerPaddingBottom = (miniPlayerBottomFromScreenBottom - systemNavInset)
             .coerceAtLeast(0.dp)
 
-        // ═══════════════════════════════════════════════════════════════
-        // UNIFIED PLAYER SHEET (YumaPlayer-style morph)
-        // ═══════════════════════════════════════════════════════════════
-        // Replaces the old AnimatedVisibility(showFullPlayer) + standalone
-        // MiniPlayer pattern. A single composable morphs between:
-        //   • Collapsed (fraction=0): glass mini pill at bottom-center
-        //   • Expanded  (fraction=1): full screen player UI
-        // Driven by `expansionFraction: Animatable<Float>` — gestures:
-        //   • Tap / swipe up on collapsed → expand
-        //   • Drag down on expanded → collapse
-        //   • Swipe left/right on collapsed → dismiss
-        // The glass backdrop samples the home content behind continuously —
-        // same kyant library used by the nav bar TabCapsule.
-        if (currentSongTitle != null && !miniPlayerDismissed) {
-            com.rajatxo.coral.ui.player.UnifiedPlayerSheet(
-                mediaController = mediaController,
-                currentSongId = currentSongId,
-                currentSongTitle = currentSongTitle,
-                currentSongArtist = currentSongArtist,
-                currentSongAlbum = currentSongAlbum,
-                currentSongArt = currentSongArt,
+        AnimatedVisibility(
+            visible = currentSongTitle != null && !miniPlayerDismissed,
+            enter = slideInVertically { it } + fadeIn(),
+            exit = slideOutVertically { it } + fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = miniPlayerPaddingBottom)
+        ) {
+            MiniPlayer(
+                title = currentSongTitle ?: "",
+                artist = currentSongArtist ?: "",
+                albumArtUri = currentSongArt,
+                songId = currentSongId,
                 isPlaying = isPlaying,
+                positionMs = miniPlayerPositionMs,
+                durationMs = miniPlayerDurationMs,
                 onPlayPauseClick = onPlayPauseClick,
                 onNextClick = onNextClick,
-                onPrevClick = onPrevClick,
-                onSeek = onSeek,
-                onDismiss = onFullPlayerDismiss,
-                onAddToPlaylist = { songId ->
-                    songToAddToPlaylist = songId
-                },
-                onSongDelete = { songId ->
-                    songToDelete = songId
-                },
+                onClick = onMiniPlayerClick,
+                onSwipeUp = onMiniPlayerClick,
                 onSwipeDismiss = {
                     // Pause playback + hide the mini player.
                     // The mini player reappears when a new song is selected.
                     if (isPlaying) onPlayPauseClick()
                     miniPlayerDismissed = true
                 },
-                glassBackdrop = glassBackdrop,
-                miniBottomPaddingDp = miniPlayerPaddingBottom,
-                positionMs = miniPlayerPositionMs,
-                durationMs = miniPlayerDurationMs,
-                onExpansionFractionChanged = { fraction ->
-                    playerExpansionFraction = fraction
-                },
-                modifier = Modifier.fillMaxSize()
+                isFullPlayerOpen = showFullPlayer,
+                backdrop = glassBackdrop
             )
         }
 
         // --- Draggable Floating Search Button ---
-        // Fades out as the player expands (alpha = 1 - fraction).
         DraggableSearchFab(
-            onSearchClick = { showSearch = true },
-            hideFraction = playerExpansionFraction
+            onSearchClick = { showSearch = true }
         )
 
         // ─── FIXED HEADER (Quick Picks page only) ───────────────────
@@ -739,11 +709,7 @@ fun HomeScreen(
                 selectedTab = tab
                 selectedPlaylist = null
             },
-            backdrop = glassBackdrop,
-            // Yuma-style: nav bar slides DOWN off-screen as the player expands.
-            // At fraction=0 → nav bar in normal position.
-            // At fraction=1 → nav bar fully off-screen below.
-            playerExpansionFraction = playerExpansionFraction
+            backdrop = glassBackdrop
         )
 
         // Add bottom padding to the content area when mini player is visible,
@@ -878,10 +844,117 @@ fun HomeScreen(
             )
         }
 
-        // Full-screen now-playing screen is now handled by UnifiedPlayerSheet
-        // above (YumaPlayer-style morph). The old AnimatedVisibility + player
-        // style switcher block has been removed — UnifiedPlayerSheet handles
-        // all player styles internally based on PlayerStyleManager preference.
+        // Full-screen now-playing screen
+        // Conditionally renders CoralPlayer (immersive blurred-bg style)
+        // or FullPlayer (dating-app profile style) based on the user's
+        // Player Design Style preference in Settings → Appearance.
+        val playerStyle by com.rajatxo.coral.data.prefs.PlayerStyleManager.playerStyle.collectAsState()
+        AnimatedVisibility(
+            visible = showFullPlayer,
+            enter = slideInVertically { it } + fadeIn(),
+            exit = fadeOut(animationSpec = tween(200))
+        ) {
+            if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.CORAL) {
+                com.rajatxo.coral.ui.player.CoralPlayer(
+                    mediaController = mediaController,
+                    songId = currentSongId,
+                    title = currentSongTitle ?: "",
+                    artist = currentSongArtist ?: "",
+                    albumName = currentSongAlbum,
+                    albumArtUri = currentSongArt,
+                    isPlaying = isPlaying,
+                    onPlayPauseClick = onPlayPauseClick,
+                    onNextClick = onNextClick,
+                    onPrevClick = onPrevClick,
+                    onSeek = onSeek,
+                    onDismiss = onFullPlayerDismiss,
+                    onAddToPlaylist = { songId ->
+                        songToAddToPlaylist = songId
+                    }
+                )
+            } else if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.SPIRAL) {
+                com.rajatxo.coral.ui.player.SpiralPlayer(
+                    mediaController = mediaController,
+                    songId = currentSongId,
+                    title = currentSongTitle ?: "",
+                    artist = currentSongArtist ?: "",
+                    albumName = currentSongAlbum,
+                    albumArtUri = currentSongArt,
+                    isPlaying = isPlaying,
+                    onPlayPauseClick = onPlayPauseClick,
+                    onNextClick = onNextClick,
+                    onPrevClick = onPrevClick,
+                    onSeek = onSeek,
+                    onDismiss = onFullPlayerDismiss,
+                    onAddToPlaylist = { songId ->
+                        songToAddToPlaylist = songId
+                    },
+                    onSongDelete = { songId ->
+                        songToDelete = songId
+                    }
+                )
+            } else if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.SPIRAL_2) {
+                com.rajatxo.coral.ui.player.Spiral2Player(
+                    mediaController = mediaController,
+                    songId = currentSongId,
+                    title = currentSongTitle ?: "",
+                    artist = currentSongArtist ?: "",
+                    albumName = currentSongAlbum,
+                    albumArtUri = currentSongArt,
+                    isPlaying = isPlaying,
+                    onPlayPauseClick = onPlayPauseClick,
+                    onNextClick = onNextClick,
+                    onPrevClick = onPrevClick,
+                    onSeek = onSeek,
+                    onDismiss = onFullPlayerDismiss,
+                    onAddToPlaylist = { songId ->
+                        songToAddToPlaylist = songId
+                    },
+                    onSongDelete = { songId ->
+                        songToDelete = songId
+                    }
+                )
+            } else if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.SPIRAL_3) {
+                com.rajatxo.coral.ui.player.Spiral3Player(
+                    mediaController = mediaController,
+                    songId = currentSongId,
+                    title = currentSongTitle ?: "",
+                    artist = currentSongArtist ?: "",
+                    albumName = currentSongAlbum,
+                    albumArtUri = currentSongArt,
+                    isPlaying = isPlaying,
+                    onPlayPauseClick = onPlayPauseClick,
+                    onNextClick = onNextClick,
+                    onPrevClick = onPrevClick,
+                    onSeek = onSeek,
+                    onDismiss = onFullPlayerDismiss,
+                    onAddToPlaylist = { songId ->
+                        songToAddToPlaylist = songId
+                    },
+                    onSongDelete = { songId ->
+                        songToDelete = songId
+                    }
+                )
+            } else {
+                FullPlayer(
+                    mediaController = mediaController,
+                    songId = currentSongId,
+                    title = currentSongTitle ?: "",
+                    artist = currentSongArtist ?: "",
+                    albumName = currentSongAlbum,
+                    albumArtUri = currentSongArt,
+                    isPlaying = isPlaying,
+                    onPlayPauseClick = onPlayPauseClick,
+                    onNextClick = onNextClick,
+                    onPrevClick = onPrevClick,
+                    onSeek = onSeek,
+                    onDismiss = onFullPlayerDismiss,
+                    onAddToPlaylist = { songId ->
+                        songToAddToPlaylist = songId
+                    }
+                )
+            }
+        }
 
         // Full-screen playlist detail overlay (covers nav rail + everything)
         AnimatedVisibility(
@@ -1483,10 +1556,7 @@ private fun MiniPlayer(
 
 @Composable
 private fun DraggableSearchFab(
-    onSearchClick: () -> Unit = {},
-    // 0 = visible, 1 = hidden (faded out + non-interactive)
-    // Used to hide the FAB when the player is expanded.
-    hideFraction: Float = 0f
+    onSearchClick: () -> Unit = {}
 ) {
     val savedPosition by com.rajatxo.coral.data.prefs.SearchFabPosition.position.collectAsState()
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -1544,9 +1614,6 @@ private fun DraggableSearchFab(
         modifier = Modifier
             .fillMaxSize()
             .onSizeChanged { screenSize = it }
-            // Fade out the entire FAB (including bubble + grid overlay)
-            // when the player is expanded. hideFraction = playerExpansionFraction.
-            .graphicsLayer { alpha = (1f - hideFraction).coerceIn(0f, 1f) }
     ) {
         if (screenSize.width > 0 && screenSize.height > 0) {
 
@@ -1954,10 +2021,7 @@ private fun DraggableTabCapsule(
     tabs: List<CoralTab>,
     activeTab: CoralTab,
     onTabSelected: (CoralTab) -> Unit,
-    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop?,
-    // Yuma-style: when player expands, the nav bar slides DOWN off-screen.
-    // 0 = normal position, 1 = fully off-screen below.
-    playerExpansionFraction: Float = 0f
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop?
 ) {
     val savedPosition by com.rajatxo.coral.data.prefs.TabCapsulePosition.position.collectAsState()
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -2139,27 +2203,19 @@ private fun DraggableTabCapsule(
             }
 
             // --- The capsule (positioned via offset, draggable) ---
-            // Yuma-style: slides DOWN off-screen as player expands.
-            // The slide distance is the capsule height + a small extra so it
-            // fully disappears below the screen edge. Animated implicitly by
-            // the playerExpansionFraction state (driven by UnifiedPlayerSheet).
-            val navSlideDownPx = (capsuleHeight + with(density) { 24.dp.toPx() }) * playerExpansionFraction
             Box(
                 modifier = Modifier
                     .offset {
                         androidx.compose.ui.unit.IntOffset(
                             (currentXpx - capsuleWidth / 2f).toInt()
                                 .coerceIn(0, (screenSize.width - capsuleWidth).toInt()),
-                            ((currentYpx - capsuleHeight / 2f).toInt()
-                                .coerceIn(0, (screenSize.height - capsuleHeight).toInt())) + navSlideDownPx.toInt()
+                            (currentYpx - capsuleHeight / 2f).toInt()
+                                .coerceIn(0, (screenSize.height - capsuleHeight).toInt())
                         )
                     }
                     .graphicsLayer {
                         scaleX = capsuleScale
                         scaleY = capsuleScale
-                        // Fade out as it slides down (so it doesn't visibly overlap
-                        // the UnifiedPlayerSheet's expanding glass above it).
-                        alpha = (1f - playerExpansionFraction).coerceIn(0f, 1f)
                     }
                     .pointerInput(tabs, activeTab) {
                         awaitPointerEventScope {

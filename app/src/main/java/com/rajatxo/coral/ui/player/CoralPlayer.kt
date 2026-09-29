@@ -127,10 +127,7 @@ fun CoralPlayer(
     onPrevClick: () -> Unit,
     onSeek: (Long) -> Unit,
     onDismiss: () -> Unit,
-    onAddToPlaylist: (Long) -> Unit = {},
-    // ─── Unified sheet integration ──────────────────────────────────
-    // See SpiralPlayer.kt for documentation — same pattern.
-    sheetAlpha: Float = 1f
+    onAddToPlaylist: (Long) -> Unit = {}
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -345,10 +342,7 @@ fun CoralPlayer(
     //       drawWithContent + DstIn. Result: sharp in the middle, fading
     //       to transparent at both edges — smoothly revealing the blurred
     //       bg above (status bar area) and below (controls area).
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()
-        .background(animatedBottomColor)
-        .graphicsLayer { this.alpha = sheetAlpha }
-    ) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(animatedBottomColor)) {
         val center = maxHeight / 2
 
         // Background layer — wrapped with layerBackdrop so the glass capsule

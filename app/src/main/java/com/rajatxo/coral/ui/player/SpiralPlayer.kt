@@ -149,16 +149,7 @@ fun SpiralPlayer(
     onSeek: (Long) -> Unit,
     onDismiss: () -> Unit,
     onAddToPlaylist: (Long) -> Unit = {},
-    onSongDelete: (Long) -> Unit = {},
-    // ─── Unified sheet integration ──────────────────────────────────
-    // When this composable is hosted inside UnifiedPlayerSheet, the sheet
-    // drives the visual alpha (crossfade with MiniPlayerContent) and the
-    // drag gestures. We disable SpiralPlayer's own drag-down gesture
-    // (disableDismissGesture=true) and let the sheet handle expand/collapse.
-    // The sheet's expansionFraction is multiplied into the existing alpha
-    // (which already accounts for dismiss-drag progress when used standalone).
-    sheetAlpha: Float = 1f,
-    disableDismissGesture: Boolean = false
+    onSongDelete: (Long) -> Unit = {}
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -610,10 +601,7 @@ fun SpiralPlayer(
                 // 100% drag → alpha 0    (fully transparent)
                 val p = dismissProgress
                 val smooth = p * p * (3f - 2f * p)
-                // When used inside UnifiedPlayerSheet, `alpha` is the sheet's
-                // expansion fraction (crossfade with MiniPlayerContent).
-                // When standalone, alpha=1f (default).
-                alpha = (1f - smooth) * sheetAlpha
+                alpha = 1f - smooth
                 // Shrink toward bottom-center so the player visually
                 // "blends into" the miniplayer position at the bottom of
                 // the screen. 0.85f keeps it subtle — full 1.0 shrink would
@@ -626,9 +614,7 @@ fun SpiralPlayer(
                 // the screen, not toward the screen center.
                 transformOrigin = TransformOrigin(0.5f, 1f)
             }
-            .pointerInput(disableDismissGesture) {
-                // When inside UnifiedPlayerSheet, the sheet drives gestures.
-                if (disableDismissGesture) return@pointerInput
+            .pointerInput(Unit) {
                 detectVerticalDragGestures(
                     onDragEnd = {
                         if (dismissDragY.value > dismissThreshold) {

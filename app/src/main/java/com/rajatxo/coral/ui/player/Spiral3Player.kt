@@ -159,11 +159,7 @@ fun Spiral3Player(
      * MediaStore.createDeleteRequest — the actual file deletion is
      * gated by user confirmation in the OS dialog.
      */
-    onSongDelete: (Long) -> Unit = {},
-    // ─── Unified sheet integration ──────────────────────────────────
-    // See SpiralPlayer.kt for documentation — same pattern.
-    sheetAlpha: Float = 1f,
-    disableDismissGesture: Boolean = false
+    onSongDelete: (Long) -> Unit = {}
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -676,7 +672,7 @@ fun Spiral3Player(
                 // 100% drag → alpha 0
                 val p = dismissProgress
                 val smooth = p * p * (3f - 2f * p)
-                alpha = (1f - smooth) * sheetAlpha
+                alpha = 1f - smooth
                 // Shrink toward bottom-center so the player visually
                 // "blends into" the miniplayer position.
                 val scale = 1f - (dismissProgress * 0.15f)
@@ -684,8 +680,7 @@ fun Spiral3Player(
                 scaleY = scale
                 transformOrigin = TransformOrigin(0.5f, 1f)
             }
-            .pointerInput(disableDismissGesture) {
-                if (disableDismissGesture) return@pointerInput
+            .pointerInput(Unit) {
                 detectVerticalDragGestures(
                     onDragEnd = {
                         if (dismissDragY.value > dismissThreshold) {
