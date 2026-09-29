@@ -578,15 +578,6 @@ fun SpiralPlayer(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .drawBehind {
-                // Solid base color fades to transparent during drag-down
-                // so the behind page (songs list / playlist / quick picks)
-                // shows through — no solid dominant colour blocking the view.
-                //   0% drag → alpha 1.0 (opaque)
-                //  50% drag → alpha 0.5
-                // 100% drag → alpha 0   (transparent)
-                drawRect(color = animatedBottomColor, alpha = (1f - dismissProgress).coerceIn(0f, 1f))
-            }
             .graphicsLayer {
                 // Follow finger: move down with drag.
                 translationY = dismissDragY.value

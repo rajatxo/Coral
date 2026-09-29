@@ -649,11 +649,6 @@ fun Spiral3Player(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .drawBehind {
-                // Background fades to transparent as you drag down, revealing
-                // the songs list (home screen) behind the player.
-                drawRect(color = animatedBottomColor, alpha = bgAlpha)
-            }
             .graphicsLayer {
                 translationY = dismissDragY.value
                 // Fade the WHOLE player to transparent during drag-down —
