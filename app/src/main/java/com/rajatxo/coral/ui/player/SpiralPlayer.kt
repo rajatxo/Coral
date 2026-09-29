@@ -582,14 +582,21 @@ fun SpiralPlayer(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)  // ★ Solid black base — ensures player is ALWAYS opaque
+            // ★ Black base — but applied INSIDE the graphicsLayer's alpha
+            //   scope so it fades TOGETHER with the whole player during
+            //   drag-down. Without this, the black stays opaque while the
+            //   player fades, showing pure black instead of the home page.
             .graphicsLayer {
                 // Follow finger: move down with drag.
                 translationY = dismissDragY.value
-                // Fade the WHOLE player (blurred bg + sharp art + controls)
+                // Fade the WHOLE player (black bg + blurred bg + sharp art + controls)
                 // to transparent as you drag — reveals the behind page.
                 // No scale, no TransformOrigin — just a clean alpha fade.
                 alpha = (1f - dismissProgress).coerceIn(0f, 1f)
+            }
+            .drawBehind {
+                // Solid black drawn AFTER alpha is applied — fades with the player.
+                drawRect(Color.Black)
             }
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
@@ -734,56 +741,20 @@ fun SpiralPlayer(
             }
         }
 
-        // VISUAL CROSSFADE: incoming art mixes in on top of outgoing.
-        // Plain alpha crossfade (no diagonal wipe) for true color mixing.
+        // VISUAL CROSSFADE: incoming art + mesh blends in on top of outgoing.
+        // ★ Uses MeshBackground so the incoming blur matches the selected
+        //   palette style (SUNSET, VIBRANT_MESH, etc.) — same as the outgoing.
+        //   Before this, the incoming was hardcoded to 96dp blur + bgSatFilter,
+        //   which didn't match the outgoing MeshBackground → out-of-sync.
         // Incoming layers stay rendered until albumArtUri catches up.
         if (showIncoming && xfIncomingArt != null) {
-            // Incoming blurred bg — plain alpha, no diagonal mask.
-            AsyncImage(
-                model = xfIncomingArt,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                colorFilter = bgSatFilter,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .blur(96.dp)
-                    .graphicsLayer { alpha = inAlpha }
+            // Incoming MeshBackground (blur + mesh overlay matching palette style)
+            MeshBackground(
+                albumArtUri = xfIncomingArt,
+                palette = incomingPalette ?: palette,
+                style = paletteStyle,
+                modifier = Modifier.graphicsLayer { alpha = inAlpha }
             )
-
-            // Incoming medium-blur bridge (32dp) with bell-curve mask
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        compositingStrategy = CompositingStrategy.Offscreen
-                        alpha = inAlpha
-                    }
-                    .drawWithContent {
-                        drawContent()
-                        drawRect(
-                            brush = Brush.verticalGradient(
-                                colorStops = arrayOf(
-                                    0.00f to Color.Transparent,
-                                    0.40f to Color.Transparent,
-                                    0.48f to Color.Black,
-                                    0.55f to Color.Black,
-                                    0.70f to Color.Black.copy(alpha = 0.4f),
-                                    0.85f to Color.Transparent,
-                                    1.00f to Color.Transparent
-                                )
-                            ),
-                            blendMode = BlendMode.DstIn
-                        )
-                    }
-            ) {
-                AsyncImage(
-                    model = xfIncomingArt,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    colorFilter = bgSatFilter,
-                    modifier = Modifier.fillMaxSize().blur(32.dp)
-                )
-            }
 
             // Incoming sharp art
             Box(

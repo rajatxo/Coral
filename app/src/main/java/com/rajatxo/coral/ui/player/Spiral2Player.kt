@@ -727,12 +727,15 @@ fun Spiral2Player(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)  // ★ Solid black base — ensures player is ALWAYS opaque
+            // ★ Black base drawn via drawBehind INSIDE the graphicsLayer
+            //   alpha scope — fades TOGETHER with the whole player during
+            //   drag-down. No pure black during drag.
             .graphicsLayer {
                 translationY = dismissDragY.value
-                // Fade the WHOLE player to transparent during drag-down —
-                // reveals the behind page (songs list / playlist / quick picks).
                 alpha = bgAlpha
+            }
+            .drawBehind {
+                drawRect(Color.Black)
             }
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
