@@ -164,13 +164,18 @@ fun UnifiedPlayerSheet(
     }
 
     // ─── Mini (collapsed) dimensions ────────────────────────────────
-    // Only miniHeightPx is needed — to calculate collapsedY.
-    // The sheet itself is always full screen size (Yuma-style).
     val miniHeightPx = with(density) { 64.dp.toPx() }
 
-    // Collapsed Y: the sheet's translationY when collapsed.
-    // At this position, only the top ~64dp of the sheet is visible on screen
-    // (the rest is below the screen edge). The visible portion IS the mini player.
+    // ─── Growing sheet (Yuma's actual approach) ────────────────────
+    // The sheet's HEIGHT lerps from miniHeight (collapsed) to full screen
+    // (expanded). The TOP edge moves UP as the sheet grows. The BOTTOM
+    // edge stays PINNED at the same screen Y throughout — this is the
+    // key insight from Yuma: bottom pinned, top grows upward.
+    //
+    //   fraction=0: top = collapsedY, height = miniHeight
+    //                → only a 64dp pill at the bottom is visible
+    //   fraction=1: top = 0, height = screenHeight
+    //                → full screen
     val miniBottomPaddingPx = with(density) { miniBottomPaddingDp.toPx() }
     val collapsedY = screenHeightPx - systemNavInsetPx - miniBottomPaddingPx - miniHeightPx
     val expandedY = 0f
@@ -196,15 +201,12 @@ fun UnifiedPlayerSheet(
     val playerStyle by PlayerStyleManager.playerStyle.collectAsState()
 
     // ─── Current geometry (interpolated) ───────────────────────────
-    // Yuma approach: the sheet is ALWAYS FULL SCREEN SIZE. Only its
-    // position (translationY) changes — from collapsedY (bottom, only
-    // top ~64dp visible) to 0 (top, full screen visible).
-    //
-    // NO scaleX — it squashes the SpiralPlayer content inside, creating
-    // a "muddy" look during the morph. Instead, the sheet is always full
-    // width. The pill appearance when collapsed comes from the glass
-    // backdrop + border + rounded corners only.
-    val currentY = lerp(collapsedY, expandedY, fraction)
+    // Sheet's top edge moves UP as fraction increases.
+    // Sheet's HEIGHT grows from miniHeight to screenHeight.
+    // Bottom edge stays PINNED at (collapsedY + miniHeight) throughout.
+    val currentTopY = lerp(collapsedY, expandedY, fraction)
+    val currentHeightPx = lerp(miniHeightPx, screenHeightPx, fraction)
+    val currentHeightDp = with(density) { currentHeightPx.toDp() }
     val currentCornerDp = with(density) { lerp(32.dp.toPx(), 0.dp.toPx(), fraction).toDp() }
     val sheetShape: Shape = RoundedCornerShape(currentCornerDp)
 
@@ -212,36 +214,31 @@ fun UnifiedPlayerSheet(
     val glassAlpha = (1f - fraction).coerceIn(0f, 1f)
 
     // ─── Yuma's spring spec (exactly matching) ────────────────────
-    // dampingRatio = 0.78 gives a slight bounce (not NoBouncy which feels stiff)
-    // stiffness = StiffnessMediumLow gives a smooth, medium-speed animation
     val sheetSpring = spring<Float>(
         dampingRatio = 0.78f,
         stiffness = Spring.StiffnessMediumLow
     )
 
     // ─── Gesture handling ──────────────────────────────────────────
-    // Gestures are on the SHEET only (not a full-screen overlay).
-    // detectDragGestures does NOT consume taps — taps pass through to
-    // the home content behind. This is critical: the user can still
-    // interact with the home screen when the sheet is collapsed.
     var dragDirection by remember { mutableStateOf<Int?>(null) }  // 0=H, 1=V
     var totalDragX by remember { mutableFloatStateOf(0f) }
     var totalDragY by remember { mutableFloatStateOf(0f) }
 
     Box(modifier = modifier.fillMaxSize()) {
-        // ─── The sheet (always full screen, positioned via offset) ──
+        // ─── The growing sheet ──
+        // Height lerps from 64dp (collapsed) to full screen (expanded).
+        // Top edge moves up (offset Y = currentTopY).
+        // Bottom edge pinned at (currentTopY + currentHeight).
         Box(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
+                .height(currentHeightDp)
                 .offset {
                     IntOffset(
                         x = dismissOffsetX.value.roundToInt(),
-                        y = currentY.roundToInt()
+                        y = currentTopY.roundToInt()
                     )
                 }
-                // NO scaleX — it squashes the SpiralPlayer content inside.
-                // The sheet is always full width. The pill appearance when
-                // collapsed comes from glass + border + rounded corners.
                 .clip(sheetShape)
                 .then(
                     // Glass backdrop — samples home content behind.
@@ -357,13 +354,22 @@ fun UnifiedPlayerSheet(
             // ════════════════════════════════════════════════════════════
             // LAYER 1: Full player (alpha = fraction)
             // ════════════════════════════════════════════════════════════
-            // Fills the entire sheet. At fraction=0 the player is invisible
-            // (alpha=0). As fraction → 1, the player fades in AND is
-            // progressively revealed top-to-bottom (because the sheet
-            // slides up, exposing more of its content).
+            // CRITICAL: Use requiredSize with FULL SCREEN dimensions, NOT
+            // fillMaxSize. The sheet's height is dynamic (lerps from 64dp to
+            // full screen). If we used fillMaxSize, the player would lay out
+            // at the sheet's CURRENT height (64dp when collapsed) — causing
+            // layout issues and potential crashes when the player tries to
+            // position elements that don't fit.
+            //
+            // requiredSize OVERRIDES the parent's constraints — the player
+            // always lays out at full screen size. The sheet's clip then
+            // exposes only the visible portion (top-to-bottom reveal).
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .requiredSize(
+                        width = with(density) { screenWidthPx.toDp() },
+                        height = with(density) { screenHeightPx.toDp() }
+                    )
                     .graphicsLayer { alpha = fraction }
             ) {
                     when (playerStyle) {
