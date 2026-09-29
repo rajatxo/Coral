@@ -262,11 +262,25 @@ fun SpiralPlayer(
         }
     }
 
-    // Smooth crossfade when colors change on song switch (no grey flash).
-    val animatedTopColor    by animateColorAsState(palette.primary,   tween(600), label = "top")
-    val animatedMidColor   by animateColorAsState(palette.secondary,  tween(600), label = "mid")
-    val animatedBottomColor by animateColorAsState(palette.tertiary,  tween(600), label = "bottom")
-    val animatedAccentColor by animateColorAsState(palette.accent,    tween(600), label = "accent")
+    // ★ Palette colors animate at 100ms — matches the image crossfade timing.
+    //   Before this was 600ms, which caused a 'sudden colour change' on the
+    //   mesh overlay because the image changed in 100ms but the palette
+    //   colors took 600ms to catch up.
+    val animatedTopColor    by animateColorAsState(palette.primary,   tween(100), label = "top")
+    val animatedMidColor   by animateColorAsState(palette.secondary,  tween(100), label = "mid")
+    val animatedBottomColor by animateColorAsState(palette.tertiary,  tween(100), label = "bottom")
+    val animatedAccentColor by animateColorAsState(palette.accent,    tween(100), label = "accent")
+
+    // ★ Animated palette — used by MeshBackground so the mesh overlay colors
+    //   animate at the SAME 100ms rate as the image crossfade. Without this,
+    //   the raw `palette` object changes instantly → mesh colors jump →
+    //   visible "sudden colour change" on the blur.
+    val animatedPalette = CoralPalette(
+        primary = animatedTopColor,
+        secondary = animatedMidColor,
+        tertiary = animatedBottomColor,
+        accent = animatedAccentColor
+    )
 
     // ─── Palette style (from Settings → Spiral Palette) ──────────
     // Controls blur radius + mesh overlay type. Default = BLUR (96dp, no overlay).
@@ -663,7 +677,7 @@ fun SpiralPlayer(
         //     MONOCHROME, RAINBOW_MESH, VINTAGE, AURORA.
         MeshBackground(
             albumArtUri = albumArtUri,
-            palette = palette,
+            palette = animatedPalette,  // ★ animated — colors transition at 100ms with the image
             style = paletteStyle,
             modifier = Modifier.graphicsLayer { alpha = outAlpha }
         )
