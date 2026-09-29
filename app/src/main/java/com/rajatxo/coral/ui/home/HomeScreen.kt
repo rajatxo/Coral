@@ -478,7 +478,7 @@ fun HomeScreen(
             .asPaddingValues()
             .calculateBottomPadding()
         val capsuleHeight = 52.dp
-        val miniPlayerGap = 4.dp  // gap between mini player bottom and nav bar top (Yuma-style: tight)
+        val miniPlayerGap = 6.dp  // gap between mini player bottom and nav bar top (original)
         val navBarCenterFromBottom = configuration.screenHeightDp.dp * (1f - tabYFrac)
         val navBarTopFromBottom = navBarCenterFromBottom + (capsuleHeight / 2)
         val miniPlayerBottomFromScreenBottom = navBarTopFromBottom + miniPlayerGap

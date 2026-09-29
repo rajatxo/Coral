@@ -204,9 +204,17 @@ fun UnifiedPlayerSheet(
     // Sheet's top edge moves UP as fraction increases.
     // Sheet's HEIGHT grows from miniHeight to screenHeight.
     // Bottom edge stays PINNED at (collapsedY + miniHeight) throughout.
+    //
+    // WIDTH: 240dp when collapsed (pill), full screen when expanded.
+    // This matches the original MiniPlayer width + the nav bar TabCapsule
+    // width — they align perfectly. The pill grows to full width as the
+    // sheet expands (Yuma-style morph).
     val currentTopY = lerp(collapsedY, expandedY, fraction)
     val currentHeightPx = lerp(miniHeightPx, screenHeightPx, fraction)
     val currentHeightDp = with(density) { currentHeightPx.toDp() }
+    val miniWidthDp = 240.dp
+    val screenWidthDp = with(density) { screenWidthPx.toDp() }
+    val currentWidthDp = androidx.compose.ui.unit.lerp(miniWidthDp, screenWidthDp, fraction)
     val currentCornerDp = with(density) { lerp(32.dp.toPx(), 0.dp.toPx(), fraction).toDp() }
     val sheetShape: Shape = RoundedCornerShape(currentCornerDp)
 
@@ -227,15 +235,18 @@ fun UnifiedPlayerSheet(
     Box(modifier = modifier.fillMaxSize()) {
         // ─── The growing sheet ──
         // Height lerps from 64dp (collapsed) to full screen (expanded).
+        // Width lerps from 240dp (collapsed pill) to full screen (expanded).
         // Top edge moves up (offset Y = currentTopY).
         // Bottom edge pinned at (currentTopY + currentHeight).
+        // Horizontally centered via offset X = (screenWidth - sheetWidth) / 2.
+        val currentWidthPx = with(density) { currentWidthDp.toPx() }
         Box(
             modifier = Modifier
-                .fillMaxWidth()
+                .width(currentWidthDp)
                 .height(currentHeightDp)
                 .offset {
                     IntOffset(
-                        x = dismissOffsetX.value.roundToInt(),
+                        x = ((screenWidthPx - currentWidthPx) / 2f + dismissOffsetX.value).roundToInt(),
                         y = currentTopY.roundToInt()
                     )
                 }
@@ -364,6 +375,14 @@ fun UnifiedPlayerSheet(
             // requiredSize OVERRIDES the parent's constraints — the player
             // always lays out at full screen size. The sheet's clip then
             // exposes only the visible portion (top-to-bottom reveal).
+            //
+            // PERFORMANCE: Only render the full player when fraction > 0.01.
+            // When collapsed (fraction=0), the sheet is only 64dp tall —
+            // rendering SpiralPlayer (which has heavy layerBackdrop, palette
+            // extraction, lyrics, etc.) in a tiny container wastes resources
+            // and can cause layout issues. The player is invisible at
+            // fraction=0 anyway (alpha=0), so skipping it is safe.
+            if (fraction > 0.01f) {
             Box(
                 modifier = Modifier
                     .requiredSize(
@@ -522,17 +541,15 @@ fun UnifiedPlayerSheet(
                         }
                     }
                 }
+            }  // end if (fraction > 0.01f) — full player only rendered when expanding
 
                 // ════════════════════════════════════════════════════════════
                 // LAYER 2: MiniPlayer content (alpha = 1 - fraction)
                 // ════════════════════════════════════════════════════════════
-                // Yuma-style: mini content is FULL WIDTH with 16dp horizontal
-                // padding (not 240dp fixed width). This matches the sheet's
-                // visible glass area — no mismatch between glass width and
-                // content width.
-                //
-                // Rendered at the TOP of the sheet, on TOP of the full player.
-                // Moves UP with the sheet as it expands — follows the finger.
+                // 240dp wide (matches the sheet's collapsed width + nav bar
+                // TabCapsule width — they align perfectly). Rendered at the
+                // TOP of the sheet, on TOP of the full player. Moves UP with
+                // the sheet as it expands — follows the finger.
                 //
                 // Tap on the mini content → expand (only enabled when collapsed).
                 // This is on the MINI CONTENT only, not the full sheet — so
@@ -540,7 +557,7 @@ fun UnifiedPlayerSheet(
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
-                        .fillMaxWidth()
+                        .width(240.dp)
                         .height(64.dp)
                         .graphicsLayer {
                             alpha = (1f - fraction).coerceIn(0f, 1f)
@@ -595,8 +612,7 @@ private fun MiniPlayerContent(
 
     Row(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),  // Yuma-style: 16dp horizontal padding
+            .fillMaxSize(),  // fills the 240dp × 64dp container
         verticalAlignment = Alignment.CenterVertically
     ) {
         // --- Circular album art + progress ring (LEFT) ---
