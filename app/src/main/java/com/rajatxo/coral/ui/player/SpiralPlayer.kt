@@ -73,7 +73,6 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.zIndex
@@ -225,8 +224,6 @@ fun SpiralPlayer(
     val coroutineScope = rememberCoroutineScope()
     val screenHeightPx = with(LocalDensity.current) { LocalView.current.rootView.height.toFloat() }
     val dismissThreshold = screenHeightPx * 0.15f  // 15% of screen height = close
-    // Drag progress 0 → 1. Used for both alpha (fade) and scale (shrink).
-    val dismissProgress = (dismissDragY.value / dismissThreshold).coerceIn(0f, 1f)
 
     // ─── Palette (extracted from album art, cached in PaletteCache) ───
     // Read from PaletteCache FIRST (instant — no black flash). The mini
@@ -576,76 +573,33 @@ fun SpiralPlayer(
         modifier = Modifier
             .fillMaxSize()
             .drawBehind {
-                // Solid base color fades to transparent VERY fast (2x linear)
-                // so it's gone almost immediately when drag starts. This
-                // prevents the dominant palette color from bleeding through
-                // during drag-down — the behind page becomes visible cleanly.
-                //   0% drag → alpha 1.0
-                //  25% drag → alpha 0.5
-                //  50% drag → alpha 0.0 (fully transparent by halfway)
-                val colorAlpha = (1f - dismissProgress * 2f).coerceIn(0f, 1f)
-                drawRect(color = animatedBottomColor, alpha = colorAlpha)
+                // Solid base color — no fade during drag-down.
+                // The translationY handles the dismiss visually (player slides down off screen).
+                drawRect(color = animatedBottomColor)
             }
             .graphicsLayer {
-                // Follow finger: move down with drag.
+                // Follow finger: move down with drag. No fade, no scale.
                 translationY = dismissDragY.value
-                // Fade the WHOLE player to transparent using a SMOOTHSTEP
-                // curve for buttery visual fade (no abrupt drops). Faster
-                // than linear so the behind page becomes visible cleanly
-                // even at small drag amounts, but smoother than quadratic.
-                //   smoothstep(p) = p² × (3 - 2p)
-                //   0% drag → alpha 1.0 (fully visible)
-                //  25% drag → alpha 0.84
-                //  50% drag → alpha 0.50
-                //  75% drag → alpha 0.16
-                // 100% drag → alpha 0    (fully transparent)
-                val p = dismissProgress
-                val smooth = p * p * (3f - 2f * p)
-                alpha = 1f - smooth
-                // Shrink toward bottom-center so the player visually
-                // "blends into" the miniplayer position at the bottom of
-                // the screen. 0.85f keeps it subtle — full 1.0 shrink would
-                // collapse too aggressively and look glitchy.
-                val scale = 1f - (dismissProgress * 0.15f)
-                scaleX = scale
-                scaleY = scale
-                // Transform origin at bottom-center — the player shrinks
-                // toward the miniplayer's anchor point at the bottom of
-                // the screen, not toward the screen center.
-                transformOrigin = TransformOrigin(0.5f, 1f)
             }
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
                     onDragEnd = {
                         if (dismissDragY.value > dismissThreshold) {
-                            // Dismiss: glide off-screen with a smooth spring
-                            // (no overshoot — feels like a natural throw,
-                            // smoother than a hard tween cut).
+                            // Animate the player ALL the way down off-screen,
+                            // THEN call onDismiss().
                             coroutineScope.launch {
                                 dismissDragY.animateTo(
                                     targetValue = screenHeightPx,
-                                    animationSpec = androidx.compose.animation.core.spring(
-                                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
-                                        stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
-                                    )
+                                    animationSpec = androidx.compose.animation.core.tween(200)
                                 )
                                 onDismiss()
-                                // Don't reset dismissDragY here — keep it at
-                                // screenHeightPx so the player stays off-screen
-                                // during the exit transition. It'll reset when
-                                // the player is re-opened (LaunchedEffect below).
                             }
                         } else {
-                            // Snap back to 0 — smooth spring glide back to
-                            // rest position. DampingRatioNoBouncy = no
-                            // overshoot, StiffnessMediumLow = buttery slow.
+                            // Fast snap back to 0
                             coroutineScope.launch {
                                 dismissDragY.animateTo(
                                     targetValue = 0f,
-                                    animationSpec = androidx.compose.animation.core.spring(
-                                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
-                                        stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
-                                    )
+                                    animationSpec = androidx.compose.animation.core.tween(150)
                                 )
                             }
                         }
@@ -654,10 +608,7 @@ fun SpiralPlayer(
                         coroutineScope.launch {
                             dismissDragY.animateTo(
                                 targetValue = 0f,
-                                animationSpec = androidx.compose.animation.core.spring(
-                                    dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
-                                    stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
-                                )
+                                animationSpec = androidx.compose.animation.core.tween(150)
                             )
                         }
                     },

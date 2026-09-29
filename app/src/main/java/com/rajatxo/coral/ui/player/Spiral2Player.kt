@@ -75,7 +75,6 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.zIndex
@@ -242,8 +241,9 @@ fun Spiral2Player(
     val coroutineScope = rememberCoroutineScope()
     val screenHeightPx = with(LocalDensity.current) { LocalView.current.rootView.height.toFloat() }
     val dismissThreshold = screenHeightPx * 0.15f  // 15% of screen height = close
-    // Drag progress 0 → 1. Used for both alpha (fade) and scale (shrink).
-    val dismissProgress = (dismissDragY.value / dismissThreshold).coerceIn(0f, 1f)
+    // Background alpha: 1 (opaque) at rest, fades to 0 (transparent) as
+    // you drag down. This reveals the songs list behind the player.
+    val bgAlpha = (1f - (dismissDragY.value / dismissThreshold)).coerceIn(0f, 1f)
 
     // ─── Palette (extracted from album art, cached in PaletteCache) ───
     // Read from PaletteCache FIRST (instant — no black flash). The mini
@@ -723,53 +723,30 @@ fun Spiral2Player(
     // the album art (extracted from it) so there's no jarring flash — the
     // blurred art fills over it seamlessly once it loads.
     // The whole player is wrapped in a vertical drag gesture: drag down to
-    // dismiss (fade + translate down + shrink toward miniplayer position).
-    // Reverse of swiping UP the miniplayer: player fades to transparent so
-    // the background page (songs list / playlist / quick pic) shows through,
-    // and shrinks toward bottom-center to visually blend into the miniplayer.
+    // dismiss (fade + translate down), like ArchiveTune/Spotify.
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .drawBehind {
-                // Solid base color fades to transparent VERY fast (2x linear)
-                // so it's gone almost immediately when drag starts. Prevents
-                // the dominant palette color from bleeding through during
-                // drag-down — the behind page becomes visible cleanly.
-                val colorAlpha = (1f - dismissProgress * 2f).coerceIn(0f, 1f)
-                drawRect(color = animatedBottomColor, alpha = colorAlpha)
+                // Background fades to transparent as you drag down, revealing
+                // the songs list (home screen) behind the player.
+                drawRect(color = animatedBottomColor, alpha = bgAlpha)
             }
             .graphicsLayer {
-                // Follow finger: move down with drag.
                 translationY = dismissDragY.value
-                // SMOOTHSTEP fade for buttery visual transition.
-                //   smoothstep(p) = p² × (3 - 2p)
-                //   0% drag → alpha 1.0
-                //  25% drag → alpha 0.84
-                //  50% drag → alpha 0.50
-                //  75% drag → alpha 0.16
-                // 100% drag → alpha 0
-                val p = dismissProgress
-                val smooth = p * p * (3f - 2f * p)
-                alpha = 1f - smooth
-                // Shrink toward bottom-center so the player visually
-                // "blends into" the miniplayer position.
-                val scale = 1f - (dismissProgress * 0.15f)
-                scaleX = scale
-                scaleY = scale
-                transformOrigin = TransformOrigin(0.5f, 1f)
             }
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
                     onDragEnd = {
                         if (dismissDragY.value > dismissThreshold) {
-                            // Dismiss: smooth spring glide off-screen.
+                            // Animate the player ALL the way down off-screen,
+                            // THEN call onDismiss(). We keep translationY at
+                            // screenHeightPx during the exit so the player
+                            // stays off-screen — no reappear.
                             coroutineScope.launch {
                                 dismissDragY.animateTo(
                                     targetValue = screenHeightPx,
-                                    animationSpec = androidx.compose.animation.core.spring(
-                                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
-                                        stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
-                                    )
+                                    animationSpec = androidx.compose.animation.core.tween(200)
                                 )
                                 onDismiss()
                                 // Don't reset dismissDragY here — keep it at
@@ -778,14 +755,11 @@ fun Spiral2Player(
                                 // the player is re-opened (LaunchedEffect below).
                             }
                         } else {
-                            // Smooth spring snap-back to 0 (buttery, no overshoot).
+                            // Fast snap back to 0
                             coroutineScope.launch {
                                 dismissDragY.animateTo(
                                     targetValue = 0f,
-                                    animationSpec = androidx.compose.animation.core.spring(
-                                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
-                                        stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
-                                    )
+                                    animationSpec = androidx.compose.animation.core.tween(150)
                                 )
                             }
                         }
@@ -794,10 +768,7 @@ fun Spiral2Player(
                         coroutineScope.launch {
                             dismissDragY.animateTo(
                                 targetValue = 0f,
-                                animationSpec = androidx.compose.animation.core.spring(
-                                    dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
-                                    stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
-                                )
+                                animationSpec = androidx.compose.animation.core.tween(150)
                             )
                         }
                     },
