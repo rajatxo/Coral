@@ -537,8 +537,67 @@ fun CoralApp() {
                 val currentAppUI by com.rajatxo.coral.data.prefs.AppUIManager.appUI.collectAsState()
 
                 if (currentAppUI == com.rajatxo.coral.data.prefs.AppUIManager.CYNTHIA) {
-                    // ─── CYNTHIA — new UI ───
-                    com.rajatxo.coral.ui.cynthia.CynthiaHomeScreen()
+                    // ─── CYNTHIA — new UI (full copy of Astra, modifiable freely) ───
+                    com.rajatxo.coral.ui.cynthia.CynthiaHomeScreen(
+                        songs = songs,
+                        mediaController = mediaController,
+                        currentSongId = currentSongId,
+                        currentSongTitle = currentSongTitle,
+                        currentSongArtist = currentSongArtist,
+                        currentSongAlbum = currentSongAlbum,
+                        currentSongArt = currentSongArt,
+                        isPlaying = isPlaying,
+                        onPlayPauseClick = {
+                            if (isPlaying) mediaController?.pause() else mediaController?.play()
+                        },
+                        onNextClick = {
+                            CrossfadeVisualState.clearIncoming()
+                            mediaController?.seekToNextMediaItem()
+                        },
+                        onPrevClick = {
+                            CrossfadeVisualState.clearIncoming()
+                            mediaController?.seekToPreviousMediaItem()
+                        },
+                        onSeek = { positionMs -> mediaController?.seekTo(positionMs) },
+                        onSongClick = { song ->
+                            CrossfadeVisualState.clearIncoming()
+                            mediaController?.let { controller ->
+                                val allMediaItems = songs.map { s ->
+                                    MediaItem.Builder().setUri(s.uri).setMediaId(s.id.toString())
+                                        .setMediaMetadata(MediaMetadata.Builder().setTitle(s.title).setArtist(s.artist).setAlbumTitle(s.album).setArtworkUri(s.albumArtUri).build())
+                                        .build()
+                                }
+                                val index = songs.indexOf(song)
+                                controller.setMediaItems(allMediaItems, index, 0)
+                                controller.prepare()
+                                controller.play()
+                                com.rajatxo.coral.data.prefs.PlaybackPrefs.saveQueue(
+                                    songs.map { it.id }, index, 0L
+                                )
+                            }
+                        },
+                        onSongClickWithQueue = { song, songList ->
+                            mediaController?.let { controller ->
+                                val mediaItems = songList.map { s ->
+                                    MediaItem.Builder().setUri(s.uri).setMediaId(s.id.toString())
+                                        .setMediaMetadata(MediaMetadata.Builder().setTitle(s.title).setArtist(s.artist).setAlbumTitle(s.album).setArtworkUri(s.albumArtUri).build())
+                                        .build()
+                                }
+                                val index = songList.indexOf(song).coerceAtLeast(0)
+                                controller.setMediaItems(mediaItems, index, 0)
+                                controller.prepare()
+                                controller.play()
+                                com.rajatxo.coral.data.prefs.PlaybackPrefs.saveQueue(
+                                    songList.map { it.id }, index, 0L
+                                )
+                            }
+                        },
+                        onMiniPlayerClick = { showFullPlayer = true },
+                        showFullPlayer = showFullPlayer,
+                        onFullPlayerDismiss = { showFullPlayer = false },
+                        onSongEnded = { mediaController?.pause() },
+                        onRefresh = onRefreshSongs
+                    )
                 } else {
                     // ─── ASTRA — existing UI ───
                     HomeScreen(
