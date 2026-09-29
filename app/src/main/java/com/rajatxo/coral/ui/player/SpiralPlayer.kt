@@ -582,6 +582,7 @@ fun SpiralPlayer(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
+            .background(Color.Black)  // ★ Solid black base — ensures player is ALWAYS opaque
             .graphicsLayer {
                 // Follow finger: move down with drag.
                 translationY = dismissDragY.value

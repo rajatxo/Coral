@@ -727,6 +727,7 @@ fun Spiral2Player(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
+            .background(Color.Black)  // ★ Solid black base — ensures player is ALWAYS opaque
             .graphicsLayer {
                 translationY = dismissDragY.value
                 // Fade the WHOLE player to transparent during drag-down —
