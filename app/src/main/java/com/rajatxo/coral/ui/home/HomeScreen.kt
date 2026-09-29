@@ -509,7 +509,8 @@ fun HomeScreen(
 
         // --- Draggable Floating Search Button ---
         DraggableSearchFab(
-            onSearchClick = { showSearch = true }
+            onSearchClick = { showSearch = true },
+            backdrop = glassBackdrop  // ★ glass morphism (same as nav bar + mini player)
         )
 
         // ─── FIXED HEADER (Quick Picks page only) ───────────────────
@@ -1556,7 +1557,11 @@ private fun MiniPlayer(
 
 @Composable
 private fun DraggableSearchFab(
-    onSearchClick: () -> Unit = {}
+    onSearchClick: () -> Unit = {},
+    // ★ Glass backdrop (same as nav bar + mini player). When provided,
+    // the FAB uses drawBackdrop for real-time frosted-glass blur instead
+    // of a solid white background.
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null
 ) {
     val savedPosition by com.rajatxo.coral.data.prefs.SearchFabPosition.position.collectAsState()
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -1688,6 +1693,35 @@ private fun DraggableSearchFab(
             }
 
             // --- The FAB itself ---
+            // ★ Glass morphism: uses drawBackdrop (same AGSL real-time blur as
+            //   the nav bar + mini player) when a backdrop is provided.
+            //   Falls back to solid white when no backdrop (shouldn't happen).
+            val fabShape: Shape = RoundedCornerShape(16.dp)
+            val fabModifier = if (backdrop != null) {
+                Modifier
+                    .clip(fabShape)
+                    .drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { fabShape },
+                        effects = {
+                            vibrancy()
+                            colorControls(
+                                brightness = 0.05f,
+                                contrast = 1f,
+                                saturation = 1.5f
+                            )
+                            blur(18f.dp.toPx())  // AGSL real-time backdrop blur (same as mini player)
+                        },
+                        onDrawSurface = {
+                            drawRect(Color.Black.copy(alpha = 0.35f))
+                        }
+                    )
+                    .border(1.dp, Color.White.copy(alpha = 0.2f), fabShape)
+            } else {
+                Modifier
+                    .clip(fabShape)
+                    .background(Color.White)
+            }
             Box(
                 modifier = Modifier
                     .offset {
@@ -1702,8 +1736,7 @@ private fun DraggableSearchFab(
                         scaleX = fabScale
                         scaleY = fabScale
                     }
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.White)
+                    .then(fabModifier)
                     .pointerInput(Unit) {
                         awaitPointerEventScope {
                             while (true) {
@@ -1785,7 +1818,7 @@ private fun DraggableSearchFab(
                 Icon(
                     imageVector = CoralIcons.Search,
                     contentDescription = "Search",
-                    tint = Color.Black,
+                    tint = if (backdrop != null) Color.White else Color.Black,  // ★ white on glass, black on white fallback
                     modifier = Modifier.size(24.dp)
                 )
             }
