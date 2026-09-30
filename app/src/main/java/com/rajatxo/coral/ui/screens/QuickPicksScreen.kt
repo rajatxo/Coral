@@ -18,6 +18,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -910,16 +911,25 @@ private fun SpeedDialSection(
     if (speedDialSongs.isEmpty()) return
 
     // ─── "Based on" capsule popup state ──
-    // When the user taps the "Speed dial" text, a white outer capsule
-    // pops up beside the chevron with an inner accent-colored capsule
-    // showing the current mode ("Last played" or "Random songs").
-    // Tapping the inner capsule cycles between the two modes.
     var showBasedOnPopup by remember { mutableStateOf(false) }
     val basedOnPopupAlpha by androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (showBasedOnPopup) 1f else 0f,
         animationSpec = androidx.compose.animation.core.tween(250),
         label = "basedOnPopup"
     )
+
+    // ★ Glass morphism box — wraps the entire speed dial section
+    //   (header + 3x3 grid + page indicator) in a frosted-glass container.
+    //   Rounded corners, semi-transparent dark background, subtle border.
+    //   No drawBackdrop needed — just visual glass styling (crash-free).
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(Color.Black.copy(alpha = 0.25f))
+            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
+            .padding(16.dp)
+    ) {
 
     // Section header — "Speed dial" text + chevron right beside it.
     // The "Based on" capsule is rendered as an OVERLAY on top of the
@@ -1136,6 +1146,7 @@ private fun SpeedDialSection(
                 .padding(top = 2.dp)
         )
     }
+    }  // end glass morphism box Column
 }
 
 // ════════════════════════════════════════════════════════════════════
