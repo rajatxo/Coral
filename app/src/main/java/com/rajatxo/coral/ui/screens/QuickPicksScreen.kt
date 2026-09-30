@@ -127,7 +127,11 @@ fun QuickPicksScreen(
     capsuleRemaining: Long = 0L,
     onExtend: () -> Unit = {},
     onSongClick: (Song) -> Unit = {},
-    onBackClick: () -> Unit = {}
+    onBackClick: () -> Unit = {},
+    // ★ Glass backdrop for speed dial grid (Cynthia only). When provided,
+    // the 3x3 grid uses drawBackdrop for real glass morphism. When null
+    // (Astra), no glass — normal rendering.
+    glassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null
 ) {
     val context = LocalContext.current
 
@@ -334,7 +338,8 @@ fun QuickPicksScreen(
                     textSecondary = textSecondary,
                     launchSeed = launchSeed,
                     pullProgress = ptrState.distanceFraction,
-                    isRefreshing = isRefreshing
+                    isRefreshing = isRefreshing,
+                    glassBackdrop = glassBackdrop
                 )
             }
 
@@ -823,7 +828,8 @@ private fun SpeedDialSection(
     textSecondary: Color,
     launchSeed: Int,
     pullProgress: Float = 0f,
-    isRefreshing: Boolean = false
+    isRefreshing: Boolean = false,
+    glassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null
 ) {
     val scope = rememberCoroutineScope()
     var isRandomizing by remember { mutableStateOf(false) }
@@ -917,19 +923,6 @@ private fun SpeedDialSection(
         animationSpec = androidx.compose.animation.core.tween(250),
         label = "basedOnPopup"
     )
-
-    // ★ Glass morphism box — wraps the entire speed dial section
-    //   (header + 3x3 grid + page indicator) in a frosted-glass container.
-    //   Rounded corners, semi-transparent dark background, subtle border.
-    //   No drawBackdrop needed — just visual glass styling (crash-free).
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(Color.Black.copy(alpha = 0.25f))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
-            .padding(16.dp)
-    ) {
 
     // Section header — "Speed dial" text + chevron right beside it.
     // The "Based on" capsule is rendered as an OVERLAY on top of the
@@ -1056,17 +1049,47 @@ private fun SpeedDialSection(
     Column(
         modifier = Modifier.fillMaxWidth()
     ) {
+        // ★ Glass morphism box wrapping ONLY the 3x3 grid (not header, not page indicator).
+        // When glassBackdrop is provided (Cynthia), uses real drawBackdrop for GM.
+        // When null (Astra), renders normally without glass.
+        val gridShape = RoundedCornerShape(20.dp)
+        val gridModifier = if (glassBackdrop != null) {
+            Modifier
+                .fillMaxWidth()
+                .height(itemWidth * rows + 16.dp)
+                .clip(gridShape)
+                .then(
+                    Modifier.drawBackdrop(
+                        backdrop = glassBackdrop,
+                        shape = { gridShape },
+                        effects = {
+                            vibrancy()
+                            colorControls(
+                                brightness = 0.05f,
+                                contrast = 1f,
+                                saturation = 1.3f
+                            )
+                            blur(18f.dp.toPx())
+                        },
+                        onDrawSurface = {
+                            drawRect(Color.Black.copy(alpha = 0.35f))
+                        }
+                    )
+                )
+                .border(1.dp, Color.White.copy(alpha = 0.1f), gridShape)
+                .padding(8.dp)
+        } else {
+            Modifier
+                .fillMaxWidth()
+                .height(itemWidth * rows + 16.dp)
+        }
+
         HorizontalPager(
             state = pagerState,
             contentPadding = PaddingValues(horizontal = 0.dp),
             pageSpacing = 12.dp,
-            // Pre-render 1 page on each side so swiping feels instant
-            // (no pop-in when the next page appears). Default is 0 which
-            // causes a visible "compose lag" on the first frame of a swipe.
             beyondViewportPageCount = 1,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(itemWidth * rows + 16.dp)  // 3 rows + padding
+            modifier = gridModifier
         ) { page ->
             Column(modifier = Modifier.fillMaxSize()) {
                 for (row in 0 until rows) {
@@ -1146,7 +1169,6 @@ private fun SpeedDialSection(
                 .padding(top = 2.dp)
         )
     }
-    }  // end glass morphism box Column
 }
 
 // ════════════════════════════════════════════════════════════════════

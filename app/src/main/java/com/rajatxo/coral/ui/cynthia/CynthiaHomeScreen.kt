@@ -30,6 +30,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.session.MediaController
+import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.components.CoralTab
 import com.rajatxo.coral.ui.components.TabCapsule
@@ -83,21 +86,41 @@ fun CynthiaHomeScreen(
         onSongClick(song)
     }
 
+    // ★ Root glass backdrop — captures page content so the speed dial grid
+    //   can sample it via drawBackdrop. Matches Astra's exact pattern:
+    //   - rememberGraphicsLayer() + rememberLayerBackdrop { drawContent() }
+    //   - Outer Box: black background
+    //   - Inner Box: layerBackdrop captures content
+    //   - All glass consumers (speed dial grid, nav bar) are children of the inner Box
+    val graphicsLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
+    val rootBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop =
+        com.kyant.backdrop.backdrops.rememberLayerBackdrop(
+            graphicsLayer = graphicsLayer
+        ) {
+            drawContent()
+        }
+
+    // Outer Box: black background
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        // ─── Tab content ───
-        // Quick Picks: real content from QuickPicksScreen (same as Astra)
-        // Songs & Playlists: placeholder for now
-        when (selectedTab) {
-            CoralTab.QuickPicks -> com.rajatxo.coral.ui.screens.QuickPicksScreen(
-                songs = songs,
-                currentSongId = currentSongId,
-                currentSongArt = currentSongArt,
-                onSongClick = onSongClickWithReset
-            )
+        // Inner Box: layerBackdrop captures page content for glass sampling
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .layerBackdrop(rootBackdrop)
+        ) {
+            // ─── Tab content ───
+            when (selectedTab) {
+                CoralTab.QuickPicks -> com.rajatxo.coral.ui.screens.QuickPicksScreen(
+                    songs = songs,
+                    currentSongId = currentSongId,
+                    currentSongArt = currentSongArt,
+                    onSongClick = onSongClickWithReset,
+                    glassBackdrop = rootBackdrop  // ★ Pass root backdrop for speed dial glass
+                )
             CoralTab.Songs -> Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -125,7 +148,7 @@ fun CynthiaHomeScreen(
             else -> {}
         }
 
-        // Top bar: settings gear (top-right)
+        // Top bar: settings gear (top-right) — inside layerBackdrop so it's captured
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -155,8 +178,7 @@ fun CynthiaHomeScreen(
             }
         }
 
-        // Nav bar at the bottom — NO backdrop (no glass yet)
-        // backdrop = null → TabCapsule uses solid fallback, no drawBackdrop
+        // Nav bar — inside layerBackdrop, samples rootBackdrop for glass
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -169,11 +191,12 @@ fun CynthiaHomeScreen(
                 tabs = cynthiaTabs,
                 activeTab = selectedTab,
                 onTabSelected = { tab -> selectedTab = tab },
-                backdrop = null  // ★ NO glass yet — solid fallback
+                backdrop = rootBackdrop  // ★ Glass nav bar — samples root backdrop
             )
         }
+        }  // end inner Box (layerBackdrop)
 
-        // Settings overlay
+        // Settings overlay — OUTSIDE layerBackdrop (sibling, not child)
         if (showSettings) {
             SettingsScreen(
                 onBackClick = { showSettings = false },
