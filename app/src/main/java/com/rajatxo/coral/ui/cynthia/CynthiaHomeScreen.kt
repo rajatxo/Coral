@@ -30,9 +30,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.session.MediaController
-import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.components.CoralTab
 import com.rajatxo.coral.ui.components.TabCapsule
@@ -43,25 +40,15 @@ import com.rajatxo.coral.ui.theme.CalSansFamily
 /**
  * CynthiaHomeScreen — the NEW app UI.
  *
- * Built from scratch for glass morphism (GM). ONE root LayerBackdrop
- * captures the entire screen. All glass elements (nav bar, mini player,
- * player, etc.) sample from this single backdrop — no nesting, no crashes.
+ * NO glass morphism yet. Just the basic structure:
+ *   - 3 tabs: Quick Picks, Songs, Playlists
+ *   - Glass nav bar (TabCapsule) WITHOUT backdrop (no GM yet)
+ *   - Settings button (top-right)
+ *   - Tab content placeholder
  *
- * Currently has:
- *   - Root glass backdrop
- *   - Glass nav bar (TabCapsule) with 3 tabs: Quick Picks, Songs, Playlists
- *   - Settings button (top-right gear) so user can switch to Astra
- *   - Tab content placeholder (just shows tab name)
- *
- * Coming next:
- *   - Glass mini player
- *   - Glass Quick Picks page content
- *   - Glass Songs page content
- *   - Glass Playlists page content
- *   - Glass player overlay
+ * Glass morphism will be added once we have actual page content.
  */
 @androidx.compose.foundation.ExperimentalFoundationApi
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun CynthiaHomeScreen(
     songs: List<Song>,
@@ -84,10 +71,6 @@ fun CynthiaHomeScreen(
     onSongEnded: () -> Unit,
     onRefresh: suspend () -> Unit = {}
 ) {
-    // ═══════════════════════════════════════════════════════════════
-    // STATE
-    // ═══════════════════════════════════════════════════════════════
-
     // 3 tabs only: Quick Picks, Songs, Playlists
     val cynthiaTabs = listOf(CoralTab.QuickPicks, CoralTab.Songs, CoralTab.Playlists)
     var selectedTab by remember { mutableStateOf(CoralTab.QuickPicks) }
@@ -95,95 +78,77 @@ fun CynthiaHomeScreen(
     // Settings overlay
     var showSettings by remember { mutableStateOf(false) }
 
-    // ═══════════════════════════════════════════════════════════════
-    // ROOT GLASS BACKDROP — matches Astra's exact pattern
-    // ═══════════════════════════════════════════════════════════════
-    val graphicsLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
-    val rootBackdrop: LayerBackdrop = rememberLayerBackdrop(
-        graphicsLayer = graphicsLayer
-    ) {
-        drawContent()
-    }
-
-    // Outer Box: black background + all overlays
-    // (settings, player, etc. go OUTSIDE the layerBackdrop Box — they
-    // are siblings, not children. This prevents recursive capture crashes.)
+    // Simple structure — NO layerBackdrop, NO drawBackdrop, NO glass.
+    // This eliminates ALL possible glass-related crashes.
+    // Glass will be added later once we have actual page content to sample.
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        // Inner Box: layerBackdrop captures ONLY page content + nav bar
+        // Tab content placeholder
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .layerBackdrop(rootBackdrop)
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
         ) {
-            // ─── Tab content ───
+            Text(
+                text = selectedTab.label,
+                color = Color.White.copy(alpha = 0.3f),
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Light,
+                fontFamily = CalSansFamily
+            )
+        }
+
+        // Top bar: settings gear (top-right)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.End
+        ) {
             Box(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.1f))
+                    .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { showSettings = true }
+                    ),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = selectedTab.label,
-                    color = Color.White.copy(alpha = 0.3f),
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Light,
-                    fontFamily = CalSansFamily
+                Icon(
+                    imageVector = CoralIcons.Settings,
+                    contentDescription = "Settings",
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp)
                 )
             }
+        }
 
-            // ─── Top bar: settings gear (top-right) ───
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.End
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.1f))
-                        .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { showSettings = true }
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = CoralIcons.Settings,
-                        contentDescription = "Settings",
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-            }
+        // Nav bar at the bottom — NO backdrop (no glass yet)
+        // backdrop = null → TabCapsule uses solid fallback, no drawBackdrop
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(bottom = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            TabCapsule(
+                tabs = cynthiaTabs,
+                activeTab = selectedTab,
+                onTabSelected = { tab -> selectedTab = tab },
+                backdrop = null  // ★ NO glass yet — solid fallback
+            )
+        }
 
-            // ─── Glass nav bar (bottom) ───
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(bottom = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                TabCapsule(
-                    tabs = cynthiaTabs,
-                    activeTab = selectedTab,
-                    onTabSelected = { tab ->
-                        selectedTab = tab
-                    },
-                    backdrop = rootBackdrop
-                )
-            }
-        }  // end layerBackdrop Box
-
-        // ─── Settings overlay (OUTSIDE layerBackdrop — sibling, not child) ───
+        // Settings overlay
         if (showSettings) {
             SettingsScreen(
                 onBackClick = { showSettings = false },
