@@ -99,22 +99,23 @@ fun CynthiaHomeScreen(
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        // ─── Tab content ───
-        // CynthiaQuickPicksScreen manages its OWN layerBackdrop (not nested
-        // inside the root one). Only placeholder tabs use the root layerBackdrop.
-        when (selectedTab) {
-            CoralTab.QuickPicks -> CynthiaQuickPicksScreen(
-                songs = songs,
-                currentSongId = currentSongId,
-                onSongClick = onSongClickWithReset
-            )
-            else -> {
-                // Placeholder tabs use root layerBackdrop for nav bar glass
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .layerBackdrop(glassBackdrop)
-                ) {
+        // ═══════════════════════════════════════════════════════════════
+        // INNER BOX — layerBackdrop captures ALL page content
+        // Nav bar + settings gear sample this via drawBackdrop (siblings)
+        // ═══════════════════════════════════════════════════════════════
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .layerBackdrop(glassBackdrop)
+        ) {
+            // ─── Tab content ───
+            when (selectedTab) {
+                CoralTab.QuickPicks -> CynthiaQuickPicksScreen(
+                    songs = songs,
+                    currentSongId = currentSongId,
+                    onSongClick = onSongClickWithReset
+                )
+                else -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
@@ -129,7 +130,7 @@ fun CynthiaHomeScreen(
                     }
                 }
             }
-        }
+        }  // ← layerBackdrop Box ENDS — nav bar + settings are siblings below
 
         // ═══════════════════════════════════════════════════════════════
         // SIBLINGS — glass elements sample glassBackdrop

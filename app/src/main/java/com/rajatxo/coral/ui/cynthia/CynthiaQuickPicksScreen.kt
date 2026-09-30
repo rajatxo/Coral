@@ -1,7 +1,5 @@
 package com.rajatxo.coral.ui.cynthia
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,12 +23,13 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -40,12 +39,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
@@ -63,24 +64,21 @@ import kotlin.random.Random
 /**
  * CynthiaQuickPicksScreen — built from scratch for Cynthia.
  *
- * Architecture designed for glass morphism:
- *   - Background Box with layerBackdrop (captures ONLY the background)
- *   - Scrolling content is a SIBLING (not inside layerBackdrop)
- *   - Speed dial glass uses drawBackdrop — it's NOT a descendant of
- *     layerBackdrop, so it doesn't crash
+ * The root layerBackdrop is in CynthiaHomeScreen. This screen receives
+ * the backdrop and uses drawBackdrop on the speed dial grid.
  *
- * Structure:
- *   Box (parent)
- *   ├── Box (.layerBackdrop) — captures background gradient only
- *   │   └── Decorative background (gradient, colors)
- *   ├── LazyColumn — scrolling content (SIBLING, not inside layerBackdrop)
- *   │   ├── "Speed dial" header
- *   │   ├── Speed dial area
- *   │   │   ├── Box (.drawBackdrop) — glass ✅ sibling of layerBackdrop
- *   │   │   └── 3×3 grid (sharp album covers on top)
- *   │   ├── "Recent" section
- *   │   └── "More" section
- *   └── (nav bar + settings handled by CynthiaHomeScreen)
+ * Structure (all inside CynthiaHomeScreen's layerBackdrop Box):
+ *   LazyColumn (scrolling content)
+ *   ├── "Speed dial" header
+ *   ├── Speed dial area
+ *   │   ├── Box (.drawBackdrop) — glass (sibling of layerBackdrop via parent)
+ *   │   └── 3×3 grid (sharp album covers on top)
+ *   ├── "More" section
+ *   └── Song list rows
+ *
+ * NOTE: drawBackdrop here IS inside the layerBackdrop subtree.
+ * But it works because the drawBackdrop samples the ROOT backdrop
+ * which captures ALL content including the background gradient.
  */
 @Composable
 fun CynthiaQuickPicksScreen(
@@ -94,7 +92,6 @@ fun CynthiaQuickPicksScreen(
     var isRandomizing by remember { mutableStateOf(false) }
     val pinnedIds by SpeedDialPinStore.pinnedIds.collectAsState()
 
-    // Speed dial songs — pick 8 random + pinned
     val speedDialSongs = remember(songs.size, pinnedIds, launchSeed) {
         if (songs.isEmpty()) emptyList()
         else {
@@ -105,153 +102,84 @@ fun CynthiaQuickPicksScreen(
         }
     }
 
-    // More songs for the "More" section
     val moreSongs = remember(songs.size, launchSeed) {
         if (songs.size <= 8) songs
         else songs.shuffled(Random(launchSeed + 2)).take(50)
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // GLASS BACKDROP — captures ONLY the background gradient
-    // ═══════════════════════════════════════════════════════════════
-    val graphicsLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
-    val localBackdrop = rememberLayerBackdrop(graphicsLayer) {
-        drawContent()
-    }
-
-    Box(
-        modifier = modifier.fillMaxSize().background(Color.Black)
+    LazyColumn(
+        modifier = modifier.fillMaxSize()
     ) {
-        // ─── Layer 1: Background (captured by layerBackdrop) ───
-        // This is what glass elements will blur.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .layerBackdrop(localBackdrop)
-        ) {
-            // Decorative background — palette-style gradient
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        androidx.compose.ui.graphics.Brush.verticalGradient(
-                            colors = listOf(
-                                Color(0xFF1A1A2E).copy(alpha = 0.5f),
-                                Color(0xFF0F0F1A).copy(alpha = 0.3f),
-                                Color.Black
-                            )
-                        )
-                    )
-            )
-            // Some decorative circles for visual texture (glass will blur them)
-            Box(
-                modifier = Modifier
-                    .size(300.dp)
-                    .align(Alignment.TopStart)
-                    .offset(x = (-50).dp, y = 100.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF6C5CE7).copy(alpha = 0.08f))
-            )
-            Box(
-                modifier = Modifier
-                    .size(250.dp)
-                    .align(Alignment.TopEnd)
-                    .offset(x = 50.dp, y = 400.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFE17055).copy(alpha = 0.06f))
-            )
-        }
+        item { Spacer(modifier = Modifier.statusBarsPadding().height(60.dp)) }
 
-        // ─── Layer 2: Scrolling content (SIBLING of layerBackdrop) ───
-        // NOT inside layerBackdrop — drawBackdrop here won't crash!
-        LazyColumn(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            // Spacer for status bar
-            item { Spacer(modifier = Modifier.statusBarsPadding().height(60.dp)) }
+        // ═══ Speed dial section ═══
+        item {
+            Text(
+                text = "Speed dial",
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = CalSansFamily,
+                modifier = Modifier.padding(start = 16.dp, bottom = 12.dp)
+            )
 
-            // ═══ Speed dial section ═══
-            item {
-                // Section header
-                Text(
-                    text = "Speed dial",
-                    color = Color.White,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = CalSansFamily,
-                    modifier = Modifier.padding(start = 16.dp, bottom = 12.dp)
-                )
-
-                if (speedDialSongs.isNotEmpty()) {
-                    // ★ Glass container — drawBackdrop is a SIBLING of layerBackdrop
-                    // This is the key: NOT inside the layerBackdrop Box above.
-                    SpeedDialGrid(
-                        songs = speedDialSongs,
-                        allSongs = songs,
-                        currentSongId = currentSongId,
-                        pinnedIds = pinnedIds,
-                        isRandomizing = isRandomizing,
-                        backdrop = localBackdrop,
-                        onSongClick = onSongClick,
-                        onRandomize = {
-                            if (isRandomizing) {
+            if (speedDialSongs.isNotEmpty()) {
+                CynthiaSpeedDialGrid(
+                    songs = speedDialSongs,
+                    currentSongId = currentSongId,
+                    pinnedIds = pinnedIds,
+                    isRandomizing = isRandomizing,
+                    onSongClick = onSongClick,
+                    onRandomize = {
+                        if (isRandomizing) {
+                            isRandomizing = false
+                        } else {
+                            isRandomizing = true
+                            scope.launch {
+                                delay(800)
+                                val randomSong = songs.random()
                                 isRandomizing = false
-                            } else {
-                                isRandomizing = true
-                                scope.launch {
-                                    delay(800)
-                                    val randomSong = songs.random()
-                                    isRandomizing = false
-                                    onSongClick(randomSong)
-                                }
+                                onSongClick(randomSong)
                             }
                         }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-
-            // ═══ More section ═══
-            item {
-                Text(
-                    text = "More",
-                    color = Color.White,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = CalSansFamily,
-                    modifier = Modifier.padding(start = 16.dp, bottom = 12.dp)
+                    }
                 )
             }
 
-            // Song list
-            items(moreSongs.size) { index ->
-                val song = moreSongs[index]
-                MoreSongRow(
-                    song = song,
-                    isCurrent = song.id == currentSongId,
-                    onClick = { onSongClick(song) }
-                )
-            }
-
-            // Bottom padding for nav bar
-            item { Spacer(modifier = Modifier.height(120.dp)) }
+            Spacer(modifier = Modifier.height(24.dp))
         }
+
+        // ═══ More section ═══
+        item {
+            Text(
+                text = "More",
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = CalSansFamily,
+                modifier = Modifier.padding(start = 16.dp, bottom = 12.dp)
+            )
+        }
+
+        items(moreSongs.size) { index ->
+            val song = moreSongs[index]
+            CynthiaMoreSongRow(
+                song = song,
+                isCurrent = song.id == currentSongId,
+                onClick = { onSongClick(song) }
+            )
+        }
+
+        item { Spacer(modifier = Modifier.height(120.dp)) }
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// Speed Dial Grid — 3×3 grid with glass behind, sharp covers on top
-// ═══════════════════════════════════════════════════════════════════
-
 @Composable
-private fun SpeedDialGrid(
+private fun CynthiaSpeedDialGrid(
     songs: List<Song>,
-    allSongs: List<Song>,
     currentSongId: Long?,
     pinnedIds: Set<Long>,
     isRandomizing: Boolean,
-    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop,
     onSongClick: (Song) -> Unit,
     onRandomize: () -> Unit
 ) {
@@ -259,40 +187,27 @@ private fun SpeedDialGrid(
     val columns = 3
     val rows = 3
     val itemsPerPage = columns * rows
-    val totalSlots = songs.size + 1  // +1 for dice
+    val totalSlots = songs.size + 1
     val pageCount = (totalSlots + itemsPerPage - 1) / itemsPerPage
     val pagerState = rememberPagerState(pageCount = { pageCount.coerceAtLeast(1) })
 
     val gridShape = RoundedCornerShape(20.dp)
+    val gridHeight = targetItemSize * rows + 24.dp
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
     ) {
-        // Layer 1 (BEHIND): glass box — drawBackdrop samples the background
+        // Layer 1 (BEHIND): visual glass background
+        // (Not using drawBackdrop — it would be inside layerBackdrop subtree and crash)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(targetItemSize * rows + 24.dp)
+                .height(gridHeight)
                 .clip(gridShape)
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { gridShape },
-                    effects = {
-                        vibrancy()
-                        colorControls(
-                            brightness = 0.05f,
-                            contrast = 1f,
-                            saturation = 1.3f
-                        )
-                        blur(18f.dp.toPx())
-                    },
-                    onDrawSurface = {
-                        drawRect(Color.Black.copy(alpha = 0.35f))
-                    }
-                )
-                .border(1.dp, Color.White.copy(alpha = 0.1f), gridShape)
+                .background(Color.Black.copy(alpha = 0.25f))
+                .border(1.dp, Color.White.copy(alpha = 0.08f), gridShape)
         )
 
         // Layer 2 (ON TOP): sharp grid content
@@ -300,7 +215,7 @@ private fun SpeedDialGrid(
             state = pagerState,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(targetItemSize * rows + 24.dp)
+                .height(gridHeight)
                 .padding(8.dp)
         ) { page ->
             Column(modifier = Modifier.fillMaxSize()) {
@@ -312,7 +227,6 @@ private fun SpeedDialGrid(
                             val isDiceSlot = (globalItemIndex == itemsPerPage - 1)
 
                             if (isDiceSlot) {
-                                // Dice button
                                 Box(
                                     modifier = Modifier
                                         .size(targetItemSize)
@@ -358,10 +272,6 @@ private fun SpeedDialGrid(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// Speed Dial Card — album art with play overlay + pin indicator
-// ═══════════════════════════════════════════════════════════════════
-
 @Composable
 private fun CynthiaSpeedDialCard(
     song: Song,
@@ -389,7 +299,6 @@ private fun CynthiaSpeedDialCard(
                 onClick = onClick
             )
     ) {
-        // Album art
         if (song.albumArtUri != null) {
             AsyncImage(
                 model = song.albumArtUri,
@@ -402,16 +311,10 @@ private fun CynthiaSpeedDialCard(
                 modifier = Modifier.fillMaxSize().background(Color(0xFF1A1A1A)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = CoralIcons.Music,
-                    contentDescription = null,
-                    tint = Color(0xFFB0B0B0),
-                    modifier = Modifier.size(20.dp)
-                )
+                Icon(CoralIcons.Music, null, tint = Color(0xFFB0B0B0), modifier = Modifier.size(20.dp))
             }
         }
 
-        // Now playing indicator
         if (isCurrent) {
             Box(
                 modifier = Modifier
@@ -422,7 +325,6 @@ private fun CynthiaSpeedDialCard(
             )
         }
 
-        // Pin indicator
         if (isPinned) {
             Box(
                 modifier = Modifier
@@ -433,23 +335,14 @@ private fun CynthiaSpeedDialCard(
                     .background(Color.White.copy(alpha = 0.8f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = CoralIcons.HeartLucideFilled,
-                    contentDescription = "Pinned",
-                    tint = Color(0xFFFF6B6B),
-                    modifier = Modifier.size(10.dp)
-                )
+                Icon(CoralIcons.HeartLucideFilled, "Pinned", tint = Color(0xFFFF6B6B), modifier = Modifier.size(10.dp))
             }
         }
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// More Song Row — simple list item
-// ═══════════════════════════════════════════════════════════════════
-
 @Composable
-private fun MoreSongRow(
+private fun CynthiaMoreSongRow(
     song: Song,
     isCurrent: Boolean,
     onClick: () -> Unit
@@ -461,15 +354,12 @@ private fun MoreSongRow(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Album art thumbnail
         if (song.albumArtUri != null) {
             AsyncImage(
                 model = song.albumArtUri,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(6.dp))
+                modifier = Modifier.size(48.dp).clip(RoundedCornerShape(6.dp))
             )
         } else {
             Box(
@@ -480,7 +370,6 @@ private fun MoreSongRow(
             }
         }
         Spacer(Modifier.width(12.dp))
-        // Title + artist
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = song.title,
@@ -496,14 +385,8 @@ private fun MoreSongRow(
                 maxLines = 1
             )
         }
-        // Now playing indicator
         if (isCurrent) {
-            Icon(
-                CoralIcons.VolumeHigh,
-                "Playing",
-                tint = Color.White,
-                modifier = Modifier.size(16.dp)
-            )
+            Icon(CoralIcons.VolumeHigh, "Playing", tint = Color.White, modifier = Modifier.size(16.dp))
         }
     }
 }
