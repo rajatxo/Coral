@@ -115,7 +115,8 @@ fun CynthiaHomeScreen(
                     songs = songs,
                     currentSongId = currentSongId,
                     currentSongArt = currentSongArt,
-                    onSongClick = onSongClickWithReset
+                    onSongClick = onSongClickWithReset,
+                    glassBackdrop = glassBackdrop  // ★ Pass backdrop for speed dial glass
                 )
                 CoralTab.Songs -> Box(
                     modifier = Modifier.fillMaxSize(),

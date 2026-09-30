@@ -93,8 +93,6 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.vibrancy
-import dev.chrisbanes.haze.hazeEffect
-import dev.chrisbanes.haze.hazeSource
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.components.BugLineRefreshIndicator
 import com.rajatxo.coral.ui.icons.CoralIcons
@@ -130,10 +128,9 @@ fun QuickPicksScreen(
     onExtend: () -> Unit = {},
     onSongClick: (Song) -> Unit = {},
     onBackClick: () -> Unit = {},
-    // ★ Haze glass state for speed dial grid (Cynthia only). When provided,
-    // the 3x3 grid uses hazeEffect for real glass morphism.
-    glassHazeState: dev.chrisbanes.haze.HazeState? = null,
-    glassStyle: dev.chrisbanes.haze.HazeStyle? = null
+    // ★ Glass backdrop for speed dial grid (Cynthia only). When provided,
+    // the 3x3 grid uses drawBackdrop for real glass morphism.
+    glassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null
 ) {
     val context = LocalContext.current
 
@@ -341,8 +338,7 @@ fun QuickPicksScreen(
                     launchSeed = launchSeed,
                     pullProgress = ptrState.distanceFraction,
                     isRefreshing = isRefreshing,
-                    glassHazeState = glassHazeState,
-                    glassStyle = glassStyle
+                    glassBackdrop = glassBackdrop
                 )
             }
 
@@ -832,8 +828,7 @@ private fun SpeedDialSection(
     launchSeed: Int,
     pullProgress: Float = 0f,
     isRefreshing: Boolean = false,
-    glassHazeState: dev.chrisbanes.haze.HazeState? = null,
-    glassStyle: dev.chrisbanes.haze.HazeStyle? = null
+    glassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null
 ) {
     val scope = rememberCoroutineScope()
     var isRandomizing by remember { mutableStateOf(false) }
@@ -1053,19 +1048,31 @@ private fun SpeedDialSection(
     Column(
         modifier = Modifier.fillMaxWidth()
     ) {
-        // ★ Glass morphism box wrapping ONLY the 3x3 grid (not header, not page indicator).
-        // Uses Haze (dev.chrisbanes.haze) — same library as ArchiveTune/BitChord.
-        // When glassHazeState is provided (Cynthia), uses hazeEffect for real glass.
-        // When null (Astra), renders normally without glass.
+        // ★ Glass morphism on ONLY the 3x3 grid (not header, not page indicator).
+        // Uses kyant drawBackdrop — same glass as nav bar + settings gear.
+        // When glassBackdrop is provided (Cynthia), real glass morphism.
+        // When null (Astra), normal rendering.
         val gridShape = RoundedCornerShape(20.dp)
-        val gridModifier = if (glassHazeState != null && glassStyle != null) {
+        val gridModifier = if (glassBackdrop != null) {
             Modifier
                 .fillMaxWidth()
                 .height(itemWidth * rows + 16.dp)
                 .clip(gridShape)
-                .hazeEffect(
-                    state = glassHazeState,
-                    style = glassStyle
+                .drawBackdrop(
+                    backdrop = glassBackdrop,
+                    shape = { gridShape },
+                    effects = {
+                        vibrancy()
+                        colorControls(
+                            brightness = 0.05f,
+                            contrast = 1f,
+                            saturation = 1.3f
+                        )
+                        blur(18f.dp.toPx())
+                    },
+                    onDrawSurface = {
+                        drawRect(Color.Black.copy(alpha = 0.35f))
+                    }
                 )
                 .border(1.dp, Color.White.copy(alpha = 0.1f), gridShape)
                 .padding(8.dp)
