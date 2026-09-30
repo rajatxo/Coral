@@ -89,10 +89,10 @@ fun CynthiaHomeScreen(
     // All glass elements (nav bar, speed dial grid, mini player) read from this.
     val hazeState = remember { HazeState() }
 
-    // Glass style — the blur radius + tint applied to all glass elements
+    // Glass style — stronger blur + lighter tint so glass is VISIBLE
     val glassStyle = HazeStyle(
-        blurRadius = 20.dp,
-        tint = HazeTint(Color.Black.copy(alpha = 0.35f)),
+        blurRadius = 30.dp,
+        tint = HazeTint(Color.White.copy(alpha = 0.1f)),
         noiseFactor = 0f
     )
 
@@ -113,9 +113,10 @@ fun CynthiaHomeScreen(
                     songs = songs,
                     currentSongId = currentSongId,
                     currentSongArt = currentSongArt,
-                    onSongClick = onSongClickWithReset,
-                    glassHazeState = hazeState,  // ★ Pass haze state for speed dial glass
-                    glassStyle = glassStyle
+                    onSongClick = onSongClickWithReset
+                    // NO glassHazeState — hazeEffect too deep inside QuickPicksScreen
+                    // to work in Haze 1.6.9. Glass on speed dial grid will be done
+                    // via an overlay sibling instead.
                 )
                 CoralTab.Songs -> Box(
                     modifier = Modifier.fillMaxSize(),
