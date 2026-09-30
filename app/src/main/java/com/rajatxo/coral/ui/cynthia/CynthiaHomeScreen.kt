@@ -30,26 +30,29 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.session.MediaController
-import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.components.CoralTab
 import com.rajatxo.coral.ui.components.TabCapsule
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.screens.SettingsScreen
 import com.rajatxo.coral.ui.theme.CalSansFamily
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
 
 /**
  * CynthiaHomeScreen — the NEW app UI.
  *
- * NO glass morphism yet. Just the basic structure:
- *   - 3 tabs: Quick Picks, Songs, Playlists
- *   - Glass nav bar (TabCapsule) WITHOUT backdrop (no GM yet)
- *   - Settings button (top-right)
- *   - Tab content placeholder
+ * Uses Haze (dev.chrisbanes.haze) for glass morphism — same library
+ * ArchiveTune/BitChord uses. Crash-free, simple:
+ *   1. HazeState() — plain remember, no graphics layer
+ *   2. .hazeSource(state) on content — marks it as blur source
+ *   3. .hazeEffect(state, style) on glass elements — blurs the source
  *
- * Glass morphism will be added once we have actual page content.
+ * NO kyant backdrop, NO layerBackdrop, NO rememberLayerBackdrop.
+ * Haze handles everything internally and never crashes.
  */
 @androidx.compose.foundation.ExperimentalFoundationApi
 @Composable
@@ -74,129 +77,125 @@ fun CynthiaHomeScreen(
     onSongEnded: () -> Unit,
     onRefresh: suspend () -> Unit = {}
 ) {
-    // 3 tabs only: Quick Picks, Songs, Playlists
+    // 3 tabs: Quick Picks, Songs, Playlists
     val cynthiaTabs = listOf(CoralTab.QuickPicks, CoralTab.Songs, CoralTab.Playlists)
     var selectedTab by remember { mutableStateOf(CoralTab.QuickPicks) }
-
-    // Settings overlay
     var showSettings by remember { mutableStateOf(false) }
 
-    // Wrap onSongClick to reset mini player dismissed (will be used when mini player is added)
-    val onSongClickWithReset: (Song) -> Unit = { song ->
-        onSongClick(song)
-    }
+    // Wrap onSongClick to reset mini player (will be used when mini player is added)
+    val onSongClickWithReset: (Song) -> Unit = { song -> onSongClick(song) }
 
-    // ★ Root glass backdrop — captures page content so the speed dial grid
-    //   can sample it via drawBackdrop. Matches Astra's exact pattern:
-    //   - rememberGraphicsLayer() + rememberLayerBackdrop { drawContent() }
-    //   - Outer Box: black background
-    //   - Inner Box: layerBackdrop captures content
-    //   - All glass consumers (speed dial grid, nav bar) are children of the inner Box
-    val graphicsLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
-    val rootBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop =
-        com.kyant.backdrop.backdrops.rememberLayerBackdrop(
-            graphicsLayer = graphicsLayer
-        ) {
-            drawContent()
-        }
+    // ★ Haze glass state — ONE per screen. Plain remember, no graphics layer.
+    // All glass elements (nav bar, speed dial grid, mini player) read from this.
+    val hazeState = remember { HazeState() }
 
-    // Outer Box: black background
+    // Glass style — the blur radius + tint applied to all glass elements
+    val glassStyle = HazeStyle(
+        blurRadius = 20.dp,
+        tint = HazeTint(Color.Black.copy(alpha = 0.35f)),
+        noiseFactor = 0f
+    )
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        // Inner Box: layerBackdrop captures page content for glass sampling
+        // ─── Content Box — marked as hazeSource so glass elements can blur it ───
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .layerBackdrop(rootBackdrop)
+                .hazeSource(state = hazeState)
         ) {
-            // ─── Tab content ───
+            // Tab content
             when (selectedTab) {
                 CoralTab.QuickPicks -> com.rajatxo.coral.ui.screens.QuickPicksScreen(
                     songs = songs,
                     currentSongId = currentSongId,
                     currentSongArt = currentSongArt,
                     onSongClick = onSongClickWithReset,
-                    glassBackdrop = rootBackdrop  // ★ Pass root backdrop for speed dial glass
+                    glassHazeState = hazeState,  // ★ Pass haze state for speed dial glass
+                    glassStyle = glassStyle
                 )
-            CoralTab.Songs -> Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Songs",
-                    color = Color.White.copy(alpha = 0.3f),
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Light,
-                    fontFamily = CalSansFamily
-                )
+                CoralTab.Songs -> Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Songs",
+                        color = Color.White.copy(alpha = 0.3f),
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Light,
+                        fontFamily = CalSansFamily
+                    )
+                }
+                CoralTab.Playlists -> Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Playlists",
+                        color = Color.White.copy(alpha = 0.3f),
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Light,
+                        fontFamily = CalSansFamily
+                    )
+                }
+                else -> {}
             }
-            CoralTab.Playlists -> Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Playlists",
-                    color = Color.White.copy(alpha = 0.3f),
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Light,
-                    fontFamily = CalSansFamily
-                )
-            }
-            else -> {}
-        }
 
-        // Top bar: settings gear (top-right) — inside layerBackdrop so it's captured
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.End
-        ) {
-            Box(
+            // Top bar: settings gear (top-right)
+            Row(
                 modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.1f))
-                    .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { showSettings = true }
-                    ),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.End
             ) {
-                Icon(
-                    imageVector = CoralIcons.Settings,
-                    contentDescription = "Settings",
-                    tint = Color.White,
-                    modifier = Modifier.size(22.dp)
+                // ★ Glass settings button — hazeEffect
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .hazeEffect(state = hazeState, style = glassStyle)
+                        .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { showSettings = true }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = CoralIcons.Settings,
+                        contentDescription = "Settings",
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+
+            // Nav bar — glass via hazeEffect (but TabCapsule uses kyant backdrop)
+            // For now, keep TabCapsule with backdrop=null (no kyant glass).
+            // We'll make a haze-based nav bar later.
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(bottom = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                TabCapsule(
+                    tabs = cynthiaTabs,
+                    activeTab = selectedTab,
+                    onTabSelected = { tab -> selectedTab = tab },
+                    backdrop = null  // No kyant glass — will use haze later
                 )
             }
-        }
+        }  // end hazeSource Box
 
-        // Nav bar — inside layerBackdrop, samples rootBackdrop for glass
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(bottom = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            TabCapsule(
-                tabs = cynthiaTabs,
-                activeTab = selectedTab,
-                onTabSelected = { tab -> selectedTab = tab },
-                backdrop = rootBackdrop  // ★ Glass nav bar — samples root backdrop
-            )
-        }
-        }  // end inner Box (layerBackdrop)
-
-        // Settings overlay — OUTSIDE layerBackdrop (sibling, not child)
+        // Settings overlay — outside hazeSource (sibling)
         if (showSettings) {
             SettingsScreen(
                 onBackClick = { showSettings = false },

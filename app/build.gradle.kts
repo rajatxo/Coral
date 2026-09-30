@@ -88,4 +88,7 @@ dependencies {
     // Version 1.0.0 has minCompileSdk=1 (works with compileSdk 35)
     // Later versions (1.0.6, 2.0.0) require SDK 36/37 + AGP 9.x
     implementation("io.github.kyant0:backdrop:1.0.0")
+    // Haze — crash-free glass morphism (used by ArchiveTune/BitChord)
+    // Much simpler than kyant backdrop: HazeState() + hazeSource + hazeEffect
+    implementation("dev.chrisbanes.haze:haze:1.6.9")
 }
