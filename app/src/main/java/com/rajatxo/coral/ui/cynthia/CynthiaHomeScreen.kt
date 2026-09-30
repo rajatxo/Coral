@@ -30,29 +30,28 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.session.MediaController
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.colorControls
+import com.kyant.backdrop.effects.vibrancy
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.components.CoralTab
 import com.rajatxo.coral.ui.components.TabCapsule
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.screens.SettingsScreen
 import com.rajatxo.coral.ui.theme.CalSansFamily
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.HazeStyle
-import dev.chrisbanes.haze.HazeTint
-import dev.chrisbanes.haze.hazeEffect
-import dev.chrisbanes.haze.hazeSource
 
 /**
  * CynthiaHomeScreen — the NEW app UI.
  *
- * Uses Haze (dev.chrisbanes.haze) for glass morphism — same library
- * ArchiveTune/BitChord uses. Crash-free, simple:
- *   1. HazeState() — plain remember, no graphics layer
- *   2. .hazeSource(state) on content — marks it as blur source
- *   3. .hazeEffect(state, style) on glass elements — blurs the source
- *
- * NO kyant backdrop, NO layerBackdrop, NO rememberLayerBackdrop.
- * Haze handles everything internally and never crashes.
+ * Uses the EXACT same kyant backdrop pattern as Astra:
+ *   - Outer Box: background
+ *   - Inner Box: layerBackdrop captures page content
+ *   - Nav bar + settings + mini player are SIBLINGS of the layerBackdrop Box
+ *     (NOT children — being children causes recursive capture crash)
+ *   - Glass elements use drawBackdrop(glassBackdrop) to sample the content
  */
 @androidx.compose.foundation.ExperimentalFoundationApi
 @Composable
@@ -77,46 +76,46 @@ fun CynthiaHomeScreen(
     onSongEnded: () -> Unit,
     onRefresh: suspend () -> Unit = {}
 ) {
-    // 3 tabs: Quick Picks, Songs, Playlists
     val cynthiaTabs = listOf(CoralTab.QuickPicks, CoralTab.Songs, CoralTab.Playlists)
     var selectedTab by remember { mutableStateOf(CoralTab.QuickPicks) }
     var showSettings by remember { mutableStateOf(false) }
-
-    // Wrap onSongClick to reset mini player (will be used when mini player is added)
     val onSongClickWithReset: (Song) -> Unit = { song -> onSongClick(song) }
 
-    // ★ Haze glass state — ONE per screen. Plain remember, no graphics layer.
-    // All glass elements (nav bar, speed dial grid, mini player) read from this.
-    val hazeState = remember { HazeState() }
+    // ═══════════════════════════════════════════════════════════════
+    // GLASS BACKDROP — EXACT same pattern as Astra (lines 310-320)
+    // ═══════════════════════════════════════════════════════════════
+    val graphicsLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
+    val glassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop(
+        graphicsLayer = graphicsLayer
+    ) {
+        drawContent()
+    }
 
-    // Glass style — stronger blur + lighter tint so glass is VISIBLE
-    val glassStyle = HazeStyle(
-        blurRadius = 30.dp,
-        tint = HazeTint(Color.White.copy(alpha = 0.1f)),
-        noiseFactor = 0f
-    )
-
+    // ═══════════════════════════════════════════════════════════════
+    // OUTER BOX — background (same as Astra's Box at line 299)
+    // ═══════════════════════════════════════════════════════════════
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        // ─── Content Box — marked as hazeSource so glass elements can blur it ───
+        // ═══════════════════════════════════════════════════════════════
+        // INNER BOX — layerBackdrop captures page content (Astra line 387-393)
+        // This Box's children are captured into glassBackdrop.graphicsLayer.
+        // Glass elements (nav bar, settings) sample this via drawBackdrop.
+        // ═══════════════════════════════════════════════════════════════
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .hazeSource(state = hazeState)
+                .layerBackdrop(glassBackdrop)
         ) {
-            // Tab content
+            // ─── Tab content ───
             when (selectedTab) {
                 CoralTab.QuickPicks -> com.rajatxo.coral.ui.screens.QuickPicksScreen(
                     songs = songs,
                     currentSongId = currentSongId,
                     currentSongArt = currentSongArt,
                     onSongClick = onSongClickWithReset
-                    // NO glassHazeState — hazeEffect too deep inside QuickPicksScreen
-                    // to work in Haze 1.6.9. Glass on speed dial grid will be done
-                    // via an overlay sibling instead.
                 )
                 CoralTab.Songs -> Box(
                     modifier = Modifier.fillMaxSize(),
@@ -144,59 +143,77 @@ fun CynthiaHomeScreen(
                 }
                 else -> {}
             }
+        }  // ← layerBackdrop Box ENDS here — everything below is a SIBLING
 
-            // Top bar: settings gear (top-right)
-            Row(
+        // ═══════════════════════════════════════════════════════════════
+        // SIBLINGS of layerBackdrop Box — these sample glassBackdrop
+        // (Same structure as Astra: DraggableTabCapsule is a sibling)
+        // ═══════════════════════════════════════════════════════════════
+
+        // ─── Top bar: settings gear (top-right) ───
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.End
+        ) {
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.End
-            ) {
-                // ★ Glass settings button — hazeEffect
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .hazeEffect(state = hazeState, style = glassStyle)
-                        .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { showSettings = true }
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = CoralIcons.Settings,
-                        contentDescription = "Settings",
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .drawBackdrop(
+                        backdrop = glassBackdrop,
+                        shape = { CircleShape },
+                        effects = {
+                            vibrancy()
+                            colorControls(
+                                brightness = 0.05f,
+                                contrast = 1f,
+                                saturation = 1.3f
+                            )
+                            blur(18f.dp.toPx())
+                        },
+                        onDrawSurface = {
+                            drawRect(Color.Black.copy(alpha = 0.35f))
+                        }
                     )
-                }
-            }
-
-            // Nav bar — glass via hazeEffect (but TabCapsule uses kyant backdrop)
-            // For now, keep TabCapsule with backdrop=null (no kyant glass).
-            // We'll make a haze-based nav bar later.
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(bottom = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { showSettings = true }
+                    ),
+                contentAlignment = Alignment.Center
             ) {
-                TabCapsule(
-                    tabs = cynthiaTabs,
-                    activeTab = selectedTab,
-                    onTabSelected = { tab -> selectedTab = tab },
-                    backdrop = null  // No kyant glass — will use haze later
+                Icon(
+                    imageVector = CoralIcons.Settings,
+                    contentDescription = "Settings",
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp)
                 )
             }
-        }  // end hazeSource Box
+        }
 
-        // Settings overlay — outside hazeSource (sibling)
+        // ─── Glass nav bar (bottom) — SIBLING of layerBackdrop ───
+        // Same as Astra's DraggableTabCapsule call (line 706)
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(bottom = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            TabCapsule(
+                tabs = cynthiaTabs,
+                activeTab = selectedTab,
+                onTabSelected = { tab -> selectedTab = tab },
+                backdrop = glassBackdrop  // ★ Same as Astra: samples glassBackdrop
+            )
+        }
+
+        // ─── Settings overlay ───
         if (showSettings) {
             SettingsScreen(
                 onBackClick = { showSettings = false },
