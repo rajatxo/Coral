@@ -111,10 +111,9 @@ fun CynthiaHomeScreen(
         ) {
             // ─── Tab content ───
             when (selectedTab) {
-                CoralTab.QuickPicks -> com.rajatxo.coral.ui.screens.QuickPicksScreen(
+                CoralTab.QuickPicks -> CynthiaQuickPicksScreen(
                     songs = songs,
                     currentSongId = currentSongId,
-                    currentSongArt = currentSongArt,
                     onSongClick = onSongClickWithReset
                 )
                 CoralTab.Songs -> Box(
