@@ -89,10 +89,13 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.transformations
 import com.rajatxo.coral.util.BlurTransformation
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.vibrancy
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.components.BugLineRefreshIndicator
 import com.rajatxo.coral.ui.icons.CoralIcons
@@ -1049,102 +1052,200 @@ private fun SpeedDialSection(
         modifier = Modifier.fillMaxWidth()
     ) {
         // ★ Glass morphism on ONLY the 3x3 grid (not header, not page indicator).
-        // Uses kyant drawBackdrop — same glass as nav bar + settings gear.
-        // When glassBackdrop is provided (Cynthia), real glass morphism.
-        // When null (Astra), normal rendering.
+        // 
+        // CORRECT APPROACH: self-contained local backdrop pair.
+        // The grid content is wrapped in a Box with layerBackdrop (producer).
+        // A sibling Box with drawBackdrop (consumer) overlays on top.
+        // Both are inside a parent Box — the consumer is a SIBLING, not a child.
+        // This follows the GOLDEN RULE: drawBackdrop = SIBLING of layerBackdrop.
+        //
+        // When glassBackdrop is null (Astra), no glass — normal rendering.
         val gridShape = RoundedCornerShape(20.dp)
-        val gridModifier = if (glassBackdrop != null) {
-            Modifier
-                .fillMaxWidth()
-                .height(itemWidth * rows + 16.dp)
-                .clip(gridShape)
-                .drawBackdrop(
-                    backdrop = glassBackdrop,
-                    shape = { gridShape },
-                    effects = {
-                        vibrancy()
-                        colorControls(
-                            brightness = 0.05f,
-                            contrast = 1f,
-                            saturation = 1.3f
-                        )
-                        blur(18f.dp.toPx())
-                    },
-                    onDrawSurface = {
-                        drawRect(Color.Black.copy(alpha = 0.35f))
-                    }
-                )
-                .border(1.dp, Color.White.copy(alpha = 0.1f), gridShape)
-                .padding(8.dp)
-        } else {
-            Modifier
-                .fillMaxWidth()
-                .height(itemWidth * rows + 16.dp)
-        }
+        val gridHeight = itemWidth * rows + 16.dp
 
-        HorizontalPager(
-            state = pagerState,
-            contentPadding = PaddingValues(horizontal = 0.dp),
-            pageSpacing = 12.dp,
-            beyondViewportPageCount = 1,
-            modifier = gridModifier
-        ) { page ->
-            Column(modifier = Modifier.fillMaxSize()) {
-                for (row in 0 until rows) {
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        for (col in 0 until columns) {
-                            val itemIndex = row * columns + col
-                            val globalItemIndex = page * itemsPerPage + itemIndex
+        if (glassBackdrop != null) {
+            // ★ Create a LOCAL backdrop pair — self-contained, no crash
+            val localGraphicsLayer = rememberGraphicsLayer()
+            val localBackdrop = rememberLayerBackdrop(
+                graphicsLayer = localGraphicsLayer
+            ) {
+                drawContent()
+            }
 
-                            // The dice button is the last slot on the first page
-                            val isDiceSlot = (globalItemIndex == itemsPerPage - 1)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(gridHeight)
+            ) {
+                // Producer: captures the grid content
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(gridShape)
+                        .layerBackdrop(localBackdrop)
+                ) {
+                    HorizontalPager(
+                        state = pagerState,
+                        contentPadding = PaddingValues(horizontal = 0.dp),
+                        pageSpacing = 12.dp,
+                        beyondViewportPageCount = 1,
+                        modifier = Modifier.fillMaxSize()
+                    ) { page ->
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            for (row in 0 until rows) {
+                                Row(modifier = Modifier.fillMaxWidth()) {
+                                    for (col in 0 until columns) {
+                                        val itemIndex = row * columns + col
+                                        val globalItemIndex = page * itemsPerPage + itemIndex
+                                        val isDiceSlot = (globalItemIndex == itemsPerPage - 1)
 
-                            if (isDiceSlot) {
-                                RandomizeGridItem(
-                                    isLoading = isRandomizing,
-                                    onClick = {
-                                        if (isRandomizing) {
-                                            isRandomizing = false
+                                        if (isDiceSlot) {
+                                            RandomizeGridItem(
+                                                isLoading = isRandomizing,
+                                                onClick = {
+                                                    if (isRandomizing) {
+                                                        isRandomizing = false
+                                                    } else {
+                                                        isRandomizing = true
+                                                        scope.launch {
+                                                            kotlinx.coroutines.delay(800)
+                                                            val randomSong = songs.random()
+                                                            isRandomizing = false
+                                                            onSongClick(randomSong)
+                                                        }
+                                                    }
+                                                },
+                                                modifier = Modifier
+                                                    .width(itemWidth)
+                                                    .height(itemWidth)
+                                                    .padding(4.dp)
+                                            )
                                         } else {
-                                            isRandomizing = true
-                                            scope.launch {
-                                                kotlinx.coroutines.delay(800)  // dice animation
-                                                val randomSong = songs.random()
-                                                isRandomizing = false
-                                                onSongClick(randomSong)
+                                            val actualIndex = if (globalItemIndex < itemsPerPage - 1) {
+                                                globalItemIndex
+                                            } else {
+                                                globalItemIndex - 1
+                                            }
+                                            val song = speedDialSongs.getOrNull(actualIndex)
+                                            if (song != null) {
+                                                SpeedDialCard(
+                                                    song = song,
+                                                    isCurrent = song.id == currentSongId,
+                                                    isPinned = song.id in pinnedIds,
+                                                    onClick = { onSongClick(song) },
+                                                    modifier = Modifier
+                                                        .width(itemWidth)
+                                                        .height(itemWidth)
+                                                        .padding(4.dp)
+                                                )
+                                            } else {
+                                                Spacer(
+                                                    modifier = Modifier
+                                                        .width(itemWidth)
+                                                        .height(itemWidth)
+                                                        .padding(4.dp)
+                                                )
                                             }
                                         }
-                                    },
-                                    modifier = Modifier
-                                        .width(itemWidth)
-                                        .height(itemWidth)
-                                        .padding(4.dp)
-                                )
-                            } else {
-                                val actualIndex = if (globalItemIndex < itemsPerPage - 1) {
-                                    globalItemIndex
-                                } else {
-                                    globalItemIndex - 1
+                                    }
                                 }
-                                val song = speedDialSongs.getOrNull(actualIndex)
-                                if (song != null) {
-                                    SpeedDialCard(
-                                        song = song,
-                                        isCurrent = song.id == currentSongId,
-                                        isPinned = song.id in pinnedIds,
-                                        onClick = { onSongClick(song) },
+                            }
+                        }
+                    }
+                }
+
+                // Consumer: glass overlay — SIBLING of the producer Box
+                // Samples the grid content via drawBackdrop, applies blur
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(gridShape)
+                        .drawBackdrop(
+                            backdrop = localBackdrop,
+                            shape = { gridShape },
+                            effects = {
+                                vibrancy()
+                                colorControls(
+                                    brightness = 0.05f,
+                                    contrast = 1f,
+                                    saturation = 1.3f
+                                )
+                                blur(18f.dp.toPx())
+                            },
+                            onDrawSurface = {
+                                drawRect(Color.Black.copy(alpha = 0.35f))
+                            }
+                        )
+                        .border(1.dp, Color.White.copy(alpha = 0.1f), gridShape)
+                        .padding(8.dp)
+                )
+            }
+        } else {
+            // Astra: normal rendering, no glass
+            HorizontalPager(
+                state = pagerState,
+                contentPadding = PaddingValues(horizontal = 0.dp),
+                pageSpacing = 12.dp,
+                beyondViewportPageCount = 1,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(gridHeight)
+            ) { page ->
+                Column(modifier = Modifier.fillMaxSize()) {
+                    for (row in 0 until rows) {
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            for (col in 0 until columns) {
+                                val itemIndex = row * columns + col
+                                val globalItemIndex = page * itemsPerPage + itemIndex
+                                val isDiceSlot = (globalItemIndex == itemsPerPage - 1)
+
+                                if (isDiceSlot) {
+                                    RandomizeGridItem(
+                                        isLoading = isRandomizing,
+                                        onClick = {
+                                            if (isRandomizing) {
+                                                isRandomizing = false
+                                            } else {
+                                                isRandomizing = true
+                                                scope.launch {
+                                                    kotlinx.coroutines.delay(800)
+                                                    val randomSong = songs.random()
+                                                    isRandomizing = false
+                                                    onSongClick(randomSong)
+                                                }
+                                            }
+                                        },
                                         modifier = Modifier
                                             .width(itemWidth)
                                             .height(itemWidth)
                                             .padding(4.dp)
                                     )
                                 } else {
-                                    Spacer(
-                                        modifier = Modifier
-                                            .width(itemWidth)
-                                            .height(itemWidth)
-                                            .padding(4.dp)
-                                    )
+                                    val actualIndex = if (globalItemIndex < itemsPerPage - 1) {
+                                        globalItemIndex
+                                    } else {
+                                        globalItemIndex - 1
+                                    }
+                                    val song = speedDialSongs.getOrNull(actualIndex)
+                                    if (song != null) {
+                                        SpeedDialCard(
+                                            song = song,
+                                            isCurrent = song.id == currentSongId,
+                                            isPinned = song.id in pinnedIds,
+                                            onClick = { onSongClick(song) },
+                                            modifier = Modifier
+                                                .width(itemWidth)
+                                                .height(itemWidth)
+                                                .padding(4.dp)
+                                        )
+                                    } else {
+                                        Spacer(
+                                            modifier = Modifier
+                                                .width(itemWidth)
+                                                .height(itemWidth)
+                                                .padding(4.dp)
+                                        )
+                                    }
                                 }
                             }
                         }

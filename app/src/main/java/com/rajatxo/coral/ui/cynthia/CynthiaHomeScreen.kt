@@ -115,10 +115,8 @@ fun CynthiaHomeScreen(
                     songs = songs,
                     currentSongId = currentSongId,
                     currentSongArt = currentSongArt,
-                    onSongClick = onSongClickWithReset
-                    // ★ NO glassBackdrop — drawBackdrop inside layerBackdrop
-                    //   subtree crashes. Speed dial glass needs a different
-                    //   approach (overlay sibling, not child).
+                    onSongClick = onSongClickWithReset,
+                    glassBackdrop = glassBackdrop  // ★ Pass backdrop — SpeedDialSection creates LOCAL backdrop pair
                 )
                 CoralTab.Songs -> Box(
                     modifier = Modifier.fillMaxSize(),
