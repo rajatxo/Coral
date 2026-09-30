@@ -78,26 +78,51 @@ fun CynthiaHomeScreen(
     // Settings overlay
     var showSettings by remember { mutableStateOf(false) }
 
-    // Simple structure — NO layerBackdrop, NO drawBackdrop, NO glass.
-    // This eliminates ALL possible glass-related crashes.
-    // Glass will be added later once we have actual page content to sample.
+    // Wrap onSongClick to reset mini player dismissed (will be used when mini player is added)
+    val onSongClickWithReset: (Song) -> Unit = { song ->
+        onSongClick(song)
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        // Tab content placeholder
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = selectedTab.label,
-                color = Color.White.copy(alpha = 0.3f),
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Light,
-                fontFamily = CalSansFamily
+        // ─── Tab content ───
+        // Quick Picks: real content from QuickPicksScreen (same as Astra)
+        // Songs & Playlists: placeholder for now
+        when (selectedTab) {
+            CoralTab.QuickPicks -> com.rajatxo.coral.ui.screens.QuickPicksScreen(
+                songs = songs,
+                currentSongId = currentSongId,
+                currentSongArt = currentSongArt,
+                onSongClick = onSongClickWithReset
             )
+            CoralTab.Songs -> Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Songs",
+                    color = Color.White.copy(alpha = 0.3f),
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Light,
+                    fontFamily = CalSansFamily
+                )
+            }
+            CoralTab.Playlists -> Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Playlists",
+                    color = Color.White.copy(alpha = 0.3f),
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Light,
+                    fontFamily = CalSansFamily
+                )
+            }
+            else -> {}
         }
 
         // Top bar: settings gear (top-right)
