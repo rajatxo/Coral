@@ -99,54 +99,40 @@ fun CynthiaHomeScreen(
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        // ═══════════════════════════════════════════════════════════════
-        // INNER BOX — layerBackdrop captures page content (Astra line 387-393)
-        // This Box's children are captured into glassBackdrop.graphicsLayer.
-        // Glass elements (nav bar, settings) sample this via drawBackdrop.
-        // ═══════════════════════════════════════════════════════════════
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .layerBackdrop(glassBackdrop)
-        ) {
-            // ─── Tab content ───
-            when (selectedTab) {
-                CoralTab.QuickPicks -> CynthiaQuickPicksScreen(
-                    songs = songs,
-                    currentSongId = currentSongId,
-                    onSongClick = onSongClickWithReset
-                )
-                CoralTab.Songs -> Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+        // ─── Tab content ───
+        // CynthiaQuickPicksScreen manages its OWN layerBackdrop (not nested
+        // inside the root one). Only placeholder tabs use the root layerBackdrop.
+        when (selectedTab) {
+            CoralTab.QuickPicks -> CynthiaQuickPicksScreen(
+                songs = songs,
+                currentSongId = currentSongId,
+                onSongClick = onSongClickWithReset
+            )
+            else -> {
+                // Placeholder tabs use root layerBackdrop for nav bar glass
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .layerBackdrop(glassBackdrop)
                 ) {
-                    Text(
-                        text = "Songs",
-                        color = Color.White.copy(alpha = 0.3f),
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.Light,
-                        fontFamily = CalSansFamily
-                    )
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = selectedTab.label,
+                            color = Color.White.copy(alpha = 0.3f),
+                            fontSize = 32.sp,
+                            fontWeight = FontWeight.Light,
+                            fontFamily = CalSansFamily
+                        )
+                    }
                 }
-                CoralTab.Playlists -> Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Playlists",
-                        color = Color.White.copy(alpha = 0.3f),
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.Light,
-                        fontFamily = CalSansFamily
-                    )
-                }
-                else -> {}
             }
-        }  // ← layerBackdrop Box ENDS here — everything below is a SIBLING
+        }
 
         // ═══════════════════════════════════════════════════════════════
-        // SIBLINGS of layerBackdrop Box — these sample glassBackdrop
-        // (Same structure as Astra: DraggableTabCapsule is a sibling)
+        // SIBLINGS — glass elements sample glassBackdrop
         // ═══════════════════════════════════════════════════════════════
 
         // ─── Top bar: settings gear (top-right) ───
