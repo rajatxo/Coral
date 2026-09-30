@@ -110,7 +110,59 @@ fun CynthiaQuickPicksScreen(
     LazyColumn(
         modifier = modifier.fillMaxSize()
     ) {
-        item { Spacer(modifier = Modifier.statusBarsPadding().height(60.dp)) }
+        // ─── Decorative background content for glass to blur ───
+        // The nav bar + settings gear blur whatever is behind them.
+        // Without visible content, blur of black = black (invisible).
+        // This gradient + colored circles give the glass something to sample.
+        item {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(500.dp)
+            ) {
+                // Gradient background
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color(0xFF1A1A2E).copy(alpha = 0.8f),
+                                    Color(0xFF0F0F1A).copy(alpha = 0.5f),
+                                    Color.Black
+                                )
+                            )
+                        )
+                )
+                // Decorative colored circles (glass will blur these into colors)
+                Box(
+                    modifier = Modifier
+                        .size(250.dp)
+                        .align(Alignment.TopStart)
+                        .offset(x = (-60).dp, y = 50.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF6C5CE7).copy(alpha = 0.15f))
+                )
+                Box(
+                    modifier = Modifier
+                        .size(200.dp)
+                        .align(Alignment.TopEnd)
+                        .offset(x = 30.dp, y = 200.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFE17055).copy(alpha = 0.12f))
+                )
+                Box(
+                    modifier = Modifier
+                        .size(180.dp)
+                        .align(Alignment.CenterStart)
+                        .offset(x = 50.dp, y = 300.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF00B894).copy(alpha = 0.10f))
+                )
+            }
+        }
+
+        item { Spacer(modifier = Modifier.statusBarsPadding().height(0.dp)) }
 
         // ═══ Speed dial section ═══
         item {
