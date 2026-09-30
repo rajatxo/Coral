@@ -130,10 +130,7 @@ fun QuickPicksScreen(
     capsuleRemaining: Long = 0L,
     onExtend: () -> Unit = {},
     onSongClick: (Song) -> Unit = {},
-    onBackClick: () -> Unit = {},
-    // ★ Glass backdrop for speed dial grid (Cynthia only). When provided,
-    // the 3x3 grid uses drawBackdrop for real glass morphism.
-    glassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null
+    onBackClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -340,8 +337,7 @@ fun QuickPicksScreen(
                     textSecondary = textSecondary,
                     launchSeed = launchSeed,
                     pullProgress = ptrState.distanceFraction,
-                    isRefreshing = isRefreshing,
-                    glassBackdrop = glassBackdrop
+                    isRefreshing = isRefreshing
                 )
             }
 
@@ -830,8 +826,7 @@ private fun SpeedDialSection(
     textSecondary: Color,
     launchSeed: Int,
     pullProgress: Float = 0f,
-    isRefreshing: Boolean = false,
-    glassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null
+    isRefreshing: Boolean = false
 ) {
     val scope = rememberCoroutineScope()
     var isRandomizing by remember { mutableStateOf(false) }
@@ -1051,61 +1046,38 @@ private fun SpeedDialSection(
     Column(
         modifier = Modifier.fillMaxWidth()
     ) {
-        // ★ Glass morphism on ONLY the 3x3 grid (not header, not page indicator).
-        // 
-        // CORRECT APPROACH: self-contained local backdrop pair.
-        // The grid content is wrapped in a Box with layerBackdrop (producer).
-        // A sibling Box with drawBackdrop (consumer) overlays on top.
-        // Both are inside a parent Box — the consumer is a SIBLING, not a child.
-        // This follows the GOLDEN RULE: drawBackdrop = SIBLING of layerBackdrop.
-        //
-        // When glassBackdrop is null (Astra), no glass — normal rendering.
         val gridShape = RoundedCornerShape(20.dp)
         val gridHeight = itemWidth * rows + 16.dp
 
-        if (glassBackdrop != null) {
-            // ★ Glass BEHIND the covers — covers are sharp on top.
-            // Glass samples the ROOT backdrop (page background behind the grid).
-            // Then the grid (with sharp album covers) renders on top.
+        // ★ Visual glass container — BEHIND the covers, covers are sharp on top.
+        // Uses semi-transparent background + border (visual glass, NOT drawBackdrop).
+        // drawBackdrop CANNOT be used here because this is inside the layerBackdrop
+        // subtree — it crashes (see GLASS_MORPHISM_RULES.md).
+        // Real blur is only possible on siblings of layerBackdrop (nav bar, settings).
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(gridHeight)
+        ) {
+            // Layer 1 (BEHIND): visual glass background
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(gridHeight)
-            ) {
-                // Layer 1 (BEHIND): glass box sampling the root backdrop
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(gridShape)
-                        .drawBackdrop(
-                            backdrop = glassBackdrop,  // ★ ROOT backdrop — samples page bg
-                            shape = { gridShape },
-                            effects = {
-                                vibrancy()
-                                colorControls(
-                                    brightness = 0.05f,
-                                    contrast = 1f,
-                                    saturation = 1.3f
-                                )
-                                blur(18f.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(Color.Black.copy(alpha = 0.35f))
-                            }
-                        )
-                        .border(1.dp, Color.White.copy(alpha = 0.1f), gridShape)
-                )
+                    .fillMaxSize()
+                    .clip(gridShape)
+                    .background(Color.Black.copy(alpha = 0.25f))
+                    .border(1.dp, Color.White.copy(alpha = 0.08f), gridShape)
+            )
 
-                // Layer 2 (ON TOP): sharp grid content — album covers are NOT blurred
-                HorizontalPager(
-                    state = pagerState,
-                    contentPadding = PaddingValues(horizontal = 0.dp),
-                    pageSpacing = 12.dp,
-                    beyondViewportPageCount = 1,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(8.dp)
-                ) { page ->
+            // Layer 2 (ON TOP): sharp grid content
+            HorizontalPager(
+                state = pagerState,
+                contentPadding = PaddingValues(horizontal = 0.dp),
+                pageSpacing = 12.dp,
+                beyondViewportPageCount = 1,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(8.dp)
+            ) { page ->
                     Column(modifier = Modifier.fillMaxSize()) {
                         for (row in 0 until rows) {
                             Row(modifier = Modifier.fillMaxWidth()) {
@@ -1168,78 +1140,6 @@ private fun SpeedDialSection(
                     }
                 }
             }
-        } else {
-            // Astra: normal rendering, no glass
-            HorizontalPager(
-                state = pagerState,
-                contentPadding = PaddingValues(horizontal = 0.dp),
-                pageSpacing = 12.dp,
-                beyondViewportPageCount = 1,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(gridHeight)
-            ) { page ->
-                Column(modifier = Modifier.fillMaxSize()) {
-                    for (row in 0 until rows) {
-                        Row(modifier = Modifier.fillMaxWidth()) {
-                            for (col in 0 until columns) {
-                                val itemIndex = row * columns + col
-                                val globalItemIndex = page * itemsPerPage + itemIndex
-                                val isDiceSlot = (globalItemIndex == itemsPerPage - 1)
-
-                                if (isDiceSlot) {
-                                    RandomizeGridItem(
-                                        isLoading = isRandomizing,
-                                        onClick = {
-                                            if (isRandomizing) {
-                                                isRandomizing = false
-                                            } else {
-                                                isRandomizing = true
-                                                scope.launch {
-                                                    kotlinx.coroutines.delay(800)
-                                                    val randomSong = songs.random()
-                                                    isRandomizing = false
-                                                    onSongClick(randomSong)
-                                                }
-                                            }
-                                        },
-                                        modifier = Modifier
-                                            .width(itemWidth)
-                                            .height(itemWidth)
-                                            .padding(4.dp)
-                                    )
-                                } else {
-                                    val actualIndex = if (globalItemIndex < itemsPerPage - 1) {
-                                        globalItemIndex
-                                    } else {
-                                        globalItemIndex - 1
-                                    }
-                                    val song = speedDialSongs.getOrNull(actualIndex)
-                                    if (song != null) {
-                                        SpeedDialCard(
-                                            song = song,
-                                            isCurrent = song.id == currentSongId,
-                                            isPinned = song.id in pinnedIds,
-                                            onClick = { onSongClick(song) },
-                                            modifier = Modifier
-                                                .width(itemWidth)
-                                                .height(itemWidth)
-                                                .padding(4.dp)
-                                        )
-                                    } else {
-                                        Spacer(
-                                            modifier = Modifier
-                                                .width(itemWidth)
-                                                .height(itemWidth)
-                                                .padding(4.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
         }
 
         // ═══ Page indicator — thin line with center dot showing page number ═══
@@ -1252,11 +1152,9 @@ private fun SpeedDialSection(
         LineWithDotPageIndicator(
             pagerState = pagerState,
             modifier = Modifier
-                .align(Alignment.CenterHorizontally)
                 .padding(top = 2.dp)
         )
     }
-}
 
 // ════════════════════════════════════════════════════════════════════
 // LINE WITH DOT PAGE INDICATOR — thin line, faded ends, center dot with page number
