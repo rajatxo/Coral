@@ -261,18 +261,22 @@ fun CynthiaHomeScreen(
         }
 
         // ═══ DRAGGABLE NAV BAR + SEARCH CIRCLE — siblings of layerBackdrop ═══
-        // When aligned (same Y): nav bar = 150dp, stays next to search circle
-        // When misaligned: nav bar animates to 240dp + moves to center
         //
-        // Position logic:
-        //   - If search circle is RIGHT of nav bar center → nav bar stays LEFT
-        //   - If search circle is LEFT of nav bar center → nav bar moves RIGHT
-        //   - If misaligned (different Y) → nav bar goes to CENTER (0.5)
-        //   - Magnetic pull: when search circle Y is within 3% of nav bar Y,
-        //     snap search circle to exactly match nav bar Y
+        // ★ USER-SPECIFIED LAYOUT (Cynthia only, completely separate from Astra):
+        //   - Nav bar default: X = 0.283, Y = 0.889 (LEFT side, near bottom)
+        //   - Search FAB default: X = 0.565, Y = 0.889 (to the RIGHT of nav bar
+        //     with a 10dp gap, on the SAME horizontal line)
+        //   - Both 52dp tall/diameter
+        //
+        // ★ LINKED MOVEMENT (the new behavior the user asked for):
+        //   When the user drags the nav bar AND the search FAB is "aligned"
+        //   (same horizontal line — small Y misalignment up to ~5% is OK),
+        //   the search FAB follows the nav bar — wherever the nav bar moves,
+        //   the search FAB moves along with it, maintaining its relative
+        //   position (gap + same Y).
+        //
         // ★ SEPARATE FROM ASTRA — uses CynthiaTabCapsulePosition and
-        //   CynthiaSearchFabPosition, NOT the shared Astra ones. Any change
-        //   in Astra's nav bar / search FAB position will NOT affect Cynthia.
+        //   CynthiaSearchFabPosition, NOT the shared Astra ones.
         val savedTabPos by com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.position.collectAsState()
         val savedSearchPos by com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition.position.collectAsState()
 
@@ -281,24 +285,33 @@ fun CynthiaHomeScreen(
         val tabX = savedTabPos.first
         val searchX = savedSearchPos.first
 
-        // Magnetic pull: if search Y is within 3% of tab Y, snap to tab Y
+        // Aligned = search FAB is on the same horizontal line as the nav bar
+        // (small Y misalignment up to 5% is acceptable — "around the nav bar")
         val yDiff = kotlin.math.abs(tabY - searchY)
-        val isAligned = yDiff < 0.03f
+        val isAligned = yDiff < 0.05f
 
-        // Auto-snap search circle to nav bar's Y when close
-        androidx.compose.runtime.LaunchedEffect(yDiff, tabY, searchY) {
-            if (yDiff < 0.03f && yDiff > 0.001f) {
-                // Snap search Y to exactly match nav bar Y
-                com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition.setPosition(searchX, tabY)
-            }
-        }
-
-        // Nav bar position logic:
-        // - Aligned: nav bar stays where it is (next to search circle)
-        // - Misaligned: nav bar moves to center (0.5)
-        androidx.compose.runtime.LaunchedEffect(isAligned) {
-            if (!isAligned) {
-                com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.setPosition(0.5f, tabY)
+        // ★ LINKED MOVEMENT — when the nav bar is dragged AND the search FAB
+        //   is aligned (same horizontal line), the search FAB follows the nav
+        //   bar. We track the nav bar's drag delta and apply the SAME delta to
+        //   the search FAB's saved position.
+        //   Implementation: CynthiaDraggableNavBar takes an `onNavBarDragged`
+        //   callback that fires with the delta (in pixels) whenever the nav bar
+        //   moves during a drag. Here we convert that to fractions and apply
+        //   to the search FAB's position IF they're aligned.
+        val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
+        val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
+        val onNavBarDragged: (Float, Float) -> Unit = { deltaXpx, deltaYpx ->
+            if (isAligned && screenWidthPx > 0 && screenHeightPx > 0) {
+                // Move the search FAB by the same delta as the nav bar.
+                // This keeps the search FAB at a fixed offset from the nav bar.
+                val deltaXfrac = deltaXpx / screenWidthPx
+                val deltaYfrac = deltaYpx / screenHeightPx
+                val newSearchX = (searchX + deltaXfrac).coerceIn(0.05f, 0.95f)
+                val newSearchY = (searchY + deltaYfrac).coerceIn(0.05f, 0.95f)
+                com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition
+                    .setPosition(newSearchX, newSearchY)
             }
         }
 
@@ -317,7 +330,8 @@ fun CynthiaHomeScreen(
             activeTab = selectedTab,
             onTabSelected = { tab -> selectedTab = tab },
             backdrop = glassBackdrop,
-            navBarWidth = navBarWidth
+            navBarWidth = navBarWidth,
+            onNavBarDragged = onNavBarDragged
         )
 
         CynthiaDraggableSearchCircle(

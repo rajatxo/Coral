@@ -69,7 +69,12 @@ internal fun CynthiaDraggableNavBar(
     activeTab: CoralTab,
     onTabSelected: (CoralTab) -> Unit,
     backdrop: LayerBackdrop?,
-    navBarWidth: Dp = 240.dp
+    navBarWidth: Dp = 240.dp,
+    // ★ Linked-movement callback — fires with the (deltaX, deltaY) in PIXELS
+    //   whenever the nav bar is dragged. The caller (CynthiaHomeScreen) uses
+    //   this to move the search FAB along with the nav bar when they're
+    //   aligned (same horizontal line).
+    onNavBarDragged: (Float, Float) -> Unit = { _, _ -> }
 ) {
     val savedPosition by com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.position.collectAsState()
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -361,6 +366,9 @@ internal fun CynthiaDraggableNavBar(
                                             .coerceIn(capsuleHeight / 2f, screenSize.height - capsuleHeight / 2f)
                                         lastTouchX = change.position.x
                                         lastTouchY = change.position.y
+                                        // ★ LINKED MOVEMENT — fire the delta to the caller so the
+                                        //   search FAB can follow the nav bar when they're aligned.
+                                        onNavBarDragged(deltaX, deltaY)
                                         change.consume()
                                     }
                                 }
@@ -534,6 +542,31 @@ internal fun CynthiaDraggableSearchCircle(
                         start = Offset(cx, cy - 30f),
                         end = Offset(cx, cy + 30f),
                         strokeWidth = 2f
+                    )
+                }
+            }
+
+            // ★ COORDINATE DISPLAY — shows the live (X, Y) fractions while
+            //   dragging the search circle. Same style as the nav bar's
+            //   coordinate display. The user can read these values and tell
+            //   me the exact position they want.
+            if (isDragging && screenSize.width > 0 && screenSize.height > 0) {
+                val xFrac = (currentXpx / screenSize.width).coerceIn(0f, 1f)
+                val yFrac = (currentYpx / screenSize.height).coerceIn(0f, 1f)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 160.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.Black.copy(alpha = 0.8f))
+                        .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text = "Search — X: ${String.format("%.3f", xFrac)}  Y: ${String.format("%.3f", yFrac)}",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
