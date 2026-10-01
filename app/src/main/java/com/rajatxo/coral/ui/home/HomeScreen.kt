@@ -465,17 +465,22 @@ fun HomeScreen(
         // ★ AUTO-REPOSITION LOGIC
         // The nav bar's *displayed* Y depends on whether the search FAB is at
         // its default position (the position when the user opens the app).
-        //   • Search FAB at default → nav bar at its SAVED Y (default 0.889)
+        //   • Search FAB at default → nav bar at DEFAULT Y (0.889, BOTTOM)
         //   • Search FAB NOT at default (misaligned) → nav bar moves to CENTER
-        //     (Y = 0.5) — this is the behavior the user said was OK.
-        // The nav bar returns to its saved position once the search FAB snaps
-        // back to default via the magnetic pull (which persists the default
-        // position on release).
+        //     (Y = 0.5) — the user confirmed this is OK.
+        // The nav bar returns to its DEFAULT Y once the search FAB snaps back
+        // to default via the magnetic pull (which persists the default position
+        // on release). NOTE: we use DEFAULT_TAB_Y_FRAC, not savedTabPos.second,
+        // because the saved position might be CENTER/RIGHT (from a previous nav
+        // bar drag) and that would cause overlap with the search FAB.
         val savedSearchPos by com.rajatxo.coral.data.prefs.SearchFabPosition.position.collectAsState()
         val searchAtDefault =
             abs(savedSearchPos.first - DEFAULT_SEARCH_FAB_X_FRAC) < 0.02f &&
             abs(savedSearchPos.second - DEFAULT_SEARCH_FAB_Y_FRAC) < ALIGN_TOLERANCE
-        val effectiveTabYFrac = if (searchAtDefault) savedTabPos.second else 0.5f
+        // ★ When aligned: nav bar Y = DEFAULT_TAB_Y_FRAC (BOTTOM). When misaligned:
+        //   nav bar Y = 0.5 (CENTER). The X doesn't matter here because the mini
+        //   player is always horizontally centered (Alignment.BottomCenter).
+        val effectiveTabYFrac = if (searchAtDefault) DEFAULT_TAB_Y_FRAC else 0.5f
         val tabYFrac = effectiveTabYFrac
         val configuration = androidx.compose.ui.platform.LocalConfiguration.current
         val systemNavInset = androidx.compose.foundation.layout.WindowInsets.navigationBars
@@ -1778,7 +1783,7 @@ private fun DraggableSearchFab(
                                     .coerceIn(0, screenSize.height)
                             )
                         }
-                        .graphicsLayer { alpha = catchLineAlpha * 0.6f }
+                        .graphicsLayer { alpha = catchLineAlpha * 0.9f }
                 ) {
                     // Soft magnet zone band (very faint)
                     drawRect(
@@ -2326,21 +2331,37 @@ private fun DraggableTabCapsule(
     val capsuleHeight = with(density) { 52.dp.toPx() }
 
     // ★ AUTO-REPOSITION effective position
-    // When the search FAB is NOT at default, the capsule is displayed at the
-    // screen center (DEFAULT_TAB_X_FRAC, 0.5) regardless of its saved
-    // position. When the search FAB IS at default (i.e., the user snapped it
-    // back via magnetic pull), the capsule uses its saved position.
+    // When the search FAB is NOT at default, the capsule is displayed at
+    // screen CENTER (0.5, 0.5). When the search FAB IS at default (i.e.,
+    // the user snapped it back via magnetic pull), the capsule uses its
+    // DEFAULT position (DEFAULT_TAB_X_FRAC, DEFAULT_TAB_Y_FRAC) = LEFT-BOTTOM.
+    //
+    // We do NOT use savedPosition here, because the saved position might be
+    // CENTER or RIGHT (from a previous nav bar drag), and that would cause
+    // the nav bar to overlap with the search FAB (which is at default
+    // RIGHT-BOTTOM). Always using DEFAULT when aligned guarantees the two
+    // elements are on opposite sides of the screen.
     //
     // `displayXpx` / `displayYpx` are what the offset actually uses. During a
     // drag, we use `currentXpx` / `currentYpx` (the live finger position) so
     // the capsule follows the finger. When NOT dragging, we use the effective
     // position — this is what makes the capsule "move to centre when I
-    // misalign" and "return to saved once the search FAB snaps back".
+    // misalign" and "return to DEFAULT (LEFT-BOTTOM) once the search FAB snaps
+    // back".
     val searchAtDefault =
         abs(savedSearchPosition.first - DEFAULT_SEARCH_FAB_X_FRAC) < 0.02f &&
         abs(savedSearchPosition.second - DEFAULT_SEARCH_FAB_Y_FRAC) < ALIGN_TOLERANCE
-    val effectiveX = if (searchAtDefault) savedPosition.first else DEFAULT_TAB_X_FRAC
-    val effectiveY = if (searchAtDefault) savedPosition.second else 0.5f
+    // ★ When the search FAB is at default (aligned): nav bar uses its DEFAULT
+    //   position (LEFT-BOTTOM). NOT the saved position — because the saved
+    //   position might be CENTER or RIGHT (from a previous nav bar drag), and
+    //   that would cause the nav bar to overlap with the search FAB (which is
+    //   at default RIGHT-BOTTOM). Always using DEFAULT here guarantees the
+    //   two elements are on opposite sides of the screen when both are at
+    //   default.
+    // ★ When the search FAB is misaligned: nav bar moves to CENTER (0.5, 0.5)
+    //   — the user confirmed this is OK.
+    val effectiveX = if (searchAtDefault) DEFAULT_TAB_X_FRAC else 0.5f
+    val effectiveY = if (searchAtDefault) DEFAULT_TAB_Y_FRAC else 0.5f
 
     // ★ Initialize currentXpx/currentYpx from the EFFECTIVE position (not the
     //   raw saved position). This makes the capsule start at center when the
