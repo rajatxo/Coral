@@ -44,10 +44,10 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 object TabCapsulePosition {
     private const val PREFS_NAME = "coral_prefs"
-    private const val KEY_X = "tab_capsule_x_v7"
-    private const val KEY_Y = "tab_capsule_y_v7"
-    private const val DEFAULT_X = 0.5f
-    private const val DEFAULT_Y = 0.89f
+    private const val KEY_X = "tab_capsule_x_v8"
+    private const val KEY_Y = "tab_capsule_y_v8"
+    private const val DEFAULT_X = 0.283f
+    private const val DEFAULT_Y = 0.889f
 
     private lateinit var prefs: android.content.SharedPreferences
 
