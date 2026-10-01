@@ -462,25 +462,32 @@ fun HomeScreen(
         //
         // Default yFrac=0.89 → mini player bottom ≈ 122dp from screen bottom.
         val savedTabPos by com.rajatxo.coral.data.prefs.TabCapsulePosition.position.collectAsState()
+        // ★ HOISTED PROXIMITY STATE — shared between DraggableSearchFab and
+        //   DraggableTabCapsule. When the search FAB is dragged within the
+        //   magnetic threshold of the nav bar's catch line, this becomes true
+        //   INSTANTLY (during the drag, not on release). The nav bar reads this
+        //   to snap to its DEFAULT position the moment the search FAB gets
+        //   close — no waiting for release. This is the "different approach"
+        //   the user asked for: "whenever we realign or just move closer to
+        //   nav bar, the nav bar instantly catches its default position."
+        var searchFabNearNavBar by remember { mutableStateOf(false) }
         // ★ AUTO-REPOSITION LOGIC
         // The nav bar's *displayed* Y depends on whether the search FAB is at
-        // its default position (the position when the user opens the app).
-        //   • Search FAB at default → nav bar at DEFAULT Y (0.889, BOTTOM)
-        //   • Search FAB NOT at default (misaligned) → nav bar moves to CENTER
-        //     (Y = 0.5) — the user confirmed this is OK.
-        // The nav bar returns to its DEFAULT Y once the search FAB snaps back
-        // to default via the magnetic pull (which persists the default position
-        // on release). NOTE: we use DEFAULT_TAB_Y_FRAC, not savedTabPos.second,
-        // because the saved position might be CENTER/RIGHT (from a previous nav
-        // bar drag) and that would cause overlap with the search FAB.
+        // its default position OR is currently being dragged close to the nav
+        // bar's catch line.
+        //   • Search FAB at default (saved) OR near nav bar (live) → nav bar
+        //     at DEFAULT Y (0.889, BOTTOM-LEFT)
+        //   • Search FAB NOT at default and NOT near nav bar (misaligned) →
+        //     nav bar at CENTER (Y = 0.5) — the user confirmed this is OK.
         val savedSearchPos by com.rajatxo.coral.data.prefs.SearchFabPosition.position.collectAsState()
         val searchAtDefault =
             abs(savedSearchPos.first - DEFAULT_SEARCH_FAB_X_FRAC) < 0.02f &&
             abs(savedSearchPos.second - DEFAULT_SEARCH_FAB_Y_FRAC) < ALIGN_TOLERANCE
-        // ★ When aligned: nav bar Y = DEFAULT_TAB_Y_FRAC (BOTTOM). When misaligned:
-        //   nav bar Y = 0.5 (CENTER). The X doesn't matter here because the mini
-        //   player is always horizontally centered (Alignment.BottomCenter).
-        val effectiveTabYFrac = if (searchAtDefault) DEFAULT_TAB_Y_FRAC else 0.5f
+        // ★ The nav bar snaps to DEFAULT as soon as EITHER condition is true:
+        //   1. The search FAB's SAVED position is at default (re-aligned)
+        //   2. The search FAB is being dragged close to the nav bar (live)
+        val navBarAtDefault = searchAtDefault || searchFabNearNavBar
+        val effectiveTabYFrac = if (navBarAtDefault) DEFAULT_TAB_Y_FRAC else 0.5f
         val tabYFrac = effectiveTabYFrac
         val configuration = androidx.compose.ui.platform.LocalConfiguration.current
         val systemNavInset = androidx.compose.foundation.layout.WindowInsets.navigationBars
@@ -529,7 +536,11 @@ fun HomeScreen(
         // --- Draggable Floating Search Button ---
         DraggableSearchFab(
             onSearchClick = { showSearch = true },
-            backdrop = glassBackdrop  // ★ glass morphism (same as nav bar + mini player)
+            backdrop = glassBackdrop,  // ★ glass morphism (same as nav bar + mini player)
+            // ★ Pass the hoisted proximity setter so the search FAB can signal
+            //   "I'm close to the nav bar" DURING the drag — the nav bar reads
+            //   this to instantly snap to its default position.
+            onProximityChange = { isNear -> searchFabNearNavBar = isNear }
         )
 
         // ─── FIXED HEADER (Quick Picks page only) ───────────────────
@@ -729,7 +740,12 @@ fun HomeScreen(
                 selectedTab = tab
                 selectedPlaylist = null
             },
-            backdrop = glassBackdrop
+            backdrop = glassBackdrop,
+            // ★ Pass the live proximity signal so the nav bar can instantly
+            //   snap to its DEFAULT position the moment the search FAB gets
+            //   close to the nav bar's catch line (during the drag, not on
+            //   release).
+            searchFabNearNavBar = searchFabNearNavBar
         )
 
         // Add bottom padding to the content area when mini player is visible,
@@ -1603,7 +1619,12 @@ private fun DraggableSearchFab(
     // ★ Glass backdrop (same as nav bar + mini player). When provided,
     // the FAB uses drawBackdrop for real-time frosted-glass blur instead
     // of a solid white background.
-    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null,
+    // ★ Live proximity callback — fired DURING the drag (not on release)
+    //   whenever the search FAB enters or exits the magnetic threshold of
+    //   the nav bar's catch line. The nav bar reads this to instantly snap
+    //   to its DEFAULT position the moment the search FAB gets close.
+    onProximityChange: (Boolean) -> Unit = {}
 ) {
     val savedPosition by com.rajatxo.coral.data.prefs.SearchFabPosition.position.collectAsState()
     // --- Magnetic pull: read the nav bar position to know where the horizontal
@@ -1974,6 +1995,11 @@ private fun DraggableSearchFab(
                                         isLongPressActivated = false
                                         showBubble = false
                                         countdownJob?.cancel()
+                                        // ★ Clear the proximity signal on release. After
+                                        //   release, the nav bar's position is determined
+                                        //   by the SAVED search FAB position (searchAtDefault)
+                                        //   — the live proximity signal is no longer needed.
+                                        onProximityChange(false)
                                         break
                                     }
 
@@ -1996,17 +2022,22 @@ private fun DraggableSearchFab(
                                         // passing through its vertical center. When
                                         // the search FAB is dragged within
                                         // MAGNETIC_THRESHOLD_DP of that line, it snaps
-                                        // back to its default position (the position
-                                        // the FAB is at when the user first opens the
-                                        // app). The nav bar then returns to its
-                                        // saved position too (handled in
-                                        // DraggableTabCapsule's effective-position
-                                        // logic, which reads SearchFabPosition).
+                                        // back to its default position AND signals the
+                                        // nav bar to instantly snap to ITS default
+                                        // position too (via onProximityChange).
                                         val navBarCenterYpx =
                                             savedTabPosition.second * screenSize.height
                                         val magneticThresholdPx =
                                             with(density) { MAGNETIC_THRESHOLD_DP.dp.toPx() }
-                                        if (kotlin.math.abs(currentYpx - navBarCenterYpx) < magneticThresholdPx) {
+                                        val isNearNavBar =
+                                            kotlin.math.abs(currentYpx - navBarCenterYpx) < magneticThresholdPx
+                                        // ★ Fire the live proximity signal so the nav
+                                        //   bar can instantly snap to its DEFAULT
+                                        //   position DURING the drag — no waiting for
+                                        //   release. This is the "different approach"
+                                        //   the user asked for.
+                                        onProximityChange(isNearNavBar)
+                                        if (isNearNavBar) {
                                             val defaultYpx =
                                                 DEFAULT_SEARCH_FAB_Y_FRAC * screenSize.height
                                             if (kotlin.math.abs(currentYpx - defaultYpx) > 1f) {
@@ -2269,7 +2300,12 @@ private fun DraggableTabCapsule(
     tabs: List<CoralTab>,
     activeTab: CoralTab,
     onTabSelected: (CoralTab) -> Unit,
-    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop?
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop?,
+    // ★ Live proximity signal from DraggableSearchFab. When true, the search
+    //   FAB is currently being dragged within the magnetic threshold of the
+    //   nav bar's catch line — the nav bar should INSTANTLY snap to its
+    //   DEFAULT position (LEFT-BOTTOM) during the drag, not wait for release.
+    searchFabNearNavBar: Boolean = false
 ) {
     val savedPosition by com.rajatxo.coral.data.prefs.TabCapsulePosition.position.collectAsState()
     // ★ AUTO-REPOSITION: read the search FAB position so the capsule knows
@@ -2331,48 +2367,45 @@ private fun DraggableTabCapsule(
     val capsuleHeight = with(density) { 52.dp.toPx() }
 
     // ★ AUTO-REPOSITION effective position
-    // When the search FAB is NOT at default, the capsule is displayed at
-    // screen CENTER (0.5, 0.5). When the search FAB IS at default (i.e.,
-    // the user snapped it back via magnetic pull), the capsule uses its
-    // DEFAULT position (DEFAULT_TAB_X_FRAC, DEFAULT_TAB_Y_FRAC) = LEFT-BOTTOM.
+    // The nav bar snaps to its DEFAULT position (LEFT-BOTTOM) as soon as
+    // EITHER of these is true:
+    //   1. searchAtDefault — the search FAB's SAVED position is at default
+    //      (i.e., it was re-aligned and released)
+    //   2. searchFabNearNavBar — the search FAB is currently being dragged
+    //      within the magnetic threshold of the nav bar's catch line (LIVE,
+    //      during the drag, not on release)
+    // When BOTH are false (search FAB is misaligned and not near the nav bar),
+    // the nav bar moves to CENTER (0.5, 0.5) — the user confirmed this is OK.
     //
     // We do NOT use savedPosition here, because the saved position might be
     // CENTER or RIGHT (from a previous nav bar drag), and that would cause
-    // the nav bar to overlap with the search FAB (which is at default
-    // RIGHT-BOTTOM). Always using DEFAULT when aligned guarantees the two
-    // elements are on opposite sides of the screen.
+    // the nav bar to overlap with the search FAB. Always using DEFAULT when
+    // aligned guarantees the two elements are on opposite sides of the screen.
     //
     // `displayXpx` / `displayYpx` are what the offset actually uses. During a
     // drag, we use `currentXpx` / `currentYpx` (the live finger position) so
     // the capsule follows the finger. When NOT dragging, we use the effective
-    // position — this is what makes the capsule "move to centre when I
-    // misalign" and "return to DEFAULT (LEFT-BOTTOM) once the search FAB snaps
-    // back".
+    // position.
     val searchAtDefault =
         abs(savedSearchPosition.first - DEFAULT_SEARCH_FAB_X_FRAC) < 0.02f &&
         abs(savedSearchPosition.second - DEFAULT_SEARCH_FAB_Y_FRAC) < ALIGN_TOLERANCE
-    // ★ When the search FAB is at default (aligned): nav bar uses its DEFAULT
-    //   position (LEFT-BOTTOM). NOT the saved position — because the saved
-    //   position might be CENTER or RIGHT (from a previous nav bar drag), and
-    //   that would cause the nav bar to overlap with the search FAB (which is
-    //   at default RIGHT-BOTTOM). Always using DEFAULT here guarantees the
-    //   two elements are on opposite sides of the screen when both are at
-    //   default.
-    // ★ When the search FAB is misaligned: nav bar moves to CENTER (0.5, 0.5)
-    //   — the user confirmed this is OK.
-    val effectiveX = if (searchAtDefault) DEFAULT_TAB_X_FRAC else 0.5f
-    val effectiveY = if (searchAtDefault) DEFAULT_TAB_Y_FRAC else 0.5f
+    // ★ The nav bar snaps to DEFAULT as soon as EITHER condition is true:
+    //   1. The search FAB's SAVED position is at default (re-aligned)
+    //   2. The search FAB is being dragged close to the nav bar (live proximity)
+    val navBarAtDefault = searchAtDefault || searchFabNearNavBar
+    val effectiveX = if (navBarAtDefault) DEFAULT_TAB_X_FRAC else 0.5f
+    val effectiveY = if (navBarAtDefault) DEFAULT_TAB_Y_FRAC else 0.5f
 
     // ★ Initialize currentXpx/currentYpx from the EFFECTIVE position (not the
     //   raw saved position). This makes the capsule start at center when the
-    //   search FAB is misaligned, and at the saved position when aligned.
+    //   search FAB is misaligned, and at the DEFAULT position when aligned.
     //   The LaunchedEffect re-runs whenever savedPosition, savedSearchPosition,
-    //   or screenSize changes — so when the search FAB snaps back to default
-    //   (savedSearchPosition changes), the capsule immediately returns to its
-    //   saved position. And when the search FAB is dragged away, the capsule
-    //   immediately moves to center.
+    //   screenSize, OR searchFabNearNavBar changes — so when the search FAB
+    //   gets dragged close to the nav bar (searchFabNearNavBar flips to true),
+    //   the capsule IMMEDIATELY snaps to its DEFAULT position. No waiting for
+    //   release.
     androidx.compose.runtime.LaunchedEffect(
-        savedPosition, savedSearchPosition, screenSize
+        savedPosition, savedSearchPosition, screenSize, searchFabNearNavBar
     ) {
         if (screenSize.width > 0 && screenSize.height > 0) {
             currentXpx = effectiveX * screenSize.width
