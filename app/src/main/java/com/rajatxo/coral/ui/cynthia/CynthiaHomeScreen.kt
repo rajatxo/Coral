@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -25,7 +26,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -147,10 +154,58 @@ fun CynthiaHomeScreen(
 
         // ═══════════════════════════════════════════════════════════════
         // SIBLINGS of layerBackdrop Box — these sample glassBackdrop
-        // (Same structure as Astra: DraggableTabCapsule is a sibling)
         // ═══════════════════════════════════════════════════════════════
 
-        // ─── Top bar: settings gear (top-right) ───
+        // ─── Top fade blur (kyant drawBackdrop, fades to transparent at bottom) ───
+        // Same as Astra's TopFadeBlur — real kyant glass at the top of every page.
+        // 120dp tall, fades from opaque (top) → transparent (bottom).
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(120.dp)
+                .graphicsLayer {
+                    compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
+                }
+                .drawWithContent {
+                    drawContent()
+                    // DstIn mask: opaque at top → transparent at bottom
+                    drawRect(
+                        brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.0f to Color.Black,
+                                0.35f to Color.Black,
+                                0.7f to Color.Black.copy(alpha = 0.5f),
+                                1.0f to Color.Transparent
+                            ),
+                            startY = 0f,
+                            endY = size.height
+                        ),
+                        blendMode = androidx.compose.ui.graphics.BlendMode.DstIn
+                    )
+                }
+        ) {
+            // The blurred backdrop — pure clean blur
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .drawBackdrop(
+                        backdrop = glassBackdrop,
+                        shape = { androidx.compose.ui.graphics.RectangleShape },
+                        effects = {
+                            vibrancy()
+                            colorControls(
+                                brightness = 0f,
+                                contrast = 1f,
+                                saturation = 1.1f
+                            )
+                            blur(20f.dp.toPx())
+                        }
+                    )
+            )
+        }
+
+        // ─── Settings gear (top-right, on top of the blur) ───
         Row(
             modifier = Modifier
                 .fillMaxWidth()
