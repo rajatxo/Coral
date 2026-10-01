@@ -13,12 +13,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -60,7 +60,9 @@ import com.rajatxo.coral.data.prefs.CynthiaSearchFabCustomization
 internal fun CynthiaCustomizationPanel(
     visible: Boolean,
     onDismiss: () -> Unit,
-    backdrop: LayerBackdrop?
+    backdrop: LayerBackdrop?,
+    // ★ true → show nav bar settings only, false → show search FAB settings only
+    isNavBar: Boolean = true
 ) {
     AnimatedVisibility(
         visible = visible,
@@ -70,7 +72,7 @@ internal fun CynthiaCustomizationPanel(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.5f))
+                .background(Color.Black.copy(alpha = 0.4f))
                 .clickable(
                     interactionSource = MutableInteractionSource(),
                     indication = null,
@@ -78,11 +80,12 @@ internal fun CynthiaCustomizationPanel(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            // ★ The floating glass panel
+            // ★ SMALLER panel — fixed 300dp wide instead of fillMaxWidth.
+            //   This lets the user see the changes happening behind the panel.
             Box(
                 modifier = Modifier
-                    .padding(24.dp)
-                    .fillMaxWidth()
+                    .padding(horizontal = 36.dp)
+                    .width(300.dp)
                     .clickable(
                         interactionSource = MutableInteractionSource(),
                         indication = null,
@@ -117,9 +120,12 @@ internal fun CynthiaCustomizationPanel(
                             }
                         )
                         .border(1.dp, Color.White.copy(alpha = 0.2f), panelShape)
-                        .padding(24.dp)
+                        .padding(20.dp)
                 ) {
-                    CustomizationPanelContent(onDismiss = onDismiss)
+                    CustomizationPanelContent(
+                        onDismiss = onDismiss,
+                        isNavBar = isNavBar
+                    )
                 }
             }
         }
@@ -127,32 +133,35 @@ internal fun CynthiaCustomizationPanel(
 }
 
 @Composable
-private fun CustomizationPanelContent(onDismiss: () -> Unit) {
+private fun CustomizationPanelContent(
+    onDismiss: () -> Unit,
+    isNavBar: Boolean
+) {
     val navCustom by CynthiaNavBarCustomization.customization.collectAsState()
     val searchCustom by CynthiaSearchFabCustomization.customization.collectAsState()
 
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Header
+        // Header — dynamic title based on which element is being customized
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Customize",
+                text = if (isNavBar) "Nav Bar" else "Search Button",
                 color = Color.White,
-                fontSize = 22.sp,
+                fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
             )
             // Done button
             Box(
                 modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(18.dp))
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(16.dp))
                     .background(Color.White.copy(alpha = 0.15f))
                     .clickable(
                         interactionSource = MutableInteractionSource(),
@@ -164,115 +173,108 @@ private fun CustomizationPanelContent(onDismiss: () -> Unit) {
                 Text(
                     text = "✕",
                     color = Color.White,
-                    fontSize = 16.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
         }
 
-        // ─── NAV BAR SECTION ───
-        SectionHeader("Nav Bar")
-
-        // Width slider
-        SliderRow(
-            label = "Width",
-            value = navCustom.widthDp,
-            range = 100f..320f,
-            suffix = "dp",
-            onValueChange = { CynthiaNavBarCustomization.setWidth(it) }
-        )
-
-        // Height slider
-        SliderRow(
-            label = "Height",
-            value = navCustom.heightDp,
-            range = 40f..80f,
-            suffix = "dp",
-            onValueChange = { CynthiaNavBarCustomization.setHeight(it) }
-        )
-
-        // Corner radius slider
-        SliderRow(
-            label = "Corner",
-            value = navCustom.cornerRadiusDp,
-            range = 0f..50f,
-            suffix = "dp",
-            onValueChange = { CynthiaNavBarCustomization.setCornerRadius(it) }
-        )
-
-        // Shape picker
-        ShapePicker(
-            selected = navCustom.shape,
-            onSelected = { CynthiaNavBarCustomization.setShape(it) }
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // ─── SEARCH FAB SECTION ───
-        SectionHeader("Search Button")
-
-        // Size slider
-        SliderRow(
-            label = "Size",
-            value = searchCustom.sizeDp,
-            range = 36f..80f,
-            suffix = "dp",
-            onValueChange = { CynthiaSearchFabCustomization.setSize(it) }
-        )
-
-        // Corner radius slider
-        SliderRow(
-            label = "Corner",
-            value = searchCustom.cornerRadiusDp,
-            range = 0f..50f,
-            suffix = "dp",
-            onValueChange = { CynthiaSearchFabCustomization.setCornerRadius(it) }
-        )
-
-        // Shape picker
-        ShapePicker(
-            selected = searchCustom.shape,
-            onSelected = { CynthiaSearchFabCustomization.setShape(it) }
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Reset button
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(44.dp)
-                .clip(RoundedCornerShape(22.dp))
-                .background(Color.White.copy(alpha = 0.1f))
-                .clickable(
-                    interactionSource = MutableInteractionSource(),
-                    indication = null,
-                    onClick = {
-                        CynthiaNavBarCustomization.reset()
-                        CynthiaSearchFabCustomization.reset()
-                    }
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "Reset to Defaults",
-                color = Color.White,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium
+        // ★ Only show the relevant section
+        if (isNavBar) {
+            // ─── NAV BAR SECTION ───
+            // Width slider
+            SliderRow(
+                label = "Width",
+                value = navCustom.widthDp,
+                range = 100f..320f,
+                suffix = "dp",
+                onValueChange = { CynthiaNavBarCustomization.setWidth(it) }
             )
+
+            // Height slider
+            SliderRow(
+                label = "Height",
+                value = navCustom.heightDp,
+                range = 40f..80f,
+                suffix = "dp",
+                onValueChange = { CynthiaNavBarCustomization.setHeight(it) }
+            )
+
+            // Corner radius slider
+            SliderRow(
+                label = "Corner",
+                value = navCustom.cornerRadiusDp,
+                range = 0f..50f,
+                suffix = "dp",
+                onValueChange = { CynthiaNavBarCustomization.setCornerRadius(it) }
+            )
+
+            // Shape picker
+            ShapePicker(
+                selected = navCustom.shape,
+                onSelected = { CynthiaNavBarCustomization.setShape(it) }
+            )
+
+            // Reset button
+            ResetButton {
+                CynthiaNavBarCustomization.reset()
+            }
+        } else {
+            // ─── SEARCH FAB SECTION ───
+            // Size slider
+            SliderRow(
+                label = "Size",
+                value = searchCustom.sizeDp,
+                range = 36f..80f,
+                suffix = "dp",
+                onValueChange = { CynthiaSearchFabCustomization.setSize(it) }
+            )
+
+            // Corner radius slider
+            SliderRow(
+                label = "Corner",
+                value = searchCustom.cornerRadiusDp,
+                range = 0f..50f,
+                suffix = "dp",
+                onValueChange = { CynthiaSearchFabCustomization.setCornerRadius(it) }
+            )
+
+            // Shape picker
+            ShapePicker(
+                selected = searchCustom.shape,
+                onSelected = { CynthiaSearchFabCustomization.setShape(it) }
+            )
+
+            // Reset button
+            ResetButton {
+                CynthiaSearchFabCustomization.reset()
+            }
         }
     }
 }
 
 @Composable
-private fun SectionHeader(text: String) {
-    Text(
-        text = text,
-        color = Color.White.copy(alpha = 0.6f),
-        fontSize = 13.sp,
-        fontWeight = FontWeight.SemiBold,
-        letterSpacing = 1.sp
-    )
+private fun ResetButton(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color.White.copy(alpha = 0.1f))
+            .clickable(
+                interactionSource = MutableInteractionSource(),
+                indication = null,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "Reset to Defaults",
+            color = Color.White,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium
+        )
+    }
 }
 
 @Composable

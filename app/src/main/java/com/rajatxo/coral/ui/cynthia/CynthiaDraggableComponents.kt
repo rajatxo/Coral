@@ -77,7 +77,9 @@ internal fun CynthiaDraggableNavBar(
     backdrop: LayerBackdrop?,
     navBarWidth: Dp = 240.dp,
     // ★ Fires when the user holds for 5 seconds — opens the customization panel.
-    onShowCustomizationPanel: () -> Unit = {},
+    //   Passes `true` to indicate the NAV BAR was held (so the panel shows only
+    //   nav bar settings).
+    onShowCustomizationPanel: (Boolean) -> Unit = {},
     // ★ Linked-movement callback — fires with the (deltaX, deltaY) in PIXELS
     //   whenever the nav bar is dragged. The caller (CynthiaHomeScreen) uses
     //   this to move the search FAB along with the nav bar when they're
@@ -356,10 +358,9 @@ internal fun CynthiaDraggableNavBar(
                                     delay(1000L)
                                     showBubble = false
                                     // ★ Instead of entering drag mode, show the
-                                    //   customization panel. The user can enter
-                                    //   drag mode from the panel's "Reposition"
-                                    //   button (TODO) or just customize.
-                                    currentOnShowCustomizationPanel()
+                                    //   customization panel. Pass `true` to
+                                    //   indicate the NAV BAR was held.
+                                    currentOnShowCustomizationPanel(true)
                                 }
 
                                 while (true) {
@@ -482,7 +483,9 @@ internal fun CynthiaDraggableSearchCircle(
     onSearchClick: () -> Unit = {},
     backdrop: LayerBackdrop? = null,
     // ★ Fires when the user holds for 5 seconds — opens the customization panel.
-    onShowCustomizationPanel: () -> Unit = {}
+    //   Passes `false` to indicate the SEARCH FAB was held (so the panel shows
+    //   only search FAB settings).
+    onShowCustomizationPanel: (Boolean) -> Unit = {}
 ) {
     val savedPosition by com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition.position.collectAsState()
     val savedNavBarPosition by com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.position.collectAsState()
@@ -777,8 +780,9 @@ internal fun CynthiaDraggableSearchCircle(
 
                                     // Phase 3: countdown done — hide bubble, show
                                     // the customization panel (instead of drag mode).
+                                    // Pass `false` to indicate the SEARCH FAB was held.
                                     showBubble = false
-                                    currentOnShowCustomizationPanel()
+                                    currentOnShowCustomizationPanel(false)
                                 }
 
                                 while (true) {
