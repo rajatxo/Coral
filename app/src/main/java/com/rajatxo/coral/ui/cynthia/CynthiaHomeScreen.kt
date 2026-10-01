@@ -290,17 +290,25 @@ fun CynthiaHomeScreen(
         val yDiff = kotlin.math.abs(tabY - searchY)
         val isAligned = yDiff < 0.05f
 
-        // ★ MISALIGN → CENTER: when the search FAB moves OFF the nav bar's
-        //   horizontal line (misaligned), the nav bar moves to CENTER (X=0.5)
-        //   on the same horizontal line (Y stays the same). The width also
-        //   animates from 150dp to 240dp (handled by navBarWidth below).
-        //   This only fires when isAligned CHANGES (keyed on isAligned), so
-        //   it doesn't fight the linked movement (which only happens when
-        //   isAligned is true).
+        // ★ ALIGN/MISALIGN → nav bar snaps to DEFAULT / CENTER
+        //   When the search FAB is moved OFF the nav bar's horizontal line
+        //   (misaligned): nav bar → CENTER (0.5, tabY), widens to 240dp.
+        //   When the search FAB is moved BACK to the nav bar's horizontal line
+        //   (aligned): nav bar → DEFAULT (0.283, 0.889), narrows to 150dp.
+        //   This LaunchedEffect only fires when isAligned CHANGES, so it
+        //   doesn't fight the linked movement (which runs while aligned).
         androidx.compose.runtime.LaunchedEffect(isAligned) {
             if (!isAligned) {
+                // Misaligned → nav bar to CENTER
                 com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition
                     .setPosition(0.5f, tabY)
+            } else {
+                // Aligned → nav bar to DEFAULT (LEFT-BOTTOM)
+                com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition
+                    .setPosition(
+                        com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.DEFAULT_X,
+                        com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.DEFAULT_Y
+                    )
             }
         }
 

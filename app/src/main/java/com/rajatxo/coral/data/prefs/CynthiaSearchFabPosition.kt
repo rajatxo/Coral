@@ -29,8 +29,9 @@ object CynthiaSearchFabPosition {
     //     Nav bar center = 0.283 * 393 = 111dp, right edge = 111 + 75 = 186dp
     //     Search FAB center = 0.846 * 393 = 332dp, left edge = 332 - 26 = 306dp
     //     Gap = 306 - 186 = 120dp
-    private const val DEFAULT_X = 0.846f
-    private const val DEFAULT_Y = 0.889f
+    //   PUBLIC so other files can reference them for snap-to-default behavior.
+    const val DEFAULT_X = 0.846f
+    const val DEFAULT_Y = 0.889f
 
     private lateinit var prefs: android.content.SharedPreferences
 

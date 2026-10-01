@@ -23,8 +23,10 @@ object CynthiaTabCapsulePosition {
     // ★ Cynthia defaults — user-specified: X = 0.283 (LEFT side), Y = 0.889
     //   (near bottom). Nav bar is 52dp tall, sits on the LEFT side of the
     //   screen next to the search circle (which is on its RIGHT, same Y).
-    private const val DEFAULT_X = 0.283f
-    private const val DEFAULT_Y = 0.889f
+    //   PUBLIC so other files (CynthiaHomeScreen, CynthiaDraggableSearchCircle)
+    //   can reference them for the snap-to-default behavior.
+    const val DEFAULT_X = 0.283f
+    const val DEFAULT_Y = 0.889f
 
     private lateinit var prefs: android.content.SharedPreferences
 

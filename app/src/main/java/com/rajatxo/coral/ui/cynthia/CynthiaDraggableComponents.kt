@@ -733,12 +733,30 @@ internal fun CynthiaDraggableSearchCircle(
                                         change.consume()
                                         // Finger lifted
                                         if (isLongPressActivated) {
-                                            val newXFraction = (currentXpx / screenSize.width)
+                                            val releasedX = (currentXpx / screenSize.width)
                                                 .coerceIn(0.05f, 0.95f)
-                                            val newYFraction = (currentYpx / screenSize.height)
+                                            val releasedY = (currentYpx / screenSize.height)
                                                 .coerceIn(0.05f, 0.95f)
-                                            com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition
-                                                .setPosition(newXFraction, newYFraction)
+                                            // ★ SNAP TO DEFAULT: if the search FAB is released
+                                            //   close to its default position (within ±0.08
+                                            //   on both X and Y), save the EXACT default
+                                            //   instead of the finger position. This ensures
+                                            //   the search FAB lands precisely on (0.846,
+                                            //   0.889), which triggers isAligned = true in
+                                            //   CynthiaHomeScreen, which snaps the nav bar
+                                            //   to its default (0.283, 0.889) too.
+                                            val defaultX = com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition.DEFAULT_X
+                                            val defaultY = com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition.DEFAULT_Y
+                                            val closeToDefault =
+                                                kotlin.math.abs(releasedX - defaultX) < 0.08f &&
+                                                kotlin.math.abs(releasedY - defaultY) < 0.08f
+                                            if (closeToDefault) {
+                                                com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition
+                                                    .setPosition(defaultX, defaultY)
+                                            } else {
+                                                com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition
+                                                    .setPosition(releasedX, releasedY)
+                                            }
                                         } else {
                                             // Short tap (before 2-second hold) → open search
                                             onSearchClick()
