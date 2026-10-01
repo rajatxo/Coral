@@ -438,7 +438,7 @@ internal fun CynthiaDraggableSearchCircle(
         label = "searchCircleScale"
     )
 
-    val circleSize = 52.dp
+    val circleSize = 40.dp
     val circleSizePx = with(density) { circleSize.toPx() }
 
     androidx.compose.runtime.LaunchedEffect(savedPosition, screenSize) {
@@ -716,7 +716,7 @@ internal fun CynthiaDraggableSearchCircle(
                     imageVector = CoralIcons.Search,
                     contentDescription = "Search",
                     tint = Color.White,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }

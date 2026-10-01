@@ -269,7 +269,7 @@ fun CynthiaHomeScreen(
         val savedTabPos by com.rajatxo.coral.data.prefs.TabCapsulePosition.position.collectAsState()
         val savedSearchPos by com.rajatxo.coral.data.prefs.SearchFabPosition.position.collectAsState()
         val isAligned = kotlin.math.abs(savedTabPos.second - savedSearchPos.second) < 0.02f
-        val navBarWidth = if (isAligned) 180.dp else 240.dp
+        val navBarWidth = if (isAligned) 196.dp else 240.dp
 
         CynthiaDraggableNavBar(
             tabs = cynthiaTabs,

@@ -22,11 +22,11 @@ import kotlinx.coroutines.flow.asStateFlow
 object SearchFabPosition {
 
     private const val PREFS_NAME = "coral_prefs"
-    private const val KEY_X = "search_fab_x_v3"  // bumped v2→v3 for new default (next to nav bar)
-    private const val KEY_Y = "search_fab_y_v3"
+    private const val KEY_X = "search_fab_x_v4"  // bumped v2→v3 for new default (next to nav bar)
+    private const val KEY_Y = "search_fab_y_v4"
 
     /** Default: next to the nav bar — same Y (0.89), slightly right of nav bar's right edge */
-    private const val DEFAULT_X = 0.88f
+    private const val DEFAULT_X = 0.84f
     private const val DEFAULT_Y = 0.89f
 
     private lateinit var prefs: android.content.SharedPreferences
