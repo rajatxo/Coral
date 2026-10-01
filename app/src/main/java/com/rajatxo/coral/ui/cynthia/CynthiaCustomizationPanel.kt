@@ -139,6 +139,10 @@ private fun CustomizationPanelContent(
 ) {
     val navCustom by CynthiaNavBarCustomization.customization.collectAsState()
     val searchCustom by CynthiaSearchFabCustomization.customization.collectAsState()
+    // ★ Read saved search FAB position for the position sliders
+    val savedSearchPos by com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition.position.collectAsState()
+    // ★ Read saved nav bar position for the position sliders
+    val savedTabPos by com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.position.collectAsState()
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -182,6 +186,32 @@ private fun CustomizationPanelContent(
         // ★ Only show the relevant section
         if (isNavBar) {
             // ─── NAV BAR SECTION ───
+            // ★ Position X slider — manually set the nav bar's X position
+            SliderRow(
+                label = "Position X",
+                value = savedTabPos.first * 100f,
+                range = 5f..95f,
+                suffix = "%",
+                onValueChange = { xPercent ->
+                    com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition
+                        .setPosition(xPercent / 100f, savedTabPos.second)
+                }
+            )
+
+            // ★ Position Y slider — manually set the nav bar's Y position
+            //   (constrained to ≥ 0.794 by the drag handler, but the slider
+            //   allows 5%-95% so the user can set it freely)
+            SliderRow(
+                label = "Position Y",
+                value = savedTabPos.second * 100f,
+                range = 79.4f..95f,
+                suffix = "%",
+                onValueChange = { yPercent ->
+                    com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition
+                        .setPosition(savedTabPos.first, yPercent / 100f)
+                }
+            )
+
             // Width slider
             SliderRow(
                 label = "Width",
@@ -191,11 +221,12 @@ private fun CustomizationPanelContent(
                 onValueChange = { CynthiaNavBarCustomization.setWidth(it) }
             )
 
-            // Height slider
+            // Height slider — max 150dp so the nav bar can be tall but stays
+            // within the Y constraint (0.794 * screen height ≈ 164dp from bottom).
             SliderRow(
                 label = "Height",
                 value = navCustom.heightDp,
-                range = 40f..80f,
+                range = 40f..150f,
                 suffix = "dp",
                 onValueChange = { CynthiaNavBarCustomization.setHeight(it) }
             )
@@ -221,6 +252,30 @@ private fun CustomizationPanelContent(
             }
         } else {
             // ─── SEARCH FAB SECTION ───
+            // ★ Position X slider — manually set the search FAB's X position
+            SliderRow(
+                label = "Position X",
+                value = savedSearchPos.first * 100f,
+                range = 5f..95f,
+                suffix = "%",
+                onValueChange = { xPercent ->
+                    com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition
+                        .setPosition(xPercent / 100f, savedSearchPos.second)
+                }
+            )
+
+            // ★ Position Y slider — manually set the search FAB's Y position
+            SliderRow(
+                label = "Position Y",
+                value = savedSearchPos.second * 100f,
+                range = 5f..95f,
+                suffix = "%",
+                onValueChange = { yPercent ->
+                    com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition
+                        .setPosition(savedSearchPos.first, yPercent / 100f)
+                }
+            )
+
             // Size slider
             SliderRow(
                 label = "Size",

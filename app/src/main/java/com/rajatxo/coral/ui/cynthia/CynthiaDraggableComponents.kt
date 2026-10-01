@@ -3,15 +3,20 @@ package com.rajatxo.coral.ui.cynthia
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -134,6 +139,8 @@ internal fun CynthiaDraggableNavBar(
 
     var showBubble by remember { mutableStateOf(false) }
     var countdownNumber by remember { mutableStateOf(3) }
+    // ★ Choice menu — shown after 5-sec hold. User picks "Drag" or "Manual".
+    var showChoiceMenu by remember { mutableStateOf(false) }
 
     val bubbleScale by androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (showBubble) 1f else 0f,
@@ -158,12 +165,11 @@ internal fun CynthiaDraggableNavBar(
         label = "capsuleScale"
     )
 
-    // ★ Use customization width/height if the caller didn't override navBarWidth.
-    //   If navBarWidth != 240.dp (the default), the caller (CynthiaHomeScreen)
-    //   is controlling the width via animation — respect that. Otherwise, use
-    //   the customization width.
-    val effectiveNavBarWidth = if (navBarWidth == 240.dp) navCustom.widthDp.dp else navBarWidth
-    val capsuleWidth = with(density) { effectiveNavBarWidth.toPx() }
+    // ★ Always use the customization width (the user controls it via the
+    //   panel). The navBarWidth parameter from the caller is ignored for the
+    //   capsule size — it was only used for the align/misalign animation,
+    //   which we've removed in favor of manual control.
+    val capsuleWidth = with(density) { navCustom.widthDp.dp.toPx() }
     val capsuleHeight = with(density) { navCustom.heightDp.dp.toPx() }
 
     // ★ Initialize currentXpx/currentYpx from the EFFECTIVE position.
@@ -322,6 +328,31 @@ internal fun CynthiaDraggableNavBar(
             }
 
             // --- The capsule (positioned via offset, draggable) ---
+            // ★ Compute the nav bar shape from customization (corner radius + shape enum).
+            val navBarShape: androidx.compose.ui.graphics.Shape =
+                navCustom.shape.toComposeShape(navCustom.cornerRadiusDp, navCustom.widthDp)
+
+            // ★ CHOICE MENU — shown after 5-sec hold. Two options: Drag / Manual.
+            if (showChoiceMenu) {
+                CynthiaChoiceMenu(
+                    anchorX = currentXpx,
+                    anchorY = currentYpx,
+                    onDrag = {
+                        showChoiceMenu = false
+                        isLongPressActivated = true
+                        isDragging = true
+                        showGrid = true
+                        lastTouchX = 0f
+                        lastTouchY = 0f
+                    },
+                    onManual = {
+                        showChoiceMenu = false
+                        currentOnShowCustomizationPanel(true)
+                    },
+                    onDismiss = { showChoiceMenu = false }
+                )
+            }
+
             Box(
                 modifier = Modifier
                     .offset {
@@ -336,6 +367,9 @@ internal fun CynthiaDraggableNavBar(
                         scaleX = capsuleScale
                         scaleY = capsuleScale
                     }
+                    // ★ Apply the customization shape (clip the TabCapsule to the
+                    //   desired corner radius / shape).
+                    .clip(navBarShape)
                     .pointerInput(tabs, activeTab) {
                         awaitPointerEventScope {
                             while (true) {
@@ -357,10 +391,10 @@ internal fun CynthiaDraggableNavBar(
                                     countdownNumber = 1
                                     delay(1000L)
                                     showBubble = false
-                                    // ★ Instead of entering drag mode, show the
-                                    //   customization panel. Pass `true` to
-                                    //   indicate the NAV BAR was held.
-                                    currentOnShowCustomizationPanel(true)
+                                    // ★ Instead of entering drag mode OR opening
+                                    //   the panel directly, show the choice menu.
+                                    //   User picks "Drag" or "Manual".
+                                    showChoiceMenu = true
                                 }
 
                                 while (true) {
@@ -368,6 +402,13 @@ internal fun CynthiaDraggableNavBar(
                                     val change = event.changes.firstOrNull() ?: break
 
                                     if (!change.pressed) {
+                                        // ★ If the choice menu is showing, don't treat
+                                        //   the release as a tap or drag — just consume
+                                        //   it and let the menu stay visible.
+                                        if (showChoiceMenu) {
+                                            change.consume()
+                                            break
+                                        }
                                         if (isLongPressActivated) {
                                             val newXFraction = (currentXpx / screenSize.width)
                                                 .coerceIn(0.05f, 0.95f)
@@ -518,6 +559,8 @@ internal fun CynthiaDraggableSearchCircle(
 
     var showBubble by remember { mutableStateOf(false) }
     var countdownNumber by remember { mutableStateOf(3) }
+    // ★ Choice menu — shown after 5-sec hold. User picks "Drag" or "Manual".
+    var showChoiceMenu by remember { mutableStateOf(false) }
 
     val bubbleScale by androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (showBubble) 1f else 0f,
@@ -706,6 +749,27 @@ internal fun CynthiaDraggableSearchCircle(
             //   ★ Shape from customization (Pill, Rectangle, Rounded, Circle, Squircle).
             val circleShape: androidx.compose.ui.graphics.Shape =
                 searchCustom.shape.toComposeShape(searchCustom.cornerRadiusDp, searchCustom.sizeDp)
+
+            // ★ CHOICE MENU — shown after 5-sec hold. Two options: Drag / Manual.
+            if (showChoiceMenu) {
+                CynthiaChoiceMenu(
+                    anchorX = currentXpx,
+                    anchorY = currentYpx,
+                    onDrag = {
+                        showChoiceMenu = false
+                        isLongPressActivated = true
+                        isDragging = true
+                        showGrid = true
+                        lastTouchX = 0f
+                        lastTouchY = 0f
+                    },
+                    onManual = {
+                        showChoiceMenu = false
+                        currentOnShowCustomizationPanel(false)
+                    },
+                    onDismiss = { showChoiceMenu = false }
+                )
+            }
             val circleModifier = if (backdrop != null) {
                 Modifier
                     .clip(circleShape)
@@ -779,10 +843,9 @@ internal fun CynthiaDraggableSearchCircle(
                                     delay(1000L)
 
                                     // Phase 3: countdown done — hide bubble, show
-                                    // the customization panel (instead of drag mode).
-                                    // Pass `false` to indicate the SEARCH FAB was held.
+                                    // the choice menu (instead of drag mode or panel).
                                     showBubble = false
-                                    currentOnShowCustomizationPanel(false)
+                                    showChoiceMenu = true
                                 }
 
                                 while (true) {
@@ -793,6 +856,12 @@ internal fun CynthiaDraggableSearchCircle(
                                         // Consume the up event too, so neither
                                         // the down nor the up leaks to siblings.
                                         change.consume()
+                                        // ★ If the choice menu is showing, don't treat
+                                        //   the release as a tap or drag — just break
+                                        //   and let the menu stay visible.
+                                        if (showChoiceMenu) {
+                                            break
+                                        }
                                         // Finger lifted
                                         if (isLongPressActivated) {
                                             val releasedX = (currentXpx / screenSize.width)
@@ -874,6 +943,107 @@ internal fun CynthiaDraggableSearchCircle(
                     contentDescription = "Search",
                     tint = Color.White,
                     modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+    }
+}
+
+// =============================================================================
+// CynthiaChoiceMenu — small popup with "Drag" and "Manual" options
+// =============================================================================
+// Shown after 5-sec hold on nav bar or search FAB. Positioned above the
+// held element. Has two buttons:
+//   "Drag"   → enter drag mode (the old behavior)
+//   "Manual" → open the customization panel
+// Tapping outside dismisses it.
+// =============================================================================
+
+@Composable
+internal fun CynthiaChoiceMenu(
+    anchorX: Float,
+    anchorY: Float,
+    onDrag: () -> Unit,
+    onManual: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.3f))
+            .clickable(
+                interactionSource = MutableInteractionSource(),
+                indication = null,
+                onClick = onDismiss
+            )
+    ) {
+        Row(
+            modifier = Modifier
+                .offset {
+                    androidx.compose.ui.unit.IntOffset(
+                        (anchorX - with(density) { 90.dp.toPx() }).toInt()
+                            .coerceIn(0, 10000),
+                        (anchorY - with(density) { 80.dp.toPx() }).toInt()
+                            .coerceIn(0, 10000)
+                    )
+                }
+                .width(180.dp)
+                .height(56.dp)
+                .clip(RoundedCornerShape(28.dp))
+                .background(Color(0xFF1A1A1A).copy(alpha = 0.9f))
+                .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(28.dp))
+                .clickable(
+                    interactionSource = MutableInteractionSource(),
+                    indication = null,
+                    onClick = {} // consume click so it doesn't dismiss
+                ),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Drag button
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clickable(
+                        interactionSource = MutableInteractionSource(),
+                        indication = null,
+                        onClick = onDrag
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Drag",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            // Divider
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(32.dp)
+                    .background(Color.White.copy(alpha = 0.15f))
+            )
+            // Manual button
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clickable(
+                        interactionSource = MutableInteractionSource(),
+                        indication = null,
+                        onClick = onManual
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Manual",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
                 )
             }
         }
