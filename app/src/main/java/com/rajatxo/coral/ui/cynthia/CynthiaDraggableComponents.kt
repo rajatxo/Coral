@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -716,16 +717,13 @@ internal fun CynthiaDraggableSearchCircle(
                                         }
                                     }
 
-                                    // SMOOTH DRAGGING via delta tracking (both X and Y):
+                                    // SMOOTH DRAGGING — use positionChange() for real-time finger tracking
                                     if (isDragging) {
-                                        val deltaX = change.position.x - lastTouchX
-                                        val deltaY = change.position.y - lastTouchY
-                                        currentXpx = (currentXpx + deltaX)
+                                        val delta = change.positionChange()
+                                        currentXpx = (currentXpx + delta.x)
                                             .coerceIn(circleSizePx / 2f, screenSize.width - circleSizePx / 2f)
-                                        currentYpx = (currentYpx + deltaY)
+                                        currentYpx = (currentYpx + delta.y)
                                             .coerceIn(circleSizePx / 2f, screenSize.height - circleSizePx / 2f)
-                                        lastTouchX = change.position.x
-                                        lastTouchY = change.position.y
                                         change.consume()
                                     }
                                 }

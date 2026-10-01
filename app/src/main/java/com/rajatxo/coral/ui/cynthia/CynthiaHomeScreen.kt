@@ -261,11 +261,43 @@ fun CynthiaHomeScreen(
         }
 
         // ═══ DRAGGABLE NAV BAR + SEARCH CIRCLE — siblings of layerBackdrop ═══
-        // When aligned (same Y): nav bar = 150dp, stays at its position next to circle
-        // When misaligned: nav bar animates to 240dp + moves to screen center (X=0.5)
+        // When aligned (same Y): nav bar = 150dp, stays next to search circle
+        // When misaligned: nav bar animates to 240dp + moves to center
+        //
+        // Position logic:
+        //   - If search circle is RIGHT of nav bar center → nav bar stays LEFT
+        //   - If search circle is LEFT of nav bar center → nav bar moves RIGHT
+        //   - If misaligned (different Y) → nav bar goes to CENTER (0.5)
+        //   - Magnetic pull: when search circle Y is within 3% of nav bar Y,
+        //     snap search circle to exactly match nav bar Y
         val savedTabPos by com.rajatxo.coral.data.prefs.TabCapsulePosition.position.collectAsState()
         val savedSearchPos by com.rajatxo.coral.data.prefs.SearchFabPosition.position.collectAsState()
-        val isAligned = kotlin.math.abs(savedTabPos.second - savedSearchPos.second) < 0.02f
+
+        val tabY = savedTabPos.second
+        val searchY = savedSearchPos.second
+        val tabX = savedTabPos.first
+        val searchX = savedSearchPos.first
+
+        // Magnetic pull: if search Y is within 3% of tab Y, snap to tab Y
+        val yDiff = kotlin.math.abs(tabY - searchY)
+        val isAligned = yDiff < 0.03f
+
+        // Auto-snap search circle to nav bar's Y when close
+        androidx.compose.runtime.LaunchedEffect(yDiff, tabY, searchY) {
+            if (yDiff < 0.03f && yDiff > 0.001f) {
+                // Snap search Y to exactly match nav bar Y
+                com.rajatxo.coral.data.prefs.SearchFabPosition.setPosition(searchX, tabY)
+            }
+        }
+
+        // Nav bar position logic:
+        // - Aligned: nav bar stays where it is (next to search circle)
+        // - Misaligned: nav bar moves to center (0.5)
+        androidx.compose.runtime.LaunchedEffect(isAligned) {
+            if (!isAligned) {
+                com.rajatxo.coral.data.prefs.TabCapsulePosition.setPosition(0.5f, tabY)
+            }
+        }
 
         // Animate nav bar width: 150dp (aligned) ↔ 240dp (misaligned)
         val navBarWidth by androidx.compose.animation.core.animateDpAsState(
@@ -276,14 +308,6 @@ fun CynthiaHomeScreen(
             ),
             label = "navBarWidth"
         )
-
-        // When misaligned, move nav bar to center (X=0.5) with animation
-        androidx.compose.runtime.LaunchedEffect(isAligned) {
-            if (!isAligned) {
-                // Move nav bar to center when misaligned
-                com.rajatxo.coral.data.prefs.TabCapsulePosition.setPosition(0.5f, savedTabPos.second)
-            }
-        }
 
         CynthiaDraggableNavBar(
             tabs = cynthiaTabs,
