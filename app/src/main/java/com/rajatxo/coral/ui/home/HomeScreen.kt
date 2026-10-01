@@ -462,7 +462,21 @@ fun HomeScreen(
         //
         // Default yFrac=0.89 → mini player bottom ≈ 122dp from screen bottom.
         val savedTabPos by com.rajatxo.coral.data.prefs.TabCapsulePosition.position.collectAsState()
-        val tabYFrac = savedTabPos.second
+        // ★ AUTO-REPOSITION LOGIC
+        // The nav bar's *displayed* Y depends on whether the search FAB is at
+        // its default position (the position when the user opens the app).
+        //   • Search FAB at default → nav bar at its SAVED Y (default 0.889)
+        //   • Search FAB NOT at default (misaligned) → nav bar moves to CENTER
+        //     (Y = 0.5) — this is the behavior the user said was OK.
+        // The nav bar returns to its saved position once the search FAB snaps
+        // back to default via the magnetic pull (which persists the default
+        // position on release).
+        val savedSearchPos by com.rajatxo.coral.data.prefs.SearchFabPosition.position.collectAsState()
+        val searchAtDefault =
+            abs(savedSearchPos.first - DEFAULT_SEARCH_FAB_X_FRAC) < 0.02f &&
+            abs(savedSearchPos.second - DEFAULT_SEARCH_FAB_Y_FRAC) < ALIGN_TOLERANCE
+        val effectiveTabYFrac = if (searchAtDefault) savedTabPos.second else 0.5f
+        val tabYFrac = effectiveTabYFrac
         val configuration = androidx.compose.ui.platform.LocalConfiguration.current
         val systemNavInset = androidx.compose.foundation.layout.WindowInsets.navigationBars
             .asPaddingValues()
@@ -1533,6 +1547,29 @@ private fun MiniPlayer(
 }
 
 // =============================================================================
+// Default positions & magnetic-pull configuration
+// =============================================================================
+// These define the "position when the user opens the app" — the magnet target.
+// When the search FAB is dragged within MAGNETIC_THRESHOLD_DP of the nav bar's
+// horizontal center line, it snaps to these defaults.
+//
+// IMPORTANT: these must match the DEFAULT_X/DEFAULT_Y values defined in
+// SearchFabPosition.kt and TabCapsulePosition.kt (in com.rajatxo.coral.data.prefs).
+// If those change, update these constants too.
+private const val DEFAULT_SEARCH_FAB_X_FRAC = 0.84f
+private const val DEFAULT_SEARCH_FAB_Y_FRAC = 0.89f
+private const val DEFAULT_TAB_X_FRAC = 0.283f
+private const val DEFAULT_TAB_Y_FRAC = 0.889f
+
+// How close (in dp, vertically) the search FAB must be to the nav bar's
+// horizontal center line before the magnetic pull snaps it to default.
+private const val MAGNETIC_THRESHOLD_DP = 60
+
+// Tolerance for deciding "search FAB is at default position" — compares the
+// saved search FAB fraction to the DEFAULT_*_FRAC constants above.
+private const val ALIGN_TOLERANCE = 0.04f
+
+// =============================================================================
 // Draggable Floating Search Button
 // =============================================================================
 // Solid white rounded-square FAB with black search icon.
@@ -1564,6 +1601,9 @@ private fun DraggableSearchFab(
     backdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null
 ) {
     val savedPosition by com.rajatxo.coral.data.prefs.SearchFabPosition.position.collectAsState()
+    // --- Magnetic pull: read the nav bar position to know where the horizontal
+    //     "catch line" is (the nav bar's vertical center).
+    val savedTabPosition by com.rajatxo.coral.data.prefs.TabCapsulePosition.position.collectAsState()
     val density = androidx.compose.ui.platform.LocalDensity.current
 
     var screenSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
@@ -1571,6 +1611,25 @@ private fun DraggableSearchFab(
     var isDragging by remember { mutableStateOf(false) }
     var isLongPressActivated by remember { mutableStateOf(false) }
     var pressStartTime by remember { mutableStateOf(0L) }
+
+    // --- Last touch Y (in FAB-local coords) for delta-based smooth dragging ---
+    // Same pattern as DraggableTabCapsule: track the previous touch position so
+    // we can compute how much the finger moved since the last frame and apply
+    // that delta to currentYpx. This avoids the jump-on-press bug that the old
+    // `fabTopY + change.position.y` approach had.
+    var lastTouchY by remember { mutableStateOf(0f) }
+
+    // --- Magnetic snap feedback ---
+    // Pulses briefly when the magnetic pull fires, so the user sees the snap.
+    var magneticSnapPulse by remember { mutableStateOf(false) }
+    val magneticGlowAlpha by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (magneticSnapPulse) 1f else 0f,
+        animationSpec = androidx.compose.animation.core.spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+        ),
+        label = "magneticGlowAlpha"
+    )
 
     // --- Countdown speech bubble state ---
     var showBubble by remember { mutableStateOf(false) }
@@ -1692,6 +1751,60 @@ private fun DraggableSearchFab(
                 }
             }
 
+            // --- Magnetic catch line (visible during drag mode) ---
+            // A horizontal line at the nav bar's vertical center. When the
+            // search FAB is dragged within MAGNETIC_THRESHOLD_DP of this line,
+            // the magnetic pull snaps the FAB to its default position.
+            // The line fades in when drag mode starts and fades out on release,
+            // so the user can see exactly where the "magnet" is.
+            if (isDragging) {
+                val catchLineAlpha by androidx.compose.animation.core.animateFloatAsState(
+                    targetValue = if (isDragging) 1f else 0f,
+                    animationSpec = androidx.compose.animation.core.tween(200),
+                    label = "catchLineAlpha"
+                )
+                val navBarCenterYpx =
+                    savedTabPosition.second * screenSize.height
+                val magneticThresholdPx =
+                    with(density) { MAGNETIC_THRESHOLD_DP.dp.toPx() }
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(with(density) { (MAGNETIC_THRESHOLD_DP * 2).dp })
+                        .offset {
+                            androidx.compose.ui.unit.IntOffset(
+                                0,
+                                (navBarCenterYpx - magneticThresholdPx).toInt()
+                                    .coerceIn(0, screenSize.height)
+                            )
+                        }
+                        .graphicsLayer { alpha = catchLineAlpha * 0.6f }
+                ) {
+                    // Soft magnet zone band (very faint)
+                    drawRect(
+                        color = Color(0xFF6B9EFF).copy(alpha = 0.10f),
+                        topLeft = Offset(0f, 0f),
+                        size = size
+                    )
+                    // The catch line itself — bright, full-width, at nav bar center Y
+                    val lineY = magneticThresholdPx  // center of the band
+                    drawLine(
+                        color = Color(0xFF6B9EFF).copy(alpha = 0.85f),
+                        start = Offset(0f, lineY),
+                        end = Offset(size.width, lineY),
+                        strokeWidth = 2f
+                    )
+                    // Dashed emphasis ticks at the line, centered on the FAB's X
+                    val cx = fixedXpx
+                    drawLine(
+                        color = Color.White.copy(alpha = 0.9f),
+                        start = Offset(cx - 40f, lineY),
+                        end = Offset(cx + 40f, lineY),
+                        strokeWidth = 4f
+                    )
+                }
+            }
+
             // --- The FAB itself ---
             // ★ Glass morphism: uses drawBackdrop (same AGSL real-time blur as
             //   the nav bar + mini player) when a backdrop is provided.
@@ -1736,6 +1849,29 @@ private fun DraggableSearchFab(
                         scaleX = fabScale
                         scaleY = fabScale
                     }
+                    // ★ Magnetic snap glow — a soft blue ring that pulses
+                    // around the FAB when it's been caught by the catch line.
+                    // Fades in/out via magneticGlowAlpha.
+                    .drawWithContent {
+                        if (magneticGlowAlpha > 0.01f) {
+                            val glowRadius = size.width * 0.85f
+                            val center = androidx.compose.ui.geometry.Offset(
+                                size.width / 2f,
+                                size.height / 2f
+                            )
+                            drawCircle(
+                                color = Color(0xFF6B9EFF).copy(alpha = 0.35f * magneticGlowAlpha),
+                                radius = glowRadius,
+                                center = center
+                            )
+                            drawCircle(
+                                color = Color(0xFF6B9EFF).copy(alpha = 0.55f * magneticGlowAlpha),
+                                radius = glowRadius * 0.7f,
+                                center = center
+                            )
+                        }
+                        drawContent()
+                    }
                     .then(fabModifier)
                     .pointerInput(Unit) {
                         awaitPointerEventScope {
@@ -1749,6 +1885,13 @@ private fun DraggableSearchFab(
                                 down.consume()
                                 pressStartTime = System.currentTimeMillis()
                                 isLongPressActivated = false
+                                // ★ Record the initial touch Y as the baseline for
+                                //   delta-based smooth dragging. This is the key
+                                //   fix for the "not smooth / jump on press" bug:
+                                //   we now move currentYpx by the SAME delta as
+                                //   the finger, instead of snapping currentYpx to
+                                //   the touch position (which jumped the FAB).
+                                lastTouchY = down.position.y
 
                                 // Show the bubble + start countdown
                                 // First: hold for 2 seconds (no bubble visible)
@@ -1774,6 +1917,9 @@ private fun DraggableSearchFab(
                                     showBubble = false
                                     isLongPressActivated = true
                                     isDragging = true
+                                    // ★ Re-baseline lastTouchY right when drag mode
+                                    //   starts so the first delta is ~0 (no jump).
+                                    lastTouchY = down.position.y
                                 }
 
                                 while (true) {
@@ -1786,9 +1932,35 @@ private fun DraggableSearchFab(
                                         change.consume()
                                         // Finger lifted
                                         if (isLongPressActivated) {
-                                            val newYFraction = (currentYpx / screenSize.height)
-                                                .coerceIn(0.05f, 0.95f)
-                                            com.rajatxo.coral.data.prefs.SearchFabPosition.setPosition(savedX, newYFraction)
+                                            // ★ MAGNETIC SNAP-ON-RELEASE
+                                            // If the FAB was snapped (within the catch
+                                            // zone) at release time, persist the DEFAULT
+                                            // position — not the finger position. This is
+                                            // what "the line catches the search bar → it
+                                            // gains the default position" means in
+                                            // practice: the saved state becomes the
+                                            // default, so the auto-reposition logic in
+                                            // DraggableTabCapsule (which compares
+                                            // SearchFabPosition against the defaults)
+                                            // detects alignment and returns the nav
+                                            // bar to its saved position.
+                                            val navBarCenterYpx =
+                                                savedTabPosition.second * screenSize.height
+                                            val magneticThresholdPx =
+                                                with(density) { MAGNETIC_THRESHOLD_DP.dp.toPx() }
+                                            val wasSnapped =
+                                                kotlin.math.abs(currentYpx - navBarCenterYpx) <
+                                                    magneticThresholdPx
+                                            val newYFraction = if (wasSnapped) {
+                                                DEFAULT_SEARCH_FAB_Y_FRAC
+                                            } else {
+                                                (currentYpx / screenSize.height)
+                                                    .coerceIn(0.05f, 0.95f)
+                                            }
+                                            com.rajatxo.coral.data.prefs.SearchFabPosition
+                                                .setPosition(savedX, newYFraction)
+                                            // Reset the glow once the snap is committed.
+                                            magneticSnapPulse = false
                                         } else {
                                             // Short tap (before 2-second hold) → open search
                                             onSearchClick()
@@ -1801,12 +1973,50 @@ private fun DraggableSearchFab(
                                     }
 
                                     if (isDragging) {
-                                        val fabTopY = currentYpx - fabSizePx / 2f
-                                        val newScreenY = fabTopY + change.position.y
-                                        currentYpx = newScreenY.coerceIn(
+                                        // ★ DELTA-BASED SMOOTH DRAGGING
+                                        // Move the FAB by the same amount the finger
+                                        // moved since the last frame. This is what
+                                        // makes the drag feel "silky" / 1:1 with the
+                                        // finger — the FAB never jumps to the touch
+                                        // position; it just translates by the delta.
+                                        val deltaY = change.position.y - lastTouchY
+                                        currentYpx = (currentYpx + deltaY).coerceIn(
                                             fabSizePx / 2f,
                                             screenSize.height - fabSizePx / 2f
                                         )
+                                        lastTouchY = change.position.y
+
+                                        // ★ MAGNETIC PULL
+                                        // The nav bar has a horizontal "catch line"
+                                        // passing through its vertical center. When
+                                        // the search FAB is dragged within
+                                        // MAGNETIC_THRESHOLD_DP of that line, it snaps
+                                        // back to its default position (the position
+                                        // the FAB is at when the user first opens the
+                                        // app). The nav bar then returns to its
+                                        // saved position too (handled in
+                                        // DraggableTabCapsule's effective-position
+                                        // logic, which reads SearchFabPosition).
+                                        val navBarCenterYpx =
+                                            savedTabPosition.second * screenSize.height
+                                        val magneticThresholdPx =
+                                            with(density) { MAGNETIC_THRESHOLD_DP.dp.toPx() }
+                                        if (kotlin.math.abs(currentYpx - navBarCenterYpx) < magneticThresholdPx) {
+                                            val defaultYpx =
+                                                DEFAULT_SEARCH_FAB_Y_FRAC * screenSize.height
+                                            if (kotlin.math.abs(currentYpx - defaultYpx) > 1f) {
+                                                // Snap + fire the visual pulse once per snap
+                                                currentYpx = defaultYpx
+                                                magneticSnapPulse = true
+                                            }
+                                        } else {
+                                            // Outside the catch zone — clear the pulse so
+                                            // the glow fades once the user drags away.
+                                            if (magneticSnapPulse) {
+                                                magneticSnapPulse = false
+                                            }
+                                        }
+
                                         change.consume()
                                     }
                                 }
@@ -2057,6 +2267,13 @@ private fun DraggableTabCapsule(
     backdrop: com.kyant.backdrop.backdrops.LayerBackdrop?
 ) {
     val savedPosition by com.rajatxo.coral.data.prefs.TabCapsulePosition.position.collectAsState()
+    // ★ AUTO-REPOSITION: read the search FAB position so the capsule knows
+    // whether the search FAB is at default (aligned) or has been moved away
+    // (misaligned). When misaligned, the capsule displays at screen center
+    // (DEFAULT_TAB_X_FRAC, 0.5) instead of its saved position. When aligned
+    // (search FAB snapped back to default via magnetic pull), the capsule
+    // returns to its saved position.
+    val savedSearchPosition by com.rajatxo.coral.data.prefs.SearchFabPosition.position.collectAsState()
     val density = androidx.compose.ui.platform.LocalDensity.current
     val scope = rememberCoroutineScope()
 
@@ -2108,12 +2325,42 @@ private fun DraggableTabCapsule(
     val capsuleWidth = with(density) { 240.dp.toPx() }
     val capsuleHeight = with(density) { 52.dp.toPx() }
 
-    androidx.compose.runtime.LaunchedEffect(savedPosition, screenSize) {
+    // ★ AUTO-REPOSITION effective position
+    // When the search FAB is NOT at default, the capsule is displayed at the
+    // screen center (DEFAULT_TAB_X_FRAC, 0.5) regardless of its saved
+    // position. When the search FAB IS at default (i.e., the user snapped it
+    // back via magnetic pull), the capsule uses its saved position.
+    //
+    // `displayXpx` / `displayYpx` are what the offset actually uses. During a
+    // drag, we use `currentXpx` / `currentYpx` (the live finger position) so
+    // the capsule follows the finger. When NOT dragging, we use the effective
+    // position — this is what makes the capsule "move to centre when I
+    // misalign" and "return to saved once the search FAB snaps back".
+    val searchAtDefault =
+        abs(savedSearchPosition.first - DEFAULT_SEARCH_FAB_X_FRAC) < 0.02f &&
+        abs(savedSearchPosition.second - DEFAULT_SEARCH_FAB_Y_FRAC) < ALIGN_TOLERANCE
+    val effectiveX = if (searchAtDefault) savedPosition.first else DEFAULT_TAB_X_FRAC
+    val effectiveY = if (searchAtDefault) savedPosition.second else 0.5f
+
+    // ★ Initialize currentXpx/currentYpx from the EFFECTIVE position (not the
+    //   raw saved position). This makes the capsule start at center when the
+    //   search FAB is misaligned, and at the saved position when aligned.
+    //   The LaunchedEffect re-runs whenever savedPosition, savedSearchPosition,
+    //   or screenSize changes — so when the search FAB snaps back to default
+    //   (savedSearchPosition changes), the capsule immediately returns to its
+    //   saved position. And when the search FAB is dragged away, the capsule
+    //   immediately moves to center.
+    androidx.compose.runtime.LaunchedEffect(
+        savedPosition, savedSearchPosition, screenSize
+    ) {
         if (screenSize.width > 0 && screenSize.height > 0) {
-            currentXpx = savedPosition.first * screenSize.width
-            currentYpx = savedPosition.second * screenSize.height
+            currentXpx = effectiveX * screenSize.width
+            currentYpx = effectiveY * screenSize.height
         }
     }
+
+    val displayXpx = if (isDragging) currentXpx else effectiveX * screenSize.width
+    val displayYpx = if (isDragging) currentYpx else effectiveY * screenSize.height
 
     Box(
         modifier = Modifier
@@ -2188,8 +2435,11 @@ private fun DraggableTabCapsule(
                     modifier = Modifier
                         .offset {
                             androidx.compose.ui.unit.IntOffset(
-                                (currentXpx - with(density) { 60.dp.toPx() }).toInt(),
-                                (currentYpx - capsuleHeight - with(density) { 50.dp.toPx() }).toInt()
+                                // ★ Use displayXpx / displayYpx so the bubble
+                                //   stays aligned with the capsule even when the
+                                //   capsule is auto-repositioned to center.
+                                (displayXpx - with(density) { 60.dp.toPx() }).toInt(),
+                                (displayYpx - capsuleHeight - with(density) { 50.dp.toPx() }).toInt()
                             )
                         }
                         .graphicsLayer {
@@ -2240,9 +2490,11 @@ private fun DraggableTabCapsule(
                 modifier = Modifier
                     .offset {
                         androidx.compose.ui.unit.IntOffset(
-                            (currentXpx - capsuleWidth / 2f).toInt()
+                            // ★ Use displayXpx / displayYpx (effective position when
+                            //   not dragging, live finger position when dragging).
+                            (displayXpx - capsuleWidth / 2f).toInt()
                                 .coerceIn(0, (screenSize.width - capsuleWidth).toInt()),
-                            (currentYpx - capsuleHeight / 2f).toInt()
+                            (displayYpx - capsuleHeight / 2f).toInt()
                                 .coerceIn(0, (screenSize.height - capsuleHeight).toInt())
                         )
                     }
