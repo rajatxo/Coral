@@ -1,5 +1,6 @@
 package com.rajatxo.coral.ui.cynthia
 
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,11 +30,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.session.MediaController
@@ -50,16 +55,6 @@ import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.screens.SettingsScreen
 import com.rajatxo.coral.ui.theme.CalSansFamily
 
-/**
- * CynthiaHomeScreen — the NEW app UI.
- *
- * Uses the EXACT same kyant backdrop pattern as Astra:
- *   - Outer Box: background
- *   - Inner Box: layerBackdrop captures page content
- *   - Nav bar + settings + mini player are SIBLINGS of the layerBackdrop Box
- *     (NOT children — being children causes recursive capture crash)
- *   - Glass elements use drawBackdrop(glassBackdrop) to sample the content
- */
 @androidx.compose.foundation.ExperimentalFoundationApi
 @Composable
 fun CynthiaHomeScreen(
@@ -88,35 +83,33 @@ fun CynthiaHomeScreen(
     var showSettings by remember { mutableStateOf(false) }
     val onSongClickWithReset: (Song) -> Unit = { song -> onSongClick(song) }
 
-    // ═══════════════════════════════════════════════════════════════
-    // GLASS BACKDROP — EXACT same pattern as Astra (lines 310-320)
-    // ═══════════════════════════════════════════════════════════════
-    val graphicsLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
-    val glassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop(
+    // ─── Glass backdrop (EXACT same as Astra) ───
+    val graphicsLayer = rememberGraphicsLayer()
+    val glassBackdrop = rememberLayerBackdrop(
         graphicsLayer = graphicsLayer
     ) {
         drawContent()
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // OUTER BOX — background (same as Astra's Box at line 299)
-    // ═══════════════════════════════════════════════════════════════
+    // ─── Dynamic header title (same as Astra) ───
+    val headerTitle = when (selectedTab) {
+        CoralTab.QuickPicks -> "Quick picks"
+        CoralTab.Songs -> "Songs"
+        CoralTab.Playlists -> "Playlists"
+        else -> ""
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        // ═══════════════════════════════════════════════════════════════
-        // INNER BOX — layerBackdrop captures page content (Astra line 387-393)
-        // This Box's children are captured into glassBackdrop.graphicsLayer.
-        // Glass elements (nav bar, settings) sample this via drawBackdrop.
-        // ═══════════════════════════════════════════════════════════════
+        // ═══ INNER BOX — layerBackdrop captures page content ═══
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .layerBackdrop(glassBackdrop)
         ) {
-            // ─── Tab content ───
             when (selectedTab) {
                 CoralTab.QuickPicks -> com.rajatxo.coral.ui.screens.QuickPicksScreen(
                     songs = songs,
@@ -124,134 +117,149 @@ fun CynthiaHomeScreen(
                     currentSongArt = currentSongArt,
                     onSongClick = onSongClickWithReset
                 )
-                CoralTab.Songs -> Box(
+                else -> Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Songs",
+                        text = selectedTab.label,
                         color = Color.White.copy(alpha = 0.3f),
                         fontSize = 32.sp,
                         fontWeight = FontWeight.Light,
                         fontFamily = CalSansFamily
                     )
                 }
-                CoralTab.Playlists -> Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Playlists",
-                        color = Color.White.copy(alpha = 0.3f),
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.Light,
-                        fontFamily = CalSansFamily
-                    )
-                }
-                else -> {}
             }
-        }  // ← layerBackdrop Box ENDS here — everything below is a SIBLING
+        }  // ← layerBackdrop Box ENDS — everything below is a SIBLING
 
-        // ═══════════════════════════════════════════════════════════════
-        // SIBLINGS of layerBackdrop Box — these sample glassBackdrop
-        // ═══════════════════════════════════════════════════════════════
+        // ═══ TOP FADE BLUR — EXACT copy from Astra (lines 546-700) ═══
+        if (true) {  // always show on all tabs (Astra checks !showSearch)
+            val useRenderEffect = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
-        // ─── Top fade blur (kyant drawBackdrop, fades to transparent at bottom) ───
-        // Same as Astra's TopFadeBlur — real kyant glass at the top of every page.
-        // 120dp tall, fades from opaque (top) → transparent (bottom).
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .height(120.dp)
-                .graphicsLayer {
-                    compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
-                }
-                .drawWithContent {
-                    drawContent()
-                    // DstIn mask: opaque at top → transparent at bottom
-                    drawRect(
-                        brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                            colorStops = arrayOf(
-                                0.0f to Color.Black,
-                                0.35f to Color.Black,
-                                0.7f to Color.Black.copy(alpha = 0.5f),
-                                1.0f to Color.Transparent
+            // 120dp tall blur box, aligned to TopCenter
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .graphicsLayer {
+                        compositingStrategy = CompositingStrategy.Offscreen
+                        clip = true
+                        if (useRenderEffect) {
+                            renderEffect = BlurEffect(
+                                radiusX = 20.dp.toPx(),
+                                radiusY = 20.dp.toPx()
+                            )
+                        }
+                    }
+                    .drawWithContent {
+                        if (useRenderEffect) {
+                            // RenderEffect path (API 31+): draw captured content
+                            drawLayer(graphicsLayer)
+                        } else {
+                            // Fallback path (API < 31): draw drawBackdrop child
+                            drawContent()
+                        }
+                        // DstIn gradient mask — fades bottom to transparent
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colorStops = arrayOf(
+                                    0.0f to Color.Black,
+                                    0.6f to Color.Black,
+                                    1.0f to Color.Transparent
+                                ),
+                                startY = 0f,
+                                endY = size.height
                             ),
-                            startY = 0f,
-                            endY = size.height
-                        ),
-                        blendMode = androidx.compose.ui.graphics.BlendMode.DstIn
+                            blendMode = BlendMode.DstIn
+                        )
+                    }
+            ) {
+                // Inner Box with drawBackdrop — only rendered on API < 31
+                if (!useRenderEffect) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .drawBackdrop(
+                                backdrop = glassBackdrop,
+                                shape = { RectangleShape },
+                                effects = {
+                                    vibrancy()
+                                    colorControls(
+                                        brightness = 0f,
+                                        contrast = 1f,
+                                        saturation = 1.1f
+                                    )
+                                    blur(20f.dp.toPx())
+                                }
+                            )
                     )
                 }
-        ) {
-            // The blurred backdrop — pure clean blur
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .drawBackdrop(
-                        backdrop = glassBackdrop,
-                        shape = { androidx.compose.ui.graphics.RectangleShape },
-                        effects = {
-                            vibrancy()
-                            colorControls(
-                                brightness = 0f,
-                                contrast = 1f,
-                                saturation = 1.1f
-                            )
-                            blur(20f.dp.toPx())
-                        }
-                    )
-            )
-        }
+            }
 
-        // ─── Settings gear (top-right, on top of the blur) ───
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.End
-        ) {
-            Box(
+            // ═══ HEADER ROW — profile icon + title + settings cog ═══
+            // EXACT same as Astra (lines 640-700)
+            Row(
                 modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .drawBackdrop(
-                        backdrop = glassBackdrop,
-                        shape = { CircleShape },
-                        effects = {
-                            vibrancy()
-                            colorControls(
-                                brightness = 0.05f,
-                                contrast = 1f,
-                                saturation = 1.3f
-                            )
-                            blur(18f.dp.toPx())
-                        },
-                        onDrawSurface = {
-                            drawRect(Color.Black.copy(alpha = 0.35f))
-                        }
-                    )
-                    .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { showSettings = true }
-                    ),
-                contentAlignment = Alignment.Center
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .height(56.dp)
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = CoralIcons.Settings,
-                    contentDescription = "Settings",
-                    tint = Color.White,
-                    modifier = Modifier.size(22.dp)
+                // User icon (left)
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { /* TODO: account screen */ }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = CoralIcons.CircleUser,
+                        contentDescription = "Account",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                // Title (center)
+                Text(
+                    text = headerTitle,
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = CalSansFamily,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f)
                 )
+
+                // Settings cog (right) — NO drawBackdrop, just plain icon like Astra
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { showSettings = true }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = CoralIcons.Cog,
+                        contentDescription = "Settings",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
         }
 
-        // ─── Glass nav bar (bottom) — SIBLING of layerBackdrop ───
-        // Same as Astra's DraggableTabCapsule call (line 706)
+        // ═══ NAV BAR — sibling of layerBackdrop, glass via TabCapsule ═══
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -264,11 +272,11 @@ fun CynthiaHomeScreen(
                 tabs = cynthiaTabs,
                 activeTab = selectedTab,
                 onTabSelected = { tab -> selectedTab = tab },
-                backdrop = glassBackdrop  // ★ Same as Astra: samples glassBackdrop
+                backdrop = glassBackdrop
             )
         }
 
-        // ─── Settings overlay ───
+        // ═══ Settings overlay ═══
         if (showSettings) {
             SettingsScreen(
                 onBackClick = { showSettings = false },
