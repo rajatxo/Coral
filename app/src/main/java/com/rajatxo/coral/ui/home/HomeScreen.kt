@@ -1584,7 +1584,8 @@ private const val DEFAULT_TAB_Y_FRAC = 0.889f
 
 // How close (in dp, vertically) the search FAB must be to the nav bar's
 // horizontal center line before the magnetic pull snaps it to default.
-private const val MAGNETIC_THRESHOLD_DP = 60
+// Increased from 60 to 100 to make the catch zone bigger and easier to hit.
+private const val MAGNETIC_THRESHOLD_DP = 100
 
 // Tolerance for deciding "search FAB is at default position" — compares the
 // saved search FAB fraction to the DEFAULT_*_FRAC constants above.
@@ -1631,6 +1632,23 @@ private fun DraggableSearchFab(
     //     "catch line" is (the nav bar's vertical center).
     val savedTabPosition by com.rajatxo.coral.data.prefs.TabCapsulePosition.position.collectAsState()
     val density = androidx.compose.ui.platform.LocalDensity.current
+
+    // ★ CRITICAL FIX: the catch line must be at the DISPLAYED nav bar Y, NOT
+    //   the SAVED nav bar Y. When the search FAB is misaligned, the nav bar is
+    //   DISPLAYED at CENTER (Y=0.5), but its SAVED Y is still 0.889 (default).
+    //   If we use the saved Y for the catch line, the user drags the search FAB
+    //   toward the VISIBLE nav bar (Y=0.5) but the catch line is at Y=0.889 —
+    //   they never match, the proximity never fires, the nav bar never snaps
+    //   back. This was the root cause of the "nav bar moving right side" bug.
+    //
+    //   The DISPLAYED nav bar Y is:
+    //     DEFAULT_TAB_Y_FRAC (0.889) when the search FAB is at default
+    //     0.5 (CENTER) when the search FAB is misaligned
+    val searchAtDefaultForCatchLine =
+        abs(savedPosition.first - DEFAULT_SEARCH_FAB_X_FRAC) < 0.02f &&
+        abs(savedPosition.second - DEFAULT_SEARCH_FAB_Y_FRAC) < ALIGN_TOLERANCE
+    val navBarDisplayedYFrac =
+        if (searchAtDefaultForCatchLine) DEFAULT_TAB_Y_FRAC else 0.5f
 
     var screenSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
     var currentYpx by remember { mutableStateOf(0f) }
@@ -1790,7 +1808,7 @@ private fun DraggableSearchFab(
                     label = "catchLineAlpha"
                 )
                 val navBarCenterYpx =
-                    savedTabPosition.second * screenSize.height
+                    navBarDisplayedYFrac * screenSize.height
                 val magneticThresholdPx =
                     with(density) { MAGNETIC_THRESHOLD_DP.dp.toPx() }
                 Canvas(
@@ -1971,7 +1989,7 @@ private fun DraggableSearchFab(
                                             // detects alignment and returns the nav
                                             // bar to its saved position.
                                             val navBarCenterYpx =
-                                                savedTabPosition.second * screenSize.height
+                                                navBarDisplayedYFrac * screenSize.height
                                             val magneticThresholdPx =
                                                 with(density) { MAGNETIC_THRESHOLD_DP.dp.toPx() }
                                             val wasSnapped =
@@ -1983,8 +2001,19 @@ private fun DraggableSearchFab(
                                                 (currentYpx / screenSize.height)
                                                     .coerceIn(0.05f, 0.95f)
                                             }
+                                            // ★ Snap BOTH X and Y to default when
+                                            //   wasSnapped. This guarantees the saved
+                                            //   position is exactly default, so
+                                            //   searchAtDefault becomes true and the
+                                            //   nav bar snaps to its DEFAULT position
+                                            //   (LEFT-BOTTOM) too.
+                                            val newXFraction = if (wasSnapped) {
+                                                DEFAULT_SEARCH_FAB_X_FRAC
+                                            } else {
+                                                savedX
+                                            }
                                             com.rajatxo.coral.data.prefs.SearchFabPosition
-                                                .setPosition(savedX, newYFraction)
+                                                .setPosition(newXFraction, newYFraction)
                                             // Reset the glow once the snap is committed.
                                             magneticSnapPulse = false
                                         } else {
@@ -2026,7 +2055,7 @@ private fun DraggableSearchFab(
                                         // nav bar to instantly snap to ITS default
                                         // position too (via onProximityChange).
                                         val navBarCenterYpx =
-                                            savedTabPosition.second * screenSize.height
+                                            navBarDisplayedYFrac * screenSize.height
                                         val magneticThresholdPx =
                                             with(density) { MAGNETIC_THRESHOLD_DP.dp.toPx() }
                                         val isNearNavBar =
