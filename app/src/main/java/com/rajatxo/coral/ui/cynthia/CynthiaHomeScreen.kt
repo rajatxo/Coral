@@ -261,22 +261,36 @@ fun CynthiaHomeScreen(
         }
 
         // ═══ DRAGGABLE NAV BAR + SEARCH CIRCLE — siblings of layerBackdrop ═══
-        // Both fully draggable (long-press 3s + countdown + grid + drag anywhere).
-        // Both use kyant drawBackdrop for glass.
-        // When aligned (same Y): nav bar shrinks to 180dp, circle is 52dp, gap 8dp
-        //   → combined width = 180 + 8 + 52 = 240dp (same as original nav bar)
-        // When misaligned: nav bar grows back to full 240dp.
+        // When aligned (same Y): nav bar = 150dp, stays at its position next to circle
+        // When misaligned: nav bar animates to 240dp + moves to screen center (X=0.5)
         val savedTabPos by com.rajatxo.coral.data.prefs.TabCapsulePosition.position.collectAsState()
         val savedSearchPos by com.rajatxo.coral.data.prefs.SearchFabPosition.position.collectAsState()
         val isAligned = kotlin.math.abs(savedTabPos.second - savedSearchPos.second) < 0.02f
-        val navBarWidth = if (isAligned) 196.dp else 240.dp
+
+        // Animate nav bar width: 150dp (aligned) ↔ 240dp (misaligned)
+        val navBarWidth by androidx.compose.animation.core.animateDpAsState(
+            targetValue = if (isAligned) 150.dp else 240.dp,
+            animationSpec = androidx.compose.animation.core.spring(
+                dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+            ),
+            label = "navBarWidth"
+        )
+
+        // When misaligned, move nav bar to center (X=0.5) with animation
+        androidx.compose.runtime.LaunchedEffect(isAligned) {
+            if (!isAligned) {
+                // Move nav bar to center when misaligned
+                com.rajatxo.coral.data.prefs.TabCapsulePosition.setPosition(0.5f, savedTabPos.second)
+            }
+        }
 
         CynthiaDraggableNavBar(
             tabs = cynthiaTabs,
             activeTab = selectedTab,
             onTabSelected = { tab -> selectedTab = tab },
             backdrop = glassBackdrop,
-            navBarWidth = 150.dp
+            navBarWidth = navBarWidth
         )
 
         CynthiaDraggableSearchCircle(
