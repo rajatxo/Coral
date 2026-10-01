@@ -72,7 +72,7 @@ internal fun CynthiaCustomizationPanel(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.4f))
+                .background(Color.Black.copy(alpha = 0.2f))
                 .clickable(
                     interactionSource = MutableInteractionSource(),
                     indication = null,
@@ -80,12 +80,12 @@ internal fun CynthiaCustomizationPanel(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            // ★ SMALLER panel — fixed 300dp wide instead of fillMaxWidth.
-            //   This lets the user see the changes happening behind the panel.
+            // ★ COMPACT panel — 240dp wide, minimal padding. Small enough
+            //   to see the nav bar / search FAB changes happening behind it.
             Box(
                 modifier = Modifier
-                    .padding(horizontal = 36.dp)
-                    .width(300.dp)
+                    .padding(horizontal = 48.dp)
+                    .width(240.dp)
                     .clickable(
                         interactionSource = MutableInteractionSource(),
                         indication = null,
@@ -93,7 +93,7 @@ internal fun CynthiaCustomizationPanel(
                     )
             ) {
                 // ★ Glass morphism background — same kyant blur as nav bar
-                val panelShape = RoundedCornerShape(28.dp)
+                val panelShape = RoundedCornerShape(20.dp)
                 Box(
                     modifier = Modifier
                         .clip(panelShape)
@@ -120,7 +120,7 @@ internal fun CynthiaCustomizationPanel(
                             }
                         )
                         .border(1.dp, Color.White.copy(alpha = 0.2f), panelShape)
-                        .padding(20.dp)
+                        .padding(14.dp)
                 ) {
                     CustomizationPanelContent(
                         onDismiss = onDismiss,
@@ -146,7 +146,7 @@ private fun CustomizationPanelContent(
 
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // Header — dynamic title based on which element is being customized
         Row(
@@ -157,15 +157,15 @@ private fun CustomizationPanelContent(
             Text(
                 text = if (isNavBar) "Nav Bar" else "Search Button",
                 color = Color.White,
-                fontSize = 20.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
             )
             // Done button
             Box(
                 modifier = Modifier
-                    .size(32.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                    .size(26.dp)
+                    .clip(RoundedCornerShape(13.dp))
                     .background(Color.White.copy(alpha = 0.15f))
                     .clickable(
                         interactionSource = MutableInteractionSource(),
@@ -177,7 +177,7 @@ private fun CustomizationPanelContent(
                 Text(
                     text = "✕",
                     color = Color.White,
-                    fontSize = 14.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -313,8 +313,8 @@ private fun ResetButton(onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(40.dp)
-            .clip(RoundedCornerShape(20.dp))
+            .height(32.dp)
+            .clip(RoundedCornerShape(16.dp))
             .background(Color.White.copy(alpha = 0.1f))
             .clickable(
                 interactionSource = MutableInteractionSource(),
@@ -326,7 +326,7 @@ private fun ResetButton(onClick: () -> Unit) {
         Text(
             text = "Reset to Defaults",
             color = Color.White,
-            fontSize = 13.sp,
+            fontSize = 11.sp,
             fontWeight = FontWeight.Medium
         )
     }
@@ -342,7 +342,7 @@ private fun SliderRow(
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -352,12 +352,12 @@ private fun SliderRow(
             Text(
                 text = label,
                 color = Color.White.copy(alpha = 0.8f),
-                fontSize = 14.sp
+                fontSize = 12.sp
             )
             Text(
                 text = "${value.toInt()}$suffix",
                 color = Color.White,
-                fontSize = 14.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -381,24 +381,24 @@ private fun ShapePicker(
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         Text(
             text = "Shape",
             color = Color.White.copy(alpha = 0.8f),
-            fontSize = 14.sp
+            fontSize = 12.sp
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             CynthiaCustomShape.entries.forEach { shape ->
                 val isSelected = shape == selected
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .height(32.dp)
-                        .clip(RoundedCornerShape(16.dp))
+                        .height(26.dp)
+                        .clip(RoundedCornerShape(13.dp))
                         .background(
                             if (isSelected) Color.White.copy(alpha = 0.25f)
                             else Color.White.copy(alpha = 0.08f)
@@ -406,7 +406,7 @@ private fun ShapePicker(
                         .border(
                             1.dp,
                             if (isSelected) Color.White else Color.White.copy(alpha = 0.1f),
-                            RoundedCornerShape(16.dp)
+                            RoundedCornerShape(13.dp)
                         )
                         .clickable(
                             interactionSource = MutableInteractionSource(),
@@ -418,7 +418,7 @@ private fun ShapePicker(
                     Text(
                         text = shape.displayName,
                         color = if (isSelected) Color.White else Color.White.copy(alpha = 0.6f),
-                        fontSize = 11.sp,
+                        fontSize = 9.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                     )
                 }
