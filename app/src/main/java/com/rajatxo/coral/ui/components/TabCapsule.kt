@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.drawBackdrop
@@ -64,7 +65,12 @@ fun TabCapsule(
     activeTab: CoralTab,
     onTabSelected: (CoralTab) -> Unit,
     modifier: Modifier = Modifier,
-    backdrop: LayerBackdrop? = null
+    backdrop: LayerBackdrop? = null,
+    // ★ Optional custom width/height. When null, uses defaults (240dp / 52dp).
+    //   Cynthia passes these from the customization prefs. Astra doesn't pass
+    //   them, so it uses the defaults — no behavior change for Astra.
+    customWidth: Dp? = null,
+    customHeight: Dp? = null
 ) {
     val view = LocalView.current
     val context = LocalContext.current
@@ -151,11 +157,14 @@ fun TabCapsule(
     }
 
     val capsuleShape: Shape = RoundedCornerShape(26.dp)
+    // ★ Use custom width/height if provided (Cynthia), else defaults (Astra).
+    val actualWidth = customWidth ?: 240.dp
+    val actualHeight = customHeight ?: 52.dp
 
     val glassModifier = if (backdrop != null) {
         modifier
-            .width(240.dp)
-            .height(52.dp)
+            .width(actualWidth)
+            .height(actualHeight)
             .clip(capsuleShape)
             .drawBackdrop(
                 backdrop = backdrop,
@@ -175,8 +184,8 @@ fun TabCapsule(
             )
     } else {
         modifier
-            .width(240.dp)
-            .height(52.dp)
+            .width(actualWidth)
+            .height(actualHeight)
             .clip(capsuleShape)
             .background(Color.Black.copy(alpha = 0.5f))
     }

@@ -382,7 +382,8 @@ internal fun CynthiaDraggableNavBar(
 
                                 countdownJob?.cancel()
                                 countdownJob = scope.launch {
-                                    delay(2000L)
+                                    // ★ 3-sec hold total: show countdown 3→2→1,
+                                    //   then open the panel directly (no choice menu).
                                     showBubble = true
                                     countdownNumber = 3
                                     delay(1000L)
@@ -391,10 +392,8 @@ internal fun CynthiaDraggableNavBar(
                                     countdownNumber = 1
                                     delay(1000L)
                                     showBubble = false
-                                    // ★ Instead of entering drag mode OR opening
-                                    //   the panel directly, show the choice menu.
-                                    //   User picks "Drag" or "Manual".
-                                    showChoiceMenu = true
+                                    // ★ Open the customization panel directly.
+                                    currentOnShowCustomizationPanel(true)
                                 }
 
                                 while (true) {
@@ -486,7 +485,12 @@ internal fun CynthiaDraggableNavBar(
                     activeTab = activeTab,
                     onTabSelected = onTabSelected,
                     backdrop = backdrop,
-                    modifier = Modifier
+                    modifier = Modifier,
+                    // ★ Pass custom width/height from the customization prefs
+                    //   so the TabCapsule itself sizes correctly (it has
+                    //   hardcoded 240dp/52dp otherwise).
+                    customWidth = navCustom.widthDp.dp,
+                    customHeight = navCustom.heightDp.dp
                 )
             }
         }
