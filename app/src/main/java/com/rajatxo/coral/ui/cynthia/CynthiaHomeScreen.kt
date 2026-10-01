@@ -290,27 +290,16 @@ fun CynthiaHomeScreen(
         val yDiff = kotlin.math.abs(tabY - searchY)
         val isAligned = yDiff < 0.05f
 
-        // ★ ALIGN/MISALIGN → nav bar snaps to DEFAULT / CENTER
-        //   When the search FAB is moved OFF the nav bar's horizontal line
-        //   (misaligned): nav bar → CENTER (0.5, tabY), widens to 240dp.
-        //   When the search FAB is moved BACK to the nav bar's horizontal line
-        //   (aligned): nav bar → DEFAULT (0.283, 0.889), narrows to 150dp.
-        //   This LaunchedEffect only fires when isAligned CHANGES, so it
-        //   doesn't fight the linked movement (which runs while aligned).
-        androidx.compose.runtime.LaunchedEffect(isAligned) {
-            if (!isAligned) {
-                // Misaligned → nav bar to CENTER
-                com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition
-                    .setPosition(0.5f, tabY)
-            } else {
-                // Aligned → nav bar to DEFAULT (LEFT-BOTTOM)
-                com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition
-                    .setPosition(
-                        com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.DEFAULT_X,
-                        com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.DEFAULT_Y
-                    )
-            }
-        }
+        // ★ DYNAMIC DEFAULT — the nav bar's "default" IS its saved position
+        //   (wherever the user last dragged it). NOT a fixed number.
+        //   - When aligned: nav bar DISPLAYS at its saved position (tabX, tabY).
+        //   - When misaligned: nav bar DISPLAYS at CENTER (0.5, tabY) — but
+        //     the SAVED position is NEVER overwritten. Only the user's drag
+        //     saves a new position.
+        //   This is passed to DraggableNavBar as `effectiveX` so it knows
+        //   where to display without touching the saved position.
+        val navBarEffectiveX = if (isAligned) tabX else 0.5f
+        val navBarEffectiveY = tabY  // Y always uses the saved position
 
         // ★ LINKED MOVEMENT — when the nav bar is dragged AND the search FAB
         //   is aligned (same horizontal line), the search FAB follows the nav
@@ -353,7 +342,11 @@ fun CynthiaHomeScreen(
             onTabSelected = { tab -> selectedTab = tab },
             backdrop = glassBackdrop,
             navBarWidth = navBarWidth,
-            onNavBarDragged = onNavBarDragged
+            onNavBarDragged = onNavBarDragged,
+            // ★ Pass the effective position so the nav bar DISPLAYS at center
+            //   when misaligned, without overwriting its saved position.
+            effectiveX = navBarEffectiveX,
+            effectiveY = navBarEffectiveY
         )
 
         CynthiaDraggableSearchCircle(

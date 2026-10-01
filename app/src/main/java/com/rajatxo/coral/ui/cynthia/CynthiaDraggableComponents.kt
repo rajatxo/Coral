@@ -75,7 +75,14 @@ internal fun CynthiaDraggableNavBar(
     //   whenever the nav bar is dragged. The caller (CynthiaHomeScreen) uses
     //   this to move the search FAB along with the nav bar when they're
     //   aligned (same horizontal line).
-    onNavBarDragged: (Float, Float) -> Unit = { _, _ -> }
+    onNavBarDragged: (Float, Float) -> Unit = { _, _ -> },
+    // ★ Effective position — what the nav bar DISPLAYS at. This is separate
+    //   from the SAVED position so the caller can make the nav bar display at
+    //   center when misaligned WITHOUT overwriting the saved position. Only
+    //   the user's drag saves a new position. Defaults are placeholders; the
+    //   caller always passes the real effective values.
+    effectiveX: Float = 0.5f,
+    effectiveY: Float = 0.889f
 ) {
     val savedPosition by com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.position.collectAsState()
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -136,10 +143,16 @@ internal fun CynthiaDraggableNavBar(
     val capsuleWidth = with(density) { navBarWidth.toPx() }
     val capsuleHeight = with(density) { 52.dp.toPx() }
 
-    androidx.compose.runtime.LaunchedEffect(savedPosition, screenSize) {
-        if (screenSize.width > 0 && screenSize.height > 0) {
-            currentXpx = savedPosition.first * screenSize.width
-            currentYpx = savedPosition.second * screenSize.height
+    // ★ Initialize currentXpx/currentYpx from the EFFECTIVE position.
+    //   The effective position is computed by the caller (CynthiaHomeScreen):
+    //   - When aligned: effective = saved (nav bar at its saved position)
+    //   - When misaligned: effective = center (nav bar DISPLAYS at center but
+    //     SAVED position is NOT overwritten — only the user's drag saves).
+    //   Guard with !isDragging so this doesn't override the finger mid-drag.
+    androidx.compose.runtime.LaunchedEffect(effectiveX, effectiveY, screenSize) {
+        if (screenSize.width > 0 && screenSize.height > 0 && !isDragging) {
+            currentXpx = effectiveX * screenSize.width
+            currentYpx = effectiveY * screenSize.height
         }
     }
 
@@ -431,6 +444,12 @@ internal fun CynthiaDraggableSearchCircle(
     backdrop: LayerBackdrop? = null
 ) {
     val savedPosition by com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition.position.collectAsState()
+    // ★ Read the nav bar's SAVED position so we can snap the search FAB to
+    //   beside the nav bar when re-aligned. The search FAB's "default" is
+    //   NOT a fixed number — it's calculated from the nav bar's position:
+    //     searchFabDefaultX = navBarX + (navBarWidth/2 + gap + searchFabWidth/2)
+    //     searchFabDefaultY = navBarY (same horizontal line)
+    val savedNavBarPosition by com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.position.collectAsState()
     val density = androidx.compose.ui.platform.LocalDensity.current
     val scope = rememberCoroutineScope()
 
@@ -737,22 +756,35 @@ internal fun CynthiaDraggableSearchCircle(
                                                 .coerceIn(0.05f, 0.95f)
                                             val releasedY = (currentYpx / screenSize.height)
                                                 .coerceIn(0.05f, 0.95f)
-                                            // ★ SNAP TO DEFAULT: if the search FAB is released
-                                            //   close to its default position (within ±0.08
-                                            //   on both X and Y), save the EXACT default
-                                            //   instead of the finger position. This ensures
-                                            //   the search FAB lands precisely on (0.846,
-                                            //   0.889), which triggers isAligned = true in
-                                            //   CynthiaHomeScreen, which snaps the nav bar
-                                            //   to its default (0.283, 0.889) too.
-                                            val defaultX = com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition.DEFAULT_X
-                                            val defaultY = com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition.DEFAULT_Y
-                                            val closeToDefault =
-                                                kotlin.math.abs(releasedX - defaultX) < 0.08f &&
-                                                kotlin.math.abs(releasedY - defaultY) < 0.08f
-                                            if (closeToDefault) {
+                                            // ★ DYNAMIC SNAP: the search FAB's "default" is
+                                            //   NOT a fixed number — it's BESIDE the nav bar,
+                                            //   calculated from the nav bar's SAVED position.
+                                            //   If the search FAB is released close to the
+                                            //   nav bar's Y (within ±0.08), snap it to beside
+                                            //   the nav bar:
+                                            //     searchFabX = navBarX + offset
+                                            //     searchFabY = navBarY
+                                            //   where offset = navBarWidth/2 + gap + fabWidth/2
+                                            //   This triggers isAligned = true, which makes
+                                            //   the nav bar display at its saved position.
+                                            val navBarX = savedNavBarPosition.first
+                                            val navBarY = savedNavBarPosition.second
+                                            val closeToNavBarY =
+                                                kotlin.math.abs(releasedY - navBarY) < 0.08f
+                                            if (closeToNavBarY && screenSize.width > 0) {
+                                                // Calculate the search FAB's position beside
+                                                // the nav bar:
+                                                //   navBarWidth/2 = 75dp (150dp aligned)
+                                                //   gap = 120dp
+                                                //   fabWidth/2 = 26dp (52dp)
+                                                //   total offset = 75 + 120 + 26 = 221dp
+                                                val offsetDp = 221.dp
+                                                val offsetPx = with(density) { offsetDp.toPx() }
+                                                val offsetFrac = offsetPx / screenSize.width
+                                                val searchFabDefaultX =
+                                                    (navBarX + offsetFrac).coerceIn(0.05f, 0.95f)
                                                 com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition
-                                                    .setPosition(defaultX, defaultY)
+                                                    .setPosition(searchFabDefaultX, navBarY)
                                             } else {
                                                 com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition
                                                     .setPosition(releasedX, releasedY)
