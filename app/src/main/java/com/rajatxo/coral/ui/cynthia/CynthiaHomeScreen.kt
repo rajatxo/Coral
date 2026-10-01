@@ -261,41 +261,17 @@ fun CynthiaHomeScreen(
         }
 
         // ═══ DRAGGABLE NAV BAR + SEARCH CIRCLE — siblings of layerBackdrop ═══
-        // Both use kyant drawBackdrop for glass. Both are draggable (long-press
-        // 3s + countdown + grid overlay + position persists).
-        // When aligned (same Y), nav bar shrinks to make room for search circle.
-        // When misaligned, nav bar grows back to full 240dp.
-        
-        // Read saved positions to check alignment
-        val savedTabPos by com.rajatxo.coral.data.prefs.TabCapsulePosition.position.collectAsState()
-        val savedSearchPos by com.rajatxo.coral.data.prefs.SearchFabPosition.position.collectAsState()
-        
-        // Check if nav bar and search circle are aligned (same Y, within tolerance)
-        val tabYFrac = savedTabPos.second
-        val searchYFrac = savedSearchPos.second
-        val isAligned = kotlin.math.abs(tabYFrac - searchYFrac) < 0.02f  // ~2% tolerance
-        
-        // Nav bar width: shrinks when aligned, full when misaligned
-        val navBarWidth = if (isAligned) 190.dp else 240.dp  // 190 + 40 circle + gaps = ~240
-        
+        // Both fully draggable (long-press 3s + countdown + grid + drag anywhere).
+        // Both use kyant drawBackdrop for glass.
+        // Default positions: nav bar at bottom center, search circle next to it.
         CynthiaDraggableNavBar(
             tabs = cynthiaTabs,
             activeTab = selectedTab,
             onTabSelected = { tab -> selectedTab = tab },
-            backdrop = glassBackdrop,
-            navBarWidth = navBarWidth
+            backdrop = glassBackdrop
         )
 
         CynthiaDraggableSearchCircle(
-            xOffset = if (isAligned) {
-                // Positioned right of the nav bar
-                // Nav bar center is at savedTabPos.first * screenWidth
-                // Circle sits at navBarWidth/2 + gap + circleSize/2 from center
-                130.dp  // offset from center — will be refined
-            } else {
-                // Default right side
-                130.dp
-            },
             onSearchClick = { /* TODO: search screen */ },
             backdrop = glassBackdrop
         )

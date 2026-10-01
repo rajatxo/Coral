@@ -385,7 +385,6 @@ internal fun CynthiaDraggableNavBar(
 
 @Composable
 internal fun CynthiaDraggableSearchCircle(
-    xOffset: Dp = 16.dp,
     onSearchClick: () -> Unit = {},
     backdrop: LayerBackdrop? = null
 ) {
@@ -394,6 +393,7 @@ internal fun CynthiaDraggableSearchCircle(
     val scope = rememberCoroutineScope()
 
     var screenSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+    var currentXpx by remember { mutableStateOf(0f) }
     var currentYpx by remember { mutableStateOf(0f) }
     var isDragging by remember { mutableStateOf(false) }
     var isLongPressActivated by remember { mutableStateOf(false) }
@@ -440,10 +440,10 @@ internal fun CynthiaDraggableSearchCircle(
 
     val circleSize = 40.dp
     val circleSizePx = with(density) { circleSize.toPx() }
-    val fixedXpx = with(density) { xOffset.toPx() }
 
     androidx.compose.runtime.LaunchedEffect(savedPosition, screenSize) {
-        if (screenSize.height > 0) {
+        if (screenSize.width > 0 && screenSize.height > 0) {
+            currentXpx = savedPosition.first * screenSize.width
             currentYpx = savedPosition.second * screenSize.height
         }
     }
@@ -521,7 +521,7 @@ internal fun CynthiaDraggableSearchCircle(
                     modifier = Modifier
                         .offset {
                             androidx.compose.ui.unit.IntOffset(
-                                (fixedXpx - with(density) { 60.dp.toPx() }).toInt(),
+                                (currentXpx - with(density) { 60.dp.toPx() }).toInt(),
                                 (currentYpx - circleSizePx - with(density) { 50.dp.toPx() }).toInt()
                             )
                         }
@@ -603,7 +603,7 @@ internal fun CynthiaDraggableSearchCircle(
                 modifier = Modifier
                     .offset {
                         androidx.compose.ui.unit.IntOffset(
-                            (fixedXpx - circleSizePx / 2f).toInt()
+                            (currentXpx - circleSizePx / 2f).toInt()
                                 .coerceIn(0, (screenSize.width - circleSizePx).toInt()),
                             (currentYpx - circleSizePx / 2f).toInt()
                                 .coerceIn(0, (screenSize.height - circleSizePx).toInt())
@@ -666,10 +666,10 @@ internal fun CynthiaDraggableSearchCircle(
                                         change.consume()
                                         // Finger lifted
                                         if (isLongPressActivated) {
+                                            val newXFraction = (currentXpx / screenSize.width)
+                                                .coerceIn(0.05f, 0.95f)
                                             val newYFraction = (currentYpx / screenSize.height)
                                                 .coerceIn(0.05f, 0.95f)
-                                            val newXFraction = (fixedXpx / screenSize.width)
-                                                .coerceIn(0.5f, 0.97f)
                                             com.rajatxo.coral.data.prefs.SearchFabPosition
                                                 .setPosition(newXFraction, newYFraction)
                                         } else {
@@ -694,13 +694,15 @@ internal fun CynthiaDraggableSearchCircle(
                                         }
                                     }
 
-                                    // SMOOTH DRAGGING via delta tracking (Y only — X is
-                                    // fixed by the xOffset parameter so the circle stays
-                                    // pinned next to the nav bar):
+                                    // SMOOTH DRAGGING via delta tracking (both X and Y):
                                     if (isDragging) {
+                                        val deltaX = change.position.x - lastTouchX
                                         val deltaY = change.position.y - lastTouchY
+                                        currentXpx = (currentXpx + deltaX)
+                                            .coerceIn(circleSizePx / 2f, screenSize.width - circleSizePx / 2f)
                                         currentYpx = (currentYpx + deltaY)
                                             .coerceIn(circleSizePx / 2f, screenSize.height - circleSizePx / 2f)
+                                        lastTouchX = change.position.x
                                         lastTouchY = change.position.y
                                         change.consume()
                                     }

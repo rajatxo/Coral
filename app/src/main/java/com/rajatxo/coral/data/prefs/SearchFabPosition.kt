@@ -22,12 +22,12 @@ import kotlinx.coroutines.flow.asStateFlow
 object SearchFabPosition {
 
     private const val PREFS_NAME = "coral_prefs"
-    private const val KEY_X = "search_fab_x_v2"
-    private const val KEY_Y = "search_fab_y_v2"
+    private const val KEY_X = "search_fab_x_v3"  // bumped v2→v3 for new default (next to nav bar)
+    private const val KEY_Y = "search_fab_y_v3"
 
-    /** Default: 85% from left (right side), 65% from top (above mini player) */
-    private const val DEFAULT_X = 0.85f
-    private const val DEFAULT_Y = 0.65f
+    /** Default: next to the nav bar — same Y (0.89), slightly right of nav bar's right edge */
+    private const val DEFAULT_X = 0.86f
+    private const val DEFAULT_Y = 0.89f
 
     private lateinit var prefs: android.content.SharedPreferences
 
@@ -48,7 +48,7 @@ object SearchFabPosition {
      * Y is constrained to a usable range (0.1 - 0.95).
      */
     fun setPosition(xFraction: Float, yFraction: Float) {
-        val clampedX = xFraction.coerceIn(0.5f, 0.97f)  // right half only
+        val clampedX = xFraction.coerceIn(0.05f, 0.95f)  // full screen
         val clampedY = yFraction.coerceIn(0.05f, 0.95f)
         _position.value = Pair(clampedX, clampedY)
         prefs.edit()
