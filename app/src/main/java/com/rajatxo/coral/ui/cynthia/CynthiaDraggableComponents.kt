@@ -81,6 +81,11 @@ internal fun CynthiaDraggableNavBar(
     //   this to move the search FAB along with the nav bar when they're
     //   aligned (same horizontal line).
     onNavBarDragged: (Float, Float) -> Unit = { _, _ -> },
+    // ★ Fires when the nav bar drag ENDS, with the final saved (X, Y)
+    //   fractions. The caller uses this to recalculate the search FAB's
+    //   position DIRECTLY from the nav bar's final position — eliminating
+    //   any drift that accumulated during the delta-based linked movement.
+    onNavBarReleased: (Float, Float) -> Unit = { _, _ -> },
     // ★ Effective position — what the nav bar DISPLAYS at. This is separate
     //   from the SAVED position so the caller can make the nav bar display at
     //   center when misaligned WITHOUT overwriting the saved position. Only
@@ -95,10 +100,11 @@ internal fun CynthiaDraggableNavBar(
 
     // ★ CRITICAL: rememberUpdatedState ensures the pointerInput handler
     //   (which is keyed on tabs/activeTab and doesn't restart when
-    //   onNavBarDragged changes) always calls the LATEST lambda. Without
-    //   this, the pointerInput captures a STALE onNavBarDragged from the
-    //   first composition, and the search FAB never follows the nav bar.
+    //   onNavBarDragged/onNavBarReleased change) always calls the LATEST
+    //   lambdas. Without this, the pointerInput captures STALE lambdas from
+    //   the first composition.
     val currentOnNavBarDragged by rememberUpdatedState(onNavBarDragged)
+    val currentOnNavBarReleased by rememberUpdatedState(onNavBarReleased)
 
     var screenSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
     var currentXpx by remember { mutableStateOf(0f) }
@@ -365,6 +371,13 @@ internal fun CynthiaDraggableNavBar(
                                                 )
                                             com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition
                                                 .setPosition(newXFraction, newYFraction)
+                                            // ★ FIRE RELEASE CALLBACK — lets the caller
+                                            //   recalculate the search FAB's position
+                                            //   DIRECTLY from the nav bar's final saved
+                                            //   position. This eliminates any drift from
+                                            //   the delta-based linked movement (stale
+                                            //   state, clamping, frame delays).
+                                            currentOnNavBarReleased(newXFraction, newYFraction)
                                         }
                                         isDragging = false
                                         isLongPressActivated = false

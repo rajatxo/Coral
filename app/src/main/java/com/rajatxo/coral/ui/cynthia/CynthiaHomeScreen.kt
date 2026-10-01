@@ -326,6 +326,28 @@ fun CynthiaHomeScreen(
             }
         }
 
+        // ★ DRIFT CORRECTION on release — after the nav bar drag ends,
+        //   recalculate the search FAB's position DIRECTLY from the nav
+        //   bar's final saved position. This eliminates any drift that
+        //   accumulated during the delta-based linked movement (stale
+        //   state from collectAsState frame delay, clamping at boundaries,
+        //   frame-to-frame timing issues).
+        //   The search FAB is placed at:
+        //     searchFabX = navBarX + offsetFrac
+        //     searchFabY = navBarY
+        //   where offsetFrac = (navBarWidth/2 + gap + fabWidth/2) in px / screen width
+        //   = (75 + 120 + 26) = 221dp → as fraction of screen width.
+        val onNavBarReleased: (Float, Float) -> Unit = { finalNavBarX, finalNavBarY ->
+            if (screenWidthPx > 0) {
+                val offsetDp = 221.dp  // 75 (half 150dp nav) + 120 (gap) + 26 (half 52dp FAB)
+                val offsetPx = with(density) { offsetDp.toPx() }
+                val offsetFrac = offsetPx / screenWidthPx
+                val correctedSearchX = (finalNavBarX + offsetFrac).coerceIn(0.05f, 0.95f)
+                com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition
+                    .setPosition(correctedSearchX, finalNavBarY)
+            }
+        }
+
         // Animate nav bar width: 150dp (aligned) ↔ 240dp (misaligned)
         val navBarWidth by androidx.compose.animation.core.animateDpAsState(
             targetValue = if (isAligned) 150.dp else 240.dp,
@@ -343,6 +365,7 @@ fun CynthiaHomeScreen(
             backdrop = glassBackdrop,
             navBarWidth = navBarWidth,
             onNavBarDragged = onNavBarDragged,
+            onNavBarReleased = onNavBarReleased,
             // ★ Pass the effective position so the nav bar DISPLAYS at center
             //   when misaligned, without overwriting its saved position.
             effectiveX = navBarEffectiveX,
