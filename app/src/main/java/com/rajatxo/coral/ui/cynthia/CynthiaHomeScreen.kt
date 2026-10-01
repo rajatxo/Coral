@@ -82,6 +82,9 @@ fun CynthiaHomeScreen(
     val cynthiaTabs = listOf(CoralTab.QuickPicks, CoralTab.Songs, CoralTab.Playlists)
     var selectedTab by remember { mutableStateOf(CoralTab.QuickPicks) }
     var showSettings by remember { mutableStateOf(false) }
+    // ★ Customization panel state — shown when user holds nav bar or search
+    //   FAB for 5 seconds.
+    var showCustomizationPanel by remember { mutableStateOf(false) }
     val onSongClickWithReset: (Song) -> Unit = { song -> onSongClick(song) }
 
     // ─── Glass backdrop (EXACT same as Astra) ───
@@ -364,6 +367,7 @@ fun CynthiaHomeScreen(
             onTabSelected = { tab -> selectedTab = tab },
             backdrop = glassBackdrop,
             navBarWidth = navBarWidth,
+            onShowCustomizationPanel = { showCustomizationPanel = true },
             onNavBarDragged = onNavBarDragged,
             onNavBarReleased = onNavBarReleased,
             // ★ Pass the effective position so the nav bar DISPLAYS at center
@@ -374,7 +378,8 @@ fun CynthiaHomeScreen(
 
         CynthiaDraggableSearchCircle(
             onSearchClick = { /* TODO: search screen */ },
-            backdrop = glassBackdrop
+            backdrop = glassBackdrop,
+            onShowCustomizationPanel = { showCustomizationPanel = true }
         )
 
         // ═══ Settings overlay ═══
@@ -389,5 +394,13 @@ fun CynthiaHomeScreen(
                 onOpenSpiralPalette = { showSettings = false }
             )
         }
+
+        // ═══ Customization panel (floating glass panel) ═══
+        // Shown when user holds nav bar or search FAB for 5 seconds.
+        CynthiaCustomizationPanel(
+            visible = showCustomizationPanel,
+            onDismiss = { showCustomizationPanel = false },
+            backdrop = glassBackdrop
+        )
     }
 }

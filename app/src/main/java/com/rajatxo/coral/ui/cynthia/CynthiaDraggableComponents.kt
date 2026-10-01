@@ -76,6 +76,8 @@ internal fun CynthiaDraggableNavBar(
     onTabSelected: (CoralTab) -> Unit,
     backdrop: LayerBackdrop?,
     navBarWidth: Dp = 240.dp,
+    // ★ Fires when the user holds for 5 seconds — opens the customization panel.
+    onShowCustomizationPanel: () -> Unit = {},
     // ★ Linked-movement callback — fires with the (deltaX, deltaY) in PIXELS
     //   whenever the nav bar is dragged. The caller (CynthiaHomeScreen) uses
     //   this to move the search FAB along with the nav bar when they're
@@ -95,6 +97,8 @@ internal fun CynthiaDraggableNavBar(
     effectiveY: Float = 0.889f
 ) {
     val savedPosition by com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.position.collectAsState()
+    // ★ Read customization (size, corner, shape) from CynthiaNavBarCustomization.
+    val navCustom by com.rajatxo.coral.data.prefs.CynthiaNavBarCustomization.customization.collectAsState()
     val density = androidx.compose.ui.platform.LocalDensity.current
     val scope = rememberCoroutineScope()
 
@@ -105,6 +109,7 @@ internal fun CynthiaDraggableNavBar(
     //   the first composition.
     val currentOnNavBarDragged by rememberUpdatedState(onNavBarDragged)
     val currentOnNavBarReleased by rememberUpdatedState(onNavBarReleased)
+    val currentOnShowCustomizationPanel by rememberUpdatedState(onShowCustomizationPanel)
 
     var screenSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
     var currentXpx by remember { mutableStateOf(0f) }
@@ -151,8 +156,13 @@ internal fun CynthiaDraggableNavBar(
         label = "capsuleScale"
     )
 
-    val capsuleWidth = with(density) { navBarWidth.toPx() }
-    val capsuleHeight = with(density) { 52.dp.toPx() }
+    // ★ Use customization width/height if the caller didn't override navBarWidth.
+    //   If navBarWidth != 240.dp (the default), the caller (CynthiaHomeScreen)
+    //   is controlling the width via animation — respect that. Otherwise, use
+    //   the customization width.
+    val effectiveNavBarWidth = if (navBarWidth == 240.dp) navCustom.widthDp.dp else navBarWidth
+    val capsuleWidth = with(density) { effectiveNavBarWidth.toPx() }
+    val capsuleHeight = with(density) { navCustom.heightDp.dp.toPx() }
 
     // ★ Initialize currentXpx/currentYpx from the EFFECTIVE position.
     //   The effective position is computed by the caller (CynthiaHomeScreen):
@@ -345,13 +355,11 @@ internal fun CynthiaDraggableNavBar(
                                     countdownNumber = 1
                                     delay(1000L)
                                     showBubble = false
-                                    isLongPressActivated = true
-                                    isDragging = true
-                                    // Show scientist grid when drag mode starts
-                                    showGrid = true
-                                    // Record current touch position as baseline for delta tracking
-                                    lastTouchX = down.position.x
-                                    lastTouchY = down.position.y
+                                    // ★ Instead of entering drag mode, show the
+                                    //   customization panel. The user can enter
+                                    //   drag mode from the panel's "Reposition"
+                                    //   button (TODO) or just customize.
+                                    currentOnShowCustomizationPanel()
                                 }
 
                                 while (true) {
@@ -472,17 +480,19 @@ internal fun CynthiaDraggableNavBar(
 @Composable
 internal fun CynthiaDraggableSearchCircle(
     onSearchClick: () -> Unit = {},
-    backdrop: LayerBackdrop? = null
+    backdrop: LayerBackdrop? = null,
+    // ★ Fires when the user holds for 5 seconds — opens the customization panel.
+    onShowCustomizationPanel: () -> Unit = {}
 ) {
     val savedPosition by com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition.position.collectAsState()
-    // ★ Read the nav bar's SAVED position so we can snap the search FAB to
-    //   beside the nav bar when re-aligned. The search FAB's "default" is
-    //   NOT a fixed number — it's calculated from the nav bar's position:
-    //     searchFabDefaultX = navBarX + (navBarWidth/2 + gap + searchFabWidth/2)
-    //     searchFabDefaultY = navBarY (same horizontal line)
     val savedNavBarPosition by com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.position.collectAsState()
+    // ★ Read customization (size, corner, shape) from CynthiaSearchFabCustomization.
+    val searchCustom by com.rajatxo.coral.data.prefs.CynthiaSearchFabCustomization.customization.collectAsState()
     val density = androidx.compose.ui.platform.LocalDensity.current
     val scope = rememberCoroutineScope()
+
+    // ★ rememberUpdatedState so the pointerInput always calls the latest lambda.
+    val currentOnShowCustomizationPanel by rememberUpdatedState(onShowCustomizationPanel)
 
     var screenSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
     var currentXpx by remember { mutableStateOf(0f) }
@@ -530,7 +540,8 @@ internal fun CynthiaDraggableSearchCircle(
         label = "searchCircleScale"
     )
 
-    val circleSize = 52.dp
+    // ★ Use customization size instead of hardcoded 52.dp.
+    val circleSize = searchCustom.sizeDp.dp
     val circleSizePx = with(density) { circleSize.toPx() }
 
     androidx.compose.runtime.LaunchedEffect(savedPosition, screenSize) {
@@ -689,7 +700,9 @@ internal fun CynthiaDraggableSearchCircle(
             // Glass morphism: uses drawBackdrop (same AGSL real-time blur as
             //   the nav bar + mini player) when a backdrop is provided.
             //   Falls back to a dark translucent background when no backdrop.
-            val circleShape: androidx.compose.ui.graphics.Shape = CircleShape
+            //   ★ Shape from customization (Pill, Rectangle, Rounded, Circle, Squircle).
+            val circleShape: androidx.compose.ui.graphics.Shape =
+                searchCustom.shape.toComposeShape(searchCustom.cornerRadiusDp, searchCustom.sizeDp)
             val circleModifier = if (backdrop != null) {
                 Modifier
                     .clip(circleShape)
@@ -762,15 +775,10 @@ internal fun CynthiaDraggableSearchCircle(
                                     countdownNumber = 1
                                     delay(1000L)
 
-                                    // Phase 3: countdown done — hide bubble, enter drag mode
+                                    // Phase 3: countdown done — hide bubble, show
+                                    // the customization panel (instead of drag mode).
                                     showBubble = false
-                                    isLongPressActivated = true
-                                    isDragging = true
-                                    // Show scientist grid when drag mode starts
-                                    showGrid = true
-                                    // Record current touch position as baseline for delta tracking
-                                    lastTouchX = down.position.x
-                                    lastTouchY = down.position.y
+                                    currentOnShowCustomizationPanel()
                                 }
 
                                 while (true) {

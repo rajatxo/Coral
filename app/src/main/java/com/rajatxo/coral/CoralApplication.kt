@@ -24,6 +24,9 @@ class CoralApplication : Application() {
         //   UI do NOT bleed into the other.
         com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.init(this)
         com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition.init(this)
+        // ★ Cynthia customization prefs (size, corner, shape)
+        com.rajatxo.coral.data.prefs.CynthiaNavBarCustomization.init(this)
+        com.rajatxo.coral.data.prefs.CynthiaSearchFabCustomization.init(this)
         com.rajatxo.coral.data.prefs.SoundHapticsManager.init(this)
         com.rajatxo.coral.data.prefs.CrossfadeManager.init(this)
         com.rajatxo.coral.data.prefs.ThemeManager.init(this)
