@@ -70,7 +70,11 @@ fun TabCapsule(
     //   Cynthia passes these from the customization prefs. Astra doesn't pass
     //   them, so it uses the defaults — no behavior change for Astra.
     customWidth: Dp? = null,
-    customHeight: Dp? = null
+    customHeight: Dp? = null,
+    // ★ Optional custom shape. When null, uses default RoundedCornerShape(26.dp).
+    //   Cynthia passes the shape from the customization prefs so the corner
+    //   roundness / shape picker actually works.
+    customShape: Shape? = null
 ) {
     val view = LocalView.current
     val context = LocalContext.current
@@ -156,7 +160,7 @@ fun TabCapsule(
         }
     }
 
-    val capsuleShape: Shape = RoundedCornerShape(26.dp)
+    val capsuleShape: Shape = customShape ?: RoundedCornerShape(26.dp)
     // ★ Use custom width/height if provided (Cynthia), else defaults (Astra).
     val actualWidth = customWidth ?: 240.dp
     val actualHeight = customHeight ?: 52.dp

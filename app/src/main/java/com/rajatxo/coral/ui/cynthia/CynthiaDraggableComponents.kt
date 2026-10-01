@@ -332,27 +332,6 @@ internal fun CynthiaDraggableNavBar(
             val navBarShape: androidx.compose.ui.graphics.Shape =
                 navCustom.shape.toComposeShape(navCustom.cornerRadiusDp, navCustom.widthDp)
 
-            // ★ CHOICE MENU — shown after 5-sec hold. Two options: Drag / Manual.
-            if (showChoiceMenu) {
-                CynthiaChoiceMenu(
-                    anchorX = currentXpx,
-                    anchorY = currentYpx,
-                    onDrag = {
-                        showChoiceMenu = false
-                        isLongPressActivated = true
-                        isDragging = true
-                        showGrid = true
-                        lastTouchX = 0f
-                        lastTouchY = 0f
-                    },
-                    onManual = {
-                        showChoiceMenu = false
-                        currentOnShowCustomizationPanel(true)
-                    },
-                    onDismiss = { showChoiceMenu = false }
-                )
-            }
-
             Box(
                 modifier = Modifier
                     .offset {
@@ -486,11 +465,15 @@ internal fun CynthiaDraggableNavBar(
                     onTabSelected = onTabSelected,
                     backdrop = backdrop,
                     modifier = Modifier,
-                    // ★ Pass custom width/height from the customization prefs
-                    //   so the TabCapsule itself sizes correctly (it has
-                    //   hardcoded 240dp/52dp otherwise).
+                    // ★ Pass custom width/height/shape from the customization prefs
+                    //   so the TabCapsule sizes and shapes correctly (it has
+                    //   hardcoded 240dp/52dp/26dp-corner otherwise).
                     customWidth = navCustom.widthDp.dp,
-                    customHeight = navCustom.heightDp.dp
+                    customHeight = navCustom.heightDp.dp,
+                    customShape = navCustom.shape.toComposeShape(
+                        navCustom.cornerRadiusDp,
+                        navCustom.widthDp
+                    )
                 )
             }
         }
@@ -754,26 +737,6 @@ internal fun CynthiaDraggableSearchCircle(
             val circleShape: androidx.compose.ui.graphics.Shape =
                 searchCustom.shape.toComposeShape(searchCustom.cornerRadiusDp, searchCustom.sizeDp)
 
-            // ★ CHOICE MENU — shown after 5-sec hold. Two options: Drag / Manual.
-            if (showChoiceMenu) {
-                CynthiaChoiceMenu(
-                    anchorX = currentXpx,
-                    anchorY = currentYpx,
-                    onDrag = {
-                        showChoiceMenu = false
-                        isLongPressActivated = true
-                        isDragging = true
-                        showGrid = true
-                        lastTouchX = 0f
-                        lastTouchY = 0f
-                    },
-                    onManual = {
-                        showChoiceMenu = false
-                        currentOnShowCustomizationPanel(false)
-                    },
-                    onDismiss = { showChoiceMenu = false }
-                )
-            }
             val circleModifier = if (backdrop != null) {
                 Modifier
                     .clip(circleShape)
@@ -832,24 +795,18 @@ internal fun CynthiaDraggableSearchCircle(
 
                                 countdownJob?.cancel()
                                 countdownJob = scope.launch {
-                                    // Phase 1: hold for 2 seconds (no UI feedback)
-                                    delay(2000L)
-
-                                    // Phase 2: pop up the bubble with countdown
+                                    // ★ 3-sec hold total: show countdown 3→2→1,
+                                    //   then open the panel directly (no choice menu).
                                     showBubble = true
                                     countdownNumber = 3
                                     delay(1000L)
-
                                     countdownNumber = 2
                                     delay(1000L)
-
                                     countdownNumber = 1
                                     delay(1000L)
-
-                                    // Phase 3: countdown done — hide bubble, show
-                                    // the choice menu (instead of drag mode or panel).
                                     showBubble = false
-                                    showChoiceMenu = true
+                                    // ★ Open the customization panel directly.
+                                    currentOnShowCustomizationPanel(false)
                                 }
 
                                 while (true) {
