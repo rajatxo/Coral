@@ -270,8 +270,11 @@ fun CynthiaHomeScreen(
         //   - If misaligned (different Y) → nav bar goes to CENTER (0.5)
         //   - Magnetic pull: when search circle Y is within 3% of nav bar Y,
         //     snap search circle to exactly match nav bar Y
-        val savedTabPos by com.rajatxo.coral.data.prefs.TabCapsulePosition.position.collectAsState()
-        val savedSearchPos by com.rajatxo.coral.data.prefs.SearchFabPosition.position.collectAsState()
+        // ★ SEPARATE FROM ASTRA — uses CynthiaTabCapsulePosition and
+        //   CynthiaSearchFabPosition, NOT the shared Astra ones. Any change
+        //   in Astra's nav bar / search FAB position will NOT affect Cynthia.
+        val savedTabPos by com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.position.collectAsState()
+        val savedSearchPos by com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition.position.collectAsState()
 
         val tabY = savedTabPos.second
         val searchY = savedSearchPos.second
@@ -286,7 +289,7 @@ fun CynthiaHomeScreen(
         androidx.compose.runtime.LaunchedEffect(yDiff, tabY, searchY) {
             if (yDiff < 0.03f && yDiff > 0.001f) {
                 // Snap search Y to exactly match nav bar Y
-                com.rajatxo.coral.data.prefs.SearchFabPosition.setPosition(searchX, tabY)
+                com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition.setPosition(searchX, tabY)
             }
         }
 
@@ -295,7 +298,7 @@ fun CynthiaHomeScreen(
         // - Misaligned: nav bar moves to center (0.5)
         androidx.compose.runtime.LaunchedEffect(isAligned) {
             if (!isAligned) {
-                com.rajatxo.coral.data.prefs.TabCapsulePosition.setPosition(0.5f, tabY)
+                com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.setPosition(0.5f, tabY)
             }
         }
 

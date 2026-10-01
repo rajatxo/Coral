@@ -20,6 +20,10 @@ class CoralApplication : Application() {
         com.rajatxo.coral.data.prefs.SearchFabPosition.init(this)
         com.rajatxo.coral.data.prefs.ShuffleFabPosition.init(this)
         com.rajatxo.coral.data.prefs.TabCapsulePosition.init(this)
+        // ★ Cynthia-specific prefs — SEPARATE from Astra's so changes in one
+        //   UI do NOT bleed into the other.
+        com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.init(this)
+        com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition.init(this)
         com.rajatxo.coral.data.prefs.SoundHapticsManager.init(this)
         com.rajatxo.coral.data.prefs.CrossfadeManager.init(this)
         com.rajatxo.coral.data.prefs.ThemeManager.init(this)

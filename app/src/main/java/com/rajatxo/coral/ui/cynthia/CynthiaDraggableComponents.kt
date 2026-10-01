@@ -71,7 +71,7 @@ internal fun CynthiaDraggableNavBar(
     backdrop: LayerBackdrop?,
     navBarWidth: Dp = 240.dp
 ) {
-    val savedPosition by com.rajatxo.coral.data.prefs.TabCapsulePosition.position.collectAsState()
+    val savedPosition by com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.position.collectAsState()
     val density = androidx.compose.ui.platform.LocalDensity.current
     val scope = rememberCoroutineScope()
 
@@ -327,7 +327,7 @@ internal fun CynthiaDraggableNavBar(
                                                 .coerceIn(0.05f, 0.95f)
                                             val newYFraction = (currentYpx / screenSize.height)
                                                 .coerceIn(0.05f, 0.95f)
-                                            com.rajatxo.coral.data.prefs.TabCapsulePosition
+                                            com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition
                                                 .setPosition(newXFraction, newYFraction)
                                         }
                                         isDragging = false
@@ -411,7 +411,7 @@ internal fun CynthiaDraggableSearchCircle(
     onSearchClick: () -> Unit = {},
     backdrop: LayerBackdrop? = null
 ) {
-    val savedPosition by com.rajatxo.coral.data.prefs.SearchFabPosition.position.collectAsState()
+    val savedPosition by com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition.position.collectAsState()
     val density = androidx.compose.ui.platform.LocalDensity.current
     val scope = rememberCoroutineScope()
 
@@ -693,7 +693,7 @@ internal fun CynthiaDraggableSearchCircle(
                                                 .coerceIn(0.05f, 0.95f)
                                             val newYFraction = (currentYpx / screenSize.height)
                                                 .coerceIn(0.05f, 0.95f)
-                                            com.rajatxo.coral.data.prefs.SearchFabPosition
+                                            com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition
                                                 .setPosition(newXFraction, newYFraction)
                                         } else {
                                             // Short tap (before 2-second hold) → open search
