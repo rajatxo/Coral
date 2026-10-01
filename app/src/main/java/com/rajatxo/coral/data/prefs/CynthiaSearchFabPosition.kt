@@ -23,16 +23,13 @@ object CynthiaSearchFabPosition {
     private const val KEY_Y = "cynthia_search_fab_y_c2"
     // ★ Cynthia defaults — user-specified layout:
     //   - Y = 0.889 (SAME horizontal line as nav bar — they share Y)
-    //   - X = 0.565 (to the RIGHT of the nav bar with a gap)
-    //   Math (typical 393dp-wide phone):
-    //     Nav bar center X = 0.283 * 393 = 111dp
-    //     Nav bar right edge = 111 + 75 (half of 150dp width) = 186dp
-    //     Gap = 10dp
-    //     Search FAB center X = 186 + 10 + 26 (half of 52dp) = 222dp
-    //     As fraction = 222 / 393 ≈ 0.565
-    //   This puts the search FAB immediately to the right of the nav bar
-    //   with a 10dp gap, both on the same Y line (0.889).
-    private const val DEFAULT_X = 0.565f
+    //   - X = 0.846 (user-specified, to the RIGHT of the nav bar)
+    //   Gap between nav bar right edge and search FAB left edge ≈ 120dp
+    //   (on a 393dp-wide phone):
+    //     Nav bar center = 0.283 * 393 = 111dp, right edge = 111 + 75 = 186dp
+    //     Search FAB center = 0.846 * 393 = 332dp, left edge = 332 - 26 = 306dp
+    //     Gap = 306 - 186 = 120dp
+    private const val DEFAULT_X = 0.846f
     private const val DEFAULT_Y = 0.889f
 
     private lateinit var prefs: android.content.SharedPreferences

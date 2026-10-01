@@ -22,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -79,6 +80,13 @@ internal fun CynthiaDraggableNavBar(
     val savedPosition by com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.position.collectAsState()
     val density = androidx.compose.ui.platform.LocalDensity.current
     val scope = rememberCoroutineScope()
+
+    // ★ CRITICAL: rememberUpdatedState ensures the pointerInput handler
+    //   (which is keyed on tabs/activeTab and doesn't restart when
+    //   onNavBarDragged changes) always calls the LATEST lambda. Without
+    //   this, the pointerInput captures a STALE onNavBarDragged from the
+    //   first composition, and the search FAB never follows the nav bar.
+    val currentOnNavBarDragged by rememberUpdatedState(onNavBarDragged)
 
     var screenSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
     var currentXpx by remember { mutableStateOf(0f) }
@@ -368,7 +376,10 @@ internal fun CynthiaDraggableNavBar(
                                         lastTouchY = change.position.y
                                         // ★ LINKED MOVEMENT — fire the delta to the caller so the
                                         //   search FAB can follow the nav bar when they're aligned.
-                                        onNavBarDragged(deltaX, deltaY)
+                                        //   Uses currentOnNavBarDragged (rememberUpdatedState) so
+                                        //   the LATEST lambda is always called — not the stale one
+                                        //   from when pointerInput was first set up.
+                                        currentOnNavBarDragged(deltaX, deltaY)
                                         change.consume()
                                     }
                                 }
