@@ -26,7 +26,7 @@ object SearchFabPosition {
     private const val KEY_Y = "search_fab_y_v3"
 
     /** Default: next to the nav bar — same Y (0.89), slightly right of nav bar's right edge */
-    private const val DEFAULT_X = 0.86f
+    private const val DEFAULT_X = 0.88f
     private const val DEFAULT_Y = 0.89f
 
     private lateinit var prefs: android.content.SharedPreferences

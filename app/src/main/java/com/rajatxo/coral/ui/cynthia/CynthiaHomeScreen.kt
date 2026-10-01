@@ -263,12 +263,20 @@ fun CynthiaHomeScreen(
         // ═══ DRAGGABLE NAV BAR + SEARCH CIRCLE — siblings of layerBackdrop ═══
         // Both fully draggable (long-press 3s + countdown + grid + drag anywhere).
         // Both use kyant drawBackdrop for glass.
-        // Default positions: nav bar at bottom center, search circle next to it.
+        // When aligned (same Y): nav bar shrinks to 180dp, circle is 52dp, gap 8dp
+        //   → combined width = 180 + 8 + 52 = 240dp (same as original nav bar)
+        // When misaligned: nav bar grows back to full 240dp.
+        val savedTabPos by com.rajatxo.coral.data.prefs.TabCapsulePosition.position.collectAsState()
+        val savedSearchPos by com.rajatxo.coral.data.prefs.SearchFabPosition.position.collectAsState()
+        val isAligned = kotlin.math.abs(savedTabPos.second - savedSearchPos.second) < 0.02f
+        val navBarWidth = if (isAligned) 180.dp else 240.dp
+
         CynthiaDraggableNavBar(
             tabs = cynthiaTabs,
             activeTab = selectedTab,
             onTabSelected = { tab -> selectedTab = tab },
-            backdrop = glassBackdrop
+            backdrop = glassBackdrop,
+            navBarWidth = navBarWidth
         )
 
         CynthiaDraggableSearchCircle(
