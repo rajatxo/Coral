@@ -47,6 +47,11 @@ import com.rajatxo.coral.ui.icons.CoralIcons
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+// ★ Y CONSTRAINT — the nav bar can't move above this horizontal line.
+//   User-specified: Y = 0.794. The nav bar's Y (in screen fractions) must
+//   always be ≥ this value, so it stays in the bottom ~21% of the screen.
+private const val CYNTHIA_NAV_BAR_MIN_Y_FRAC = 0.794f
+
 // =============================================================================
 // CynthiaDraggableNavBar
 // =============================================================================
@@ -351,8 +356,13 @@ internal fun CynthiaDraggableNavBar(
                                         if (isLongPressActivated) {
                                             val newXFraction = (currentXpx / screenSize.width)
                                                 .coerceIn(0.05f, 0.95f)
+                                            // ★ Y CONSTRAINT on release — clamp the saved Y
+                                            //   so it can't go above 0.794.
                                             val newYFraction = (currentYpx / screenSize.height)
-                                                .coerceIn(0.05f, 0.95f)
+                                                .coerceIn(
+                                                    CYNTHIA_NAV_BAR_MIN_Y_FRAC,
+                                                    0.95f
+                                                )
                                             com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition
                                                 .setPosition(newXFraction, newYFraction)
                                         }
@@ -383,8 +393,16 @@ internal fun CynthiaDraggableNavBar(
                                         val deltaY = change.position.y - lastTouchY
                                         currentXpx = (currentXpx + deltaX)
                                             .coerceIn(capsuleWidth / 2f, screenSize.width - capsuleWidth / 2f)
+                                        // ★ Y CONSTRAINT — the nav bar can't move above the
+                                        //   horizontal line at Y = 0.794. So the minimum Y
+                                        //   (in pixels) is 0.794 * screen height. The max Y
+                                        //   stays at the bottom edge.
+                                        val minYpx = CYNTHIA_NAV_BAR_MIN_Y_FRAC * screenSize.height
                                         currentYpx = (currentYpx + deltaY)
-                                            .coerceIn(capsuleHeight / 2f, screenSize.height - capsuleHeight / 2f)
+                                            .coerceIn(
+                                                minYpx,
+                                                screenSize.height - capsuleHeight / 2f
+                                            )
                                         lastTouchX = change.position.x
                                         lastTouchY = change.position.y
                                         // ★ LINKED MOVEMENT — fire the delta to the caller so the

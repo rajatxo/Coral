@@ -301,22 +301,22 @@ fun CynthiaHomeScreen(
         val navBarEffectiveX = if (isAligned) tabX else 0.5f
         val navBarEffectiveY = tabY  // Y always uses the saved position
 
-        // ★ LINKED MOVEMENT — when the nav bar is dragged AND the search FAB
-        //   is aligned (same horizontal line), the search FAB follows the nav
-        //   bar. We track the nav bar's drag delta and apply the SAME delta to
-        //   the search FAB's saved position.
-        //   Implementation: CynthiaDraggableNavBar takes an `onNavBarDragged`
-        //   callback that fires with the delta (in pixels) whenever the nav bar
-        //   moves during a drag. Here we convert that to fractions and apply
-        //   to the search FAB's position IF they're aligned.
+        // ★ UNIVERSAL LINKED MOVEMENT — wherever the nav bar moves, the search
+        //   FAB follows it. ALWAYS. No alignment check. This maintains the
+        //   120dp gap and the same Y automatically (same delta applied to both).
+        //   The previous `if (isAligned)` guard caused a disconnect: during the
+        //   drag, savedTabPos doesn't change (only saved on release), but
+        //   searchY IS being updated. So abs(tabY - searchY) grew until it
+        //   exceeded 5% → isAligned became false → linked movement stopped.
+        //   Removing the guard makes the search FAB follow the nav bar forever.
         val configuration = androidx.compose.ui.platform.LocalConfiguration.current
         val density = androidx.compose.ui.platform.LocalDensity.current
         val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
         val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
         val onNavBarDragged: (Float, Float) -> Unit = { deltaXpx, deltaYpx ->
-            if (isAligned && screenWidthPx > 0 && screenHeightPx > 0) {
+            if (screenWidthPx > 0 && screenHeightPx > 0) {
                 // Move the search FAB by the same delta as the nav bar.
-                // This keeps the search FAB at a fixed offset from the nav bar.
+                // This keeps the search FAB at a fixed offset (120dp gap + same Y).
                 val deltaXfrac = deltaXpx / screenWidthPx
                 val deltaYfrac = deltaYpx / screenHeightPx
                 val newSearchX = (searchX + deltaXfrac).coerceIn(0.05f, 0.95f)
