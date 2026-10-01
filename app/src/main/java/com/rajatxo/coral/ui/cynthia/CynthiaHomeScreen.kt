@@ -276,7 +276,7 @@ fun CynthiaHomeScreen(
             activeTab = selectedTab,
             onTabSelected = { tab -> selectedTab = tab },
             backdrop = glassBackdrop,
-            navBarWidth = 196.dp
+            navBarWidth = 150.dp
         )
 
         CynthiaDraggableSearchCircle(

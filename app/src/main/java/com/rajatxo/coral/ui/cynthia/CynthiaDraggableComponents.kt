@@ -136,6 +136,28 @@ internal fun CynthiaDraggableNavBar(
     ) {
         if (screenSize.width > 0 && screenSize.height > 0) {
 
+            // ★ TEMPORARY: Show coordinates on screen when dragging
+            if (isDragging && screenSize.width > 0 && screenSize.height > 0) {
+                val xFrac = (currentXpx / screenSize.width).coerceIn(0f, 1f)
+                val yFrac = (currentYpx / screenSize.height).coerceIn(0f, 1f)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 100.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.Black.copy(alpha = 0.8f))
+                        .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text = "X: ${String.format("%.3f", xFrac)}  Y: ${String.format("%.3f", yFrac)}",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
             // --- Scientist grid overlay (fades in during drag mode) ---
             // Graph-paper style grid for precise alignment. Fades in when
             // drag mode starts, fades out when capsule is placed.
