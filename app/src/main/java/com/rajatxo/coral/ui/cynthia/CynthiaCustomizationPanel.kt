@@ -13,19 +13,22 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,28 +43,25 @@ import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.vibrancy
 import com.rajatxo.coral.data.prefs.CynthiaNavBarCustomization
 import com.rajatxo.coral.data.prefs.CynthiaSearchFabCustomization
+import com.rajatxo.coral.ui.theme.CalSansFamily
 
 /**
- * ★ PREMIUM FLOATING CUSTOMIZATION PANEL
+ * ★ PREMIUM SQUARE CUSTOMIZATION PANEL with ARC DIAL
  *
- * A floating square panel with rounded corners and kyant blur (same glass
- * morphism as the nav bar). Appears when the user holds the nav bar or
- * search FAB for 5 seconds. Lets the user customize:
- *   - Nav bar size (width, height)
- *   - Search FAB size
- *   - Corner roundness for both
- *   - Shape (Pill, Rectangle, Rounded, Circle, Squircle) for both
- *   - Position (X, Y sliders for both — TODO: can be added later)
+ * A square floating glass panel with:
+ *   - Stacked capsule tabs on top (Position X, Position Y, Width, etc.)
+ *   - An arc dial in the center (semi-circular gauge with gradient ticks,
+ *     needle, glowing dot — like the user's reference video)
+ *   - CalSans font everywhere
+ *   - Tick sound + haptic feedback on every value change
  *
- * The panel is centered on screen, with a dimmed background. Tapping
- * outside dismisses it. Has a "Done" button to close.
+ * Hold the nav bar or search FAB for 5 seconds → panel opens.
  */
 @Composable
 internal fun CynthiaCustomizationPanel(
     visible: Boolean,
     onDismiss: () -> Unit,
     backdrop: LayerBackdrop?,
-    // ★ true → show nav bar settings only, false → show search FAB settings only
     isNavBar: Boolean = true
 ) {
     AnimatedVisibility(
@@ -72,7 +72,7 @@ internal fun CynthiaCustomizationPanel(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.2f))
+                .background(Color.Black.copy(alpha = 0.3f))
                 .clickable(
                     interactionSource = MutableInteractionSource(),
                     indication = null,
@@ -80,20 +80,18 @@ internal fun CynthiaCustomizationPanel(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            // ★ COMPACT panel — 240dp wide, minimal padding. Small enough
-            //   to see the nav bar / search FAB changes happening behind it.
+            // ★ SQUARE panel — 300×320dp, glass morphism, rounded 24dp corners
             Box(
                 modifier = Modifier
-                    .padding(horizontal = 48.dp)
-                    .width(240.dp)
+                    .padding(horizontal = 36.dp)
+                    .size(width = 300.dp, height = 340.dp)
                     .clickable(
                         interactionSource = MutableInteractionSource(),
                         indication = null,
                         onClick = {} // consume click so it doesn't dismiss
                     )
             ) {
-                // ★ Glass morphism background — same kyant blur as nav bar
-                val panelShape = RoundedCornerShape(20.dp)
+                val panelShape = RoundedCornerShape(24.dp)
                 Box(
                     modifier = Modifier
                         .clip(panelShape)
@@ -112,15 +110,15 @@ internal fun CynthiaCustomizationPanel(
                                         blur(30f.dp.toPx())
                                     },
                                     onDrawSurface = {
-                                        drawRect(Color.Black.copy(alpha = 0.4f))
+                                        drawRect(Color.Black.copy(alpha = 0.45f))
                                     }
                                 )
                             } else {
-                                Modifier.background(Color(0xFF1A1A1A).copy(alpha = 0.9f))
+                                Modifier.background(Color(0xFF1A1A1A).copy(alpha = 0.92f))
                             }
                         )
                         .border(1.dp, Color.White.copy(alpha = 0.2f), panelShape)
-                        .padding(14.dp)
+                        .padding(16.dp)
                 ) {
                     CustomizationPanelContent(
                         onDismiss = onDismiss,
@@ -139,16 +137,67 @@ private fun CustomizationPanelContent(
 ) {
     val navCustom by CynthiaNavBarCustomization.customization.collectAsState()
     val searchCustom by CynthiaSearchFabCustomization.customization.collectAsState()
-    // ★ Read saved search FAB position for the position sliders
     val savedSearchPos by com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition.position.collectAsState()
-    // ★ Read saved nav bar position for the position sliders
     val savedTabPos by com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.position.collectAsState()
 
+    // ★ Which field is selected for the arc dial. Defaults to first field.
+    //   Each field has: label, current value, range, suffix, setter.
+    data class Field(
+        val label: String,
+        val value: Float,
+        val range: ClosedFloatingPointRange<Float>,
+        val suffix: String,
+        val onValueChange: (Float) -> Unit
+    )
+
+    val fields: List<Field> = if (isNavBar) {
+        listOf(
+            Field("Position X", savedTabPos.first * 100f, 5f..95f, "%") { x ->
+                com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition
+                    .setPosition(x / 100f, savedTabPos.second)
+            },
+            Field("Position Y", savedTabPos.second * 100f, 79.4f..95f, "%") { y ->
+                com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition
+                    .setPosition(savedTabPos.first, y / 100f)
+            },
+            Field("Width", navCustom.widthDp, 100f..320f, "dp") {
+                CynthiaNavBarCustomization.setWidth(it)
+            },
+            Field("Height", navCustom.heightDp, 40f..150f, "dp") {
+                CynthiaNavBarCustomization.setHeight(it)
+            },
+            Field("Corner", navCustom.cornerRadiusDp, 0f..50f, "dp") {
+                CynthiaNavBarCustomization.setCornerRadius(it)
+            }
+        )
+    } else {
+        listOf(
+            Field("Position X", savedSearchPos.first * 100f, 5f..95f, "%") { x ->
+                com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition
+                    .setPosition(x / 100f, savedSearchPos.second)
+            },
+            Field("Position Y", savedSearchPos.second * 100f, 5f..95f, "%") { y ->
+                com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition
+                    .setPosition(savedSearchPos.first, y / 100f)
+            },
+            Field("Size", searchCustom.sizeDp, 36f..80f, "dp") {
+                CynthiaSearchFabCustomization.setSize(it)
+            },
+            Field("Corner", searchCustom.cornerRadiusDp, 0f..50f, "dp") {
+                CynthiaSearchFabCustomization.setCornerRadius(it)
+            }
+        )
+    }
+
+    // Currently selected field index
+    var selectedField by remember { mutableStateOf(0) }
+    val currentField = fields[selectedField]
+
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Header — dynamic title based on which element is being customized
+        // ★ Header row — title + close button
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -159,9 +208,8 @@ private fun CustomizationPanelContent(
                 color = Color.White,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
-                fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
+                fontFamily = CalSansFamily
             )
-            // Done button
             Box(
                 modifier = Modifier
                     .size(26.dp)
@@ -179,202 +227,111 @@ private fun CustomizationPanelContent(
                     color = Color.White,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
+                    fontFamily = CalSansFamily
                 )
             }
         }
 
-        // ★ Only show the relevant section
-        if (isNavBar) {
-            // ─── NAV BAR SECTION ───
-            // ★ Position X slider — manually set the nav bar's X position
-            SliderRow(
-                label = "Position X",
-                value = savedTabPos.first * 100f,
-                range = 5f..95f,
-                suffix = "%",
-                onValueChange = { xPercent ->
-                    com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition
-                        .setPosition(xPercent / 100f, savedTabPos.second)
+        // ★ Capsule tabs — stacked vertically, scrollable if too many
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            fields.forEachIndexed { index, field ->
+                val isSelected = index == selectedField
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(
+                            if (isSelected) Color.White.copy(alpha = 0.25f)
+                            else Color.White.copy(alpha = 0.08f)
+                        )
+                        .border(
+                            1.dp,
+                            if (isSelected) Color.White else Color.White.copy(alpha = 0.1f),
+                            RoundedCornerShape(16.dp)
+                        )
+                        .clickable(
+                            interactionSource = MutableInteractionSource(),
+                            indication = null,
+                            onClick = { selectedField = index }
+                        )
+                        .padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = field.label,
+                        color = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f),
+                        fontSize = 12.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        fontFamily = CalSansFamily
+                    )
+                    Text(
+                        text = "${field.value.toInt()}${field.suffix}",
+                        color = if (isSelected) Color.White else Color.White.copy(alpha = 0.5f),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = CalSansFamily
+                    )
                 }
-            )
-
-            // ★ Position Y slider — manually set the nav bar's Y position
-            //   (constrained to ≥ 0.794 by the drag handler, but the slider
-            //   allows 5%-95% so the user can set it freely)
-            SliderRow(
-                label = "Position Y",
-                value = savedTabPos.second * 100f,
-                range = 79.4f..95f,
-                suffix = "%",
-                onValueChange = { yPercent ->
-                    com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition
-                        .setPosition(savedTabPos.first, yPercent / 100f)
-                }
-            )
-
-            // Width slider
-            SliderRow(
-                label = "Width",
-                value = navCustom.widthDp,
-                range = 100f..320f,
-                suffix = "dp",
-                onValueChange = { CynthiaNavBarCustomization.setWidth(it) }
-            )
-
-            // Height slider — max 150dp so the nav bar can be tall but stays
-            // within the Y constraint (0.794 * screen height ≈ 164dp from bottom).
-            SliderRow(
-                label = "Height",
-                value = navCustom.heightDp,
-                range = 40f..150f,
-                suffix = "dp",
-                onValueChange = { CynthiaNavBarCustomization.setHeight(it) }
-            )
-
-            // Corner radius slider
-            SliderRow(
-                label = "Corner",
-                value = navCustom.cornerRadiusDp,
-                range = 0f..50f,
-                suffix = "dp",
-                onValueChange = { CynthiaNavBarCustomization.setCornerRadius(it) }
-            )
-
-            // Shape picker
-            ShapePicker(
-                selected = navCustom.shape,
-                onSelected = { CynthiaNavBarCustomization.setShape(it) }
-            )
-
-            // Reset button
-            ResetButton {
-                CynthiaNavBarCustomization.reset()
-            }
-        } else {
-            // ─── SEARCH FAB SECTION ───
-            // ★ Position X slider — manually set the search FAB's X position
-            SliderRow(
-                label = "Position X",
-                value = savedSearchPos.first * 100f,
-                range = 5f..95f,
-                suffix = "%",
-                onValueChange = { xPercent ->
-                    com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition
-                        .setPosition(xPercent / 100f, savedSearchPos.second)
-                }
-            )
-
-            // ★ Position Y slider — manually set the search FAB's Y position
-            SliderRow(
-                label = "Position Y",
-                value = savedSearchPos.second * 100f,
-                range = 5f..95f,
-                suffix = "%",
-                onValueChange = { yPercent ->
-                    com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition
-                        .setPosition(savedSearchPos.first, yPercent / 100f)
-                }
-            )
-
-            // Size slider
-            SliderRow(
-                label = "Size",
-                value = searchCustom.sizeDp,
-                range = 36f..80f,
-                suffix = "dp",
-                onValueChange = { CynthiaSearchFabCustomization.setSize(it) }
-            )
-
-            // Corner radius slider
-            SliderRow(
-                label = "Corner",
-                value = searchCustom.cornerRadiusDp,
-                range = 0f..50f,
-                suffix = "dp",
-                onValueChange = { CynthiaSearchFabCustomization.setCornerRadius(it) }
-            )
-
-            // Shape picker
-            ShapePicker(
-                selected = searchCustom.shape,
-                onSelected = { CynthiaSearchFabCustomization.setShape(it) }
-            )
-
-            // Reset button
-            ResetButton {
-                CynthiaSearchFabCustomization.reset()
             }
         }
-    }
-}
 
-@Composable
-private fun ResetButton(onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(32.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.1f))
-            .clickable(
-                interactionSource = MutableInteractionSource(),
-                indication = null,
-                onClick = onClick
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = "Reset to Defaults",
-            color = Color.White,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
-            fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // ★ ARC DIAL — the semi-circular gauge from the reference video.
+        // Shows the currently selected field. Drag along the arc to change
+        // the value. Tick sound + haptic on each step.
+        CynthiaArcDial(
+            label = currentField.label,
+            value = currentField.value,
+            range = currentField.range,
+            suffix = currentField.suffix,
+            onValueChange = currentField.onValueChange,
+            modifier = Modifier.fillMaxWidth()
         )
-    }
-}
 
-@Composable
-private fun SliderRow(
-    label: String,
-    value: Float,
-    range: ClosedFloatingPointRange<Float>,
-    suffix: String,
-    onValueChange: (Float) -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(0.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // ★ Shape picker (still useful — shapes don't fit on a dial)
+        ShapePicker(
+            selected = if (isNavBar) navCustom.shape else searchCustom.shape,
+            onSelected = {
+                if (isNavBar) CynthiaNavBarCustomization.setShape(it)
+                else CynthiaSearchFabCustomization.setShape(it)
+            }
+        )
+
+        // ★ Reset button
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(30.dp)
+                .clip(RoundedCornerShape(15.dp))
+                .background(Color.White.copy(alpha = 0.1f))
+                .clickable(
+                    interactionSource = MutableInteractionSource(),
+                    indication = null,
+                    onClick = {
+                        if (isNavBar) CynthiaNavBarCustomization.reset()
+                        else CynthiaSearchFabCustomization.reset()
+                    }
+                ),
+            contentAlignment = Alignment.Center
         ) {
             Text(
-                text = label,
-                color = Color.White.copy(alpha = 0.8f),
-                fontSize = 12.sp,
-                fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
-            )
-            Text(
-                text = "${value.toInt()}$suffix",
+                text = "Reset to Defaults",
                 color = Color.White,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                fontFamily = CalSansFamily
             )
         }
-        Slider(
-            value = value,
-            onValueChange = onValueChange,
-            valueRange = range,
-            colors = SliderDefaults.colors(
-                thumbColor = Color.White,
-                activeTrackColor = Color.White.copy(alpha = 0.6f),
-                inactiveTrackColor = Color.White.copy(alpha = 0.2f)
-            )
-        )
     }
 }
 
@@ -391,7 +348,7 @@ private fun ShapePicker(
             text = "Shape",
             color = Color.White.copy(alpha = 0.8f),
             fontSize = 12.sp,
-            fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
+            fontFamily = CalSansFamily
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -425,7 +382,7 @@ private fun ShapePicker(
                         color = if (isSelected) Color.White else Color.White.copy(alpha = 0.6f),
                         fontSize = 9.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                        fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
+                        fontFamily = CalSansFamily
                     )
                 }
             }
