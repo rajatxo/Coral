@@ -359,6 +359,11 @@ fun HomeScreen(
                     songId = currentSongId,
                     artist = currentSongArtist
                 )
+                // ★ Also record the daily play count for "Today's Top"
+                com.rajatxo.coral.data.prefs.PlaybackHistory.recordDailyPlay(
+                    songId = currentSongId,
+                    artist = currentSongArtist
+                )
             }
         }
         val onSongClickWithReset: (Song) -> Unit = { song ->

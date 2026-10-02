@@ -49,6 +49,7 @@ object PlaybackHistory {
     fun init(context: Context) {
         prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         load()
+        loadDailyPlays()
     }
 
     private fun load() {
@@ -124,5 +125,126 @@ object PlaybackHistory {
             .remove(KEY_SONG_IDS)
             .remove(KEY_ARTISTS)
             .apply()
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    //  DAILY PLAY COUNTS — for "Today's Top" feature
+    // ════════════════════════════════════════════════════════════════
+    // Tracks how many times each song was played TODAY (calendar day,
+    // resets at midnight). Used by the "Today's Top" row on Quick Picks.
+    //
+    // Storage:
+    //   - Key: "daily_plays_v1" → JSON: {"date": "2026-10-02", "counts": {"123": 5, "456": 3}}
+    //   - On read: if the stored date != today, the counts are cleared
+    //     (new day = fresh start).
+    // ════════════════════════════════════════════════════════════════
+
+    private const val KEY_DAILY_PLAYS = "daily_plays_v1"
+
+    data class DailyPlayCount(
+        val songId: Long,
+        val artist: String,
+        val playCount: Int
+    )
+
+    private val _dailyPlays = MutableStateFlow<List<DailyPlayCount>>(emptyList())
+    val dailyPlays: StateFlow<List<DailyPlayCount>> = _dailyPlays.asStateFlow()
+
+    /**
+     * Get today's date as "YYYY-MM-DD" string.
+     */
+    private fun todayString(): String {
+        val cal = java.util.Calendar.getInstance()
+        return String.format(
+            "%04d-%02d-%02d",
+            cal.get(java.util.Calendar.YEAR),
+            cal.get(java.util.Calendar.MONTH) + 1,
+            cal.get(java.util.Calendar.DAY_OF_MONTH)
+        )
+    }
+
+    /**
+     * Load daily play counts. If the stored date is not today, clear
+     * the counts (new day = fresh start).
+     */
+    private fun loadDailyPlays() {
+        try {
+            val json = prefs.getString(KEY_DAILY_PLAYS, null) ?: return
+            val root = org.json.JSONObject(json)
+            val storedDate = root.optString("date", "")
+            if (storedDate != todayString()) {
+                // New day — clear the counts
+                prefs.edit().remove(KEY_DAILY_PLAYS).apply()
+                _dailyPlays.value = emptyList()
+                return
+            }
+            val counts = root.optJSONObject("counts") ?: return
+            val artists = root.optJSONObject("artists") ?: return
+            val list = mutableListOf<DailyPlayCount>()
+            val keys = counts.keys()
+            while (keys.hasNext()) {
+                val idStr = keys.next()
+                val id = idStr.toLongOrNull() ?: continue
+                val count = counts.optInt(idStr, 0)
+                val artist = artists.optString(idStr, "")
+                if (count > 0) {
+                    list.add(DailyPlayCount(id, artist, count))
+                }
+            }
+            // Sort by play count descending
+            list.sortByDescending { it.playCount }
+            _dailyPlays.value = list
+        } catch (_: Exception) {
+            _dailyPlays.value = emptyList()
+        }
+    }
+
+    /**
+     * Record a play for [songId] by [artist] — increments the daily
+     * play count. Called whenever a song is played.
+     */
+    @Synchronized
+    fun recordDailyPlay(songId: Long, artist: String) {
+        if (songId <= 0L) return
+        val current = _dailyPlays.value.toMutableList()
+        val existing = current.find { it.songId == songId }
+        if (existing != null) {
+            val idx = current.indexOf(existing)
+            current[idx] = existing.copy(playCount = existing.playCount + 1)
+        } else {
+            current.add(DailyPlayCount(songId, artist, 1))
+        }
+        // Sort by play count descending
+        current.sortByDescending { it.playCount }
+        _dailyPlays.value = current
+        saveDailyPlays(current)
+    }
+
+    private fun saveDailyPlays(entries: List<DailyPlayCount>) {
+        try {
+            val root = org.json.JSONObject()
+            root.put("date", todayString())
+            val counts = org.json.JSONObject()
+            val artists = org.json.JSONObject()
+            entries.forEach { entry ->
+                counts.put(entry.songId.toString(), entry.playCount)
+                artists.put(entry.songId.toString(), entry.artist)
+            }
+            root.put("counts", counts)
+            root.put("artists", artists)
+            prefs.edit().putString(KEY_DAILY_PLAYS, root.toString()).apply()
+        } catch (_: Exception) { }
+    }
+
+    /**
+     * Get the top [n] most-played songs today (by play count).
+     * Returns at most [n] entries.
+     */
+    fun getTopPlayedToday(n: Int): List<DailyPlayCount> {
+        // Ensure we've loaded (in case init hasn't happened yet)
+        if (_dailyPlays.value.isEmpty() && ::prefs.isInitialized) {
+            loadDailyPlays()
+        }
+        return _dailyPlays.value.take(n)
     }
 }
