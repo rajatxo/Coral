@@ -197,16 +197,18 @@ private fun CustomizationPanelContent(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // ★ Header row — title + close button
+        // ★ Header row — title + selected field + value, then close button
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // ★ Title with selected field label and current value
+            //   e.g., "Nav Bar: Position X — 39%"
             Text(
-                text = if (isNavBar) "Nav Bar" else "Search Button",
+                text = "${if (isNavBar) "Nav Bar" else "Search Button"}: ${currentField.label} — ${currentField.value.toInt()}${currentField.suffix}",
                 color = Color.White,
-                fontSize = 16.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = CalSansFamily
             )
