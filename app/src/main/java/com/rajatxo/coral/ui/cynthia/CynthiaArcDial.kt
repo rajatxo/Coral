@@ -276,46 +276,18 @@ internal fun CynthiaArcDial(
             )
         }
 
-        // ★ NUMBER inside the arc's half-circle (down, no label) + Reset button beside it.
-        //   The number sits in the empty space inside the arc. The reset button
-        //   is a small circular button right beside the number.
-        Row(
+        // ★ NUMBER at the very bottom center of the arc (no label, no reset icon).
+        //   Just the value + suffix, pushed to the bottom of the arc's half-circle.
+        Text(
+            text = "${value.toInt()}$suffix",
+            color = Color.White,
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = CalSansFamily,
             modifier = Modifier
-                .align(Alignment.Center)
-                .padding(bottom = 24.dp),  // push down into the arc's half-circle
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // The big number (no label, just the value + suffix)
-            Text(
-                text = "${value.toInt()}$suffix",
-                color = Color.White,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = CalSansFamily
-            )
-            // Reset button (small circular arrow icon)
-            Box(
-                modifier = Modifier
-                    .size(24.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White.copy(alpha = 0.15f))
-                    .clickable(
-                        interactionSource = MutableInteractionSource(),
-                        indication = null,
-                        onClick = { onReset() }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "↺",
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = CalSansFamily
-                )
-            }
-        }
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 8.dp)
+        )
 
         // ★ +1 / -1 buttons at the bottom-left and bottom-right of the arc.
         //   Added more space (24dp) between the arc and the buttons so they

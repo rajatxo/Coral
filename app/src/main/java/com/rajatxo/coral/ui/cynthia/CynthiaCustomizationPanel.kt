@@ -95,7 +95,7 @@ internal fun CynthiaCustomizationPanel(
             Box(
                 modifier = Modifier
                     .padding(horizontal = 36.dp)
-                    .size(width = 300.dp, height = 340.dp)
+                    .size(width = 320.dp, height = 440.dp)
                     .offset { androidx.compose.ui.unit.IntOffset(cardOffsetX.toInt(), cardOffsetY.toInt()) }
                     .clickable(
                         interactionSource = MutableInteractionSource(),
@@ -239,40 +239,69 @@ private fun CustomizationPanelContent(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // ★ Header row — title + selected field + value, then close button
+        // ★ Header row — title + Reset button + close button
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // ★ Title with selected field label and current value
-            //   e.g., "Nav Bar: Position X — 39%"
+            // Title (Nav Bar / Search Button)
             Text(
-                text = "${if (isNavBar) "Nav Bar" else "Search Button"}: ${currentField.label} — ${currentField.value.toInt()}${currentField.suffix}",
+                text = if (isNavBar) "Nav Bar" else "Search Button",
                 color = Color.White,
-                fontSize = 13.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = CalSansFamily
             )
-            Box(
-                modifier = Modifier
-                    .size(26.dp)
-                    .clip(RoundedCornerShape(13.dp))
-                    .background(Color.White.copy(alpha = 0.15f))
-                    .clickable(
-                        interactionSource = MutableInteractionSource(),
-                        indication = null,
-                        onClick = onDismiss
-                    ),
-                contentAlignment = Alignment.Center
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "✕",
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = CalSansFamily
-                )
+                // Reset button (text)
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(Color.White.copy(alpha = 0.15f))
+                        .clickable(
+                            interactionSource = MutableInteractionSource(),
+                            indication = null,
+                            onClick = {
+                                if (isNavBar) CynthiaNavBarCustomization.reset()
+                                else CynthiaSearchFabCustomization.reset()
+                            }
+                        )
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Reset",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = CalSansFamily
+                    )
+                }
+                // Close button (✕)
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(Color.White.copy(alpha = 0.15f))
+                        .clickable(
+                            interactionSource = MutableInteractionSource(),
+                            indication = null,
+                            onClick = onDismiss
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "✕",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = CalSansFamily
+                    )
+                }
             }
         }
 
