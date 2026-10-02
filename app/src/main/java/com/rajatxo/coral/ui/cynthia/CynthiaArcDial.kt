@@ -8,7 +8,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -62,6 +64,7 @@ internal fun CynthiaArcDial(
     range: ClosedFloatingPointRange<Float>,
     suffix: String,
     onValueChange: (Float) -> Unit,
+    onReset: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -273,13 +276,54 @@ internal fun CynthiaArcDial(
             )
         }
 
+        // ★ NUMBER inside the arc's half-circle (down, no label) + Reset button beside it.
+        //   The number sits in the empty space inside the arc. The reset button
+        //   is a small circular button right beside the number.
+        Row(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(bottom = 24.dp),  // push down into the arc's half-circle
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // The big number (no label, just the value + suffix)
+            Text(
+                text = "${value.toInt()}$suffix",
+                color = Color.White,
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = CalSansFamily
+            )
+            // Reset button (small circular arrow icon)
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.15f))
+                    .clickable(
+                        interactionSource = MutableInteractionSource(),
+                        indication = null,
+                        onClick = { onReset() }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "↺",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = CalSansFamily
+                )
+            }
+        }
+
         // ★ +1 / -1 buttons at the bottom-left and bottom-right of the arc.
-        //   Lets the user nudge the value by exactly 1 unit (in addition to
-        //   dragging the arc). Fires tick sound + haptic on each tap.
+        //   Added more space (24dp) between the arc and the buttons so they
+        //   don't overlap the ticks.
         Box(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = 8.dp, bottom = 4.dp)
+                .padding(start = 24.dp, bottom = 4.dp)
                 .size(32.dp)
                 .clip(RoundedCornerShape(16.dp))
                 .background(Color.White.copy(alpha = 0.12f))
@@ -307,7 +351,7 @@ internal fun CynthiaArcDial(
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 8.dp, bottom = 4.dp)
+                .padding(end = 24.dp, bottom = 4.dp)
                 .size(32.dp)
                 .clip(RoundedCornerShape(16.dp))
                 .background(Color.White.copy(alpha = 0.12f))

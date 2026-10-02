@@ -8,6 +8,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,8 +18,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -33,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -64,6 +68,11 @@ internal fun CynthiaCustomizationPanel(
     backdrop: LayerBackdrop?,
     isNavBar: Boolean = true
 ) {
+    // ★ Draggable card state — the user can move the card anywhere by
+    //   dragging the handle bar at the top.
+    var cardOffsetX by remember { mutableStateOf(0f) }
+    var cardOffsetY by remember { mutableStateOf(0f) }
+
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn() + scaleIn(initialScale = 0.8f),
@@ -80,11 +89,14 @@ internal fun CynthiaCustomizationPanel(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            // ★ SQUARE panel — 300×320dp, glass morphism, rounded 24dp corners
+            // ★ SQUARE panel — 300×340dp, glass morphism, rounded 24dp corners.
+            //   Draggable via offset (cardOffsetX, cardOffsetY) updated by the
+            //   drag handle at the top.
             Box(
                 modifier = Modifier
                     .padding(horizontal = 36.dp)
                     .size(width = 300.dp, height = 340.dp)
+                    .offset { androidx.compose.ui.unit.IntOffset(cardOffsetX.toInt(), cardOffsetY.toInt()) }
                     .clickable(
                         interactionSource = MutableInteractionSource(),
                         indication = null,
@@ -118,12 +130,42 @@ internal fun CynthiaCustomizationPanel(
                             }
                         )
                         .border(1.dp, Color.White.copy(alpha = 0.2f), panelShape)
-                        .padding(16.dp)
                 ) {
-                    CustomizationPanelContent(
-                        onDismiss = onDismiss,
-                        isNavBar = isNavBar
-                    )
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        // ★ iOS-style drag handle bar at the top center.
+                        //   User holds and drags this to move the card.
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(24.dp)
+                                .pointerInput(Unit) {
+                                    detectDragGestures(
+                                        onDrag = { change, dragAmount ->
+                                            change.consume()
+                                            cardOffsetX += dragAmount.x
+                                            cardOffsetY += dragAmount.y
+                                        }
+                                    )
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            // The handle bar (small rounded pill)
+                            Box(
+                                modifier = Modifier
+                                    .width(40.dp)
+                                    .height(4.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(Color.White.copy(alpha = 0.4f))
+                            )
+                        }
+                        // Panel content (with padding)
+                        Box(modifier = Modifier.padding(16.dp)) {
+                            CustomizationPanelContent(
+                                onDismiss = onDismiss,
+                                isNavBar = isNavBar
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -288,13 +330,19 @@ private fun CustomizationPanelContent(
 
         // ★ ARC DIAL — the semi-circular gauge from the reference video.
         // Shows the currently selected field. Drag along the arc to change
-        // the value. Tick sound + haptic on each step.
+        // the value. Tick sound + haptic on each step. The reset button is
+        // now INSIDE the arc (beside the big number), so no separate reset
+        // button at the bottom.
         CynthiaArcDial(
             label = currentField.label,
             value = currentField.value,
             range = currentField.range,
             suffix = currentField.suffix,
             onValueChange = currentField.onValueChange,
+            onReset = {
+                if (isNavBar) CynthiaNavBarCustomization.reset()
+                else CynthiaSearchFabCustomization.reset()
+            },
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -308,32 +356,6 @@ private fun CustomizationPanelContent(
                 else CynthiaSearchFabCustomization.setShape(it)
             }
         )
-
-        // ★ Reset button
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(30.dp)
-                .clip(RoundedCornerShape(15.dp))
-                .background(Color.White.copy(alpha = 0.1f))
-                .clickable(
-                    interactionSource = MutableInteractionSource(),
-                    indication = null,
-                    onClick = {
-                        if (isNavBar) CynthiaNavBarCustomization.reset()
-                        else CynthiaSearchFabCustomization.reset()
-                    }
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "Reset to Defaults",
-                color = Color.White,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                fontFamily = CalSansFamily
-            )
-        }
     }
 }
 

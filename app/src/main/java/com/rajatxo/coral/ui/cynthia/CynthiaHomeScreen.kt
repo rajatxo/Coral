@@ -290,78 +290,21 @@ fun CynthiaHomeScreen(
         val tabX = savedTabPos.first
         val searchX = savedSearchPos.first
 
-        // Aligned = search FAB is on the same horizontal line as the nav bar
-        // (small Y misalignment up to 5% is acceptable — "around the nav bar")
-        val yDiff = kotlin.math.abs(tabY - searchY)
-        val isAligned = yDiff < 0.05f
+        // ★ SIMPLE — no auto-center, no linked movement. The nav bar and
+        //   search FAB each use their own SAVED position directly. The user
+        //   moves them manually via the customization panel. Where the user
+        //   sets it, there it stays. No magic, no confusion.
 
-        // ★ DYNAMIC DEFAULT — the nav bar's "default" IS its saved position
-        //   (wherever the user last dragged it). NOT a fixed number.
-        //   - When aligned: nav bar DISPLAYS at its saved position (tabX, tabY).
-        //   - When misaligned: nav bar DISPLAYS at CENTER (0.5, tabY) — but
-        //     the SAVED position is NEVER overwritten. Only the user's drag
-        //     saves a new position.
-        //   This is passed to DraggableNavBar as `effectiveX` so it knows
-        //   where to display without touching the saved position.
-        val navBarEffectiveX = if (isAligned) tabX else 0.5f
-        val navBarEffectiveY = tabY  // Y always uses the saved position
+        // Nav bar uses its saved position directly
+        val navBarEffectiveX = tabX
+        val navBarEffectiveY = tabY
 
-        // ★ UNIVERSAL LINKED MOVEMENT — wherever the nav bar moves, the search
-        //   FAB follows it. ALWAYS. No alignment check. This maintains the
-        //   120dp gap and the same Y automatically (same delta applied to both).
-        //   The previous `if (isAligned)` guard caused a disconnect: during the
-        //   drag, savedTabPos doesn't change (only saved on release), but
-        //   searchY IS being updated. So abs(tabY - searchY) grew until it
-        //   exceeded 5% → isAligned became false → linked movement stopped.
-        //   Removing the guard makes the search FAB follow the nav bar forever.
-        val configuration = androidx.compose.ui.platform.LocalConfiguration.current
-        val density = androidx.compose.ui.platform.LocalDensity.current
-        val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
-        val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
-        val onNavBarDragged: (Float, Float) -> Unit = { deltaXpx, deltaYpx ->
-            if (screenWidthPx > 0 && screenHeightPx > 0) {
-                // Move the search FAB by the same delta as the nav bar.
-                // This keeps the search FAB at a fixed offset (120dp gap + same Y).
-                val deltaXfrac = deltaXpx / screenWidthPx
-                val deltaYfrac = deltaYpx / screenHeightPx
-                val newSearchX = (searchX + deltaXfrac).coerceIn(0.05f, 0.95f)
-                val newSearchY = (searchY + deltaYfrac).coerceIn(0.05f, 0.95f)
-                com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition
-                    .setPosition(newSearchX, newSearchY)
-            }
-        }
+        // No-ops (kept for callback compatibility but do nothing now)
+        val onNavBarDragged: (Float, Float) -> Unit = { _, _ -> }
+        val onNavBarReleased: (Float, Float) -> Unit = { _, _ -> }
 
-        // ★ DRIFT CORRECTION on release — after the nav bar drag ends,
-        //   recalculate the search FAB's position DIRECTLY from the nav
-        //   bar's final saved position. This eliminates any drift that
-        //   accumulated during the delta-based linked movement (stale
-        //   state from collectAsState frame delay, clamping at boundaries,
-        //   frame-to-frame timing issues).
-        //   The search FAB is placed at:
-        //     searchFabX = navBarX + offsetFrac
-        //     searchFabY = navBarY
-        //   where offsetFrac = (navBarWidth/2 + gap + fabWidth/2) in px / screen width
-        //   = (75 + 120 + 26) = 221dp → as fraction of screen width.
-        val onNavBarReleased: (Float, Float) -> Unit = { finalNavBarX, finalNavBarY ->
-            if (screenWidthPx > 0) {
-                val offsetDp = 221.dp  // 75 (half 150dp nav) + 120 (gap) + 26 (half 52dp FAB)
-                val offsetPx = with(density) { offsetDp.toPx() }
-                val offsetFrac = offsetPx / screenWidthPx
-                val correctedSearchX = (finalNavBarX + offsetFrac).coerceIn(0.05f, 0.95f)
-                com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition
-                    .setPosition(correctedSearchX, finalNavBarY)
-            }
-        }
-
-        // Animate nav bar width: 150dp (aligned) ↔ 240dp (misaligned)
-        val navBarWidth by androidx.compose.animation.core.animateDpAsState(
-            targetValue = if (isAligned) 150.dp else 240.dp,
-            animationSpec = androidx.compose.animation.core.spring(
-                dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
-                stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
-            ),
-            label = "navBarWidth"
-        )
+        // Use the customization width directly (no align/misalign animation)
+        val navBarWidth = 150.dp
 
         CynthiaDraggableNavBar(
             tabs = cynthiaTabs,

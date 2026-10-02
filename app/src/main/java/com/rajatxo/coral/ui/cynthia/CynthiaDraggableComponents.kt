@@ -827,43 +827,15 @@ internal fun CynthiaDraggableSearchCircle(
                                         }
                                         // Finger lifted
                                         if (isLongPressActivated) {
+                                            // ★ SIMPLE — just save where the user dropped it.
+                                            //   No snapping, no alignment logic. Where the user
+                                            //   releases, there it stays.
                                             val releasedX = (currentXpx / screenSize.width)
                                                 .coerceIn(0.05f, 0.95f)
                                             val releasedY = (currentYpx / screenSize.height)
                                                 .coerceIn(0.05f, 0.95f)
-                                            // ★ DYNAMIC SNAP: the search FAB's "default" is
-                                            //   NOT a fixed number — it's BESIDE the nav bar,
-                                            //   calculated from the nav bar's SAVED position.
-                                            //   If the search FAB is released close to the
-                                            //   nav bar's Y (within ±0.08), snap it to beside
-                                            //   the nav bar:
-                                            //     searchFabX = navBarX + offset
-                                            //     searchFabY = navBarY
-                                            //   where offset = navBarWidth/2 + gap + fabWidth/2
-                                            //   This triggers isAligned = true, which makes
-                                            //   the nav bar display at its saved position.
-                                            val navBarX = savedNavBarPosition.first
-                                            val navBarY = savedNavBarPosition.second
-                                            val closeToNavBarY =
-                                                kotlin.math.abs(releasedY - navBarY) < 0.08f
-                                            if (closeToNavBarY && screenSize.width > 0) {
-                                                // Calculate the search FAB's position beside
-                                                // the nav bar:
-                                                //   navBarWidth/2 = 75dp (150dp aligned)
-                                                //   gap = 120dp
-                                                //   fabWidth/2 = 26dp (52dp)
-                                                //   total offset = 75 + 120 + 26 = 221dp
-                                                val offsetDp = 221.dp
-                                                val offsetPx = with(density) { offsetDp.toPx() }
-                                                val offsetFrac = offsetPx / screenSize.width
-                                                val searchFabDefaultX =
-                                                    (navBarX + offsetFrac).coerceIn(0.05f, 0.95f)
-                                                com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition
-                                                    .setPosition(searchFabDefaultX, navBarY)
-                                            } else {
-                                                com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition
-                                                    .setPosition(releasedX, releasedY)
-                                            }
+                                            com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition
+                                                .setPosition(releasedX, releasedY)
                                         } else {
                                             // Short tap (before 2-second hold) → open search
                                             onSearchClick()
