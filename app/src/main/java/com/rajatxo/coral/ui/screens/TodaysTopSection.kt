@@ -32,8 +32,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -160,20 +163,23 @@ private fun AnimatedCapsule(
     modifier: Modifier = Modifier
 ) {
     // ★ ANIMATED gradient — rotates continuously for a "flowing" effect
-    // ★ "Water through pipe" — ONE bright head flows from left to right,
-    //   exits the right edge, then re-enters from the left. Continuous loop.
-    //   The gradient extends beyond [0,1] so the bright head smoothly
-    //   exits and re-enters without splitting.
-    //   Animate from -0.3 to 1.3 so the head travels fully across and
-    //   off-screen before looping back.
-    val flowPosition by rememberInfiniteTransition(label = "capsuleGradient").animateFloat(
-        initialValue = -0.3f,  // start off-screen left
-        targetValue = 1.3f,    // end off-screen right
+    // ★ "Train on a track" — two colors (color1 then color2) move around
+    //   the capsule border in a loop. Like a train with two colored
+    //   compartments: red compartment, then yellow compartment, moving
+    //   around the capsule-shaped track.
+    //
+    //   Implementation: a rotating sweep gradient that goes 0→360°.
+    //   The gradient has 4 stops: color1 → color2 → color1 → color2
+    //   (repeating), so two "compartments" of each color travel around.
+    //   We rotate the gradient over time to make the train move.
+    val trainRotation by rememberInfiniteTransition(label = "trainGradient").animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 4000, easing = { it }),
+            animation = tween(durationMillis = 6000, easing = { it }),  // 6 sec per loop
             repeatMode = RepeatMode.Restart
         ),
-        label = "flowPosition"
+        label = "trainRotation"
     )
 
     val capsuleShape = RoundedCornerShape(28.dp)
@@ -181,15 +187,15 @@ private fun AnimatedCapsule(
         listOf(color1.copy(alpha = 0.25f), color2.copy(alpha = 0.25f))
     )
 
-    // ★ Single bright head at `flowPosition`, with dim on both sides.
-    //   No clamping — the head flows off-screen and re-enters seamlessly.
-    val pipeGradient = Brush.horizontalGradient(
-        colorStops = arrayOf(
-            0.0f to color1.copy(alpha = 0.3f),                        // dim
-            (flowPosition - 0.15f) to color1.copy(alpha = 0.3f),      // dim (before head)
-            flowPosition to color1,                                    // ★ bright head
-            (flowPosition + 0.15f) to color1.copy(alpha = 0.3f),      // dim (after head)
-            1.0f to color2.copy(alpha = 0.3f)                          // dim
+    // ★ Sweep gradient with the two colors alternating — creates the
+    //   "two compartments" train effect. Rotating this makes the train
+    //   move around the border.
+    val trainBrush = Brush.sweepGradient(
+        colors = listOf(
+            color1,        // compartment 1 (red)
+            color2,        // compartment 2 (yellow)
+            color1,        // back to compartment 1
+            color2         // back to compartment 2
         )
     )
 
@@ -198,8 +204,34 @@ private fun AnimatedCapsule(
             .height(56.dp)
             .clip(capsuleShape)
             .background(bgBrush)
-            // ★ 2.5dp border — water-flowing-through-pipe animated gradient
-            .border(width = 2.5.dp, brush = pipeGradient, shape = capsuleShape)
+            // ★ Train-of-two-colors border — color1 then color2 travel
+            //   around the border like a train on a track. Uses a rotating
+            //   sweep gradient clipped to the capsule shape.
+            .drawWithContent {
+                drawContent()
+                val strokeWidth = 2.5.dp.toPx()
+                val center = Offset(size.width / 2f, size.height / 2f)
+                // ★ Draw a rounded-rectangle path with the rotating sweep gradient
+                val cornerRadius = 28.dp.toPx()
+                val path = androidx.compose.ui.graphics.Path().apply {
+                    addRoundRect(
+                        androidx.compose.ui.geometry.RoundRect(
+                            left = strokeWidth / 2,
+                            top = strokeWidth / 2,
+                            right = size.width - strokeWidth / 2,
+                            bottom = size.height - strokeWidth / 2,
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadius, cornerRadius)
+                        )
+                    )
+                }
+                rotate(degrees = trainRotation, pivot = center) {
+                    drawPath(
+                        path = path,
+                        brush = trainBrush,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidth)
+                    )
+                }
+            }
             .padding(6.dp),
         contentAlignment = Alignment.Center
     ) {
