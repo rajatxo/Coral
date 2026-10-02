@@ -165,9 +165,10 @@ object PlaybackHistory {
 
     /**
      * Load daily play counts. If the stored date is not today, clear
-     * the counts (new day = fresh start).
+     * the counts (new day = fresh start). Fully guarded — never crashes.
      */
     private fun loadDailyPlays() {
+        if (!::prefs.isInitialized) return
         try {
             val json = prefs.getString(KEY_DAILY_PLAYS, null) ?: return
             val root = org.json.JSONObject(json)
@@ -206,21 +207,25 @@ object PlaybackHistory {
     @Synchronized
     fun recordDailyPlay(songId: Long, artist: String) {
         if (songId <= 0L) return
-        val current = _dailyPlays.value.toMutableList()
-        val existing = current.find { it.songId == songId }
-        if (existing != null) {
-            val idx = current.indexOf(existing)
-            current[idx] = existing.copy(playCount = existing.playCount + 1)
-        } else {
-            current.add(DailyPlayCount(songId, artist, 1))
-        }
-        // Sort by play count descending
-        current.sortByDescending { it.playCount }
-        _dailyPlays.value = current
-        saveDailyPlays(current)
+        if (!::prefs.isInitialized) return
+        try {
+            val current = _dailyPlays.value.toMutableList()
+            val existing = current.find { it.songId == songId }
+            if (existing != null) {
+                val idx = current.indexOf(existing)
+                current[idx] = existing.copy(playCount = existing.playCount + 1)
+            } else {
+                current.add(DailyPlayCount(songId, artist, 1))
+            }
+            // Sort by play count descending
+            current.sortByDescending { it.playCount }
+            _dailyPlays.value = current
+            saveDailyPlays(current)
+        } catch (_: Exception) { }
     }
 
     private fun saveDailyPlays(entries: List<DailyPlayCount>) {
+        if (!::prefs.isInitialized) return
         try {
             val root = org.json.JSONObject()
             root.put("date", todayString())
@@ -238,13 +243,10 @@ object PlaybackHistory {
 
     /**
      * Get the top [n] most-played songs today (by play count).
-     * Returns at most [n] entries.
+     * Returns at most [n] entries. Fully guarded — never crashes.
      */
     fun getTopPlayedToday(n: Int): List<DailyPlayCount> {
-        // Ensure we've loaded (in case init hasn't happened yet)
-        if (_dailyPlays.value.isEmpty() && ::prefs.isInitialized) {
-            loadDailyPlays()
-        }
+        if (!::prefs.isInitialized) return emptyList()
         return _dailyPlays.value.take(n)
     }
 }
