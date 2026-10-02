@@ -32,11 +32,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -168,7 +165,7 @@ private fun AnimatedCapsule(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 3000, easing = { it }),
+            animation = tween(durationMillis = 6000, easing = { it }),  // ★ 6 sec = slower
             repeatMode = RepeatMode.Restart
         ),
         label = "gradientRotation"
@@ -179,28 +176,27 @@ private fun AnimatedCapsule(
         listOf(color1.copy(alpha = 0.25f), color2.copy(alpha = 0.25f))
     )
 
+    // ★ Animated gradient border brush — the gradient shifts horizontally
+    //   over time, creating a flowing/moving effect along the capsule border.
+    //   Uses the capsule's actual shape (not a circle).
+    val animatedBorderBrush = Brush.horizontalGradient(
+        colors = listOf(
+            color1,
+            color2,
+            color1,
+            color2
+        ),
+        startX = gradientRotation / 360f * 1000f,  // shift the gradient start
+        endX = gradientRotation / 360f * 1000f + 500f
+    )
+
     Box(
         modifier = modifier
             .height(56.dp)
             .clip(capsuleShape)
             .background(bgBrush)
-            // ★ Animated rotating gradient border — draws a conic-ish gradient
-            //   that rotates over time, creating a flowing/moving effect.
-            .drawWithContent {
-                drawContent()
-                rotate(degrees = gradientRotation) {
-                    val borderWidth = 3f
-                    val sweepBrush = Brush.sweepGradient(
-                        listOf(color1, color2, color1)
-                    )
-                    drawCircle(
-                        brush = sweepBrush,
-                        radius = size.minDimension / 2f,
-                        center = Offset(size.width / 2f, size.height / 2f),
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = borderWidth)
-                    )
-                }
-            }
+            // ★ Thick (3dp) animated gradient border — follows the capsule shape
+            .border(width = 3.dp, brush = animatedBorderBrush, shape = capsuleShape)
             .padding(6.dp),
         contentAlignment = Alignment.Center
     ) {
