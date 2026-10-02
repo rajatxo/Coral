@@ -160,18 +160,20 @@ private fun AnimatedCapsule(
     modifier: Modifier = Modifier
 ) {
     // ★ ANIMATED gradient — rotates continuously for a "flowing" effect
-    val infiniteTransition = rememberInfiniteTransition(label = "capsuleGradient")
-    // ★ Animate from 0 to 1 (a full cycle) — then RepeatMode.Restart
-    //   jumps back to 0 seamlessly because the gradient is designed to
-    //   look identical at position 0 and position 1.
-    val gradientFlow by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
+    // ★ "Water through pipe" — ONE bright head flows from left to right,
+    //   exits the right edge, then re-enters from the left. Continuous loop.
+    //   The gradient extends beyond [0,1] so the bright head smoothly
+    //   exits and re-enters without splitting.
+    //   Animate from -0.3 to 1.3 so the head travels fully across and
+    //   off-screen before looping back.
+    val flowPosition by rememberInfiniteTransition(label = "capsuleGradient").animateFloat(
+        initialValue = -0.3f,  // start off-screen left
+        targetValue = 1.3f,    // end off-screen right
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 4000, easing = { it }),  // 4 sec per cycle
+            animation = tween(durationMillis = 4000, easing = { it }),
             repeatMode = RepeatMode.Restart
         ),
-        label = "gradientFlow"
+        label = "flowPosition"
     )
 
     val capsuleShape = RoundedCornerShape(28.dp)
@@ -179,21 +181,15 @@ private fun AnimatedCapsule(
         listOf(color1.copy(alpha = 0.25f), color2.copy(alpha = 0.25f))
     )
 
-    // ★ "Water through pipe" effect — a gradient that flows along the border.
-    //   The gradient has a bright "head" that moves from left to right,
-    //   like water flowing through a pipe. The rest of the border is dimmer.
-    //   This creates a continuous flowing motion with no visible jump.
-    //
-    //   We use a gradient with 3 stops: dim → bright → dim, and shift
-    //   the entire pattern from -0.5 to +1.5 so the bright "head"
-    //   travels across and the loop is seamless.
+    // ★ Single bright head at `flowPosition`, with dim on both sides.
+    //   No clamping — the head flows off-screen and re-enters seamlessly.
     val pipeGradient = Brush.horizontalGradient(
         colorStops = arrayOf(
-            0.0f to color1.copy(alpha = 0.4f),   // dim
-            (gradientFlow - 0.2f).coerceIn(0f, 1f) to color1.copy(alpha = 0.4f),
-            gradientFlow.coerceIn(0f, 1f) to color1,                // bright head
-            (gradientFlow + 0.2f).coerceIn(0f, 1f) to color1.copy(alpha = 0.4f),
-            1.0f to color2.copy(alpha = 0.4f)   // dim
+            0.0f to color1.copy(alpha = 0.3f),                        // dim
+            (flowPosition - 0.15f) to color1.copy(alpha = 0.3f),      // dim (before head)
+            flowPosition to color1,                                    // ★ bright head
+            (flowPosition + 0.15f) to color1.copy(alpha = 0.3f),      // dim (after head)
+            1.0f to color2.copy(alpha = 0.3f)                          // dim
         )
     )
 
