@@ -161,14 +161,17 @@ private fun AnimatedCapsule(
 ) {
     // ★ ANIMATED gradient — rotates continuously for a "flowing" effect
     val infiniteTransition = rememberInfiniteTransition(label = "capsuleGradient")
-    val gradientRotation by infiniteTransition.animateFloat(
+    // ★ Animate from 0 to 1 (a full cycle) — then RepeatMode.Restart
+    //   jumps back to 0 seamlessly because the gradient is designed to
+    //   look identical at position 0 and position 1.
+    val gradientFlow by infiniteTransition.animateFloat(
         initialValue = 0f,
-        targetValue = 360f,
+        targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 6000, easing = { it }),  // ★ 6 sec = slower
+            animation = tween(durationMillis = 4000, easing = { it }),  // 4 sec per cycle
             repeatMode = RepeatMode.Restart
         ),
-        label = "gradientRotation"
+        label = "gradientFlow"
     )
 
     val capsuleShape = RoundedCornerShape(28.dp)
@@ -176,18 +179,22 @@ private fun AnimatedCapsule(
         listOf(color1.copy(alpha = 0.25f), color2.copy(alpha = 0.25f))
     )
 
-    // ★ Animated gradient border brush — the gradient shifts horizontally
-    //   over time, creating a flowing/moving effect along the capsule border.
-    //   Uses the capsule's actual shape (not a circle).
-    val animatedBorderBrush = Brush.horizontalGradient(
-        colors = listOf(
-            color1,
-            color2,
-            color1,
-            color2
-        ),
-        startX = gradientRotation / 360f * 1000f,  // shift the gradient start
-        endX = gradientRotation / 360f * 1000f + 500f
+    // ★ "Water through pipe" effect — a gradient that flows along the border.
+    //   The gradient has a bright "head" that moves from left to right,
+    //   like water flowing through a pipe. The rest of the border is dimmer.
+    //   This creates a continuous flowing motion with no visible jump.
+    //
+    //   We use a gradient with 3 stops: dim → bright → dim, and shift
+    //   the entire pattern from -0.5 to +1.5 so the bright "head"
+    //   travels across and the loop is seamless.
+    val pipeGradient = Brush.horizontalGradient(
+        colorStops = arrayOf(
+            0.0f to color1.copy(alpha = 0.4f),   // dim
+            (gradientFlow - 0.2f).coerceIn(0f, 1f) to color1.copy(alpha = 0.4f),
+            gradientFlow.coerceIn(0f, 1f) to color1,                // bright head
+            (gradientFlow + 0.2f).coerceIn(0f, 1f) to color1.copy(alpha = 0.4f),
+            1.0f to color2.copy(alpha = 0.4f)   // dim
+        )
     )
 
     Box(
@@ -195,8 +202,8 @@ private fun AnimatedCapsule(
             .height(56.dp)
             .clip(capsuleShape)
             .background(bgBrush)
-            // ★ Thick (3dp) animated gradient border — follows the capsule shape
-            .border(width = 3.dp, brush = animatedBorderBrush, shape = capsuleShape)
+            // ★ 2.5dp border — water-flowing-through-pipe animated gradient
+            .border(width = 2.5.dp, brush = pipeGradient, shape = capsuleShape)
             .padding(6.dp),
         contentAlignment = Alignment.Center
     ) {
