@@ -2,10 +2,13 @@ package com.rajatxo.coral.ui.screens
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,8 +32,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -41,12 +47,7 @@ import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
 
 /**
- * ★ Today's Top — a row of 3 capsule-shaped "stories" showing the user's
- *   6 most-played songs today (2 per capsule).
- *
- * Layout matches the Speed Dial / Recent headers: same text style, chevron,
- * and horizontal padding (no extra padding — aligns with the LazyColumn's
- * 20dp content padding).
+ * ★ Today's Top — 3 capsule "stories" with ANIMATED gradient borders.
  */
 @Composable
 fun TodaysTopSection(
@@ -55,6 +56,14 @@ fun TodaysTopSection(
     textPrimary: Color = Color.White,
     textSecondary: Color = Color.White.copy(alpha = 0.6f)
 ) {
+    // ★ Force-load daily plays on first composition
+    val context = LocalContext.current
+    LaunchedEffect(Unit) {
+        try {
+            com.rajatxo.coral.data.prefs.PlaybackHistory.getTopPlayedToday(6)
+        } catch (_: Exception) { }
+    }
+
     val dailyPlays by com.rajatxo.coral.data.prefs.PlaybackHistory.dailyPlays.collectAsState()
 
     val topSongs: List<Song> = remember(dailyPlays, songs) {
@@ -63,7 +72,6 @@ fun TodaysTopSection(
         }
     }
 
-    val context = LocalContext.current
     var slotColors by remember { mutableStateOf<List<Color>>(List(6) { Color(0xFF333333) }) }
     val slotSongs = remember(topSongs) {
         List(6) { index -> topSongs.getOrNull(index) }
@@ -93,11 +101,11 @@ fun TodaysTopSection(
     Column(
         modifier = modifier.fillMaxWidth()
     ) {
-        // ★ Header — matches Speed Dial / Recent layout: title + chevron
+        // Header
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 4.dp),  // align with Speed Dial header
+                .padding(start = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -118,7 +126,7 @@ fun TodaysTopSection(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // ★ 3 capsules — thinner (56dp), full width, NO overlap (separate)
+        // 3 capsules
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -131,31 +139,77 @@ fun TodaysTopSection(
                 val color1 = slotColors.getOrNull(slot1Index) ?: Color(0xFF333333)
                 val color2 = slotColors.getOrNull(slot2Index) ?: Color(0xFF333333)
 
-                val capsuleShape = RoundedCornerShape(28.dp)
-                val borderBrush = Brush.horizontalGradient(listOf(color1, color2))
-                val bgBrush = Brush.horizontalGradient(
-                    listOf(color1.copy(alpha = 0.25f), color2.copy(alpha = 0.25f))
+                AnimatedCapsule(
+                    song1 = song1,
+                    song2 = song2,
+                    color1 = color1,
+                    color2 = color2,
+                    modifier = Modifier.weight(1f)
                 )
+            }
+        }
+    }
+}
 
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(56.dp)
-                        .clip(capsuleShape)
-                        .background(bgBrush)
-                        .border(width = 2.dp, brush = borderBrush, shape = capsuleShape)
-                        .padding(4.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        CoverSlot(song = song1, color = color1)
-                        CoverSlot(song = song2, color = color2)
-                    }
+/**
+ * A capsule with an ANIMATED rotating gradient border.
+ */
+@Composable
+private fun AnimatedCapsule(
+    song1: Song?,
+    song2: Song?,
+    color1: Color,
+    color2: Color,
+    modifier: Modifier = Modifier
+) {
+    // ★ ANIMATED gradient — rotates continuously for a "flowing" effect
+    val infiniteTransition = rememberInfiniteTransition(label = "capsuleGradient")
+    val gradientRotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 3000, easing = { it }),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "gradientRotation"
+    )
+
+    val capsuleShape = RoundedCornerShape(28.dp)
+    val bgBrush = Brush.horizontalGradient(
+        listOf(color1.copy(alpha = 0.25f), color2.copy(alpha = 0.25f))
+    )
+
+    Box(
+        modifier = modifier
+            .height(56.dp)
+            .clip(capsuleShape)
+            .background(bgBrush)
+            // ★ Animated rotating gradient border — draws a conic-ish gradient
+            //   that rotates over time, creating a flowing/moving effect.
+            .drawWithContent {
+                drawContent()
+                rotate(degrees = gradientRotation) {
+                    val borderWidth = 3f
+                    val sweepBrush = Brush.sweepGradient(
+                        listOf(color1, color2, color1)
+                    )
+                    drawCircle(
+                        brush = sweepBrush,
+                        radius = size.minDimension / 2f,
+                        center = Offset(size.width / 2f, size.height / 2f),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = borderWidth)
+                    )
                 }
             }
+            .padding(6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CoverSlot(song = song1, color = color1)
+            CoverSlot(song = song2, color = color2)
         }
     }
 }
@@ -185,7 +239,17 @@ private fun CoverSlot(
                 contentDescription = song.title,
                 modifier = Modifier.size(coverSize)
             )
+        } else if (song != null) {
+            // Song exists but no album art — show first letter of title
+            Text(
+                text = song.title.firstOrNull()?.uppercase() ?: "?",
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = CalSansFamily
+            )
         } else {
+            // Empty slot — show "+"
             Text(
                 text = "+",
                 color = Color.White.copy(alpha = 0.8f),
