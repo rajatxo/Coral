@@ -1,36 +1,28 @@
 package com.rajatxo.coral.ui.cynthia
 
 import android.view.HapticFeedbackConstants
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -40,22 +32,16 @@ import androidx.compose.ui.unit.sp
 import com.rajatxo.coral.data.prefs.SoundHapticsManager
 import com.rajatxo.coral.ui.theme.CalSansFamily
 import kotlin.math.PI
-import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 
 /**
  * ★ CynthiaArcDial — semi-circular gauge with gradient ticks, like a coral dial.
  *
- * Inspired by the user's reference video:
- *   - 180° arc of tick marks at the bottom
- *   - Gradient on ticks: blue/purple → white → gold/yellow
- *   - White indicator needle pointing up from the center
- *   - Glowing dot that sweeps along the arc
- *   - Value text above (e.g., "153dp", "39%")
- *
  * Drag horizontally along the arc → value changes → needle + dot move →
  * tick sound + haptic on each step (respects SoundHapticsManager).
+ *
+ * The +/- buttons are NOT here — they're in the panel, below the capsules.
  */
 @Composable
 internal fun CynthiaArcDial(
@@ -134,12 +120,13 @@ internal fun CynthiaArcDial(
     val valueRange = maxVal - minVal
     val fraction = ((value - minVal) / valueRange).coerceIn(0f, 1f)
 
-    // Animated needle angle (smooth sweep when value changes)
+    // ★ BUTTERY SMOOTH animation — low stiffness + low damping for a smooth,
+    //   glidey feel. No bouncy overshoot — just smooth deceleration.
     val animatedFraction by animateFloatAsState(
         targetValue = fraction,
         animationSpec = spring(
-            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
-            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessLow
         ),
         label = "arcFraction"
     )
@@ -157,20 +144,21 @@ internal fun CynthiaArcDial(
                 .fillMaxWidth()
                 .height(140.dp)
                 .align(Alignment.BottomCenter)
+                // ★ SMOOTH DRAG — using awaitPointerEventScope instead of
+                //   detectDragGestures. This gives us direct control over
+                //   every pointer event with NO delay, NO drag threshold,
+                //   NO gesture detection overhead. The first touch is
+                //   processed immediately — no lag on entry.
                 .pointerInput(range) {
-                    detectDragGestures(
-                        onDragStart = { offset ->
-                            // Initialize tracking with the drag start position
+                    awaitPointerEventScope {
+                        while (true) {
+                            val down = awaitFirstDown()
+                            down.consume()
+                            // Immediately process the first touch — no drag
+                            // threshold, no delay. This eliminates the
+                            // "first entry lag" the user reported.
                             updateValueFromTouch(
-                                offset.x, size.width.toFloat(), minVal, maxVal
-                            )?.let { newValue ->
-                                onValueChange(newValue)
-                            }
-                        },
-                        onDrag = { change, _ ->
-                            change.consume()
-                            updateValueFromTouch(
-                                change.position.x, size.width.toFloat(), minVal, maxVal
+                                down.position.x, size.width.toFloat(), minVal, maxVal
                             )?.let { newValue ->
                                 val newInt = newValue.toInt()
                                 if (newInt != lastIntValue) {
@@ -179,8 +167,25 @@ internal fun CynthiaArcDial(
                                 }
                                 onValueChange(newValue)
                             }
+                            // Track subsequent moves
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull() ?: break
+                                if (!change.pressed) break
+                                change.consume()
+                                updateValueFromTouch(
+                                    change.position.x, size.width.toFloat(), minVal, maxVal
+                                )?.let { newValue ->
+                                    val newInt = newValue.toInt()
+                                    if (newInt != lastIntValue) {
+                                        tickHaptic()
+                                        lastIntValue = newInt
+                                    }
+                                    onValueChange(newValue)
+                                }
+                            }
                         }
-                    )
+                    }
                 }
         ) {
             val w = size.width
@@ -194,8 +199,6 @@ internal fun CynthiaArcDial(
             val arcSpanDeg = arcEndDeg - arcStartDeg  // 180°
 
             // --- Draw tick marks with gradient ---
-            // Ticks go from 180° (left) to 360° (right), 180° total.
-            // Each tick is a thin line radiating from the center (cx, cy).
             for (i in 0 until tickCount) {
                 val t = i / (tickCount - 1).toFloat()  // 0..1
                 val angleDeg = arcStartDeg + t * arcSpanDeg
@@ -210,18 +213,15 @@ internal fun CynthiaArcDial(
                 // Gradient color: blue/purple (left) → white (center) → gold (right)
                 val tickColor = when {
                     t < 0.5f -> {
-                        // blue/purple → white
-                        val localT = t * 2f  // 0..1
+                        val localT = t * 2f
                         blendColor(Color(0xFF6B7BFF), Color.White, localT)
                     }
                     else -> {
-                        // white → gold
-                        val localT = (t - 0.5f) * 2f  // 0..1
+                        val localT = (t - 0.5f) * 2f
                         blendColor(Color.White, Color(0xFFFFD166), localT)
                     }
                 }
 
-                // Ticks near the current value are brighter
                 val distance = kotlin.math.abs(t - animatedFraction)
                 val brightness = (1f - distance * 2f).coerceIn(0.3f, 1f)
 
@@ -234,7 +234,7 @@ internal fun CynthiaArcDial(
                 )
             }
 
-            // --- Draw the indicator needle (white, pointing up from center) ---
+            // --- Draw the indicator needle ---
             val needleAngleDeg = arcStartDeg + animatedFraction * arcSpanDeg
             val needleAngleRad = (needleAngleDeg * PI / 180f).toFloat()
             val needleInnerR = radius * 0.55f
@@ -257,7 +257,6 @@ internal fun CynthiaArcDial(
 
             // --- Draw the glowing dot at the needle tip ---
             val dotCenter = needleEnd
-            // Outer glow
             drawCircle(
                 color = Color.White.copy(alpha = 0.2f),
                 radius = 14f,
@@ -268,7 +267,6 @@ internal fun CynthiaArcDial(
                 radius = 9f,
                 center = dotCenter
             )
-            // Inner solid dot
             drawCircle(
                 color = Color.White,
                 radius = 5f,
@@ -277,7 +275,6 @@ internal fun CynthiaArcDial(
         }
 
         // ★ NUMBER at the very bottom center of the arc (no label, no reset icon).
-        //   Just the value + suffix, pushed to the bottom of the arc's half-circle.
         Text(
             text = "${value.toInt()}$suffix",
             color = Color.White,
@@ -288,72 +285,11 @@ internal fun CynthiaArcDial(
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 8.dp)
         )
-
-        // ★ +1 / -1 buttons at the bottom-left and bottom-right of the arc.
-        //   Added more space (24dp) between the arc and the buttons so they
-        //   don't overlap the ticks.
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 24.dp, bottom = 4.dp)
-                .size(32.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color.White.copy(alpha = 0.12f))
-                .clickable(
-                    interactionSource = MutableInteractionSource(),
-                    indication = null,
-                    onClick = {
-                        val newValue = (value - 1f).coerceIn(minVal, maxVal)
-                        if (newValue.toInt() != value.toInt()) {
-                            tickHaptic()
-                        }
-                        onValueChange(newValue)
-                    }
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "−",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = CalSansFamily
-            )
-        }
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 24.dp, bottom = 4.dp)
-                .size(32.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color.White.copy(alpha = 0.12f))
-                .clickable(
-                    interactionSource = MutableInteractionSource(),
-                    indication = null,
-                    onClick = {
-                        val newValue = (value + 1f).coerceIn(minVal, maxVal)
-                        if (newValue.toInt() != value.toInt()) {
-                            tickHaptic()
-                        }
-                        onValueChange(newValue)
-                    }
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "+",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = CalSansFamily
-            )
-        }
     }
 }
 
 /**
  * Map a touch X position to a value in [minVal, maxVal].
- * Returns null if the touch is outside the arc's horizontal range.
  */
 private fun updateValueFromTouch(
     touchX: Float,
@@ -363,12 +299,11 @@ private fun updateValueFromTouch(
 ): Float? {
     if (width <= 0f) return null
     val t = (touchX / width).coerceIn(0f, 1f)
-    val value = minVal + t * (maxVal - minVal)
-    return value
+    return minVal + t * (maxVal - minVal)
 }
 
 /**
- * Blend two colors linearly (for the gradient tick effect).
+ * Blend two colors linearly.
  */
 private fun blendColor(c1: Color, c2: Color, t: Float): Color {
     return Color(

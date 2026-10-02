@@ -37,6 +37,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -177,6 +179,53 @@ private fun CustomizationPanelContent(
     onDismiss: () -> Unit,
     isNavBar: Boolean
 ) {
+    val context = LocalContext.current
+    val view = LocalView.current
+    val vibrator = remember {
+        context.getSystemService(android.content.Context.VIBRATOR_SERVICE)
+            as? android.os.Vibrator
+    }
+    // ★ SoundPool for +/- button ticks
+    val soundPool = remember {
+        android.media.SoundPool.Builder()
+            .setMaxStreams(2)
+            .setAudioAttributes(
+                android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            .build()
+    }
+    var soundLoaded by remember { mutableStateOf(false) }
+    val tickSoundId = remember {
+        soundPool.setOnLoadCompleteListener { _, _, status ->
+            if (status == 0) soundLoaded = true
+        }
+        soundPool.load(context, com.rajatxo.coral.R.raw.wheel_tick, 1)
+    }
+    val hapticsOn = com.rajatxo.coral.data.prefs.SoundHapticsManager.hapticsEnabled.collectAsState()
+    val soundsOn = com.rajatxo.coral.data.prefs.SoundHapticsManager.soundsEnabled.collectAsState()
+    val soundVolume = com.rajatxo.coral.data.prefs.SoundHapticsManager.soundVolume.collectAsState()
+
+    fun tickHaptic() {
+        if (hapticsOn.value) {
+            try {
+                view.performHapticFeedback(
+                    android.view.HapticFeedbackConstants.VIRTUAL_KEY,
+                    android.view.HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING or
+                    android.view.HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+                )
+            } catch (_: Exception) { }
+        }
+        if (soundsOn.value && soundLoaded) {
+            try {
+                val vol = soundVolume.value / 100f
+                soundPool.play(tickSoundId, vol, vol, 1, 0, 1f)
+            } catch (_: Exception) { }
+        }
+    }
+
     val navCustom by CynthiaNavBarCustomization.customization.collectAsState()
     val searchCustom by CynthiaSearchFabCustomization.customization.collectAsState()
     val savedSearchPos by com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition.position.collectAsState()
@@ -362,11 +411,76 @@ private fun CustomizationPanelContent(
 
         Spacer(modifier = Modifier.height(4.dp))
 
+        // ★ +1 / -1 buttons — just below the last capsule (Corner).
+        //   Lets the user nudge the selected field's value by exactly 1 unit.
+        //   Fires tick sound + haptic on each tap. CalSans font, glass pill.
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+        ) {
+            // -1 button
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.White.copy(alpha = 0.12f))
+                    .clickable(
+                        interactionSource = MutableInteractionSource(),
+                        indication = null,
+                        onClick = {
+                            val newValue = (currentField.value - 1f)
+                                .coerceIn(currentField.range.start, currentField.range.endInclusive)
+                            if (newValue.toInt() != currentField.value.toInt()) {
+                                tickHaptic()
+                            }
+                            currentField.onValueChange(newValue)
+                        }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "−",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = CalSansFamily
+                )
+            }
+            // +1 button
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.White.copy(alpha = 0.12f))
+                    .clickable(
+                        interactionSource = MutableInteractionSource(),
+                        indication = null,
+                        onClick = {
+                            val newValue = (currentField.value + 1f)
+                                .coerceIn(currentField.range.start, currentField.range.endInclusive)
+                            if (newValue.toInt() != currentField.value.toInt()) {
+                                tickHaptic()
+                            }
+                            currentField.onValueChange(newValue)
+                        }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "+",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = CalSansFamily
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
         // ★ ARC DIAL — the semi-circular gauge from the reference video.
         // Shows the currently selected field. Drag along the arc to change
-        // the value. Tick sound + haptic on each step. The reset button is
-        // now INSIDE the arc (beside the big number), so no separate reset
-        // button at the bottom.
+        // the value. Tick sound + haptic on each step.
         CynthiaArcDial(
             label = currentField.label,
             value = currentField.value,
