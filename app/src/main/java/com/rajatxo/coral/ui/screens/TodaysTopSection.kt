@@ -33,10 +33,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -163,23 +161,18 @@ private fun AnimatedCapsule(
     modifier: Modifier = Modifier
 ) {
     // ★ ANIMATED gradient — rotates continuously for a "flowing" effect
-    // ★ "Train on a track" — two colors (color1 then color2) move around
-    //   the capsule border in a loop. Like a train with two colored
-    //   compartments: red compartment, then yellow compartment, moving
-    //   around the capsule-shaped track.
-    //
-    //   Implementation: a rotating sweep gradient that goes 0→360°.
-    //   The gradient has 4 stops: color1 → color2 → color1 → color2
-    //   (repeating), so two "compartments" of each color travel around.
-    //   We rotate the gradient over time to make the train move.
-    val trainRotation by rememberInfiniteTransition(label = "trainGradient").animateFloat(
+    // ★ Train-of-two-colors: color1 then color2 travel around the border.
+    //   Animate the gradient FLOW position (0→1) — the sweep gradient's
+    //   color stops shift over time, making the colors move around the
+    //   border WITHOUT rotating the path itself.
+    val flowProgress by rememberInfiniteTransition(label = "trainFlow").animateFloat(
         initialValue = 0f,
-        targetValue = 360f,
+        targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(durationMillis = 6000, easing = { it }),  // 6 sec per loop
             repeatMode = RepeatMode.Restart
         ),
-        label = "trainRotation"
+        label = "flowProgress"
     )
 
     val capsuleShape = RoundedCornerShape(28.dp)
@@ -187,15 +180,18 @@ private fun AnimatedCapsule(
         listOf(color1.copy(alpha = 0.25f), color2.copy(alpha = 0.25f))
     )
 
-    // ★ Sweep gradient with the two colors alternating — creates the
-    //   "two compartments" train effect. Rotating this makes the train
-    //   move around the border.
+    // ★ Sweep gradient with SHIFTING color stops — the two colors (color1
+    //   then color2) move around the border over time. The stops shift
+    //   by `flowProgress` so the train of colors travels around.
+    //   Stops at: 0, 0.25, 0.5, 0.75 (4 equal compartments)
+    //   Animate by shifting all stops by flowProgress (mod 1).
     val trainBrush = Brush.sweepGradient(
-        colors = listOf(
-            color1,        // compartment 1 (red)
-            color2,        // compartment 2 (yellow)
-            color1,        // back to compartment 1
-            color2         // back to compartment 2
+        colorStops = arrayOf(
+            (0.0f + flowProgress) % 1.0f to color1,
+            (0.25f + flowProgress) % 1.0f to color2,
+            (0.5f + flowProgress) % 1.0f to color1,
+            (0.75f + flowProgress) % 1.0f to color2,
+            (1.0f + flowProgress) % 1.0f to color1
         )
     )
 
@@ -210,8 +206,9 @@ private fun AnimatedCapsule(
             .drawWithContent {
                 drawContent()
                 val strokeWidth = 2.5.dp.toPx()
-                val center = Offset(size.width / 2f, size.height / 2f)
-                // ★ Draw a rounded-rectangle path with the rotating sweep gradient
+                // ★ Draw the rounded-rectangle path with the animated sweep
+                //   gradient (NO rotation of the path itself — only the
+                //   gradient colors move via the shifting color stops).
                 val cornerRadius = 28.dp.toPx()
                 val path = androidx.compose.ui.graphics.Path().apply {
                     addRoundRect(
@@ -224,13 +221,11 @@ private fun AnimatedCapsule(
                         )
                     )
                 }
-                rotate(degrees = trainRotation, pivot = center) {
-                    drawPath(
-                        path = path,
-                        brush = trainBrush,
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidth)
-                    )
-                }
+                drawPath(
+                    path = path,
+                    brush = trainBrush,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidth)
+                )
             }
             .padding(6.dp),
         contentAlignment = Alignment.Center
