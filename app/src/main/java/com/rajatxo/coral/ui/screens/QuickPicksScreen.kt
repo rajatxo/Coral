@@ -331,11 +331,10 @@ fun QuickPicksScreen(
             // Tap the dice → plays a random song.
             // The hero grid (EditorialCard row) has been removed — the
             // Speed Dial is now the first row on Quick Picks.
-            // ★ TEMPORARILY DISABLED — Today's Top section. Uncomment after
-            //   confirming the crash is fixed.
-            // item {
-            //     TodaysTopSection(songs = songs)
-            // }
+            // ★ RE-ENABLED — Today's Top section (UI only, no data yet).
+            item {
+                TodaysTopSection(songs = songs)
+            }
             item {
                 SpeedDialSection(
                     songs = songs,
