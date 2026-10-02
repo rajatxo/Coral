@@ -161,18 +161,21 @@ private fun AnimatedCapsule(
     modifier: Modifier = Modifier
 ) {
     // ★ ANIMATED gradient — rotates continuously for a "flowing" effect
-    // ★ Train-of-two-colors: color1 then color2 travel around the border.
-    //   Animate the gradient FLOW position (0→1) — the sweep gradient's
-    //   color stops shift over time, making the colors move around the
-    //   border WITHOUT rotating the path itself.
-    val flowProgress by rememberInfiniteTransition(label = "trainFlow").animateFloat(
+    // ★ CONTINUOUS FLOW — one smooth gradient (color1 → color2 → color1)
+    //   that flows around the border forever. No compartments, no jumps.
+    //
+    //   The sweep gradient has 3 smooth stops: color1 → color2 → color1.
+    //   To make it FLOW, we shift the stop positions over time (0→1→0→1...).
+    //   Since the gradient starts and ends with color1, shifting the stops
+    //   creates a seamless continuous flow with no visible loop point.
+    val flowShift by rememberInfiniteTransition(label = "gradientFlow").animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 6000, easing = { it }),  // 6 sec per loop
+            animation = tween(durationMillis = 5000, easing = { it }),  // 5 sec per loop
             repeatMode = RepeatMode.Restart
         ),
-        label = "flowProgress"
+        label = "flowShift"
     )
 
     val capsuleShape = RoundedCornerShape(28.dp)
@@ -180,18 +183,16 @@ private fun AnimatedCapsule(
         listOf(color1.copy(alpha = 0.25f), color2.copy(alpha = 0.25f))
     )
 
-    // ★ Sweep gradient with SHIFTING color stops — the two colors (color1
-    //   then color2) move around the border over time. The stops shift
-    //   by `flowProgress` so the train of colors travels around.
-    //   Stops at: 0, 0.25, 0.5, 0.75 (4 equal compartments)
-    //   Animate by shifting all stops by flowProgress (mod 1).
-    val trainBrush = Brush.sweepGradient(
+    // ★ Smooth sweep gradient with SHIFTING stops. The gradient goes
+    //   color1 → color2 → color1 (smooth, no hard edges). We shift all
+    //   stops by `flowShift` so the colors flow around the border.
+    //   Because the gradient is periodic (color1 at both ends), shifting
+    //   the stops by flowShift and taking mod 1 creates a seamless loop.
+    val flowBrush = Brush.sweepGradient(
         colorStops = arrayOf(
-            (0.0f + flowProgress) % 1.0f to color1,
-            (0.25f + flowProgress) % 1.0f to color2,
-            (0.5f + flowProgress) % 1.0f to color1,
-            (0.75f + flowProgress) % 1.0f to color2,
-            (1.0f + flowProgress) % 1.0f to color1
+            0.0f to color1,
+            (0.5f + flowShift) % 1.0f to color2,
+            (1.0f + flowShift) % 1.0f to color1
         )
     )
 
@@ -223,7 +224,7 @@ private fun AnimatedCapsule(
                 }
                 drawPath(
                     path = path,
-                    brush = trainBrush,
+                    brush = flowBrush,
                     style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidth)
                 )
             }
