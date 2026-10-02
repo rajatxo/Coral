@@ -85,15 +85,20 @@ fun TodaysTopSection(
 
     // Extract dominant color for each filled slot
     LaunchedEffect(topSongs) {
-        val colors = mutableListOf<Color>()
-        for (i in 0 until 6) {
-            val song = topSongs.getOrNull(i)
-            if (song != null && song.albumArtUri != null) {
-                val color = extractDominantColor(context, song.albumArtUri)
-                colors.add(color)
-            } else {
-                colors.add(getVibrantFallbackColor(i))
+        // ★ Run on IO dispatcher — bitmap decoding is disk I/O and must
+        //   NOT run on the main thread (causes strict-mode crash).
+        val colors = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val colors = mutableListOf<Color>()
+            for (i in 0 until 6) {
+                val song = topSongs.getOrNull(i)
+                if (song != null && song.albumArtUri != null) {
+                    val color = extractDominantColor(context, song.albumArtUri)
+                    colors.add(color)
+                } else {
+                    colors.add(getVibrantFallbackColor(i))
+                }
             }
+            colors
         }
         slotColors = colors
     }
