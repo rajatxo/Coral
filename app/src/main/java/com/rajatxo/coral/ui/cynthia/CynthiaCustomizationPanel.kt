@@ -266,8 +266,13 @@ private fun CustomizationPanelContent(
                             interactionSource = MutableInteractionSource(),
                             indication = null,
                             onClick = {
-                                if (isNavBar) CynthiaNavBarCustomization.reset()
-                                else CynthiaSearchFabCustomization.reset()
+                                if (isNavBar) {
+                                    CynthiaNavBarCustomization.reset()
+                                    com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.reset()
+                                } else {
+                                    CynthiaSearchFabCustomization.reset()
+                                    com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition.reset()
+                                }
                             }
                         )
                         .padding(horizontal = 10.dp, vertical = 4.dp),
@@ -369,8 +374,13 @@ private fun CustomizationPanelContent(
             suffix = currentField.suffix,
             onValueChange = currentField.onValueChange,
             onReset = {
-                if (isNavBar) CynthiaNavBarCustomization.reset()
-                else CynthiaSearchFabCustomization.reset()
+                if (isNavBar) {
+                    CynthiaNavBarCustomization.reset()
+                    com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.reset()
+                } else {
+                    CynthiaSearchFabCustomization.reset()
+                    com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition.reset()
+                }
             },
             modifier = Modifier.fillMaxWidth()
         )

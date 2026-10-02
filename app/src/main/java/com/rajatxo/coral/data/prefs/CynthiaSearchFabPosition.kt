@@ -49,4 +49,9 @@ object CynthiaSearchFabPosition {
             .apply()
         _position.value = Pair(clampedX, clampedY)
     }
+
+    /** Reset to default position. */
+    fun reset() {
+        setPosition(DEFAULT_X, DEFAULT_Y)
+    }
 }

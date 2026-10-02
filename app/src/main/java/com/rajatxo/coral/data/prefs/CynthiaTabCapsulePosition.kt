@@ -46,4 +46,9 @@ object CynthiaTabCapsulePosition {
             .apply()
         _position.value = Pair(xFraction, yFraction)
     }
+
+    /** Reset to default position. */
+    fun reset() {
+        setPosition(DEFAULT_X, DEFAULT_Y)
+    }
 }
