@@ -4,6 +4,8 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,11 +13,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,21 +33,27 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.rajatxo.coral.domain.model.Song
+import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
 
 /**
  * ★ Today's Top — a row of 3 capsule-shaped "stories" showing the user's
  *   6 most-played songs today (2 per capsule).
+ *
+ * Layout matches the Speed Dial / Recent headers: same text style, chevron,
+ * and horizontal padding (no extra padding — aligns with the LazyColumn's
+ * 20dp content padding).
  */
 @Composable
 fun TodaysTopSection(
     songs: List<Song> = emptyList(),
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    textPrimary: Color = Color.White,
+    textSecondary: Color = Color.White.copy(alpha = 0.6f)
 ) {
     val dailyPlays by com.rajatxo.coral.data.prefs.PlaybackHistory.dailyPlays.collectAsState()
 
@@ -83,28 +91,34 @@ fun TodaysTopSection(
     }
 
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+        modifier = modifier.fillMaxWidth()
     ) {
-        Text(
-            text = "Today's Top",
-            color = Color.White,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = CalSansFamily
-        )
-        Text(
-            text = if (topSongs.isEmpty()) "Play a song to fill these up"
-                   else "Your most played today",
-            color = Color.White.copy(alpha = 0.5f),
-            fontSize = 12.sp,
-            fontFamily = CalSansFamily
-        )
+        // ★ Header — matches Speed Dial / Recent layout: title + chevron
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 4.dp),  // align with Speed Dial header
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Today's Top",
+                color = textPrimary,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = CalSansFamily
+            )
+            Icon(
+                imageVector = CoralIcons.ChevronRight,
+                contentDescription = null,
+                tint = textSecondary,
+                modifier = Modifier.size(20.dp)
+            )
+        }
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // ★ 3 capsules — thinner (56dp) and wider (full row)
+        // ★ 3 capsules — thinner (56dp), full width, NO overlap (separate)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -134,12 +148,11 @@ fun TodaysTopSection(
                     contentAlignment = Alignment.Center
                 ) {
                     Row(
-                        horizontalArrangement = Arrangement.Center,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         CoverSlot(song = song1, color = color1)
-                        // Cover 2 — offset to overlap (using offset, not negative padding)
-                        CoverSlot(song = song2, color = color2, offsetStart = 8.dp)
+                        CoverSlot(song = song2, color = color2)
                     }
                 }
             }
@@ -150,15 +163,13 @@ fun TodaysTopSection(
 @Composable
 private fun CoverSlot(
     song: Song?,
-    color: Color,
-    offsetStart: Dp = 0.dp
+    color: Color
 ) {
     val coverSize = 40.dp
 
     Box(
         modifier = Modifier
             .size(coverSize)
-            .then(if (offsetStart > 0.dp) Modifier.offset(x = -offsetStart) else Modifier)
             .clip(CircleShape)
             .background(
                 Brush.horizontalGradient(

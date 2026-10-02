@@ -333,7 +333,11 @@ fun QuickPicksScreen(
             // Speed Dial is now the first row on Quick Picks.
             // ★ RE-ENABLED — Today's Top section (UI only, no data yet).
             item {
-                TodaysTopSection(songs = songs)
+                TodaysTopSection(
+                    songs = songs,
+                    textPrimary = textPrimary,
+                    textSecondary = textSecondary
+                )
             }
             item {
                 SpeedDialSection(
