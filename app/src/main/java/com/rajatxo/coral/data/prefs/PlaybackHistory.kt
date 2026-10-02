@@ -49,9 +49,7 @@ object PlaybackHistory {
     fun init(context: Context) {
         prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         load()
-        // ★ TEMPORARILY DISABLED — daily plays loading. Uncomment after
-        //   confirming the crash is fixed.
-        // loadDailyPlays()
+        loadDailyPlays()
     }
 
     private fun load() {
