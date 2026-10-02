@@ -89,6 +89,22 @@ fun CynthiaHomeScreen(
     var customizationPanelIsNavBar by remember { mutableStateOf(true) }
     val onSongClickWithReset: (Song) -> Unit = { song -> onSongClick(song) }
 
+    // ★ Record playback history + daily play count when the current song
+    //   changes. This is the SAME tracking that Astra's HomeScreen has —
+    //   without this, songs played in Cynthia don't show up in "Today's Top".
+    androidx.compose.runtime.LaunchedEffect(currentSongId, currentSongArtist) {
+        if (currentSongId != null && !currentSongArtist.isNullOrBlank()) {
+            com.rajatxo.coral.data.prefs.PlaybackHistory.recordPlayback(
+                songId = currentSongId,
+                artist = currentSongArtist
+            )
+            com.rajatxo.coral.data.prefs.PlaybackHistory.recordDailyPlay(
+                songId = currentSongId,
+                artist = currentSongArtist
+            )
+        }
+    }
+
     // ─── Glass backdrop (EXACT same as Astra) ───
     val graphicsLayer = rememberGraphicsLayer()
     val glassBackdrop = rememberLayerBackdrop(
