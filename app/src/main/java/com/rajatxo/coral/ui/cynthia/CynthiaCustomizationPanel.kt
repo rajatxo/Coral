@@ -178,7 +178,8 @@ private fun CustomizationPanelContent(
                     text = "✕",
                     color = Color.White,
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
                 )
             }
         }
@@ -327,7 +328,8 @@ private fun ResetButton(onClick: () -> Unit) {
             text = "Reset to Defaults",
             color = Color.White,
             fontSize = 11.sp,
-            fontWeight = FontWeight.Medium
+            fontWeight = FontWeight.Medium,
+            fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
         )
     }
 }
@@ -352,13 +354,15 @@ private fun SliderRow(
             Text(
                 text = label,
                 color = Color.White.copy(alpha = 0.8f),
-                fontSize = 12.sp
+                fontSize = 12.sp,
+                fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
             )
             Text(
                 text = "${value.toInt()}$suffix",
                 color = Color.White,
                 fontSize = 12.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
             )
         }
         Slider(
@@ -386,7 +390,8 @@ private fun ShapePicker(
         Text(
             text = "Shape",
             color = Color.White.copy(alpha = 0.8f),
-            fontSize = 12.sp
+            fontSize = 12.sp,
+            fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -419,7 +424,8 @@ private fun ShapePicker(
                         text = shape.displayName,
                         color = if (isSelected) Color.White else Color.White.copy(alpha = 0.6f),
                         fontSize = 9.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
                     )
                 }
             }

@@ -19,19 +19,13 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 object CynthiaSearchFabPosition {
     private const val PREFS_NAME = "coral_prefs"
-    private const val KEY_X = "cynthia_search_fab_x_c2"
-    private const val KEY_Y = "cynthia_search_fab_y_c2"
-    // ★ Cynthia defaults — user-specified layout:
-    //   - Y = 0.889 (SAME horizontal line as nav bar — they share Y)
-    //   - X = 0.846 (user-specified, to the RIGHT of the nav bar)
-    //   Gap between nav bar right edge and search FAB left edge ≈ 120dp
-    //   (on a 393dp-wide phone):
-    //     Nav bar center = 0.283 * 393 = 111dp, right edge = 111 + 75 = 186dp
-    //     Search FAB center = 0.846 * 393 = 332dp, left edge = 332 - 26 = 306dp
-    //     Gap = 306 - 186 = 120dp
-    //   PUBLIC so other files can reference them for snap-to-default behavior.
-    const val DEFAULT_X = 0.846f
-    const val DEFAULT_Y = 0.889f
+    private const val KEY_X = "cynthia_search_fab_x_c3"
+    private const val KEY_Y = "cynthia_search_fab_y_c3"
+    // ★ Cynthia defaults — user-specified (latest):
+    //   X = 0.70 (70%), Y = 0.89 (89%) — to the right of the nav bar, same Y.
+    //   Size/shape are in CynthiaSearchFabCustomization.
+    const val DEFAULT_X = 0.70f
+    const val DEFAULT_Y = 0.89f
 
     private lateinit var prefs: android.content.SharedPreferences
 

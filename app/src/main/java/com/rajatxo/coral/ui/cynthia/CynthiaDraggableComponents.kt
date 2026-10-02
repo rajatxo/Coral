@@ -361,8 +361,9 @@ internal fun CynthiaDraggableNavBar(
 
                                 countdownJob?.cancel()
                                 countdownJob = scope.launch {
-                                    // ★ 3-sec hold total: show countdown 3→2→1,
-                                    //   then open the panel directly (no choice menu).
+                                    // ★ 5-sec hold total: 2 sec silent, then 3 sec
+                                    //   countdown (3→2→1), then open the panel.
+                                    delay(2000L)
                                     showBubble = true
                                     countdownNumber = 3
                                     delay(1000L)
@@ -795,8 +796,9 @@ internal fun CynthiaDraggableSearchCircle(
 
                                 countdownJob?.cancel()
                                 countdownJob = scope.launch {
-                                    // ★ 3-sec hold total: show countdown 3→2→1,
-                                    //   then open the panel directly (no choice menu).
+                                    // ★ 5-sec hold total: 2 sec silent, then 3 sec
+                                    //   countdown (3→2→1), then open the panel.
+                                    delay(2000L)
                                     showBubble = true
                                     countdownNumber = 3
                                     delay(1000L)

@@ -18,15 +18,13 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 object CynthiaTabCapsulePosition {
     private const val PREFS_NAME = "coral_prefs"
-    private const val KEY_X = "cynthia_tab_capsule_x_c2"
-    private const val KEY_Y = "cynthia_tab_capsule_y_c2"
-    // ★ Cynthia defaults — user-specified: X = 0.283 (LEFT side), Y = 0.889
-    //   (near bottom). Nav bar is 52dp tall, sits on the LEFT side of the
-    //   screen next to the search circle (which is on its RIGHT, same Y).
-    //   PUBLIC so other files (CynthiaHomeScreen, CynthiaDraggableSearchCircle)
-    //   can reference them for the snap-to-default behavior.
-    const val DEFAULT_X = 0.283f
-    const val DEFAULT_Y = 0.889f
+    private const val KEY_X = "cynthia_tab_capsule_x_c3"
+    private const val KEY_Y = "cynthia_tab_capsule_y_c3"
+    // ★ Cynthia defaults — user-specified (latest):
+    //   X = 0.39 (39%), Y = 0.89 (89%) — near bottom-left.
+    //   Width/height/corner/shape are in CynthiaNavBarCustomization.
+    const val DEFAULT_X = 0.39f
+    const val DEFAULT_Y = 0.89f
 
     private lateinit var prefs: android.content.SharedPreferences
 

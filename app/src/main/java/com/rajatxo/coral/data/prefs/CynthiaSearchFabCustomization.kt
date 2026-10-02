@@ -16,13 +16,14 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 object CynthiaSearchFabCustomization {
     private const val PREFS_NAME = "coral_prefs"
-    private const val KEY_SIZE = "cynthia_search_size_c1"
-    private const val KEY_CORNER = "cynthia_search_corner_c1"
-    private const val KEY_SHAPE = "cynthia_search_shape_c1"
+    private const val KEY_SIZE = "cynthia_search_size_c2"
+    private const val KEY_CORNER = "cynthia_search_corner_c2"
+    private const val KEY_SHAPE = "cynthia_search_shape_c2"
 
-    const val DEFAULT_SIZE_DP = 52f
-    const val DEFAULT_CORNER_DP = 16f
-    val DEFAULT_SHAPE = com.rajatxo.coral.ui.cynthia.CynthiaCustomShape.ROUNDED
+    // ★ User-specified defaults: 51dp size, CIRCLE shape (corner irrelevant for circle).
+    const val DEFAULT_SIZE_DP = 51f
+    const val DEFAULT_CORNER_DP = 26f
+    val DEFAULT_SHAPE = com.rajatxo.coral.ui.cynthia.CynthiaCustomShape.CIRCLE
 
     private lateinit var prefs: android.content.SharedPreferences
 
