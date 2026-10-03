@@ -330,7 +330,8 @@ fun QuickPicksScreen(
                 GreetingMoodHeader(
                     textPrimary = textPrimary,
                     textSecondary = textSecondary,
-                    modifier = Modifier.padding(bottom = 6.dp)  // 6dp base + 6dp = 12dp gap to capsule
+                    modifier = Modifier.padding(bottom = 6.dp),
+                    isPlaying = isPlaying
                 )
             }
 
@@ -1738,7 +1739,8 @@ private fun SectionHeader(
 private fun GreetingMoodHeader(
     textPrimary: Color,
     textSecondary: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isPlaying: Boolean = false
 ) {
     val hour = remember {
         java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
@@ -1775,42 +1777,60 @@ private fun GreetingMoodHeader(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = 4.dp)  // align with Speed Dial header
+            .padding(start = 4.dp)
     ) {
-        // ★ Greeting — large, bold, PURE WHITE + shadow for readability
-        Text(
-            text = greeting,
-            color = Color.White,
-            fontFamily = CalSansFamily,
-            fontSize = 32.sp,
-            fontWeight = FontWeight.Bold,
-            style = androidx.compose.ui.text.TextStyle(
-                shadow = androidx.compose.ui.graphics.Shadow(
-                    color = Color.Black.copy(alpha = 0.6f),
-                    offset = androidx.compose.ui.geometry.Offset(1f, 1f),
-                    blurRadius = 3f
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // ★ Left side — greeting + mood text
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                // ★ Greeting — large, bold, PURE WHITE + shadow for readability
+                Text(
+                    text = greeting,
+                    color = Color.White,
+                    fontFamily = CalSansFamily,
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold,
+                    style = androidx.compose.ui.text.TextStyle(
+                        shadow = androidx.compose.ui.graphics.Shadow(
+                            color = Color.Black.copy(alpha = 0.6f),
+                            offset = androidx.compose.ui.geometry.Offset(1f, 1f),
+                            blurRadius = 3f
+                        )
+                    ),
+                    letterSpacing = (-1).sp
                 )
-            ),
-            letterSpacing = (-1).sp
-        )
 
-        // ★ Mood subtitle — smaller, lighter, with shadow
-        Text(
-            text = moodText,
-            fontFamily = CalSansFamily,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Light,
-            color = textSecondary,
-            letterSpacing = 0.sp,
-            style = androidx.compose.ui.text.TextStyle(
-                shadow = androidx.compose.ui.graphics.Shadow(
-                    color = Color.Black.copy(alpha = 0.5f),
-                    offset = androidx.compose.ui.geometry.Offset(0.5f, 0.5f),
-                    blurRadius = 2f
+                // ★ Mood subtitle — smaller, lighter, with shadow
+                Text(
+                    text = moodText,
+                    fontFamily = CalSansFamily,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Light,
+                    color = textSecondary,
+                    letterSpacing = 0.sp,
+                    style = androidx.compose.ui.text.TextStyle(
+                        shadow = androidx.compose.ui.graphics.Shadow(
+                            color = Color.Black.copy(alpha = 0.5f),
+                            offset = androidx.compose.ui.geometry.Offset(0.5f, 0.5f),
+                            blurRadius = 2f
+                        )
+                    ),
+                    modifier = Modifier.padding(top = 2.dp)
                 )
-            ),
-            modifier = Modifier.padding(top = 2.dp)
-        )
+            }
+
+            // ★ Right side — line art cat
+            com.rajatxo.coral.ui.components.LineArtCat(
+                expression = if (isPlaying) com.rajatxo.coral.ui.components.CatExpression.HAPPY
+                             else com.rajatxo.coral.ui.components.CatExpression.SLEEPY,
+                modifier = Modifier.size(52.dp)
+            )
+        }
     }
 }
 
