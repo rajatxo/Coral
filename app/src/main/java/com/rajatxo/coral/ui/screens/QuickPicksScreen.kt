@@ -329,16 +329,17 @@ fun QuickPicksScreen(
             item {
                 GreetingMoodHeader(
                     textPrimary = textPrimary,
-                    textSecondary = textSecondary
+                    textSecondary = textSecondary,
+                    modifier = Modifier.padding(bottom = 1.dp)  // 6dp base + 1dp = 7dp gap to capsule
                 )
             }
 
             // ═══ Listening Stats Capsule ═══
-            // Glass capsule with animated equalizer bars + listening time.
             item {
                 ListeningStatsCapsule(
                     isPlaying = isPlaying,
-                    listeningTimeSeconds = getDailyListeningSeconds()
+                    listeningTimeSeconds = getDailyListeningSeconds(),
+                    modifier = Modifier.padding(bottom = 2.dp)  // 6dp base + 2dp = 8dp gap to speed dial
                 )
             }
 
@@ -1736,7 +1737,8 @@ private fun SectionHeader(
 @Composable
 private fun GreetingMoodHeader(
     textPrimary: Color,
-    textSecondary: Color
+    textSecondary: Color,
+    modifier: Modifier = Modifier
 ) {
     val hour = remember {
         java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
@@ -1771,9 +1773,9 @@ private fun GreetingMoodHeader(
     }
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .padding(start = 4.dp, bottom = 4.dp)  // ★ align with Speed Dial header (start = 4.dp)
+            .padding(start = 4.dp)  // align with Speed Dial header
     ) {
         // ★ Greeting — large, bold, PURE WHITE + shadow for readability
         Text(
