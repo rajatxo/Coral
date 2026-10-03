@@ -1,33 +1,33 @@
 package com.rajatxo.coral.ui.components
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.unit.dp
 
 /**
- * ★ LineArtCat — a cat drawn using horizontal line art technique.
+ * ★ LineArtCat — a cat drawn with ANIMATED horizontal scanlines.
  *
- * The cat's silhouette is defined as a Path, then filled with evenly-spaced
- * horizontal lines (scanline effect) — the same style as the reference image.
+ * The cat's silhouette is a Path. Inside it, horizontal lines continuously
+ * scroll upward — creating a "living/breathing" digital shimmer effect
+ * (same as the reference video).
  *
- * Expressions change the EYE shape:
- *   HAPPY   — narrow rectangles (content, listening to music)
- *   SLEEPY  — half-height rectangles (paused, resting)
- *   NEUTRAL — standard rectangles
+ * The body also subtly scales (breathing), and the tail sways.
  *
- * The cat sits facing forward with:
- *   - Two pointy triangular ears
- *   - Rectangular eyes
- *   - Small triangular nose
- *   - Body wider at shoulders, narrowing at base
- *   - Curved tail on the right
+ * Expressions change the eye shape:
+ *   HAPPY   — narrow eyes (music playing)
+ *   SLEEPY  — half-height eyes (paused)
+ *   NEUTRAL — standard eyes
  */
 @Composable
 fun LineArtCat(
@@ -35,137 +35,152 @@ fun LineArtCat(
     modifier: Modifier = Modifier,
     lineColor: Color = Color.White,
     lineSpacing: Float = 3f,
-    strokeWidth: Float = 2f
+    strokeWidth: Float = 1.5f
 ) {
+    // ★ ANIMATION 1: scanlines scroll upward continuously
+    val infiniteTransition = rememberInfiniteTransition(label = "cat")
+    val scrollOffset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = lineSpacing,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = { it }),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "scrollOffset"
+    )
+
+    // ★ ANIMATION 2: breathing (subtle body scale)
+    val breathScale by infiniteTransition.animateFloat(
+        initialValue = 0.98f,
+        targetValue = 1.02f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = { it }),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "breathScale"
+    )
+
+    // ★ ANIMATION 3: tail sway
+    val tailSway by infiniteTransition.animateFloat(
+        initialValue = -3f,
+        targetValue = 3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = { it }),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "tailSway"
+    )
+
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
+        val cx = w / 2f
+
+        // ★ Apply breathing scale to the body
+        val bodyScale = breathScale
+        val bodyW = w * bodyScale
+        val bodyOffsetX = (w - bodyW) / 2f
 
         // ★ Cat silhouette path — sitting cat facing forward
         val catPath = Path().apply {
-            // Start at bottom-left of body
-            moveTo(w * 0.25f, h * 0.95f)
+            val bw = bodyW
+            val bx = bodyOffsetX
+
+            // Bottom-left of body
+            moveTo(bx + bw * 0.25f, h * 0.95f)
             // Left side of body going up
-            lineTo(w * 0.22f, h * 0.70f)
-            lineTo(w * 0.20f, h * 0.55f)
+            lineTo(bx + bw * 0.22f, h * 0.70f)
+            lineTo(bx + bw * 0.20f, h * 0.55f)
             // Left shoulder
-            lineTo(w * 0.18f, h * 0.45f)
+            lineTo(bx + bw * 0.18f, h * 0.45f)
             // Left side of head
-            lineTo(w * 0.22f, h * 0.35f)
-            lineTo(w * 0.25f, h * 0.28f)
+            lineTo(bx + bw * 0.22f, h * 0.35f)
+            lineTo(bx + bw * 0.25f, h * 0.28f)
             // Left ear (triangle pointing up)
-            lineTo(w * 0.22f, h * 0.12f)
-            lineTo(w * 0.28f, h * 0.22f)
+            lineTo(bx + bw * 0.22f, h * 0.12f)
+            lineTo(bx + bw * 0.28f, h * 0.22f)
             // Top of head between ears
-            lineTo(w * 0.38f, h * 0.20f)
+            lineTo(bx + bw * 0.38f, h * 0.20f)
             // Right ear (triangle pointing up)
-            lineTo(w * 0.45f, h * 0.10f)
-            lineTo(w * 0.50f, h * 0.22f)
+            lineTo(bx + bw * 0.45f, h * 0.10f)
+            lineTo(bx + bw * 0.50f, h * 0.22f)
             // Right side of head
-            lineTo(w * 0.55f, h * 0.30f)
-            lineTo(w * 0.58f, h * 0.40f)
+            lineTo(bx + bw * 0.55f, h * 0.30f)
+            lineTo(bx + bw * 0.58f, h * 0.40f)
             // Right shoulder
-            lineTo(w * 0.60f, h * 0.50f)
+            lineTo(bx + bw * 0.60f, h * 0.50f)
             // Right side of body going down
-            lineTo(w * 0.62f, h * 0.65f)
-            lineTo(w * 0.60f, h * 0.80f)
-            // Tail starts here — curves out and up
+            lineTo(bx + bw * 0.62f, h * 0.65f)
+            lineTo(bx + bw * 0.60f, h * 0.80f)
+
+            // ★ Tail — with sway animation
+            val tailOffset = tailSway
             cubicTo(
-                w * 0.72f, h * 0.82f,
-                w * 0.82f, h * 0.65f,
-                w * 0.78f, h * 0.45f
+                bx + bw * 0.72f + tailOffset, h * 0.82f,
+                bx + bw * 0.82f + tailOffset, h * 0.65f,
+                bx + bw * 0.78f + tailOffset, h * 0.45f
             )
             cubicTo(
-                w * 0.76f, h * 0.35f,
-                w * 0.70f, h * 0.38f,
-                w * 0.68f, h * 0.50f
+                bx + bw * 0.76f + tailOffset, h * 0.35f,
+                bx + bw * 0.70f + tailOffset, h * 0.38f,
+                bx + bw * 0.68f + tailOffset, h * 0.50f
             )
             // Back down the inner tail
             cubicTo(
-                w * 0.65f, h * 0.65f,
-                w * 0.58f, h * 0.78f,
-                w * 0.55f, h * 0.90f
+                bx + bw * 0.65f, h * 0.65f,
+                bx + bw * 0.58f, h * 0.78f,
+                bx + bw * 0.55f, h * 0.90f
             )
             // Bottom of body
-            lineTo(w * 0.25f, h * 0.95f)
+            lineTo(bx + bw * 0.25f, h * 0.95f)
             close()
         }
 
-        // ★ Fill the cat with horizontal lines (scanline effect)
-        // Get the bounding rect of the path
+        // ★ FILL with ANIMATED scanlines — lines scroll upward
         val bounds = catPath.getBounds()
-        val startY = bounds.top
-        val endY = bounds.bottom
 
-        var y = startY
-        while (y <= endY) {
-            // For each Y, find the left and right intersections with the path
-            // We draw a horizontal line across the cat at this Y
-            // Simple approach: draw a clip path, then fill horizontal lines
-            y += lineSpacing
-        }
-
-        // ★ Better approach: use clipPath to clip to the cat silhouette,
-        // then draw horizontal lines across the full width
         clipPath(catPath) {
-            val lineCount = ((endY - startY) / lineSpacing).toInt()
-            for (i in 0..lineCount) {
-                val lineY = startY + i * lineSpacing
+            // Draw horizontal lines that scroll upward
+            var y = bounds.top - lineSpacing + scrollOffset
+            while (y <= bounds.bottom + lineSpacing) {
                 drawLine(
                     color = lineColor,
-                    start = Offset(bounds.left - 5f, lineY),
-                    end = Offset(bounds.right + 5f, lineY),
+                    start = Offset(bounds.left - 5f, y),
+                    end = Offset(bounds.right + 5f, y),
                     strokeWidth = strokeWidth
                 )
+                y += lineSpacing
             }
         }
 
-        // ★ Draw eyes (on top of the scanlines)
+        // ★ Eyes — solid rectangles that change with expression
         val eyeY = h * 0.38f
-        val leftEyeX = w * 0.30f
-        val rightEyeX = w * 0.44f
-        val eyeWidth = w * 0.06f
+        val leftEyeX = bodyOffsetX + bodyW * 0.30f
+        val rightEyeX = bodyOffsetX + bodyW * 0.44f
+        val eyeWidth = bodyW * 0.06f
 
-        val (eyeHeight, eyeStyle) = when (expression) {
-            CatExpression.HAPPY -> {
-                // Narrow rectangles — content
-                Pair(h * 0.02f, true)
-            }
-            CatExpression.SLEEPY -> {
-                // Half-height — sleepy
-                Pair(h * 0.015f, true)
-            }
-            CatExpression.NEUTRAL -> {
-                // Standard rectangles
-                Pair(h * 0.04f, true)
-            }
-            CatExpression.CURIOUS -> {
-                // Slightly taller — alert
-                Pair(h * 0.05f, true)
-            }
+        val eyeHeight = when (expression) {
+            CatExpression.HAPPY -> h * 0.02f
+            CatExpression.SLEEPY -> h * 0.015f
+            CatExpression.NEUTRAL -> h * 0.04f
+            CatExpression.CURIOUS -> h * 0.05f
         }
 
-        // Eyes are drawn as solid filled rectangles (gaps in the scanlines)
-        // Clear the area first, then draw solid
-        if (eyeStyle) {
-            // Left eye
-            drawRect(
-                color = lineColor,
-                topLeft = Offset(leftEyeX, eyeY),
-                size = androidx.compose.ui.geometry.Size(eyeWidth, eyeHeight)
-            )
-            // Right eye
-            drawRect(
-                color = lineColor,
-                topLeft = Offset(rightEyeX, eyeY),
-                size = androidx.compose.ui.geometry.Size(eyeWidth, eyeHeight)
-            )
-        }
+        drawRect(
+            color = lineColor,
+            topLeft = Offset(leftEyeX, eyeY),
+            size = androidx.compose.ui.geometry.Size(eyeWidth, eyeHeight)
+        )
+        drawRect(
+            color = lineColor,
+            topLeft = Offset(rightEyeX, eyeY),
+            size = androidx.compose.ui.geometry.Size(eyeWidth, eyeHeight)
+        )
 
         // ★ Nose — small triangle
         val noseY = h * 0.48f
-        val noseX = w * 0.37f
-        val noseSize = w * 0.03f
+        val noseX = bodyOffsetX + bodyW * 0.37f
+        val noseSize = bodyW * 0.03f
         drawLine(
             color = lineColor,
             start = Offset(noseX - noseSize / 2, noseY),
@@ -195,16 +210,16 @@ fun LineArtCat(
         )
         drawLine(
             color = lineColor,
-            start = Offset(noseX - w * 0.02f, mouthY + h * 0.02f),
-            end = Offset(noseX + w * 0.02f, mouthY + h * 0.02f),
+            start = Offset(noseX - bodyW * 0.02f, mouthY + h * 0.02f),
+            end = Offset(noseX + bodyW * 0.02f, mouthY + h * 0.02f),
             strokeWidth = strokeWidth
         )
     }
 }
 
 enum class CatExpression {
-    HAPPY,       // narrow eyes — listening to music
-    SLEEPY,      // half-closed eyes — paused
-    NEUTRAL,     // standard eyes
-    CURIOUS      // wide eyes — alert
+    HAPPY,
+    SLEEPY,
+    NEUTRAL,
+    CURIOUS
 }
