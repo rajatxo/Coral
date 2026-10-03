@@ -107,7 +107,28 @@ fun TodaysTopCard(
                 Box(
                     modifier = Modifier
                         .clip(cardShape)
-                        .background(Color(0xFF1A1A1A).copy(alpha = 0.88f))
+                        .then(
+                            if (backdrop != null) {
+                                Modifier.drawBackdrop(
+                                    backdrop = backdrop,
+                                    shape = { cardShape },
+                                    effects = {
+                                        vibrancy()
+                                        colorControls(
+                                            brightness = 0.05f,
+                                            contrast = 1f,
+                                            saturation = 1.5f
+                                        )
+                                        blur(12f.dp.toPx())  // ★ same blur as nav bar
+                                    },
+                                    onDrawSurface = {
+                                        drawRect(Color.Black.copy(alpha = 0.25f))
+                                    }
+                                )
+                            } else {
+                                Modifier.background(Color(0xFF1A1A1A).copy(alpha = 0.88f))
+                            }
+                        )
                         .border(1.dp, Color.White.copy(alpha = 0.2f), cardShape)
                         .padding(20.dp)
                 ) {
