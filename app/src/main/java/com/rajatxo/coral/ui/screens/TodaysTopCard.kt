@@ -37,6 +37,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.colorControls
+import com.kyant.backdrop.effects.vibrancy
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
@@ -53,7 +58,8 @@ import kotlin.math.sin
  * LEFT SIDE (destination style):
  *   - Two glowing white balls, each with a ring around it
  *   - Ball glows MORE than the ring
- *   - Balls connected by a dashed vertical line "┊"
+ *   - Balls CONNECTED by a dashed vertical line "┊" that goes from one
+ *     ball to the next (not separated)
  *   - Beside each ball: song title (CalSans) + artist name (tight spacing)
  *   - Beside that: play/pause icon (Spiral player style)
  */
@@ -68,6 +74,7 @@ fun TodaysTopCard(
     isPlaying: Boolean,
     onDismiss: () -> Unit,
     onPlayPauseClick: (Song) -> Unit,
+    backdrop: LayerBackdrop? = null,
     modifier: Modifier = Modifier
 ) {
     AnimatedVisibility(
@@ -100,7 +107,28 @@ fun TodaysTopCard(
                 Box(
                     modifier = Modifier
                         .clip(cardShape)
-                        .background(Color(0xFF1A1A1A).copy(alpha = 0.85f))
+                        .then(
+                            if (backdrop != null) {
+                                Modifier.drawBackdrop(
+                                    backdrop = backdrop,
+                                    shape = { cardShape },
+                                    effects = {
+                                        vibrancy()
+                                        colorControls(
+                                            brightness = 0.1f,
+                                            contrast = 1f,
+                                            saturation = 1.3f
+                                        )
+                                        blur(30f.dp.toPx())
+                                    },
+                                    onDrawSurface = {
+                                        drawRect(Color.Black.copy(alpha = 0.45f))
+                                    }
+                                )
+                            } else {
+                                Modifier.background(Color(0xFF1A1A1A).copy(alpha = 0.92f))
+                            }
+                        )
                         .border(1.dp, Color.White.copy(alpha = 0.2f), cardShape)
                         .padding(20.dp)
                 ) {
@@ -135,11 +163,14 @@ private fun CardContent(
         verticalAlignment = Alignment.CenterVertically
     ) {
         // ═══ LEFT SIDE: destination-style timeline ═══
+        // The balls + dashed line are in a single Column so the line
+        // CONNECTS the two balls (no gap between them).
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(0.dp),  // ★ NO gap — line connects balls
+            horizontalAlignment = Alignment.Start
         ) {
-            // Song 1 row
+            // Song 1 row (ball + title + play)
             if (song1 != null) {
                 SongTimelineRow(
                     song = song1,
@@ -148,18 +179,26 @@ private fun CardContent(
                 )
             }
 
-            // Dashed vertical line between the two balls
+            // ★ Dashed vertical line — CONNECTS the two balls directly.
+            //   No gap. The line starts right below ball 1 and ends right
+            //   above ball 2.
             if (song1 != null) {
-                DashedLine()
+                DashedLine(height = 20.dp)
             }
 
-            // Song 2 row
+            // Song 2 row (ball + title + play)
             if (song2 != null) {
                 SongTimelineRow(
                     song = song2,
                     isPlaying = isPlaying && currentSongId == song2.id,
                     onPlayPauseClick = { onPlayPauseClick(song2) }
                 )
+            }
+
+            // Empty placeholder if song2 is null
+            if (song2 == null && song1 != null) {
+                DashedLine(height = 20.dp)
+                EmptyTimelineRow()
             }
         }
 
@@ -176,6 +215,9 @@ private fun CardContent(
 
 /**
  * A single song row: [glowing ball with ring] — [title + artist] — [play/pause]
+ *
+ * The ball is on the LEFT, centered vertically. The dashed line connects
+ * to the ball's center (the ball is 24dp wide, line is 24dp wide, aligned).
  */
 @Composable
 private fun SongTimelineRow(
@@ -188,6 +230,7 @@ private fun SongTimelineRow(
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         // ★ Glowing white ball WITH a ring around it
+        //   4 layers: outer glow → ring → ball glow → solid ball
         //   Ball glows MORE than the ring
         Box(
             modifier = Modifier.size(24.dp),
@@ -196,12 +239,12 @@ private fun SongTimelineRow(
             // Outer glow (soft, large)
             Canvas(modifier = Modifier.size(24.dp)) {
                 drawCircle(
-                    color = Color.White.copy(alpha = 0.08f),
+                    color = Color.White.copy(alpha = 0.1f),
                     radius = size.minDimension / 2f
                 )
             }
-            // Ring (less glowing)
-            Canvas(modifier = Modifier.size(14.dp)) {
+            // Ring (less glowing — thin stroke)
+            Canvas(modifier = Modifier.size(16.dp)) {
                 drawCircle(
                     color = Color.White.copy(alpha = 0.25f),
                     radius = size.minDimension / 2f,
@@ -211,7 +254,7 @@ private fun SongTimelineRow(
             // Ball glow (medium)
             Canvas(modifier = Modifier.size(12.dp)) {
                 drawCircle(
-                    color = Color.White.copy(alpha = 0.2f),
+                    color = Color.White.copy(alpha = 0.25f),
                     radius = size.minDimension / 2f
                 )
             }
@@ -224,7 +267,7 @@ private fun SongTimelineRow(
             }
         }
 
-        // ★ Song title + artist name — TIGHT spacing (no gap between them)
+        // ★ Song title + artist name — TIGHT spacing
         Column(
             modifier = Modifier.weight(1f)
         ) {
@@ -237,7 +280,7 @@ private fun SongTimelineRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            // ★ Tight spacing — only 1dp between title and artist
+            // ★ Only 1dp gap between title and artist
             Text(
                 text = song.artist,
                 color = Color.White.copy(alpha = 0.5f),
@@ -273,24 +316,59 @@ private fun SongTimelineRow(
 }
 
 /**
- * Dashed vertical line connecting the two balls.
+ * Empty timeline row (when there's no second song).
  */
 @Composable
-private fun DashedLine() {
+private fun EmptyTimelineRow() {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Box(
+            modifier = Modifier.size(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(modifier = Modifier.size(10.dp)) {
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.2f),
+                    radius = size.minDimension / 2f,
+                    style = Stroke(width = 1.5f)
+                )
+            }
+        }
+        Text(
+            text = "Empty",
+            color = Color.White.copy(alpha = 0.3f),
+            fontSize = 14.sp,
+            fontFamily = CalSansFamily
+        )
+    }
+}
+
+/**
+ * Dashed vertical line that CONNECTS two balls.
+ * The line is the SAME width as the ball (24dp) so it aligns perfectly
+ * with the ball's center.
+ *
+ * @param height The height of the line (controls how far apart the balls are)
+ */
+@Composable
+private fun DashedLine(height: androidx.compose.ui.unit.Dp) {
     Canvas(
         modifier = Modifier
-            .width(24.dp)
-            .height(16.dp)
+            .width(24.dp)  // ★ Same width as the ball (24dp) — aligns center
+            .height(height)
     ) {
         val centerX = size.width / 2f
-        val dashCount = 3
-        val dashHeight = size.height / (dashCount * 2)
+        val dashCount = 5
+        val totalDashSpace = size.height
+        val dashLength = totalDashSpace / (dashCount * 2)
         for (i in 0 until dashCount) {
-            val y = i * dashHeight * 2
+            val y = i * dashLength * 2
             drawLine(
-                color = Color.White.copy(alpha = 0.3f),
+                color = Color.White.copy(alpha = 0.35f),
                 start = Offset(centerX, y),
-                end = Offset(centerX, y + dashHeight),
+                end = Offset(centerX, y + dashLength),
                 strokeWidth = 1.5f
             )
         }
