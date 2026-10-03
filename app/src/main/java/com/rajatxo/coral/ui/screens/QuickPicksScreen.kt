@@ -1824,11 +1824,10 @@ private fun GreetingMoodHeader(
                 )
             }
 
-            // ★ Right side — line art cat
-            com.rajatxo.coral.ui.components.LineArtCat(
-                expression = if (isPlaying) com.rajatxo.coral.ui.components.CatExpression.HAPPY
-                             else com.rajatxo.coral.ui.components.CatExpression.SLEEPY,
-                modifier = Modifier.size(52.dp)
+            // ★ Right side — 3D cat model
+            com.rajatxo.coral.ui.components.Cat3DView(
+                autoRotate = isPlaying,
+                modifier = Modifier.size(56.dp)
             )
         }
     }
