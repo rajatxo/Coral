@@ -23,7 +23,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RadialGradient
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.backdrops.LayerBackdrop
@@ -33,14 +35,20 @@ import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.vibrancy
 
 /**
- * ★ TodaysTopCard — floating glass card that opens when you tap a capsule.
+ * ★ TodaysTopCard — floating glass card on TOP of the Speed Dial first row.
  *
- * Size: matches the Speed Dial first row (3 × 110dp = 330dp wide, 110dp tall).
- * Draggable: drag handle on top, default position = speed dial first row area.
- * Glass morphism: kyant backdrop blur (same as nav bar).
+ * Size: 330dp × 110dp (matches Speed Dial first row: 3 × 110dp).
+ * Position: sits over the speed dial grid (blurs it).
+ * Draggable: drag handle on top.
+ * Glass morphism: kyant backdrop blur.
  *
- * Content (for now): just a thick vertical dashed line on the left side.
- * We'll add the destination-style UI + activity circles later.
+ * Content (for now): two glowing white balls on the left, connected by a
+ * dashed vertical line that goes THROUGH their centers. Sizing per the
+ * Gemini spec:
+ *   - Active ball core: 7dp solid white
+ *   - Active ball glow: 16dp soft radial gradient halo
+ *   - Connecting line: 1.5dp stroke, 3dp dash, 3dp gap
+ *   - Ball spacing: 28dp between centers
  *
  * Tap outside to dismiss.
  */
@@ -59,7 +67,6 @@ fun TodaysTopCard(
     modifier: Modifier = Modifier
 ) {
     if (visible) {
-        // ★ Draggable card state — same pattern as the customization panel.
         var cardOffsetX by remember { mutableStateOf(0f) }
         var cardOffsetY by remember { mutableStateOf(0f) }
 
@@ -74,17 +81,19 @@ fun TodaysTopCard(
                 ),
             contentAlignment = Alignment.TopCenter
         ) {
-            // ★ Card — 330dp wide × 110dp tall (matches Speed Dial first row).
-            //   Draggable via offset (cardOffsetX, cardOffsetY).
+            // ★ Card — 330dp × 110dp, positioned over the speed dial first row.
+            //   padding(top = 140dp) pushes it down to overlap the speed dial grid.
+            //   (LazyColumn contentPadding top is 108dp + speed dial header ~30dp ≈ 138dp)
             Box(
                 modifier = Modifier
+                    .padding(top = 140.dp)
                     .offset { androidx.compose.ui.unit.IntOffset(cardOffsetX.toInt(), cardOffsetY.toInt()) }
                     .width(330.dp)
                     .height(110.dp)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                        onClick = {} // consume click so it doesn't dismiss
+                        onClick = {}
                     )
             ) {
                 val cardShape = RoundedCornerShape(20.dp)
@@ -115,8 +124,7 @@ fun TodaysTopCard(
                         )
                         .border(1.dp, Color.White.copy(alpha = 0.2f), cardShape)
                 ) {
-                    // ★ Drag handle — invisible strip on top that captures drags.
-                    //   Same as the customization panel.
+                    // ★ Drag handle — invisible strip on top
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -133,7 +141,6 @@ fun TodaysTopCard(
                             .align(Alignment.TopCenter),
                         contentAlignment = Alignment.Center
                     ) {
-                        // Small drag handle indicator (pill)
                         Box(
                             modifier = Modifier
                                 .width(40.dp)
@@ -143,39 +150,98 @@ fun TodaysTopCard(
                         )
                     }
 
-                    // ★ THICK vertical dashed line on the LEFT side.
-                    //   This is the only content for now. We'll add the
-                    //   destination-style UI + activity circles later.
+                    // ═══ GLOWING BALLS + DASHED LINE (left side) ═══
+                    // Per Gemini spec:
+                    //   - Active ball core: 7dp solid white
+                    //   - Active ball glow: 16dp soft radial gradient halo
+                    //   - Connecting line: 1.5dp stroke, 3dp dash, 3dp gap
+                    //   - Ball spacing: 28dp between centers
+                    //   - Line goes THROUGH the center of each ball
                     //
-                    //   Details:
-                    //   - Position: left side of the card, vertically centered
-                    //   - Stroke width: 3px (was 1.5px — now thicker)
-                    //   - Color: white at 0.4 alpha (visible but not overwhelming)
-                    //   - Dashes: 8 segments stacked vertically
-                    //   - Each dash: ~8dp long with ~4dp gap
-                    //   - Total height: ~96dp (fits inside the 110dp card with padding)
+                    // The balls and line are drawn on ONE Canvas so the line
+                    // passes through the ball centers seamlessly.
+
+                    val ballSpacingDp = 28.dp  // distance between ball centers
+                    val ballCenterY1Dp = 55.dp  // center of card vertically (110/2)
+                    val ballCenterY2Dp = ballCenterY1Dp + ballSpacingDp - 16.dp  // second ball
+
                     Canvas(
                         modifier = Modifier
                             .align(Alignment.CenterStart)
                             .padding(start = 16.dp)
-                            .width(6.dp)
+                            .width(20.dp)
                             .height(80.dp)
                     ) {
-                        val centerX = size.width / 2f
-                        val dashCount = 8
-                        val totalHeight = size.height
-                        val dashLength = totalHeight / (dashCount * 1.5f)
-                        val gapLength = dashLength * 0.5f
+                        val ballCenterX = size.width / 2f
+                        val ball1Y = size.height * 0.2f  // top ball
+                        val ball2Y = size.height * 0.8f  // bottom ball
 
-                        for (i in 0 until dashCount) {
-                            val y = i * (dashLength + gapLength)
+                        // ★ DRAW DASHED LINE FIRST (behind balls) — goes through
+                        //   the center of each ball.
+                        //   1.5dp stroke, 3dp dash, 3dp gap, white at 0.35 alpha
+                        val dashLengthPx = 3.dp.toPx()
+                        val gapLengthPx = 3.dp.toPx()
+                        val strokeWidthPx = 1.5.dp.toPx()
+                        var y = 0f
+                        while (y < size.height) {
                             drawLine(
-                                color = Color.White.copy(alpha = 0.4f),
-                                start = Offset(centerX, y),
-                                end = Offset(centerX, y + dashLength),
-                                strokeWidth = 3f  // ★ THICK — was 1.5f
+                                color = Color.White.copy(alpha = 0.35f),
+                                start = Offset(ballCenterX, y),
+                                end = Offset(ballCenterX, y + dashLengthPx),
+                                strokeWidth = strokeWidthPx
                             )
+                            y += dashLengthPx + gapLengthPx
                         }
+
+                        // ★ DRAW BALL 1 (top) — glowing white ball
+                        //   Glow: 16dp radial gradient (white center → transparent edge)
+                        //   Core: 7dp solid white
+                        val glowRadius1 = 8.dp.toPx()  // 16dp diameter
+                        val coreRadius1 = 3.5.dp.toPx()  // 7dp diameter
+
+                        // Glow halo (soft radial gradient)
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = 0.6f),
+                                    Color.White.copy(alpha = 0.2f),
+                                    Color.White.copy(alpha = 0f)
+                                ),
+                                center = Offset(ballCenterX, ball1Y),
+                                radius = glowRadius1
+                            ),
+                            radius = glowRadius1,
+                            center = Offset(ballCenterX, ball1Y)
+                        )
+                        // Solid white core
+                        drawCircle(
+                            color = Color.White,
+                            radius = coreRadius1,
+                            center = Offset(ballCenterX, ball1Y)
+                        )
+
+                        // ★ DRAW BALL 2 (bottom) — glowing white ball
+                        val glowRadius2 = 8.dp.toPx()
+                        val coreRadius2 = 3.5.dp.toPx()
+
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = 0.6f),
+                                    Color.White.copy(alpha = 0.2f),
+                                    Color.White.copy(alpha = 0f)
+                                ),
+                                center = Offset(ballCenterX, ball2Y),
+                                radius = glowRadius2
+                            ),
+                            radius = glowRadius2,
+                            center = Offset(ballCenterX, ball2Y)
+                        )
+                        drawCircle(
+                            color = Color.White,
+                            radius = coreRadius2,
+                            center = Offset(ballCenterX, ball2Y)
+                        )
                     }
                 }
             }
