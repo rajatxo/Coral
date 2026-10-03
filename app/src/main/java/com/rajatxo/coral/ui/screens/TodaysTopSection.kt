@@ -2,6 +2,10 @@ package com.rajatxo.coral.ui.screens
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -11,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -62,6 +67,11 @@ fun TodaysTopSection(
         dailyPlays.take(6).mapNotNull { entry ->
             songs.find { it.id == entry.songId }
         }
+    }
+
+    // ★ Get the durations (in seconds) for each of the top 6 songs
+    val topDurations: List<Int> = remember(dailyPlays) {
+        dailyPlays.take(6).map { it.playCount }  // playCount is now duration in seconds
     }
 
     var slotColors by remember { mutableStateOf<List<Color>>(List(6) { Color(0xFF333333) }) }
@@ -118,26 +128,43 @@ fun TodaysTopSection(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 3 capsules
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            for (capsuleIndex in 0 until 3) {
-                val slot1Index = capsuleIndex * 2
-                val slot2Index = capsuleIndex * 2 + 1
-                val song1 = slotSongs.getOrNull(slot1Index)
-                val song2 = slotSongs.getOrNull(slot2Index)
-                val color1 = slotColors.getOrNull(slot1Index) ?: Color(0xFF333333)
-                val color2 = slotColors.getOrNull(slot2Index) ?: Color(0xFF333333)
-
-                AnimatedCapsule(
-                    song1 = song1,
-                    song2 = song2,
-                    color1 = color1,
-                    color2 = color2,
-                    modifier = Modifier.weight(1f)
+        // 3 capsules — wrapped in AnimatedContent for smooth transitions
+        // when songs change positions (interchange between capsules).
+        androidx.compose.animation.AnimatedContent(
+            targetState = Triple(slotSongs, slotColors, topDurations),
+            transitionSpec = {
+                androidx.compose.animation.fadeIn(
+                    animationSpec = androidx.compose.animation.core.tween(400)
+                ) togetherWith androidx.compose.animation.fadeOut(
+                    animationSpec = androidx.compose.animation.core.tween(400)
                 )
+            },
+            label = "capsulesTransition"
+        ) { (songs, colors, durations) ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                for (capsuleIndex in 0 until 3) {
+                    val slot1Index = capsuleIndex * 2
+                    val slot2Index = capsuleIndex * 2 + 1
+                    val song1 = songs.getOrNull(slot1Index)
+                    val song2 = songs.getOrNull(slot2Index)
+                    val color1 = colors.getOrNull(slot1Index) ?: Color(0xFF333333)
+                    val color2 = colors.getOrNull(slot2Index) ?: Color(0xFF333333)
+                    val duration1 = durations.getOrNull(slot1Index) ?: 0
+                    val duration2 = durations.getOrNull(slot2Index) ?: 0
+
+                    AnimatedCapsule(
+                        song1 = song1,
+                        song2 = song2,
+                        color1 = color1,
+                        color2 = color2,
+                        duration1 = duration1,
+                        duration2 = duration2,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
         }
     }
@@ -152,10 +179,10 @@ private fun AnimatedCapsule(
     song2: Song?,
     color1: Color,
     color2: Color,
+    duration1: Int,
+    duration2: Int,
     modifier: Modifier = Modifier
 ) {
-    // ★ STATIC border — simple horizontal gradient from color1 → color2.
-    //   No animation for now. We'll revisit the flowing animation later.
     val capsuleShape = RoundedCornerShape(28.dp)
     val borderBrush = Brush.horizontalGradient(listOf(color1, color2))
     val bgBrush = Brush.horizontalGradient(
@@ -175,8 +202,8 @@ private fun AnimatedCapsule(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            CoverSlot(song = song1, color = color1)
-            CoverSlot(song = song2, color = color2)
+            CoverSlot(song = song1, color = color1, durationSeconds = duration1)
+            CoverSlot(song = song2, color = color2, durationSeconds = duration2)
         }
     }
 }
@@ -184,7 +211,8 @@ private fun AnimatedCapsule(
 @Composable
 private fun CoverSlot(
     song: Song?,
-    color: Color
+    color: Color,
+    durationSeconds: Int = 0
 ) {
     val coverSize = 40.dp
 
@@ -225,6 +253,46 @@ private fun CoverSlot(
                 fontFamily = CalSansFamily
             )
         }
+
+        // ★ Listening time badge — shows the actual time listened.
+        //   <60 min → show "Xm" (e.g., "5m", "59m")
+        //   ≥60 min → show "Xhr" (e.g., "1hr", "2hr")
+        //   Only shows if duration > 0 (song was actually played).
+        if (song != null && durationSeconds > 0) {
+            val durationText = formatDuration(durationSeconds)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .offset(y = 8.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.Black.copy(alpha = 0.7f))
+                    .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 4.dp, vertical = 1.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = durationText,
+                    color = Color.White,
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = CalSansFamily
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Format duration: <60min → "Xm", ≥60min → "Xhr".
+ * Only shows one number.
+ */
+private fun formatDuration(seconds: Int): String {
+    val minutes = seconds / 60
+    return if (minutes < 60) {
+        "${minutes}m"
+    } else {
+        val hours = minutes / 60
+        "${hours}hr"
     }
 }
 
