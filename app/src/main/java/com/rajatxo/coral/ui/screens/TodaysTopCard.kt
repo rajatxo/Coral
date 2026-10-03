@@ -1,79 +1,68 @@
 package com.rajatxo.coral.ui.screens
 
-import android.os.Build
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.vibrancy
-import com.rajatxo.coral.domain.model.Song
-import com.rajatxo.coral.ui.icons.CoralIcons
-import com.rajatxo.coral.ui.theme.CalSansFamily
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.sin
 
 /**
- * ★ TodaysTopCard — floating GLASS card that opens when you tap a capsule.
+ * ★ TodaysTopCard — floating glass card that opens when you tap a capsule.
  *
- * GLASS MORPHISM — completely different approach from kyant:
- *   Uses Android's built-in BlurEffect (API 31+) applied to the
- *   captured graphicsLayer from HomeScreen. No kyant drawBackdrop.
- *   On API < 31: falls back to semi-transparent dark background.
+ * Size: matches the Speed Dial first row (3 × 110dp = 330dp wide, 110dp tall).
+ * Draggable: drag handle on top, default position = speed dial first row area.
+ * Glass morphism: kyant backdrop blur (same as nav bar).
  *
- * No AnimatedVisibility — uses simple if(visible) to avoid the
- * AnimatedVisibility + backdrop crash.
+ * Content (for now): just a thick vertical dashed line on the left side.
+ * We'll add the destination-style UI + activity circles later.
  *
  * Tap outside to dismiss.
  */
 @Composable
 fun TodaysTopCard(
     visible: Boolean,
-    song1: Song?,
-    song2: Song?,
+    song1: com.rajatxo.coral.domain.model.Song?,
+    song2: com.rajatxo.coral.domain.model.Song?,
     color1: Color,
     color2: Color,
     currentSongId: Long?,
     isPlaying: Boolean,
     onDismiss: () -> Unit,
-    onPlayPauseClick: (Song) -> Unit,
+    onPlayPauseClick: (com.rajatxo.coral.domain.model.Song) -> Unit,
     backdrop: LayerBackdrop? = null,
     modifier: Modifier = Modifier
 ) {
     if (visible) {
+        // ★ Draggable card state — same pattern as the customization panel.
+        var cardOffsetX by remember { mutableStateOf(0f) }
+        var cardOffsetY by remember { mutableStateOf(0f) }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -85,17 +74,20 @@ fun TodaysTopCard(
                 ),
             contentAlignment = Alignment.TopCenter
         ) {
+            // ★ Card — 330dp wide × 110dp tall (matches Speed Dial first row).
+            //   Draggable via offset (cardOffsetX, cardOffsetY).
             Box(
                 modifier = Modifier
-                    .padding(horizontal = 20.dp, vertical = 100.dp)
-                    .fillMaxWidth()
+                    .offset { androidx.compose.ui.unit.IntOffset(cardOffsetX.toInt(), cardOffsetY.toInt()) }
+                    .width(330.dp)
+                    .height(110.dp)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                        onClick = {}
+                        onClick = {} // consume click so it doesn't dismiss
                     )
             ) {
-                val cardShape = RoundedCornerShape(24.dp)
+                val cardShape = RoundedCornerShape(20.dp)
                 Box(
                     modifier = Modifier
                         .clip(cardShape)
@@ -122,228 +114,71 @@ fun TodaysTopCard(
                             }
                         )
                         .border(1.dp, Color.White.copy(alpha = 0.2f), cardShape)
-                        .padding(20.dp)
                 ) {
-                    CardContent(
-                        song1 = song1,
-                        song2 = song2,
-                        color1 = color1,
-                        color2 = color2,
-                        currentSongId = currentSongId,
-                        isPlaying = isPlaying,
-                        onPlayPauseClick = onPlayPauseClick
-                    )
+                    // ★ Drag handle — invisible strip on top that captures drags.
+                    //   Same as the customization panel.
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(24.dp)
+                            .pointerInput(Unit) {
+                                detectDragGestures(
+                                    onDrag = { change, dragAmount ->
+                                        change.consume()
+                                        cardOffsetX += dragAmount.x
+                                        cardOffsetY += dragAmount.y
+                                    }
+                                )
+                            }
+                            .align(Alignment.TopCenter),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        // Small drag handle indicator (pill)
+                        Box(
+                            modifier = Modifier
+                                .width(40.dp)
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(Color.White.copy(alpha = 0.4f))
+                        )
+                    }
+
+                    // ★ THICK vertical dashed line on the LEFT side.
+                    //   This is the only content for now. We'll add the
+                    //   destination-style UI + activity circles later.
+                    //
+                    //   Details:
+                    //   - Position: left side of the card, vertically centered
+                    //   - Stroke width: 3px (was 1.5px — now thicker)
+                    //   - Color: white at 0.4 alpha (visible but not overwhelming)
+                    //   - Dashes: 8 segments stacked vertically
+                    //   - Each dash: ~8dp long with ~4dp gap
+                    //   - Total height: ~96dp (fits inside the 110dp card with padding)
+                    Canvas(
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .padding(start = 16.dp)
+                            .width(6.dp)
+                            .height(80.dp)
+                    ) {
+                        val centerX = size.width / 2f
+                        val dashCount = 8
+                        val totalHeight = size.height
+                        val dashLength = totalHeight / (dashCount * 1.5f)
+                        val gapLength = dashLength * 0.5f
+
+                        for (i in 0 until dashCount) {
+                            val y = i * (dashLength + gapLength)
+                            drawLine(
+                                color = Color.White.copy(alpha = 0.4f),
+                                start = Offset(centerX, y),
+                                end = Offset(centerX, y + dashLength),
+                                strokeWidth = 3f  // ★ THICK — was 1.5f
+                            )
+                        }
+                    }
                 }
             }
-        }
-    }
-}
-
-// ★ Helper removed — using androidx.compose.ui.draw.drawWithContent directly
-
-@Composable
-private fun CardContent(
-    song1: Song?,
-    song2: Song?,
-    color1: Color,
-    color2: Color,
-    currentSongId: Long?,
-    isPlaying: Boolean,
-    onPlayPauseClick: (Song) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // ═══ LEFT SIDE: destination-style timeline ═══
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(0.dp),
-            horizontalAlignment = Alignment.Start
-        ) {
-            if (song1 != null) {
-                SongTimelineRow(
-                    song = song1,
-                    isPlaying = isPlaying && currentSongId == song1.id,
-                    onPlayPauseClick = { onPlayPauseClick(song1) }
-                )
-            }
-            if (song1 != null) {
-                DashedLine(height = 20.dp)
-            }
-            if (song2 != null) {
-                SongTimelineRow(
-                    song = song2,
-                    isPlaying = isPlaying && currentSongId == song2.id,
-                    onPlayPauseClick = { onPlayPauseClick(song2) }
-                )
-            }
-            if (song2 == null && song1 != null) {
-                DashedLine(height = 20.dp)
-                EmptyTimelineRow()
-            }
-        }
-
-        Spacer(modifier = Modifier.width(16.dp))
-
-        // ═══ RIGHT SIDE: activity-tracker-style circle ═══
-        ActivityCircle(
-            color1 = color1,
-            color2 = color2,
-            modifier = Modifier.size(72.dp)
-        )
-    }
-}
-
-@Composable
-private fun SongTimelineRow(
-    song: Song,
-    isPlaying: Boolean,
-    onPlayPauseClick: () -> Unit
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        // ★ Glowing white ball WITH a ring around it
-        Box(
-            modifier = Modifier.size(24.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Canvas(modifier = Modifier.size(24.dp)) {
-                drawCircle(color = Color.White.copy(alpha = 0.1f), radius = size.minDimension / 2f)
-            }
-            Canvas(modifier = Modifier.size(16.dp)) {
-                drawCircle(color = Color.White.copy(alpha = 0.25f), radius = size.minDimension / 2f, style = Stroke(width = 1.5f))
-            }
-            Canvas(modifier = Modifier.size(12.dp)) {
-                drawCircle(color = Color.White.copy(alpha = 0.25f), radius = size.minDimension / 2f)
-            }
-            Canvas(modifier = Modifier.size(8.dp)) {
-                drawCircle(color = Color.White, radius = size.minDimension / 2f)
-            }
-        }
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = song.title,
-                color = Color.White,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = CalSansFamily,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = song.artist,
-                color = Color.White.copy(alpha = 0.5f),
-                fontSize = 11.sp,
-                fontFamily = CalSansFamily,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 1.dp)
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.15f))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onPlayPauseClick
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = if (isPlaying) CoralIcons.PauseLucide else CoralIcons.PlayLucide,
-                contentDescription = if (isPlaying) "Pause" else "Play",
-                tint = Color.White,
-                modifier = Modifier.size(16.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun EmptyTimelineRow() {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Box(
-            modifier = Modifier.size(24.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Canvas(modifier = Modifier.size(10.dp)) {
-                drawCircle(color = Color.White.copy(alpha = 0.2f), radius = size.minDimension / 2f, style = Stroke(width = 1.5f))
-            }
-        }
-        Text(
-            text = "Empty",
-            color = Color.White.copy(alpha = 0.3f),
-            fontSize = 14.sp,
-            fontFamily = CalSansFamily
-        )
-    }
-}
-
-@Composable
-private fun DashedLine(height: Dp) {
-    Canvas(
-        modifier = Modifier
-            .width(24.dp)
-            .height(height)
-    ) {
-        val centerX = size.width / 2f
-        val dashCount = 5
-        val dashLength = size.height / (dashCount * 2)
-        for (i in 0 until dashCount) {
-            val y = i * dashLength * 2
-            drawLine(
-                color = Color.White.copy(alpha = 0.35f),
-                start = Offset(centerX, y),
-                end = Offset(centerX, y + dashLength),
-                strokeWidth = 1.5f
-            )
-        }
-    }
-}
-
-@Composable
-private fun ActivityCircle(
-    color1: Color,
-    color2: Color,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier,
-        contentAlignment = Alignment.Center
-    ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val centerX = size.width / 2f
-            val centerY = size.height / 2f
-            val maxRadius = size.minDimension / 2f
-
-            drawArc(color = color1, startAngle = -90f, sweepAngle = 270f, useCenter = false, style = Stroke(width = 3f))
-            drawArc(
-                color = color2, startAngle = -90f, sweepAngle = 180f, useCenter = false, style = Stroke(width = 3f),
-                topLeft = Offset(centerX - maxRadius * 0.7f, centerY - maxRadius * 0.7f),
-                size = androidx.compose.ui.geometry.Size(maxRadius * 1.4f, maxRadius * 1.4f)
-            )
-
-            val dotAngle = (-90f + 270f) * PI / 180f
-            val dotX = centerX + cos(dotAngle).toFloat() * maxRadius
-            val dotY = centerY + sin(dotAngle).toFloat() * maxRadius
-            drawCircle(color = Color.White.copy(alpha = 0.3f), radius = 6f, center = Offset(dotX, dotY))
-            drawCircle(color = Color.White, radius = 3f, center = Offset(dotX, dotY))
-        }
-
-        Canvas(modifier = Modifier.size(36.dp)) {
-            drawCircle(color = Color.White, radius = size.minDimension / 2f)
         }
     }
 }
