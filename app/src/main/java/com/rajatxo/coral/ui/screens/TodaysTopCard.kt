@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,7 +26,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RadialGradient
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.backdrops.LayerBackdrop
@@ -37,20 +37,13 @@ import com.kyant.backdrop.effects.vibrancy
 /**
  * ★ TodaysTopCard — floating glass card on TOP of the Speed Dial first row.
  *
- * Size: 330dp × 110dp (matches Speed Dial first row: 3 × 110dp).
- * Position: sits over the speed dial grid (blurs it).
+ * Size: customizable (width, height, corner, shape) — like the nav bar card.
  * Draggable: drag handle on top.
  * Glass morphism: kyant backdrop blur.
  *
- * Content (for now): two glowing white balls on the left, connected by a
- * dashed vertical line that goes THROUGH their centers. Sizing per the
- * Gemini spec:
- *   - Active ball core: 7dp solid white
- *   - Active ball glow: 16dp soft radial gradient halo
- *   - Connecting line: 1.5dp stroke, 3dp dash, 3dp gap
- *   - Ball spacing: 28dp between centers
- *
- * Tap outside to dismiss.
+ * Content: two glowing white balls connected by a DISSOLVING dashed line.
+ * The line FADES IN at the top, is BRIGHT between the two balls,
+ * then FADES OUT at the bottom — like dissolving into the card.
  */
 @Composable
 fun TodaysTopCard(
@@ -66,6 +59,10 @@ fun TodaysTopCard(
     backdrop: LayerBackdrop? = null,
     modifier: Modifier = Modifier
 ) {
+    // ★ Read customization from prefs (same as nav bar)
+    val cardCustom by com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.customization
+        .collectAsState()
+
     if (visible) {
         var cardOffsetX by remember { mutableStateOf(0f) }
         var cardOffsetY by remember { mutableStateOf(0f) }
@@ -81,22 +78,22 @@ fun TodaysTopCard(
                 ),
             contentAlignment = Alignment.TopCenter
         ) {
-            // ★ Card — 330dp × 110dp, positioned over the speed dial first row.
-            //   padding(top = 140dp) pushes it down to overlap the speed dial grid.
-            //   (LazyColumn contentPadding top is 108dp + speed dial header ~30dp ≈ 138dp)
             Box(
                 modifier = Modifier
                     .padding(top = 140.dp)
                     .offset { androidx.compose.ui.unit.IntOffset(cardOffsetX.toInt(), cardOffsetY.toInt()) }
-                    .width(330.dp)
-                    .height(110.dp)
+                    .width(cardCustom.widthDp.dp)
+                    .height(cardCustom.heightDp.dp)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = {}
                     )
             ) {
-                val cardShape = RoundedCornerShape(20.dp)
+                // ★ Shape from customization
+                val cardShape = cardCustom.shape.toComposeShape(
+                    cardCustom.cornerRadiusDp, cardCustom.widthDp
+                )
                 Box(
                     modifier = Modifier
                         .clip(cardShape)
@@ -150,20 +147,17 @@ fun TodaysTopCard(
                         )
                     }
 
-                    // ═══ GLOWING BALLS + DASHED LINE (left side) ═══
-                    // Per Gemini spec:
-                    //   - Active ball core: 7dp solid white
-                    //   - Active ball glow: 16dp soft radial gradient halo
-                    //   - Connecting line: 1.5dp stroke, 3dp dash, 3dp gap
-                    //   - Ball spacing: 28dp between centers
-                    //   - Line goes THROUGH the center of each ball
+                    // ═══ DISSOLVING DASHED LINE + GLOWING BALLS ═══
                     //
-                    // The balls and line are drawn on ONE Canvas so the line
-                    // passes through the ball centers seamlessly.
-
-                    val ballSpacingDp = 28.dp  // distance between ball centers
-                    val ballCenterY1Dp = 55.dp  // center of card vertically (110/2)
-                    val ballCenterY2Dp = ballCenterY1Dp + ballSpacingDp - 16.dp  // second ball
+                    // The line DISSOLVES:
+                    //   top → fades in (alpha 0 → 0.55)
+                    //   ball 1 (bright, glowing)
+                    //   between balls → BRIGHT (alpha 0.55, full)
+                    //   ball 2 (bright, glowing)
+                    //   bottom → fades out (alpha 0.55 → 0)
+                    //
+                    // Like:  ·····•──────•·····
+                    //        (fade in) (bright) (fade out)
 
                     Canvas(
                         modifier = Modifier
@@ -173,19 +167,41 @@ fun TodaysTopCard(
                             .height(80.dp)
                     ) {
                         val ballCenterX = size.width / 2f
-                        val ball1Y = size.height * 0.2f  // top ball
-                        val ball2Y = size.height * 0.8f  // bottom ball
+                        val ball1Y = size.height * 0.2f
+                        val ball2Y = size.height * 0.8f
 
-                        // ★ DRAW DASHED LINE FIRST (behind balls) — goes through
-                        //   the center of each ball.
-                        //   1.5dp stroke, 3dp dash, 3dp gap, white at 0.35 alpha
+                        // ★ DISSOLVING DASHED LINE
+                        //   3 zones:
+                        //   1. Top zone (0 → ball1Y): fade IN (alpha 0 → 0.55)
+                        //   2. Middle zone (ball1Y → ball2Y): BRIGHT (alpha 0.55)
+                        //   3. Bottom zone (ball2Y → end): fade OUT (alpha 0.55 → 0)
                         val dashLengthPx = 3.dp.toPx()
                         val gapLengthPx = 3.dp.toPx()
                         val strokeWidthPx = 1.5.dp.toPx()
+                        val maxAlpha = 0.55f  // ★ brighter than before (was 0.35f)
+
                         var y = 0f
                         while (y < size.height) {
+                            // Calculate alpha based on position
+                            val alpha = when {
+                                // Top zone: fade in (0 → ball1Y)
+                                y < ball1Y -> {
+                                    val t = y / ball1Y
+                                    maxAlpha * t
+                                }
+                                // Middle zone: bright (ball1Y → ball2Y)
+                                y >= ball1Y && y <= ball2Y -> {
+                                    maxAlpha
+                                }
+                                // Bottom zone: fade out (ball2Y → end)
+                                else -> {
+                                    val t = (size.height - y) / (size.height - ball2Y)
+                                    maxAlpha * t
+                                }
+                            }
+
                             drawLine(
-                                color = Color.White.copy(alpha = 0.35f),
+                                color = Color.White.copy(alpha = alpha),
                                 start = Offset(ballCenterX, y),
                                 end = Offset(ballCenterX, y + dashLengthPx),
                                 strokeWidth = strokeWidthPx
@@ -193,13 +209,10 @@ fun TodaysTopCard(
                             y += dashLengthPx + gapLengthPx
                         }
 
-                        // ★ DRAW BALL 1 (top) — glowing white ball
-                        //   Glow: 16dp radial gradient (white center → transparent edge)
-                        //   Core: 7dp solid white
-                        val glowRadius1 = 8.dp.toPx()  // 16dp diameter
-                        val coreRadius1 = 3.5.dp.toPx()  // 7dp diameter
+                        // ★ GLOWING BALL 1 (top)
+                        val glowRadius = 8.dp.toPx()
+                        val coreRadius = 3.5.dp.toPx()
 
-                        // Glow halo (soft radial gradient)
                         drawCircle(
                             brush = Brush.radialGradient(
                                 colors = listOf(
@@ -208,22 +221,18 @@ fun TodaysTopCard(
                                     Color.White.copy(alpha = 0f)
                                 ),
                                 center = Offset(ballCenterX, ball1Y),
-                                radius = glowRadius1
+                                radius = glowRadius
                             ),
-                            radius = glowRadius1,
+                            radius = glowRadius,
                             center = Offset(ballCenterX, ball1Y)
                         )
-                        // Solid white core
                         drawCircle(
                             color = Color.White,
-                            radius = coreRadius1,
+                            radius = coreRadius,
                             center = Offset(ballCenterX, ball1Y)
                         )
 
-                        // ★ DRAW BALL 2 (bottom) — glowing white ball
-                        val glowRadius2 = 8.dp.toPx()
-                        val coreRadius2 = 3.5.dp.toPx()
-
+                        // ★ GLOWING BALL 2 (bottom)
                         drawCircle(
                             brush = Brush.radialGradient(
                                 colors = listOf(
@@ -232,14 +241,14 @@ fun TodaysTopCard(
                                     Color.White.copy(alpha = 0f)
                                 ),
                                 center = Offset(ballCenterX, ball2Y),
-                                radius = glowRadius2
+                                radius = glowRadius
                             ),
-                            radius = glowRadius2,
+                            radius = glowRadius,
                             center = Offset(ballCenterX, ball2Y)
                         )
                         drawCircle(
                             color = Color.White,
-                            radius = coreRadius2,
+                            radius = coreRadius,
                             center = Offset(ballCenterX, ball2Y)
                         )
                     }
