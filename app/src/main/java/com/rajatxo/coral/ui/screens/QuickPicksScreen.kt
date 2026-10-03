@@ -1735,13 +1735,17 @@ private fun GreetingMoodHeader(
         java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
     }
 
-    // ★ Greeting text based on time of day
-    val greeting = when (hour) {
+    // ★ User name from prefs
+    val userName by com.rajatxo.coral.data.prefs.UserName.name.collectAsState()
+
+    // ★ Greeting text based on time of day + user name
+    val greetingBase = when (hour) {
         in 5..11 -> "Good morning"
         in 12..16 -> "Good afternoon"
         in 17..21 -> "Good evening"
         else -> "Good night"
     }
+    val greeting = if (userName.isNotBlank()) "$greetingBase $userName," else "$greetingBase,"
 
     // ★ Mood subtitle based on time of day
     val moodText = when (hour) {
@@ -1751,12 +1755,12 @@ private fun GreetingMoodHeader(
         else -> "Late night vibes"
     }
 
-    // ★ Gradient colors based on time of day
+    // ★ VIBRANT gradient colors (boosted saturation for readability on any bg)
     val (gradientStart, gradientEnd) = when (hour) {
-        in 5..11 -> Color(0xFFFFD166) to Color(0xFFFF8FAB)      // gold → pink
-        in 12..16 -> Color(0xFF6B9EFF) to Color(0xFF51CF66)     // blue → green
-        in 17..21 -> Color(0xFFFF6B6B) to Color(0xFFB197FC)     // coral → purple
-        else -> Color(0xFF6B7BFF) to Color(0xFF1A1A2E)          // indigo → midnight
+        in 5..11 -> Color(0xFFFFE066) to Color(0xFFFF6B9D)      // bright gold → hot pink
+        in 12..16 -> Color(0xFF4DABF7) to Color(0xFF20C997)     // bright blue → emerald
+        in 17..21 -> Color(0xFFFF5252) to Color(0xFF9C27B0)     // vivid coral → deep purple
+        else -> Color(0xFF5C7CFA) to Color(0xFF7950F2)          // royal indigo → vibrant violet
     }
 
     Column(
@@ -1764,8 +1768,7 @@ private fun GreetingMoodHeader(
             .fillMaxWidth()
             .padding(bottom = 4.dp)
     ) {
-        // ★ Greeting — large, bold, gradient text
-        //   Uses buildAnnotatedString for the gradient (premium technique)
+        // ★ Greeting — large, bold, gradient text + shadow for readability
         Text(
             text = greeting,
             fontFamily = CalSansFamily,
@@ -1774,12 +1777,17 @@ private fun GreetingMoodHeader(
             style = androidx.compose.ui.text.TextStyle(
                 brush = Brush.horizontalGradient(
                     listOf(gradientStart, gradientEnd)
+                ),
+                shadow = androidx.compose.ui.graphics.Shadow(
+                    color = Color.Black.copy(alpha = 0.6f),
+                    offset = androidx.compose.ui.geometry.Offset(1f, 1f),
+                    blurRadius = 3f
                 )
             ),
-            letterSpacing = (-1).sp  // tight tracking for large display text
+            letterSpacing = (-1).sp
         )
 
-        // ★ Mood subtitle — smaller, lighter, secondary color
+        // ★ Mood subtitle — smaller, lighter, with shadow
         Text(
             text = moodText,
             fontFamily = CalSansFamily,
@@ -1787,6 +1795,13 @@ private fun GreetingMoodHeader(
             fontWeight = FontWeight.Light,
             color = textSecondary,
             letterSpacing = 0.sp,
+            style = androidx.compose.ui.text.TextStyle(
+                shadow = androidx.compose.ui.graphics.Shadow(
+                    color = Color.Black.copy(alpha = 0.5f),
+                    offset = androidx.compose.ui.geometry.Offset(0.5f, 0.5f),
+                    blurRadius = 2f
+                )
+            ),
             modifier = Modifier.padding(top = 2.dp)
         )
     }

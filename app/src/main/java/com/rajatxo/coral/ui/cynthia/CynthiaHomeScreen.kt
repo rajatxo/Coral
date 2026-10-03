@@ -88,6 +88,8 @@ fun CynthiaHomeScreen(
     //   false → search FAB held. Controls which section the panel shows.
     var showCustomizationPanel by remember { mutableStateOf(false) }
     var customizationPanelIsNavBar by remember { mutableStateOf(true) }
+    // ★ Profile panel state
+    var showProfilePanel by remember { mutableStateOf(false) }
     val onSongClickWithReset: (Song) -> Unit = { song -> onSongClick(song) }
 
     // ★ Record playback history + daily play count when the current song
@@ -267,7 +269,7 @@ fun CynthiaHomeScreen(
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
-                            onClick = { /* TODO: account screen */ }
+                            onClick = { showProfilePanel = true }
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -400,6 +402,13 @@ fun CynthiaHomeScreen(
             onDismiss = { showCustomizationPanel = false },
             backdrop = glassBackdrop,
             isNavBar = customizationPanelIsNavBar
+        )
+
+        // ★ Profile panel — opens when tapping the profile icon
+        com.rajatxo.coral.ui.screens.ProfilePanel(
+            visible = showProfilePanel,
+            onDismiss = { showProfilePanel = false },
+            backdrop = glassBackdrop
         )
     }
 }
