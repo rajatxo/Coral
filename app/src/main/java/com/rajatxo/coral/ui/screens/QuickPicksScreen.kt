@@ -326,12 +326,19 @@ fun QuickPicksScreen(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             // ═══ Greeting + Mood ═══
-            // Premium typography: large greeting + mood gradient.
-            // Greeting changes by time of day.
             item {
                 GreetingMoodHeader(
                     textPrimary = textPrimary,
                     textSecondary = textSecondary
+                )
+            }
+
+            // ═══ Listening Stats Capsule ═══
+            // Glass capsule with animated equalizer bars + listening time.
+            item {
+                ListeningStatsCapsule(
+                    isPlaying = isPlaying,
+                    listeningTimeSeconds = getDailyListeningSeconds()
                 )
             }
 
@@ -1802,5 +1809,16 @@ private fun GreetingMoodHeader(
             ),
             modifier = Modifier.padding(top = 2.dp)
         )
+    }
+}
+
+/**
+ * Get total daily listening time in seconds from PlaybackHistory.
+ */
+@Composable
+private fun getDailyListeningSeconds(): Int {
+    val dailyPlays by com.rajatxo.coral.data.prefs.PlaybackHistory.dailyPlays.collectAsState()
+    return remember(dailyPlays) {
+        dailyPlays.sumOf { it.playCount }
     }
 }
