@@ -26,20 +26,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.BlurEffect
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.layer.GraphicsLayer
-import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.colorControls
+import com.kyant.backdrop.effects.vibrancy
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
@@ -71,12 +70,9 @@ fun TodaysTopCard(
     isPlaying: Boolean,
     onDismiss: () -> Unit,
     onPlayPauseClick: (Song) -> Unit,
-    contentGraphicsLayer: GraphicsLayer? = null,
+    backdrop: LayerBackdrop? = null,
     modifier: Modifier = Modifier
 ) {
-    // ★ NO AnimatedVisibility — just a simple conditional.
-    //   This avoids the crash that AnimatedVisibility caused with
-    //   graphicsLayer rendering.
     if (visible) {
         Box(
             modifier = Modifier
@@ -96,39 +92,32 @@ fun TodaysTopCard(
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                        onClick = {} // consume click so it doesn't dismiss
+                        onClick = {}
                     )
             ) {
                 val cardShape = RoundedCornerShape(24.dp)
-                val useBlurEffect = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                    contentGraphicsLayer != null
-
                 Box(
                     modifier = Modifier
                         .clip(cardShape)
                         .then(
-                            if (useBlurEffect) {
-                                // ★ ANDROID'S BUILT-IN BLUR — not kyant.
-                                //   Draw the captured graphicsLayer (HomeScreen
-                                //   content) with a BlurEffect applied.
-                                //   This is a completely different approach
-                                //   from kyant's drawBackdrop.
-                                Modifier.graphicsLayer {
-                                    compositingStrategy = CompositingStrategy.Offscreen
-                                    renderEffect = BlurEffect(
-                                        radiusX = 20f,
-                                        radiusY = 20f
-                                    )
-                                }.drawWithContent {
-                                    // Draw the captured content (blurred)
-                                    if (contentGraphicsLayer != null) {
-                                        drawLayer(contentGraphicsLayer)
+                            if (backdrop != null) {
+                                Modifier.drawBackdrop(
+                                    backdrop = backdrop,
+                                    shape = { cardShape },
+                                    effects = {
+                                        vibrancy()
+                                        colorControls(
+                                            brightness = 0.05f,
+                                            contrast = 1f,
+                                            saturation = 1.5f
+                                        )
+                                        blur(12f.dp.toPx())
+                                    },
+                                    onDrawSurface = {
+                                        drawRect(Color.Black.copy(alpha = 0.25f))
                                     }
-                                    // Dark overlay on top for readability
-                                    drawRect(Color.Black.copy(alpha = 0.4f))
-                                }
+                                )
                             } else {
-                                // Fallback (API < 31): semi-transparent dark
                                 Modifier.background(Color(0xFF1A1A1A).copy(alpha = 0.88f))
                             }
                         )

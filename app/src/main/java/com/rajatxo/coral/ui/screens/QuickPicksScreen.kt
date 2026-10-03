@@ -132,15 +132,11 @@ fun QuickPicksScreen(
     onBackClick: () -> Unit = {},
     isPlaying: Boolean = false,
     onPlayPauseClick: () -> Unit = {},
-    contentGraphicsLayer: androidx.compose.ui.graphics.layer.GraphicsLayer? = null,
+    onCapsuleClick: (List<Song>) -> Unit = {},
     glassHazeState: dev.chrisbanes.haze.HazeState? = null,
     glassStyle: dev.chrisbanes.haze.HazeStyle? = null
 ) {
     val context = LocalContext.current
-
-    // ★ Card state — which capsule was tapped, and which songs
-    var showTopCard by remember { mutableStateOf(false) }
-    var cardSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
 
     // ─── Current song's palette → dark gradient background ──────────
     // The background is a dark gradient using the current song's palette
@@ -343,10 +339,7 @@ fun QuickPicksScreen(
                     songs = songs,
                     textPrimary = textPrimary,
                     textSecondary = textSecondary,
-                    onCapsuleClick = { tappedSongs ->
-                        cardSongs = tappedSongs
-                        showTopCard = true
-                    }
+                    onCapsuleClick = onCapsuleClick
                 )
             }
             item {
@@ -429,26 +422,6 @@ fun QuickPicksScreen(
             }
         }
 
-        // ★ TodaysTopCard — floating glass overlay. Uses the glass backdrop
-        //   from HomeScreen (passed via glassBackdrop parameter).
-        TodaysTopCard(
-            visible = showTopCard,
-            song1 = cardSongs.getOrNull(0),
-            song2 = cardSongs.getOrNull(1),
-            color1 = Color(0xFFFF6B6B),
-            color2 = Color(0xFF6B9EFF),
-            currentSongId = currentSongId,
-            isPlaying = isPlaying,
-            onDismiss = { showTopCard = false },
-            onPlayPauseClick = { song ->
-                if (song.id == currentSongId) {
-                    onPlayPauseClick()
-                } else {
-                    onSongClick(song)
-                }
-            },
-            contentGraphicsLayer = contentGraphicsLayer
-        )
     }
 }
 

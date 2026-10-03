@@ -166,8 +166,7 @@ fun CynthiaHomeScreen(
                     currentSongArt = currentSongArt,
                     onSongClick = onSongClickWithReset,
                     isPlaying = isPlaying,
-                    onPlayPauseClick = onPlayPauseClick,
-                    contentGraphicsLayer = graphicsLayer
+                    onPlayPauseClick = onPlayPauseClick
                 )
                 else -> Box(
                     modifier = Modifier.fillMaxSize(),

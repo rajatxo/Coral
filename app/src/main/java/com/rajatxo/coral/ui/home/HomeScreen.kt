@@ -351,6 +351,12 @@ fun HomeScreen(
             drawContent()
         }
 
+        // ★ TodaysTopCard state — hoisted OUTSIDE the layerBackdrop Box.
+        //   The card renders as a SIBLING of the content Box (like nav bar),
+        //   so drawBackdrop samples the content behind it — no recursion, no crash.
+        var showTopCard by remember { mutableStateOf(false) }
+        var topCardSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
+
         // Main content — fills the WHOLE screen (no nav rail anymore)
         // Wrapped with layerBackdrop so the nav bar can sample + blur this.
         //
@@ -441,7 +447,10 @@ fun HomeScreen(
                     onSongClick = onSongClickWithReset,
                     isPlaying = isPlaying,
                     onPlayPauseClick = onPlayPauseClick,
-                    contentGraphicsLayer = graphicsLayer
+                    onCapsuleClick = { tappedSongs ->
+                        topCardSongs = tappedSongs
+                        showTopCard = true
+                    }
                 )
                 CoralTab.Discover -> PlaceholderScreen(
                     tabName = "Discover",
@@ -577,11 +586,31 @@ fun HomeScreen(
         // --- Draggable Floating Search Button ---
         DraggableSearchFab(
             onSearchClick = { showSearch = true },
-            backdrop = glassBackdrop,  // ★ glass morphism (same as nav bar + mini player)
-            // ★ Pass the hoisted proximity setter so the search FAB can signal
-            //   "I'm close to the nav bar" DURING the drag — the nav bar reads
-            //   this to instantly snap to its default position.
+            backdrop = glassBackdrop,
             onProximityChange = { isNear -> searchFabNearNavBar = isNear }
+        )
+
+        // ★ TodaysTopCard — rendered OUTSIDE the layerBackdrop Box (like nav bar).
+        //   This is the key fix: the card is a SIBLING of the content Box,
+        //   so drawBackdrop samples the content behind it — no recursion, no crash.
+        //   Same glass morphism as the nav bar.
+        com.rajatxo.coral.ui.screens.TodaysTopCard(
+            visible = showTopCard,
+            song1 = topCardSongs.getOrNull(0),
+            song2 = topCardSongs.getOrNull(1),
+            color1 = androidx.compose.ui.graphics.Color(0xFFFF6B6B),
+            color2 = androidx.compose.ui.graphics.Color(0xFF6B9EFF),
+            currentSongId = currentSongId,
+            isPlaying = isPlaying,
+            onDismiss = { showTopCard = false },
+            onPlayPauseClick = { song ->
+                if (song.id == currentSongId) {
+                    onPlayPauseClick()
+                } else {
+                    onSongClickWithReset(song)
+                }
+            },
+            backdrop = glassBackdrop
         )
 
         // ─── FIXED HEADER (Quick Picks page only) ───────────────────
