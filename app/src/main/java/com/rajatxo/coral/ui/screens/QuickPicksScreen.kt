@@ -463,8 +463,7 @@ fun QuickPicksScreen(
                 } else {
                     onSongClick(song)
                 }
-            },
-            backdrop = todaysTopGlassBackdrop
+            }
         )
     }
 }

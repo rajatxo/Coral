@@ -37,11 +37,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.colorControls
-import com.kyant.backdrop.effects.vibrancy
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
@@ -73,7 +68,6 @@ fun TodaysTopCard(
     isPlaying: Boolean,
     onDismiss: () -> Unit,
     onPlayPauseClick: (Song) -> Unit,
-    backdrop: LayerBackdrop? = null,
     modifier: Modifier = Modifier
 ) {
     AnimatedVisibility(
@@ -106,28 +100,7 @@ fun TodaysTopCard(
                 Box(
                     modifier = Modifier
                         .clip(cardShape)
-                        .then(
-                            if (backdrop != null) {
-                                Modifier.drawBackdrop(
-                                    backdrop = backdrop,
-                                    shape = { cardShape },
-                                    effects = {
-                                        vibrancy()
-                                        colorControls(
-                                            brightness = 0.1f,
-                                            contrast = 1f,
-                                            saturation = 1.3f
-                                        )
-                                        blur(30f.dp.toPx())
-                                    },
-                                    onDrawSurface = {
-                                        drawRect(Color.Black.copy(alpha = 0.45f))
-                                    }
-                                )
-                            } else {
-                                Modifier.background(Color(0xFF1A1A1A).copy(alpha = 0.92f))
-                            }
-                        )
+                        .background(Color(0xFF1A1A1A).copy(alpha = 0.85f))
                         .border(1.dp, Color.White.copy(alpha = 0.2f), cardShape)
                         .padding(20.dp)
                 ) {
