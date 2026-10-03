@@ -105,8 +105,18 @@ fun ListeningStatsCapsule(
             .fillMaxWidth()
             .height(40.dp)
             .clip(capsuleShape)
-            .background(Color(0xFF1A1A1A).copy(alpha = 0.6f))
-            .border(1.dp, Color.White.copy(alpha = 0.12f), capsuleShape)
+            .background(Color.Black.copy(alpha = 0.02f))
+            .border(
+                width = 1.5.dp,
+                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.4f),  // top — glossy highlight
+                        Color.White.copy(alpha = 0.1f),  // middle
+                        Color.White.copy(alpha = 0.25f)   // bottom — subtle reflection
+                    )
+                ),
+                shape = capsuleShape
+            )
             .padding(horizontal = 14.dp),
         contentAlignment = Alignment.CenterStart
     ) {
