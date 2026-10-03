@@ -105,6 +105,28 @@ fun CynthiaHomeScreen(
         }
     }
 
+    // ★ Track playback DURATION for "Today's Top" — accumulate 1 second
+    //   every ~1 second while playing. Same as Astra's HomeScreen poller.
+    var durationAccumulator by remember { mutableStateOf(0L) }
+    androidx.compose.runtime.LaunchedEffect(mediaController, isPlaying, currentSongId) {
+        while (true) {
+            try {
+                if (isPlaying && currentSongId != null && !currentSongArtist.isNullOrBlank()) {
+                    durationAccumulator += 500L
+                    if (durationAccumulator >= 1000L) {
+                        durationAccumulator -= 1000L
+                        com.rajatxo.coral.data.prefs.PlaybackHistory.addPlayDuration(
+                            songId = currentSongId,
+                            artist = currentSongArtist,
+                            secondsToAdd = 1
+                        )
+                    }
+                }
+            } catch (_: Exception) { }
+            kotlinx.coroutines.delay(if (isPlaying) 500L else 2000L)
+        }
+    }
+
     // ─── Glass backdrop (EXACT same as Astra) ───
     val graphicsLayer = rememberGraphicsLayer()
     val glassBackdrop = rememberLayerBackdrop(

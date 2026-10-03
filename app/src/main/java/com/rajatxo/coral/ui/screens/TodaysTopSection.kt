@@ -197,7 +197,7 @@ private fun CoverSlot(
                     listOf(color, color.copy(alpha = 0.7f))
                 )
             )
-            .border(2.dp, Color.White.copy(alpha = 0.2f), CircleShape),
+            .border(2.dp, Color.White.copy(alpha = 0.5f), CircleShape),
         contentAlignment = Alignment.Center
     ) {
         if (song != null && song.albumArtUri != null) {

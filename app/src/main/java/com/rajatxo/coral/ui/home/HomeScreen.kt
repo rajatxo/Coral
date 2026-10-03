@@ -224,12 +224,30 @@ fun HomeScreen(
     // ring around the album art in the mini player can show song timeline.
     var miniPlayerPositionMs by remember { mutableStateOf(0L) }
     var miniPlayerDurationMs by remember { mutableStateOf(0L) }
+    // ★ Track playback duration for "Today's Top" — accumulate 1 second
+    //   every ~1 second while playing.
+    var durationAccumulator by remember { mutableStateOf(0L) }
     androidx.compose.runtime.LaunchedEffect(mediaController, isPlaying) {
         while (true) {
             try {
                 mediaController?.let { controller ->
                     miniPlayerPositionMs = controller.currentPosition.coerceAtLeast(0L)
                     miniPlayerDurationMs = controller.duration.coerceAtLeast(0L)
+                }
+                // ★ Accumulate playback duration for Today's Top.
+                //   Every 500ms while playing, add 500ms to the accumulator.
+                //   When the accumulator reaches 1000ms (1 second), add 1
+                //   second to the current song's daily duration.
+                if (isPlaying && currentSongId != null && !currentSongArtist.isNullOrBlank()) {
+                    durationAccumulator += 500L
+                    if (durationAccumulator >= 1000L) {
+                        durationAccumulator -= 1000L
+                        com.rajatxo.coral.data.prefs.PlaybackHistory.addPlayDuration(
+                            songId = currentSongId,
+                            artist = currentSongArtist,
+                            secondsToAdd = 1
+                        )
+                    }
                 }
             } catch (_: Exception) { }
             kotlinx.coroutines.delay(if (isPlaying) 500L else 2000L)

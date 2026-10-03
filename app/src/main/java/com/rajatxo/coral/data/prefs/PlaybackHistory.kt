@@ -128,23 +128,31 @@ object PlaybackHistory {
     }
 
     // ════════════════════════════════════════════════════════════════
-    //  DAILY PLAY COUNTS — for "Today's Top" feature
+    //  DAILY PLAY DURATION — for "Today's Top" feature
     // ════════════════════════════════════════════════════════════════
-    // Tracks how many times each song was played TODAY (calendar day,
-    // resets at midnight). Used by the "Today's Top" row on Quick Picks.
+    // Tracks how many SECONDS each song was actually played TODAY
+    // (calendar day, resets at midnight). Used by the "Today's Top" row
+    // on Quick Picks.
+    //
+    // FILLING LOGIC:
+    //   Phase 1: First 6 unique songs tapped get the slots (even if
+    //            played for 0 seconds). Fills the capsules quickly.
+    //   Phase 2: After 6+ songs exist, ranking is by total duration.
+    //            A song played longer ranks higher.
     //
     // Storage:
-    //   - Key: "daily_plays_v1" → JSON: {"date": "2026-10-02", "counts": {"123": 5, "456": 3}}
-    //   - On read: if the stored date != today, the counts are cleared
-    //     (new day = fresh start).
+    //   - Key: "daily_plays_v2" → JSON: {"date": "2026-10-03",
+    //       "durations": {"123": 300, "456": 120}, "artists": {...}}
+    //   - Durations are in SECONDS (accumulated while playing).
+    //   - On read: if the stored date != today, the data is cleared.
     // ════════════════════════════════════════════════════════════════
 
-    private const val KEY_DAILY_PLAYS = "daily_plays_v1"
+    private const val KEY_DAILY_PLAYS = "daily_plays_v2"
 
     data class DailyPlayCount(
         val songId: Long,
         val artist: String,
-        val playCount: Int
+        val playCount: Int  // ★ Now represents DURATION IN SECONDS
     )
 
     private val _dailyPlays = MutableStateFlow<List<DailyPlayCount>>(emptyList())
@@ -164,8 +172,8 @@ object PlaybackHistory {
     }
 
     /**
-     * Load daily play counts. If the stored date is not today, clear
-     * the counts (new day = fresh start). Fully guarded — never crashes.
+     * Load daily play durations. If the stored date is not today, clear
+     * the data (new day = fresh start). Fully guarded — never crashes.
      */
     private fun loadDailyPlays() {
         if (!::prefs.isInitialized) return
@@ -174,25 +182,25 @@ object PlaybackHistory {
             val root = org.json.JSONObject(json)
             val storedDate = root.optString("date", "")
             if (storedDate != todayString()) {
-                // New day — clear the counts
+                // New day — clear the data
                 prefs.edit().remove(KEY_DAILY_PLAYS).apply()
                 _dailyPlays.value = emptyList()
                 return
             }
-            val counts = root.optJSONObject("counts") ?: return
+            val durations = root.optJSONObject("durations") ?: return
             val artists = root.optJSONObject("artists") ?: return
             val list = mutableListOf<DailyPlayCount>()
-            val keys = counts.keys()
+            val keys = durations.keys()
             while (keys.hasNext()) {
                 val idStr = keys.next()
                 val id = idStr.toLongOrNull() ?: continue
-                val count = counts.optInt(idStr, 0)
+                val duration = durations.optInt(idStr, 0)  // seconds
                 val artist = artists.optString(idStr, "")
-                if (count > 0) {
-                    list.add(DailyPlayCount(id, artist, count))
+                if (duration >= 0) {
+                    list.add(DailyPlayCount(id, artist, duration))
                 }
             }
-            // Sort by play count descending
+            // ★ Sort by duration descending (longest played = first)
             list.sortByDescending { it.playCount }
             _dailyPlays.value = list
         } catch (_: Exception) {
@@ -201,8 +209,9 @@ object PlaybackHistory {
     }
 
     /**
-     * Record a play for [songId] by [artist] — increments the daily
-     * play count. Called whenever a song is played.
+     * ★ Record a song TAP — adds the song to the daily list with 0 seconds.
+     *   Used for Phase 1 (fill the first 6 slots quickly).
+     *   If the song is already in the list, does nothing (keeps its duration).
      */
     @Synchronized
     fun recordDailyPlay(songId: Long, artist: String) {
@@ -211,13 +220,40 @@ object PlaybackHistory {
         try {
             val current = _dailyPlays.value.toMutableList()
             val existing = current.find { it.songId == songId }
-            if (existing != null) {
-                val idx = current.indexOf(existing)
-                current[idx] = existing.copy(playCount = existing.playCount + 1)
-            } else {
-                current.add(DailyPlayCount(songId, artist, 1))
+            if (existing == null) {
+                // New song — add with 0 seconds duration
+                current.add(DailyPlayCount(songId, artist, 0))
+                // Sort by duration descending (0 stays at bottom unless others are 0)
+                current.sortByDescending { it.playCount }
+                _dailyPlays.value = current
+                saveDailyPlays(current)
             }
-            // Sort by play count descending
+            // If already exists, do nothing — keep its accumulated duration
+        } catch (_: Exception) { }
+    }
+
+    /**
+     * ★ ADD playback duration to a song — called every second while playing.
+     *   Accumulates the actual time the song was listened to.
+     *   [secondsToAdd] = how many seconds to add (usually 1, called every
+     *   second while the song is playing).
+     */
+    @Synchronized
+    fun addPlayDuration(songId: Long, artist: String, secondsToAdd: Int) {
+        if (songId <= 0L || secondsToAdd <= 0) return
+        if (!::prefs.isInitialized) return
+        try {
+            val current = _dailyPlays.value.toMutableList()
+            val existing = current.find { it.songId == songId }
+            if (existing != null) {
+                // Add to existing duration
+                val idx = current.indexOf(existing)
+                current[idx] = existing.copy(playCount = existing.playCount + secondsToAdd)
+            } else {
+                // New song — add with the duration
+                current.add(DailyPlayCount(songId, artist, secondsToAdd))
+            }
+            // ★ Sort by duration descending (longest played = first)
             current.sortByDescending { it.playCount }
             _dailyPlays.value = current
             saveDailyPlays(current)
@@ -229,20 +265,20 @@ object PlaybackHistory {
         try {
             val root = org.json.JSONObject()
             root.put("date", todayString())
-            val counts = org.json.JSONObject()
+            val durations = org.json.JSONObject()
             val artists = org.json.JSONObject()
             entries.forEach { entry ->
-                counts.put(entry.songId.toString(), entry.playCount)
+                durations.put(entry.songId.toString(), entry.playCount)  // duration in seconds
                 artists.put(entry.songId.toString(), entry.artist)
             }
-            root.put("counts", counts)
+            root.put("durations", durations)
             root.put("artists", artists)
             prefs.edit().putString(KEY_DAILY_PLAYS, root.toString()).apply()
         } catch (_: Exception) { }
     }
 
     /**
-     * Get the top [n] most-played songs today (by play count).
+     * Get the top [n] most-played songs today (by duration).
      * Returns at most [n] entries. Fully guarded — never crashes.
      */
     fun getTopPlayedToday(n: Int): List<DailyPlayCount> {
