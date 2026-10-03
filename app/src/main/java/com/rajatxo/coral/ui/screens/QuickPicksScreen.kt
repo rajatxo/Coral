@@ -132,7 +132,7 @@ fun QuickPicksScreen(
     onBackClick: () -> Unit = {},
     isPlaying: Boolean = false,
     onPlayPauseClick: () -> Unit = {},
-    glassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null,
+    contentGraphicsLayer: androidx.compose.ui.graphics.layer.GraphicsLayer? = null,
     glassHazeState: dev.chrisbanes.haze.HazeState? = null,
     glassStyle: dev.chrisbanes.haze.HazeStyle? = null
 ) {
@@ -447,7 +447,7 @@ fun QuickPicksScreen(
                     onSongClick(song)
                 }
             },
-            backdrop = glassBackdrop
+            contentGraphicsLayer = contentGraphicsLayer
         )
     }
 }

@@ -441,7 +441,7 @@ fun HomeScreen(
                     onSongClick = onSongClickWithReset,
                     isPlaying = isPlaying,
                     onPlayPauseClick = onPlayPauseClick,
-                    glassBackdrop = glassBackdrop
+                    contentGraphicsLayer = graphicsLayer
                 )
                 CoralTab.Discover -> PlaceholderScreen(
                     tabName = "Discover",

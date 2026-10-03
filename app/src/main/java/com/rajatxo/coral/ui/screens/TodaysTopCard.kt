@@ -1,10 +1,6 @@
 package com.rajatxo.coral.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
+import android.os.Build
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -30,18 +26,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.colorControls
-import com.kyant.backdrop.effects.vibrancy
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
@@ -52,16 +50,15 @@ import kotlin.math.sin
 /**
  * ★ TodaysTopCard — floating GLASS card that opens when you tap a capsule.
  *
- * Glass morphism: kyant backdrop blur (same as nav bar + customization panel).
- * Tap outside to dismiss.
+ * GLASS MORPHISM — completely different approach from kyant:
+ *   Uses Android's built-in BlurEffect (API 31+) applied to the
+ *   captured graphicsLayer from HomeScreen. No kyant drawBackdrop.
+ *   On API < 31: falls back to semi-transparent dark background.
  *
- * LEFT SIDE (destination style):
- *   - Two glowing white balls, each with a ring around it
- *   - Ball glows MORE than the ring
- *   - Balls CONNECTED by a dashed vertical line "┊" that goes from one
- *     ball to the next (not separated)
- *   - Beside each ball: song title (CalSans) + artist name (tight spacing)
- *   - Beside that: play/pause icon (Spiral player style)
+ * No AnimatedVisibility — uses simple if(visible) to avoid the
+ * AnimatedVisibility + backdrop crash.
+ *
+ * Tap outside to dismiss.
  */
 @Composable
 fun TodaysTopCard(
@@ -74,14 +71,13 @@ fun TodaysTopCard(
     isPlaying: Boolean,
     onDismiss: () -> Unit,
     onPlayPauseClick: (Song) -> Unit,
-    backdrop: LayerBackdrop? = null,
+    contentGraphicsLayer: GraphicsLayer? = null,
     modifier: Modifier = Modifier
 ) {
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn() + scaleIn(initialScale = 0.9f),
-        exit = fadeOut() + scaleOut(targetScale = 0.9f)
-    ) {
+    // ★ NO AnimatedVisibility — just a simple conditional.
+    //   This avoids the crash that AnimatedVisibility caused with
+    //   graphicsLayer rendering.
+    if (visible) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -104,28 +100,35 @@ fun TodaysTopCard(
                     )
             ) {
                 val cardShape = RoundedCornerShape(24.dp)
+                val useBlurEffect = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                    contentGraphicsLayer != null
+
                 Box(
                     modifier = Modifier
                         .clip(cardShape)
                         .then(
-                            if (backdrop != null) {
-                                Modifier.drawBackdrop(
-                                    backdrop = backdrop,
-                                    shape = { cardShape },
-                                    effects = {
-                                        vibrancy()
-                                        colorControls(
-                                            brightness = 0.05f,
-                                            contrast = 1f,
-                                            saturation = 1.5f
-                                        )
-                                        blur(12f.dp.toPx())  // ★ same blur as nav bar
-                                    },
-                                    onDrawSurface = {
-                                        drawRect(Color.Black.copy(alpha = 0.25f))
+                            if (useBlurEffect) {
+                                // ★ ANDROID'S BUILT-IN BLUR — not kyant.
+                                //   Draw the captured graphicsLayer (HomeScreen
+                                //   content) with a BlurEffect applied.
+                                //   This is a completely different approach
+                                //   from kyant's drawBackdrop.
+                                Modifier.graphicsLayer {
+                                    compositingStrategy = CompositingStrategy.Offscreen
+                                    renderEffect = BlurEffect(
+                                        radiusX = 20f,
+                                        radiusY = 20f
+                                    )
+                                }.drawWithContent {
+                                    // Draw the captured content (blurred)
+                                    if (contentGraphicsLayer != null) {
+                                        drawLayer(contentGraphicsLayer)
                                     }
-                                )
+                                    // Dark overlay on top for readability
+                                    drawRect(Color.Black.copy(alpha = 0.4f))
+                                }
                             } else {
+                                // Fallback (API < 31): semi-transparent dark
                                 Modifier.background(Color(0xFF1A1A1A).copy(alpha = 0.88f))
                             }
                         )
@@ -147,6 +150,8 @@ fun TodaysTopCard(
     }
 }
 
+// ★ Helper removed — using androidx.compose.ui.draw.drawWithContent directly
+
 @Composable
 private fun CardContent(
     song1: Song?,
@@ -163,14 +168,11 @@ private fun CardContent(
         verticalAlignment = Alignment.CenterVertically
     ) {
         // ═══ LEFT SIDE: destination-style timeline ═══
-        // The balls + dashed line are in a single Column so the line
-        // CONNECTS the two balls (no gap between them).
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(0.dp),  // ★ NO gap — line connects balls
+            verticalArrangement = Arrangement.spacedBy(0.dp),
             horizontalAlignment = Alignment.Start
         ) {
-            // Song 1 row (ball + title + play)
             if (song1 != null) {
                 SongTimelineRow(
                     song = song1,
@@ -178,15 +180,9 @@ private fun CardContent(
                     onPlayPauseClick = { onPlayPauseClick(song1) }
                 )
             }
-
-            // ★ Dashed vertical line — CONNECTS the two balls directly.
-            //   No gap. The line starts right below ball 1 and ends right
-            //   above ball 2.
             if (song1 != null) {
                 DashedLine(height = 20.dp)
             }
-
-            // Song 2 row (ball + title + play)
             if (song2 != null) {
                 SongTimelineRow(
                     song = song2,
@@ -194,8 +190,6 @@ private fun CardContent(
                     onPlayPauseClick = { onPlayPauseClick(song2) }
                 )
             }
-
-            // Empty placeholder if song2 is null
             if (song2 == null && song1 != null) {
                 DashedLine(height = 20.dp)
                 EmptyTimelineRow()
@@ -213,12 +207,6 @@ private fun CardContent(
     }
 }
 
-/**
- * A single song row: [glowing ball with ring] — [title + artist] — [play/pause]
- *
- * The ball is on the LEFT, centered vertically. The dashed line connects
- * to the ball's center (the ball is 24dp wide, line is 24dp wide, aligned).
- */
 @Composable
 private fun SongTimelineRow(
     song: Song,
@@ -230,47 +218,25 @@ private fun SongTimelineRow(
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         // ★ Glowing white ball WITH a ring around it
-        //   4 layers: outer glow → ring → ball glow → solid ball
-        //   Ball glows MORE than the ring
         Box(
             modifier = Modifier.size(24.dp),
             contentAlignment = Alignment.Center
         ) {
-            // Outer glow (soft, large)
             Canvas(modifier = Modifier.size(24.dp)) {
-                drawCircle(
-                    color = Color.White.copy(alpha = 0.1f),
-                    radius = size.minDimension / 2f
-                )
+                drawCircle(color = Color.White.copy(alpha = 0.1f), radius = size.minDimension / 2f)
             }
-            // Ring (less glowing — thin stroke)
             Canvas(modifier = Modifier.size(16.dp)) {
-                drawCircle(
-                    color = Color.White.copy(alpha = 0.25f),
-                    radius = size.minDimension / 2f,
-                    style = Stroke(width = 1.5f)
-                )
+                drawCircle(color = Color.White.copy(alpha = 0.25f), radius = size.minDimension / 2f, style = Stroke(width = 1.5f))
             }
-            // Ball glow (medium)
             Canvas(modifier = Modifier.size(12.dp)) {
-                drawCircle(
-                    color = Color.White.copy(alpha = 0.25f),
-                    radius = size.minDimension / 2f
-                )
+                drawCircle(color = Color.White.copy(alpha = 0.25f), radius = size.minDimension / 2f)
             }
-            // Solid ball (most glowing)
             Canvas(modifier = Modifier.size(8.dp)) {
-                drawCircle(
-                    color = Color.White,
-                    radius = size.minDimension / 2f
-                )
+                drawCircle(color = Color.White, radius = size.minDimension / 2f)
             }
         }
 
-        // ★ Song title + artist name — TIGHT spacing
-        Column(
-            modifier = Modifier.weight(1f)
-        ) {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = song.title,
                 color = Color.White,
@@ -280,7 +246,6 @@ private fun SongTimelineRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            // ★ Only 1dp gap between title and artist
             Text(
                 text = song.artist,
                 color = Color.White.copy(alpha = 0.5f),
@@ -292,7 +257,6 @@ private fun SongTimelineRow(
             )
         }
 
-        // ★ Play/pause icon
         Box(
             modifier = Modifier
                 .size(32.dp)
@@ -315,9 +279,6 @@ private fun SongTimelineRow(
     }
 }
 
-/**
- * Empty timeline row (when there's no second song).
- */
 @Composable
 private fun EmptyTimelineRow() {
     Row(
@@ -329,11 +290,7 @@ private fun EmptyTimelineRow() {
             contentAlignment = Alignment.Center
         ) {
             Canvas(modifier = Modifier.size(10.dp)) {
-                drawCircle(
-                    color = Color.White.copy(alpha = 0.2f),
-                    radius = size.minDimension / 2f,
-                    style = Stroke(width = 1.5f)
-                )
+                drawCircle(color = Color.White.copy(alpha = 0.2f), radius = size.minDimension / 2f, style = Stroke(width = 1.5f))
             }
         }
         Text(
@@ -345,24 +302,16 @@ private fun EmptyTimelineRow() {
     }
 }
 
-/**
- * Dashed vertical line that CONNECTS two balls.
- * The line is the SAME width as the ball (24dp) so it aligns perfectly
- * with the ball's center.
- *
- * @param height The height of the line (controls how far apart the balls are)
- */
 @Composable
-private fun DashedLine(height: androidx.compose.ui.unit.Dp) {
+private fun DashedLine(height: Dp) {
     Canvas(
         modifier = Modifier
-            .width(24.dp)  // ★ Same width as the ball (24dp) — aligns center
+            .width(24.dp)
             .height(height)
     ) {
         val centerX = size.width / 2f
         val dashCount = 5
-        val totalDashSpace = size.height
-        val dashLength = totalDashSpace / (dashCount * 2)
+        val dashLength = size.height / (dashCount * 2)
         for (i in 0 until dashCount) {
             val y = i * dashLength * 2
             drawLine(
@@ -375,9 +324,6 @@ private fun DashedLine(height: androidx.compose.ui.unit.Dp) {
     }
 }
 
-/**
- * Activity-tracker-style circle — filled white circle with colored arcs.
- */
 @Composable
 private fun ActivityCircle(
     color1: Color,
@@ -393,48 +339,22 @@ private fun ActivityCircle(
             val centerY = size.height / 2f
             val maxRadius = size.minDimension / 2f
 
-            // Outer arc (color1) — 270° sweep
+            drawArc(color = color1, startAngle = -90f, sweepAngle = 270f, useCenter = false, style = Stroke(width = 3f))
             drawArc(
-                color = color1,
-                startAngle = -90f,
-                sweepAngle = 270f,
-                useCenter = false,
-                style = Stroke(width = 3f)
-            )
-
-            // Inner arc (color2) — 180° sweep
-            drawArc(
-                color = color2,
-                startAngle = -90f,
-                sweepAngle = 180f,
-                useCenter = false,
-                style = Stroke(width = 3f),
+                color = color2, startAngle = -90f, sweepAngle = 180f, useCenter = false, style = Stroke(width = 3f),
                 topLeft = Offset(centerX - maxRadius * 0.7f, centerY - maxRadius * 0.7f),
                 size = androidx.compose.ui.geometry.Size(maxRadius * 1.4f, maxRadius * 1.4f)
             )
 
-            // Glowing dot at the end of the outer arc
             val dotAngle = (-90f + 270f) * PI / 180f
             val dotX = centerX + cos(dotAngle).toFloat() * maxRadius
             val dotY = centerY + sin(dotAngle).toFloat() * maxRadius
-            drawCircle(
-                color = Color.White.copy(alpha = 0.3f),
-                radius = 6f,
-                center = Offset(dotX, dotY)
-            )
-            drawCircle(
-                color = Color.White,
-                radius = 3f,
-                center = Offset(dotX, dotY)
-            )
+            drawCircle(color = Color.White.copy(alpha = 0.3f), radius = 6f, center = Offset(dotX, dotY))
+            drawCircle(color = Color.White, radius = 3f, center = Offset(dotX, dotY))
         }
 
-        // Filled white circle in the center
         Canvas(modifier = Modifier.size(36.dp)) {
-            drawCircle(
-                color = Color.White,
-                radius = size.minDimension / 2f
-            )
+            drawCircle(color = Color.White, radius = size.minDimension / 2f)
         }
     }
 }
