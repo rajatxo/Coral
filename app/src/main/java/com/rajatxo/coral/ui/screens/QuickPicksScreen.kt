@@ -330,7 +330,7 @@ fun QuickPicksScreen(
                 GreetingMoodHeader(
                     textPrimary = textPrimary,
                     textSecondary = textSecondary,
-                    modifier = Modifier.padding(bottom = 1.dp)  // 6dp base + 1dp = 7dp gap to capsule
+                    modifier = Modifier.padding(bottom = 6.dp)  // 6dp base + 6dp = 12dp gap to capsule
                 )
             }
 
@@ -339,7 +339,7 @@ fun QuickPicksScreen(
                 ListeningStatsCapsule(
                     isPlaying = isPlaying,
                     listeningTimeSeconds = getDailyListeningSeconds(),
-                    modifier = Modifier.padding(bottom = 2.dp)  // 6dp base + 2dp = 8dp gap to speed dial
+                    modifier = Modifier.padding(bottom = 6.dp)  // 6dp base + 6dp = 12dp gap to speed dial
                 )
             }
 
