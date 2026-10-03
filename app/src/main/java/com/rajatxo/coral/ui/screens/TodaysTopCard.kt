@@ -26,16 +26,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,22 +50,17 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * ★ TodaysTopCard — floating glass card that opens when you tap a capsule.
+ * ★ TodaysTopCard — floating GLASS card that opens when you tap a capsule.
  *
- * Layout (inspired by destination + activity tracker reference images):
+ * Glass morphism: kyant backdrop blur (same as nav bar + customization panel).
+ * Tap outside to dismiss.
  *
  * LEFT SIDE (destination style):
- *   - Two glowing white balls connected by a dashed vertical line
- *   - Beside each ball: song title (CalSans) + artist name below
+ *   - Two glowing white balls, each with a ring around it
+ *   - Ball glows MORE than the ring
+ *   - Balls connected by a dashed vertical line "┊"
+ *   - Beside each ball: song title (CalSans) + artist name (tight spacing)
  *   - Beside that: play/pause icon (Spiral player style)
- *
- * RIGHT SIDE (activity tracker style):
- *   - Filled white circle
- *   - Colored arc around it (song's dominant color) that represents
- *     playback progress
- *
- * Glass morphism: kyant backdrop blur (same as nav bar).
- * Tap outside to dismiss.
  */
 @Composable
 fun TodaysTopCard(
@@ -101,7 +92,6 @@ fun TodaysTopCard(
                 ),
             contentAlignment = Alignment.TopCenter
         ) {
-            // ★ Card — sits at the top, above the Speed Dial first row
             Box(
                 modifier = Modifier
                     .padding(horizontal = 20.dp, vertical = 100.dp)
@@ -131,15 +121,15 @@ fun TodaysTopCard(
                                         blur(30f.dp.toPx())
                                     },
                                     onDrawSurface = {
-                                        drawRect(Color.Black.copy(alpha = 0.5f))
+                                        drawRect(Color.Black.copy(alpha = 0.45f))
                                     }
                                 )
                             } else {
-                                Modifier.background(Color(0xFF1A1A1A).copy(alpha = 0.9f))
+                                Modifier.background(Color(0xFF1A1A1A).copy(alpha = 0.92f))
                             }
                         )
                         .border(1.dp, Color.White.copy(alpha = 0.2f), cardShape)
-                        .padding(16.dp)
+                        .padding(20.dp)
                 ) {
                     CardContent(
                         song1 = song1,
@@ -174,20 +164,19 @@ private fun CardContent(
         // ═══ LEFT SIDE: destination-style timeline ═══
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Song 1 row
             if (song1 != null) {
                 SongTimelineRow(
                     song = song1,
-                    color = color1,
                     isPlaying = isPlaying && currentSongId == song1.id,
                     onPlayPauseClick = { onPlayPauseClick(song1) }
                 )
             }
 
-            // Dashed line between the two songs
-            if (song1 != null && song2 != null) {
+            // Dashed vertical line between the two balls
+            if (song1 != null) {
                 DashedLine()
             }
 
@@ -195,58 +184,65 @@ private fun CardContent(
             if (song2 != null) {
                 SongTimelineRow(
                     song = song2,
-                    color = color2,
                     isPlaying = isPlaying && currentSongId == song2.id,
                     onPlayPauseClick = { onPlayPauseClick(song2) }
                 )
-            }
-
-            // Empty slot placeholder if song2 is null
-            if (song2 == null) {
-                DashedLine()
-                EmptyTimelineRow()
             }
         }
 
         Spacer(modifier = Modifier.width(16.dp))
 
-        // ═══ RIGHT SIDE: activity-tracker-style circle + arc ═══
+        // ═══ RIGHT SIDE: activity-tracker-style circle ═══
         ActivityCircle(
             color1 = color1,
             color2 = color2,
-            modifier = Modifier.size(80.dp)
+            modifier = Modifier.size(72.dp)
         )
     }
 }
 
 /**
- * A single song row in the destination-style timeline:
- * [glowing ball] — [song title + artist] — [play/pause icon]
+ * A single song row: [glowing ball with ring] — [title + artist] — [play/pause]
  */
 @Composable
 private fun SongTimelineRow(
     song: Song,
-    color: Color,
     isPlaying: Boolean,
     onPlayPauseClick: () -> Unit
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // ★ Glowing white ball
+        // ★ Glowing white ball WITH a ring around it
+        //   Ball glows MORE than the ring
         Box(
-            modifier = Modifier.size(12.dp),
+            modifier = Modifier.size(24.dp),
             contentAlignment = Alignment.Center
         ) {
-            // Outer glow
-            Canvas(modifier = Modifier.size(20.dp)) {
+            // Outer glow (soft, large)
+            Canvas(modifier = Modifier.size(24.dp)) {
                 drawCircle(
-                    color = Color.White.copy(alpha = 0.15f),
+                    color = Color.White.copy(alpha = 0.08f),
                     radius = size.minDimension / 2f
                 )
             }
-            // Inner solid ball
+            // Ring (less glowing)
+            Canvas(modifier = Modifier.size(14.dp)) {
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.25f),
+                    radius = size.minDimension / 2f,
+                    style = Stroke(width = 1.5f)
+                )
+            }
+            // Ball glow (medium)
+            Canvas(modifier = Modifier.size(12.dp)) {
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.2f),
+                    radius = size.minDimension / 2f
+                )
+            }
+            // Solid ball (most glowing)
             Canvas(modifier = Modifier.size(8.dp)) {
                 drawCircle(
                     color = Color.White,
@@ -255,7 +251,7 @@ private fun SongTimelineRow(
             }
         }
 
-        // ★ Song title + artist name
+        // ★ Song title + artist name — TIGHT spacing (no gap between them)
         Column(
             modifier = Modifier.weight(1f)
         ) {
@@ -268,17 +264,19 @@ private fun SongTimelineRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            // ★ Tight spacing — only 1dp between title and artist
             Text(
                 text = song.artist,
                 color = Color.White.copy(alpha = 0.5f),
                 fontSize = 11.sp,
                 fontFamily = CalSansFamily,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 1.dp)
             )
         }
 
-        // ★ Play/pause icon (Spiral player style)
+        // ★ Play/pause icon
         Box(
             modifier = Modifier
                 .size(32.dp)
@@ -302,63 +300,32 @@ private fun SongTimelineRow(
 }
 
 /**
- * Empty timeline row (when there's no second song).
- */
-@Composable
-private fun EmptyTimelineRow() {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        // Hollow ball
-        Box(
-            modifier = Modifier.size(12.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Canvas(modifier = Modifier.size(8.dp)) {
-                drawCircle(
-                    color = Color.White.copy(alpha = 0.3f),
-                    radius = size.minDimension / 2f,
-                    style = Stroke(width = 1.5f)
-                )
-            }
-        }
-        Text(
-            text = "Empty",
-            color = Color.White.copy(alpha = 0.3f),
-            fontSize = 14.sp,
-            fontFamily = CalSansFamily
-        )
-    }
-}
-
-/**
- * Dashed vertical line between the two song rows.
+ * Dashed vertical line connecting the two balls.
  */
 @Composable
 private fun DashedLine() {
     Canvas(
         modifier = Modifier
-            .width(12.dp)
-            .height(20.dp)
+            .width(24.dp)
+            .height(16.dp)
     ) {
-        val dashCount = 4
+        val centerX = size.width / 2f
+        val dashCount = 3
         val dashHeight = size.height / (dashCount * 2)
         for (i in 0 until dashCount) {
             val y = i * dashHeight * 2
             drawLine(
                 color = Color.White.copy(alpha = 0.3f),
-                start = Offset(size.width / 2f, y),
-                end = Offset(size.width / 2f, y + dashHeight),
-                strokeWidth = 2f
+                start = Offset(centerX, y),
+                end = Offset(centerX, y + dashHeight),
+                strokeWidth = 1.5f
             )
         }
     }
 }
 
 /**
- * Activity-tracker-style circle — filled white circle with colored arcs
- * around it (using the two songs' dominant colors).
+ * Activity-tracker-style circle — filled white circle with colored arcs.
  */
 @Composable
 private fun ActivityCircle(
@@ -375,44 +342,44 @@ private fun ActivityCircle(
             val centerY = size.height / 2f
             val maxRadius = size.minDimension / 2f
 
-            // ★ Outer arc (color1) — 270° sweep
+            // Outer arc (color1) — 270° sweep
             drawArc(
                 color = color1,
                 startAngle = -90f,
                 sweepAngle = 270f,
                 useCenter = false,
-                style = Stroke(width = 4f, cap = StrokeCap.Round)
+                style = Stroke(width = 3f)
             )
 
-            // ★ Inner arc (color2) — 180° sweep
+            // Inner arc (color2) — 180° sweep
             drawArc(
                 color = color2,
                 startAngle = -90f,
                 sweepAngle = 180f,
                 useCenter = false,
-                style = Stroke(width = 4f, cap = StrokeCap.Round),
+                style = Stroke(width = 3f),
                 topLeft = Offset(centerX - maxRadius * 0.7f, centerY - maxRadius * 0.7f),
                 size = androidx.compose.ui.geometry.Size(maxRadius * 1.4f, maxRadius * 1.4f)
             )
 
-            // ★ Glowing dot at the end of the outer arc
+            // Glowing dot at the end of the outer arc
             val dotAngle = (-90f + 270f) * PI / 180f
             val dotX = centerX + cos(dotAngle).toFloat() * maxRadius
             val dotY = centerY + sin(dotAngle).toFloat() * maxRadius
             drawCircle(
                 color = Color.White.copy(alpha = 0.3f),
-                radius = 8f,
+                radius = 6f,
                 center = Offset(dotX, dotY)
             )
             drawCircle(
                 color = Color.White,
-                radius = 4f,
+                radius = 3f,
                 center = Offset(dotX, dotY)
             )
         }
 
-        // ★ Filled white circle in the center
-        Canvas(modifier = Modifier.size(40.dp)) {
+        // Filled white circle in the center
+        Canvas(modifier = Modifier.size(36.dp)) {
             drawCircle(
                 color = Color.White,
                 radius = size.minDimension / 2f

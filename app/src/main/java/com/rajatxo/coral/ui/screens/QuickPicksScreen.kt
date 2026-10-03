@@ -89,6 +89,7 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.transformations
 import com.rajatxo.coral.util.BlurTransformation
+import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorControls
@@ -136,6 +137,19 @@ fun QuickPicksScreen(
     glassStyle: dev.chrisbanes.haze.HazeStyle? = null
 ) {
     val context = LocalContext.current
+
+    // ★ Glass backdrop for the TodaysTopCard — captures the content
+    //   behind the card so it can blur it (glass morphism).
+    val todaysTopGraphicsLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
+    val todaysTopGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop(
+        graphicsLayer = todaysTopGraphicsLayer
+    ) {
+        drawContent()
+    }
+
+    // ★ Card state — which capsule was tapped, and which songs
+    var showTopCard by remember { mutableStateOf(false) }
+    var cardSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
 
     // ─── Current song's palette → dark gradient background ──────────
     // The background is a dark gradient using the current song's palette
@@ -269,6 +283,13 @@ fun QuickPicksScreen(
     // to fully cover the darkBase.
     val darkBase = Color(0xFF05050A)
 
+    // ★ Wrap content in a Box with layerBackdrop so the TodaysTopCard
+    //   can sample + blur the content behind it (glass morphism).
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .layerBackdrop(todaysTopGlassBackdrop)
+    ) {
     PullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = {
@@ -332,12 +353,8 @@ fun QuickPicksScreen(
             // The hero grid (EditorialCard row) has been removed — the
             // Speed Dial is now the first row on Quick Picks.
             // ★ Today's Top — 3 capsule stories. Tap a capsule to open
-            //   the floating glass card.
+            //   the floating glass card (rendered outside the LazyColumn).
             item {
-                // ★ Card state — which capsule was tapped, and which songs
-                var showTopCard by remember { mutableStateOf(false) }
-                var cardSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
-
                 TodaysTopSection(
                     songs = songs,
                     textPrimary = textPrimary,
@@ -345,25 +362,6 @@ fun QuickPicksScreen(
                     onCapsuleClick = { tappedSongs ->
                         cardSongs = tappedSongs
                         showTopCard = true
-                    }
-                )
-
-                // ★ Floating glass card — opens on capsule tap
-                TodaysTopCard(
-                    visible = showTopCard,
-                    song1 = cardSongs.getOrNull(0),
-                    song2 = cardSongs.getOrNull(1),
-                    color1 = Color(0xFFFF6B6B),  // TODO: extract from song1
-                    color2 = Color(0xFF6B9EFF),  // TODO: extract from song2
-                    currentSongId = currentSongId,
-                    isPlaying = isPlaying,
-                    onDismiss = { showTopCard = false },
-                    onPlayPauseClick = { song ->
-                        if (song.id == currentSongId) {
-                            onPlayPauseClick()
-                        } else {
-                            onSongClick(song)
-                        }
                     }
                 )
             }
@@ -446,6 +444,28 @@ fun QuickPicksScreen(
                 }
             }
         }
+    }
+
+        // ★ TodaysTopCard — floating glass overlay. Sits on top of the
+        //   Quick Picks content. Uses the glass backdrop for blur.
+        TodaysTopCard(
+            visible = showTopCard,
+            song1 = cardSongs.getOrNull(0),
+            song2 = cardSongs.getOrNull(1),
+            color1 = Color(0xFFFF6B6B),
+            color2 = Color(0xFF6B9EFF),
+            currentSongId = currentSongId,
+            isPlaying = isPlaying,
+            onDismiss = { showTopCard = false },
+            onPlayPauseClick = { song ->
+                if (song.id == currentSongId) {
+                    onPlayPauseClick()
+                } else {
+                    onSongClick(song)
+                }
+            },
+            backdrop = todaysTopGlassBackdrop
+        )
     }
 }
 
