@@ -18,9 +18,9 @@ object CynthiaTodaysTopCardCustomization {
     private const val KEY_OFFSET_X = "cynthia_top_card_offset_x_c1"
     private const val KEY_OFFSET_Y = "cynthia_top_card_offset_y_c1"
 
-    const val DEFAULT_WIDTH_DP = 330f
+    const val DEFAULT_WIDTH_DP = 320f
     const val DEFAULT_HEIGHT_DP = 110f
-    const val DEFAULT_CORNER_DP = 20f
+    const val DEFAULT_CORNER_DP = 10f
     val DEFAULT_SHAPE = com.rajatxo.coral.ui.cynthia.CynthiaCustomShape.PILL
 
     // ★ Default position: 0,0 = centered over speed dial first row
