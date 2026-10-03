@@ -147,7 +147,7 @@ object PlaybackHistory {
     //   - On read: if the stored date != today, the data is cleared.
     // ════════════════════════════════════════════════════════════════
 
-    private const val KEY_DAILY_PLAYS = "daily_plays_v2"
+    private const val KEY_DAILY_PLAYS = "daily_plays_v3"
 
     data class DailyPlayCount(
         val songId: Long,

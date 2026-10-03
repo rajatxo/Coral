@@ -105,25 +105,30 @@ fun CynthiaHomeScreen(
         }
     }
 
-    // ★ Track playback DURATION for "Today's Top" — accumulate 1 second
-    //   every ~1 second while playing. Same as Astra's HomeScreen poller.
-    var durationAccumulator by remember { mutableStateOf(0L) }
+    // ★ Track playback DURATION for "Today's Top" — accurate time tracking.
+    //   Uses System.currentTimeMillis() to calculate actual elapsed time.
+    var lastPollTime by remember { mutableStateOf(0L) }
     androidx.compose.runtime.LaunchedEffect(mediaController, isPlaying, currentSongId) {
+        lastPollTime = System.currentTimeMillis()
         while (true) {
             try {
                 if (isPlaying && currentSongId != null && !currentSongArtist.isNullOrBlank()) {
-                    durationAccumulator += 500L
-                    if (durationAccumulator >= 1000L) {
-                        durationAccumulator -= 1000L
-                        com.rajatxo.coral.data.prefs.PlaybackHistory.addPlayDuration(
-                            songId = currentSongId,
-                            artist = currentSongArtist,
-                            secondsToAdd = 1
-                        )
+                    val now = System.currentTimeMillis()
+                    val elapsedMs = now - lastPollTime
+                    lastPollTime = now
+                    if (elapsedMs in 100..2000L) {
+                        val elapsedSeconds = (elapsedMs / 1000L).toInt()
+                        if (elapsedSeconds > 0) {
+                            com.rajatxo.coral.data.prefs.PlaybackHistory.addPlayDuration(
+                                songId = currentSongId,
+                                artist = currentSongArtist,
+                                secondsToAdd = elapsedSeconds
+                            )
+                        }
                     }
                 }
             } catch (_: Exception) { }
-            kotlinx.coroutines.delay(if (isPlaying) 500L else 2000L)
+            kotlinx.coroutines.delay(if (isPlaying) 1000L else 2000L)
         }
     }
 

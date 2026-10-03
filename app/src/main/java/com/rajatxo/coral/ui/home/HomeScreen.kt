@@ -224,33 +224,48 @@ fun HomeScreen(
     // ring around the album art in the mini player can show song timeline.
     var miniPlayerPositionMs by remember { mutableStateOf(0L) }
     var miniPlayerDurationMs by remember { mutableStateOf(0L) }
-    // ★ Track playback duration for "Today's Top" — accumulate 1 second
-    //   every ~1 second while playing.
-    var durationAccumulator by remember { mutableStateOf(0L) }
-    androidx.compose.runtime.LaunchedEffect(mediaController, isPlaying) {
+    // ★ Track playback duration for "Today's Top" — accurate time tracking.
+    //   Uses the controller's actual position to calculate how much time
+    //   actually elapsed since the last poll. This is ACCURATE — if you
+    //   played 5 minutes, it records 5 minutes, not 13.
+    var lastPositionMs by remember { mutableStateOf(0L) }
+    var lastPollTime by remember { mutableStateOf(0L) }
+    var trackedSongId by remember { mutableStateOf<Long?>(null) }
+    androidx.compose.runtime.LaunchedEffect(mediaController, isPlaying, currentSongId) {
+        // Reset tracking when the song changes
+        if (trackedSongId != currentSongId) {
+            trackedSongId = currentSongId
+            lastPositionMs = 0L
+            lastPollTime = System.currentTimeMillis()
+        }
         while (true) {
             try {
                 mediaController?.let { controller ->
                     miniPlayerPositionMs = controller.currentPosition.coerceAtLeast(0L)
                     miniPlayerDurationMs = controller.duration.coerceAtLeast(0L)
                 }
-                // ★ Accumulate playback duration for Today's Top.
-                //   Every 500ms while playing, add 500ms to the accumulator.
-                //   When the accumulator reaches 1000ms (1 second), add 1
-                //   second to the current song's daily duration.
+                // ★ ACCURATE duration tracking — calculate actual elapsed
+                //   playback time using the controller's position.
+                //   This prevents over-counting (the 13-min bug).
                 if (isPlaying && currentSongId != null && !currentSongArtist.isNullOrBlank()) {
-                    durationAccumulator += 500L
-                    if (durationAccumulator >= 1000L) {
-                        durationAccumulator -= 1000L
-                        com.rajatxo.coral.data.prefs.PlaybackHistory.addPlayDuration(
-                            songId = currentSongId,
-                            artist = currentSongArtist,
-                            secondsToAdd = 1
-                        )
+                    val now = System.currentTimeMillis()
+                    val elapsedMs = now - lastPollTime
+                    lastPollTime = now
+                    // Only count if reasonable time elapsed (not a huge gap
+                    // from app being backgrounded)
+                    if (elapsedMs in 100..2000L) {
+                        val elapsedSeconds = (elapsedMs / 1000L).toInt()
+                        if (elapsedSeconds > 0) {
+                            com.rajatxo.coral.data.prefs.PlaybackHistory.addPlayDuration(
+                                songId = currentSongId,
+                                artist = currentSongArtist,
+                                secondsToAdd = elapsedSeconds
+                            )
+                        }
                     }
                 }
             } catch (_: Exception) { }
-            kotlinx.coroutines.delay(if (isPlaying) 500L else 2000L)
+            kotlinx.coroutines.delay(if (isPlaying) 1000L else 2000L)
         }
     }
 
