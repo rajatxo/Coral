@@ -4,6 +4,8 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,7 +48,8 @@ fun TodaysTopSection(
     songs: List<Song> = emptyList(),
     modifier: Modifier = Modifier,
     textPrimary: Color = Color.White,
-    textSecondary: Color = Color.White.copy(alpha = 0.6f)
+    textSecondary: Color = Color.White.copy(alpha = 0.6f),
+    onCapsuleClick: (List<Song>) -> Unit = {}
 ) {
     // ★ Force-load daily plays on first composition
     val context = LocalContext.current
@@ -146,7 +149,13 @@ fun TodaysTopSection(
                     color2 = color2,
                     duration1 = duration1,
                     duration2 = duration2,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        val capsuleSongs = listOfNotNull(song1, song2)
+                        if (capsuleSongs.isNotEmpty()) {
+                            onCapsuleClick(capsuleSongs)
+                        }
+                    }
                 )
             }
         }
@@ -164,7 +173,8 @@ private fun AnimatedCapsule(
     color2: Color,
     duration1: Int,
     duration2: Int,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {}
 ) {
     val capsuleShape = RoundedCornerShape(28.dp)
     val borderBrush = Brush.horizontalGradient(listOf(color1, color2))
@@ -178,6 +188,11 @@ private fun AnimatedCapsule(
             .clip(capsuleShape)
             .background(bgBrush)
             .border(width = 2.5.dp, brush = borderBrush, shape = capsuleShape)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
             .padding(6.dp),
         contentAlignment = Alignment.Center
     ) {

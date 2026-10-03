@@ -130,8 +130,8 @@ fun QuickPicksScreen(
     onExtend: () -> Unit = {},
     onSongClick: (Song) -> Unit = {},
     onBackClick: () -> Unit = {},
-    // ★ Haze glass state for speed dial grid (Cynthia only). When provided,
-    // the 3x3 grid uses hazeEffect for real glass morphism.
+    isPlaying: Boolean = false,
+    onPlayPauseClick: () -> Unit = {},
     glassHazeState: dev.chrisbanes.haze.HazeState? = null,
     glassStyle: dev.chrisbanes.haze.HazeStyle? = null
 ) {
@@ -331,12 +331,40 @@ fun QuickPicksScreen(
             // Tap the dice → plays a random song.
             // The hero grid (EditorialCard row) has been removed — the
             // Speed Dial is now the first row on Quick Picks.
-            // ★ RE-ENABLED — Today's Top section (UI only, no data yet).
+            // ★ Today's Top — 3 capsule stories. Tap a capsule to open
+            //   the floating glass card.
             item {
+                // ★ Card state — which capsule was tapped, and which songs
+                var showTopCard by remember { mutableStateOf(false) }
+                var cardSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
+
                 TodaysTopSection(
                     songs = songs,
                     textPrimary = textPrimary,
-                    textSecondary = textSecondary
+                    textSecondary = textSecondary,
+                    onCapsuleClick = { tappedSongs ->
+                        cardSongs = tappedSongs
+                        showTopCard = true
+                    }
+                )
+
+                // ★ Floating glass card — opens on capsule tap
+                TodaysTopCard(
+                    visible = showTopCard,
+                    song1 = cardSongs.getOrNull(0),
+                    song2 = cardSongs.getOrNull(1),
+                    color1 = Color(0xFFFF6B6B),  // TODO: extract from song1
+                    color2 = Color(0xFF6B9EFF),  // TODO: extract from song2
+                    currentSongId = currentSongId,
+                    isPlaying = isPlaying,
+                    onDismiss = { showTopCard = false },
+                    onPlayPauseClick = { song ->
+                        if (song.id == currentSongId) {
+                            onPlayPauseClick()
+                        } else {
+                            onSongClick(song)
+                        }
+                    }
                 )
             }
             item {
