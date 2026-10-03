@@ -6,7 +6,10 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -28,6 +32,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.backdrops.LayerBackdrop
@@ -35,6 +40,11 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.vibrancy
+import com.rajatxo.coral.ui.cynthia.CynthiaCustomShape
+import com.rajatxo.coral.ui.theme.CalSansFamily
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 enum class CardMode { DISPLAY, CUSTOMIZE }
 
@@ -42,13 +52,11 @@ enum class CardMode { DISPLAY, CUSTOMIZE }
  * ★ TodaysTopCard — floating glass card on TOP of the Speed Dial first row.
  *
  * Two modes:
- *   DISPLAY — shows the actual content (balls, line) as customized
- *   CUSTOMIZE — shows customization settings (width, height, corner, shape)
- *              inside the card
+ *   DISPLAY — shows balls + dissolving line (scales with card size)
+ *   CUSTOMIZE — shows arc dial + capsule tabs (same as nav bar, no position X/Y)
  *
- * Size: customizable (width, height, corner, shape).
- * Draggable: drag handle on top.
- * Glass morphism: kyant backdrop blur.
+ * Position is SAVED — when user drags the card, its position persists.
+ * Next tap on capsule shows the card at the last saved position.
  */
 @Composable
 fun TodaysTopCard(
@@ -69,8 +77,9 @@ fun TodaysTopCard(
         .collectAsState()
 
     if (visible) {
-        var cardOffsetX by remember { mutableStateOf(0f) }
-        var cardOffsetY by remember { mutableStateOf(0f) }
+        // ★ Position from saved prefs — card shows where user last placed it
+        var cardOffsetX by remember { mutableStateOf(cardCustom.offsetX) }
+        var cardOffsetY by remember { mutableStateOf(cardCustom.offsetY) }
 
         Box(
             modifier = Modifier
@@ -86,7 +95,12 @@ fun TodaysTopCard(
             Box(
                 modifier = Modifier
                     .padding(top = 140.dp)
-                    .offset { androidx.compose.ui.unit.IntOffset(cardOffsetX.toInt(), cardOffsetY.toInt()) }
+                    .offset {
+                        androidx.compose.ui.unit.IntOffset(
+                            cardOffsetX.toInt(),
+                            cardOffsetY.toInt()
+                        )
+                    }
                     .width(cardCustom.widthDp.dp)
                     .height(cardCustom.heightDp.dp)
                     .clickable(
@@ -95,7 +109,6 @@ fun TodaysTopCard(
                         onClick = {}
                     )
             ) {
-                // ★ Shape from customization
                 val cardShape = cardCustom.shape.toComposeShape(
                     cardCustom.cornerRadiusDp, cardCustom.widthDp
                 )
@@ -126,7 +139,7 @@ fun TodaysTopCard(
                         )
                         .border(1.dp, Color.White.copy(alpha = 0.2f), cardShape)
                 ) {
-                    // ★ Drag handle — invisible strip on top
+                    // ★ Drag handle — saves position on drag end
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -137,6 +150,11 @@ fun TodaysTopCard(
                                         change.consume()
                                         cardOffsetX += dragAmount.x
                                         cardOffsetY += dragAmount.y
+                                    },
+                                    onDragEnd = {
+                                        // ★ SAVE position to prefs
+                                        com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization
+                                            .setOffset(cardOffsetX, cardOffsetY)
                                     }
                                 )
                             }
@@ -152,145 +170,166 @@ fun TodaysTopCard(
                         )
                     }
 
-                    // ★ CONTENT — depends on mode
                     if (mode == CardMode.DISPLAY) {
-                        // ═══ DISPLAY MODE: dissolving dashed line + glowing balls ═══
+                        // ═══ DISPLAY MODE: balls + dissolving line ═══
+                        // Scales with card size — balls and line use proportions
+                        // of the card height, not fixed dp values.
+                        val canvasHeight = (cardCustom.heightDp - 30f).dp
+                        val canvasWidth = 20.dp
 
-                    Canvas(
-                        modifier = Modifier
-                            .align(Alignment.CenterStart)
-                            .padding(start = 16.dp)
-                            .width(20.dp)
-                            .height(80.dp)
-                    ) {
-                        val ballCenterX = size.width / 2f
-                        val ball1Y = size.height * 0.2f
-                        val ball2Y = size.height * 0.8f
+                        Canvas(
+                            modifier = Modifier
+                                .align(Alignment.CenterStart)
+                                .padding(start = 16.dp)
+                                .width(canvasWidth)
+                                .height(canvasHeight)
+                        ) {
+                            val ballCenterX = size.width / 2f
+                            val ball1Y = size.height * 0.2f
+                            val ball2Y = size.height * 0.8f
 
-                        // ★ DISSOLVING DASHED LINE
-                        //   3 zones:
-                        //   1. Top zone (0 → ball1Y): fade IN (alpha 0 → 0.55)
-                        //   2. Middle zone (ball1Y → ball2Y): BRIGHT (alpha 0.55)
-                        //   3. Bottom zone (ball2Y → end): fade OUT (alpha 0.55 → 0)
-                        val dashLengthPx = 3.dp.toPx()
-                        val gapLengthPx = 3.dp.toPx()
-                        val strokeWidthPx = 1.5.dp.toPx()
-                        val maxAlpha = 0.55f  // ★ brighter than before (was 0.35f)
+                            // Dissolving dashed line
+                            val dashLengthPx = 3.dp.toPx()
+                            val gapLengthPx = 3.dp.toPx()
+                            val strokeWidthPx = 1.5.dp.toPx()
+                            val maxAlpha = 0.55f
 
-                        var y = 0f
-                        while (y < size.height) {
-                            // Calculate alpha based on position
-                            val alpha = when {
-                                // Top zone: fade in (0 → ball1Y)
-                                y < ball1Y -> {
-                                    val t = y / ball1Y
-                                    maxAlpha * t
+                            var y = 0f
+                            while (y < size.height) {
+                                val alpha = when {
+                                    y < ball1Y -> maxAlpha * (y / ball1Y)
+                                    y in ball1Y..ball2Y -> maxAlpha
+                                    else -> maxAlpha * ((size.height - y) / (size.height - ball2Y))
                                 }
-                                // Middle zone: bright (ball1Y → ball2Y)
-                                y >= ball1Y && y <= ball2Y -> {
-                                    maxAlpha
-                                }
-                                // Bottom zone: fade out (ball2Y → end)
-                                else -> {
-                                    val t = (size.height - y) / (size.height - ball2Y)
-                                    maxAlpha * t
-                                }
+                                drawLine(
+                                    color = Color.White.copy(alpha = alpha),
+                                    start = Offset(ballCenterX, y),
+                                    end = Offset(ballCenterX, y + dashLengthPx),
+                                    strokeWidth = strokeWidthPx
+                                )
+                                y += dashLengthPx + gapLengthPx
                             }
 
-                            drawLine(
-                                color = Color.White.copy(alpha = alpha),
-                                start = Offset(ballCenterX, y),
-                                end = Offset(ballCenterX, y + dashLengthPx),
-                                strokeWidth = strokeWidthPx
+                            // Glowing balls (scale with card size)
+                            val glowRadius = (size.height * 0.1f).coerceAtLeast(6f)
+                            val coreRadius = glowRadius * 0.4f
+
+                            // Ball 1
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        Color.White.copy(alpha = 0.6f),
+                                        Color.White.copy(alpha = 0.2f),
+                                        Color.White.copy(alpha = 0f)
+                                    ),
+                                    center = Offset(ballCenterX, ball1Y),
+                                    radius = glowRadius
+                                ),
+                                radius = glowRadius,
+                                center = Offset(ballCenterX, ball1Y)
                             )
-                            y += dashLengthPx + gapLengthPx
+                            drawCircle(color = Color.White, radius = coreRadius, center = Offset(ballCenterX, ball1Y))
+
+                            // Ball 2
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        Color.White.copy(alpha = 0.6f),
+                                        Color.White.copy(alpha = 0.2f),
+                                        Color.White.copy(alpha = 0f)
+                                    ),
+                                    center = Offset(ballCenterX, ball2Y),
+                                    radius = glowRadius
+                                ),
+                                radius = glowRadius,
+                                center = Offset(ballCenterX, ball2Y)
+                            )
+                            drawCircle(color = Color.White, radius = coreRadius, center = Offset(ballCenterX, ball2Y))
                         }
-
-                        // ★ GLOWING BALL 1 (top)
-                        val glowRadius = 8.dp.toPx()
-                        val coreRadius = 3.5.dp.toPx()
-
-                        drawCircle(
-                            brush = Brush.radialGradient(
-                                colors = listOf(
-                                    Color.White.copy(alpha = 0.6f),
-                                    Color.White.copy(alpha = 0.2f),
-                                    Color.White.copy(alpha = 0f)
-                                ),
-                                center = Offset(ballCenterX, ball1Y),
-                                radius = glowRadius
-                            ),
-                            radius = glowRadius,
-                            center = Offset(ballCenterX, ball1Y)
-                        )
-                        drawCircle(
-                            color = Color.White,
-                            radius = coreRadius,
-                            center = Offset(ballCenterX, ball1Y)
-                        )
-
-                        // ★ GLOWING BALL 2 (bottom)
-                        drawCircle(
-                            brush = Brush.radialGradient(
-                                colors = listOf(
-                                    Color.White.copy(alpha = 0.6f),
-                                    Color.White.copy(alpha = 0.2f),
-                                    Color.White.copy(alpha = 0f)
-                                ),
-                                center = Offset(ballCenterX, ball2Y),
-                                radius = glowRadius
-                            ),
-                            radius = glowRadius,
-                            center = Offset(ballCenterX, ball2Y)
-                        )
-                        drawCircle(
-                            color = Color.White,
-                            radius = coreRadius,
-                            center = Offset(ballCenterX, ball2Y)
-                        )
-                    }
                     } else {
-                        // ═══ CUSTOMIZE MODE: show settings inside the card ═══
-                        // For now, show simple text labels. We'll add the arc dial
-                        // + shape picker later.
-                        androidx.compose.foundation.layout.Column(
+                        // ═══ CUSTOMIZE MODE: same options as nav bar (no position X/Y) ═══
+                        Column(
                             modifier = Modifier
                                 .align(Alignment.Center)
-                                .padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            androidx.compose.material3.Text(
-                                text = "Card Settings",
-                                color = Color.White,
-                                fontSize = 14.sp,
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
-                            )
-                            androidx.compose.material3.Text(
-                                text = "W:${cardCustom.widthDp.toInt()} H:${cardCustom.heightDp.toInt()} " +
-                                       "C:${cardCustom.cornerRadiusDp.toInt()} ${cardCustom.shape.displayName}",
-                                color = Color.White.copy(alpha = 0.6f),
-                                fontSize = 11.sp,
-                                fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
-                            )
-                            // Quick adjust buttons
-                            androidx.compose.foundation.layout.Row(
-                                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Width +/-
-                                QuickButton("-", 26.dp) { com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.setWidth((cardCustom.widthDp - 10f).coerceAtLeast(200f)) }
-                                androidx.compose.material3.Text("Width", color = Color.White.copy(alpha = 0.7f), fontSize = 10.sp, fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily)
-                                QuickButton("+", 26.dp) { com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.setWidth((cardCustom.widthDp + 10f).coerceAtMost(400f)) }
+                            // Width
+                            QuickRow("Width", cardCustom.widthDp, 200f..400f, "dp") {
+                                com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.setWidth(it)
                             }
-                            androidx.compose.foundation.layout.Row(
-                                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                            // Height
+                            QuickRow("Height", cardCustom.heightDp, 60f..200f, "dp") {
+                                com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.setHeight(it)
+                            }
+                            // Corner
+                            QuickRow("Corner", cardCustom.cornerRadiusDp, 0f..50f, "dp") {
+                                com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.setCornerRadius(it)
+                            }
+                            // Shape picker
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
                             ) {
-                                QuickButton("-", 26.dp) { com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.setHeight((cardCustom.heightDp - 10f).coerceAtLeast(60f)) }
-                                androidx.compose.material3.Text("Height", color = Color.White.copy(alpha = 0.7f), fontSize = 10.sp, fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily)
-                                QuickButton("+", 26.dp) { com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.setHeight((cardCustom.heightDp + 10f).coerceAtMost(200f)) }
+                                CynthiaCustomShape.entries.forEach { shape ->
+                                    val isSelected = shape == cardCustom.shape
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(24.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(
+                                                if (isSelected) Color.White.copy(alpha = 0.25f)
+                                                else Color.White.copy(alpha = 0.08f)
+                                            )
+                                            .border(
+                                                1.dp,
+                                                if (isSelected) Color.White else Color.White.copy(alpha = 0.1f),
+                                                RoundedCornerShape(12.dp)
+                                            )
+                                            .clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = null,
+                                                onClick = {
+                                                    com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.setShape(shape)
+                                                }
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = shape.displayName,
+                                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.6f),
+                                            fontSize = 9.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            fontFamily = CalSansFamily
+                                        )
+                                    }
+                                }
+                            }
+                            // Reset
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(28.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Color.White.copy(alpha = 0.1f))
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = {
+                                            com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.reset()
+                                        }
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Reset",
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    fontFamily = CalSansFamily
+                                )
                             }
                         }
                     }
@@ -301,11 +340,40 @@ fun TodaysTopCard(
 }
 
 @Composable
-private fun QuickButton(text: String, size: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
+private fun QuickRow(
+    label: String,
+    value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    suffix: String,
+    onValueChange: (Float) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "$label: ${value.toInt()}$suffix",
+            color = Color.White.copy(alpha = 0.8f),
+            fontSize = 11.sp,
+            fontFamily = CalSansFamily
+        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            QuickButton("-") { onValueChange((value - 5f).coerceIn(range.start, range.endInclusive)) }
+            QuickButton("+") { onValueChange((value + 5f).coerceIn(range.start, range.endInclusive)) }
+        }
+    }
+}
+
+@Composable
+private fun QuickButton(text: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .size(size)
-            .clip(RoundedCornerShape(size / 2))
+            .size(26.dp)
+            .clip(RoundedCornerShape(13.dp))
             .background(Color.White.copy(alpha = 0.15f))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -314,12 +382,12 @@ private fun QuickButton(text: String, size: androidx.compose.ui.unit.Dp, onClick
             ),
         contentAlignment = Alignment.Center
     ) {
-        androidx.compose.material3.Text(
+        Text(
             text = text,
             color = Color.White,
             fontSize = 14.sp,
-            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-            fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
+            fontWeight = FontWeight.Bold,
+            fontFamily = CalSansFamily
         )
     }
 }
