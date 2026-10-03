@@ -90,13 +90,6 @@ fun CynthiaHomeScreen(
     var customizationPanelIsNavBar by remember { mutableStateOf(true) }
     val onSongClickWithReset: (Song) -> Unit = { song -> onSongClick(song) }
 
-    // ★ TodaysTopCard state — hoisted OUTSIDE the layerBackdrop Box
-    //   (same pattern as Astra's HomeScreen).
-    var showTopCard by remember { mutableStateOf(false) }
-    var topCardSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
-    // ★ Customization mode — opens when capsule is held
-    var showTopCardCustomize by remember { mutableStateOf(false) }
-
     // ★ Record playback history + daily play count when the current song
     //   changes. This is the SAME tracking that Astra's HomeScreen has —
     //   without this, songs played in Cynthia don't show up in "Today's Top".
@@ -174,14 +167,7 @@ fun CynthiaHomeScreen(
                     currentSongArt = currentSongArt,
                     onSongClick = onSongClickWithReset,
                     isPlaying = isPlaying,
-                    onPlayPauseClick = onPlayPauseClick,
-                    onCapsuleClick = { tappedSongs ->
-                        topCardSongs = tappedSongs
-                        showTopCard = true
-                    },
-                    onCapsuleHold = {
-                        showTopCardCustomize = true
-                    }
+                    onPlayPauseClick = onPlayPauseClick
                 )
                 else -> Box(
                     modifier = Modifier.fillMaxSize(),
@@ -414,43 +400,6 @@ fun CynthiaHomeScreen(
             onDismiss = { showCustomizationPanel = false },
             backdrop = glassBackdrop,
             isNavBar = customizationPanelIsNavBar
-        )
-
-        // ★ TodaysTopCard — rendered OUTSIDE the layerBackdrop Box (like nav bar).
-        //   Two modes: DISPLAY (tap) and CUSTOMIZE (hold).
-        //   Only one is visible at a time.
-        com.rajatxo.coral.ui.screens.TodaysTopCard(
-            visible = showTopCard,
-            song1 = topCardSongs.getOrNull(0),
-            song2 = topCardSongs.getOrNull(1),
-            color1 = Color(0xFFFF6B6B),
-            color2 = Color(0xFF6B9EFF),
-            currentSongId = currentSongId,
-            isPlaying = isPlaying,
-            onDismiss = { showTopCard = false },
-            onPlayPauseClick = { song ->
-                if (song.id == currentSongId) {
-                    onPlayPauseClick()
-                } else {
-                    onSongClickWithReset(song)
-                }
-            },
-            backdrop = glassBackdrop,
-            mode = CardMode.DISPLAY
-        )
-        // ★ Customization mode — opens when capsule is held
-        com.rajatxo.coral.ui.screens.TodaysTopCard(
-            visible = showTopCardCustomize,
-            song1 = null,
-            song2 = null,
-            color1 = Color.White,
-            color2 = Color.White,
-            currentSongId = null,
-            isPlaying = false,
-            onDismiss = { showTopCardCustomize = false },
-            onPlayPauseClick = {},
-            backdrop = glassBackdrop,
-            mode = CardMode.CUSTOMIZE
         )
     }
 }

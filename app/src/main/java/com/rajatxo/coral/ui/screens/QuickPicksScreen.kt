@@ -132,8 +132,6 @@ fun QuickPicksScreen(
     onBackClick: () -> Unit = {},
     isPlaying: Boolean = false,
     onPlayPauseClick: () -> Unit = {},
-    onCapsuleClick: (List<Song>) -> Unit = {},
-    onCapsuleHold: () -> Unit = {},
     glassHazeState: dev.chrisbanes.haze.HazeState? = null,
     glassStyle: dev.chrisbanes.haze.HazeStyle? = null
 ) {
@@ -333,17 +331,6 @@ fun QuickPicksScreen(
             // Tap the dice → plays a random song.
             // The hero grid (EditorialCard row) has been removed — the
             // Speed Dial is now the first row on Quick Picks.
-            // ★ Today's Top — 3 capsule stories. Tap a capsule to open
-            //   the floating glass card (rendered outside the LazyColumn).
-            item {
-                TodaysTopSection(
-                    songs = songs,
-                    textPrimary = textPrimary,
-                    textSecondary = textSecondary,
-                    onCapsuleClick = onCapsuleClick,
-                    onCapsuleHold = onCapsuleHold
-                )
-            }
             item {
                 SpeedDialSection(
                     songs = songs,
