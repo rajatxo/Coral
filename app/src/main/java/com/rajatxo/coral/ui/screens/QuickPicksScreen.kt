@@ -89,7 +89,6 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.transformations
 import com.rajatxo.coral.util.BlurTransformation
-import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorControls
@@ -133,19 +132,11 @@ fun QuickPicksScreen(
     onBackClick: () -> Unit = {},
     isPlaying: Boolean = false,
     onPlayPauseClick: () -> Unit = {},
+    glassBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null,
     glassHazeState: dev.chrisbanes.haze.HazeState? = null,
     glassStyle: dev.chrisbanes.haze.HazeStyle? = null
 ) {
     val context = LocalContext.current
-
-    // ★ Glass backdrop for the TodaysTopCard — captures the content
-    //   behind the card so it can blur it (glass morphism).
-    val todaysTopGraphicsLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
-    val todaysTopGlassBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop(
-        graphicsLayer = todaysTopGraphicsLayer
-    ) {
-        drawContent()
-    }
 
     // ★ Card state — which capsule was tapped, and which songs
     var showTopCard by remember { mutableStateOf(false) }
@@ -283,13 +274,6 @@ fun QuickPicksScreen(
     // to fully cover the darkBase.
     val darkBase = Color(0xFF05050A)
 
-    // ★ Wrap content in a Box with layerBackdrop so the TodaysTopCard
-    //   can sample + blur the content behind it (glass morphism).
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .layerBackdrop(todaysTopGlassBackdrop)
-    ) {
     PullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = {
@@ -444,10 +428,9 @@ fun QuickPicksScreen(
                 }
             }
         }
-    }
 
-        // ★ TodaysTopCard — floating glass overlay. Sits on top of the
-        //   Quick Picks content. Uses the glass backdrop for blur.
+        // ★ TodaysTopCard — floating glass overlay. Uses the glass backdrop
+        //   from HomeScreen (passed via glassBackdrop parameter).
         TodaysTopCard(
             visible = showTopCard,
             song1 = cardSongs.getOrNull(0),
@@ -464,7 +447,7 @@ fun QuickPicksScreen(
                     onSongClick(song)
                 }
             },
-            backdrop = todaysTopGlassBackdrop
+            backdrop = glassBackdrop
         )
     }
 }
