@@ -1823,12 +1823,6 @@ private fun GreetingMoodHeader(
                     modifier = Modifier.padding(top = 2.dp)
                 )
             }
-
-            // ★ Right side — 3D cat model
-            com.rajatxo.coral.ui.components.Cat3DView(
-                autoRotate = isPlaying,
-                modifier = Modifier.size(56.dp)
-            )
         }
     }
 }

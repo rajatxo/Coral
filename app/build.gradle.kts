@@ -91,8 +91,4 @@ dependencies {
     // Haze — crash-free glass morphism (used by ArchiveTune/BitChord)
     // Much simpler than kyant backdrop: HazeState() + hazeSource + hazeEffect
     implementation("dev.chrisbanes.haze:haze:1.6.9")
-    // ★ Filament — Google's 3D rendering engine for the cat model
-    implementation("com.google.android.filament:filament-android:1.51.0")
-    implementation("com.google.android.filament:gltfio-android:1.51.0")
-    implementation("com.google.android.filament:filament-utils-android:1.51.0")
 }
