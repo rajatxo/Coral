@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,6 +26,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,10 +34,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
@@ -49,7 +54,8 @@ fun TodaysTopSection(
     modifier: Modifier = Modifier,
     textPrimary: Color = Color.White,
     textSecondary: Color = Color.White.copy(alpha = 0.6f),
-    onCapsuleClick: (List<Song>) -> Unit = {}
+    onCapsuleClick: (List<Song>) -> Unit = {},
+    onCapsuleHold: () -> Unit = {}
 ) {
     // ★ Force-load daily plays on first composition
     val context = LocalContext.current
@@ -155,7 +161,8 @@ fun TodaysTopSection(
                         if (capsuleSongs.isNotEmpty()) {
                             onCapsuleClick(capsuleSongs)
                         }
-                    }
+                    },
+                    onHold = onCapsuleHold
                 )
             }
         }
@@ -174,12 +181,34 @@ private fun AnimatedCapsule(
     duration1: Int,
     duration2: Int,
     modifier: Modifier = Modifier,
-    onClick: () -> Unit = {}
+    onClick: () -> Unit = {},
+    onHold: () -> Unit = {}
 ) {
     val capsuleShape = RoundedCornerShape(28.dp)
     val borderBrush = Brush.horizontalGradient(listOf(color1, color2))
     val bgBrush = Brush.horizontalGradient(
         listOf(color1.copy(alpha = 0.25f), color2.copy(alpha = 0.25f))
+    )
+
+    // ★ Hold detection state — same pattern as nav bar
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var isLongPressActivated by remember { mutableStateOf(false) }
+    var countdownJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var showBubble by remember { mutableStateOf(false) }
+    var countdownNumber by remember { mutableStateOf(3) }
+
+    val bubbleScale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (showBubble) 1f else 0f,
+        animationSpec = androidx.compose.animation.core.spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
+        ),
+        label = "bubbleScale"
+    )
+    val bubbleAlpha by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (showBubble) 1f else 0f,
+        animationSpec = androidx.compose.animation.core.tween(250),
+        label = "bubbleAlpha"
     )
 
     Box(
@@ -188,11 +217,60 @@ private fun AnimatedCapsule(
             .clip(capsuleShape)
             .background(bgBrush)
             .border(width = 2.5.dp, brush = borderBrush, shape = capsuleShape)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val down = awaitFirstDown()
+                        down.consume()
+                        isLongPressActivated = false
+
+                        countdownJob?.cancel()
+                        countdownJob = scope.launch {
+                            delay(2000L)
+                            showBubble = true
+                            countdownNumber = 3
+                            delay(1000L)
+                            countdownNumber = 2
+                            delay(1000L)
+                            countdownNumber = 1
+                            delay(1000L)
+                            showBubble = false
+                            isLongPressActivated = true
+                            onHold()
+                        }
+
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull() ?: break
+
+                            if (!change.pressed) {
+                                change.consume()
+                                if (!isLongPressActivated) {
+                                    // Short tap
+                                    val movedX = kotlin.math.abs(change.position.x - down.position.x)
+                                    val movedY = kotlin.math.abs(change.position.y - down.position.y)
+                                    if (movedX < 20f && movedY < 20f) {
+                                        onClick()
+                                    }
+                                }
+                                showBubble = false
+                                countdownJob?.cancel()
+                                break
+                            }
+
+                            // Cancel countdown if finger moved (swipe, not hold)
+                            if (!isLongPressActivated) {
+                                val movedX = kotlin.math.abs(change.position.x - down.position.x)
+                                val movedY = kotlin.math.abs(change.position.y - down.position.y)
+                                if (movedX > 20f || movedY > 20f) {
+                                    countdownJob?.cancel()
+                                    showBubble = false
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             .padding(6.dp),
         contentAlignment = Alignment.Center
     ) {

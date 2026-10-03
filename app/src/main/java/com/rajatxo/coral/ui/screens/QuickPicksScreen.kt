@@ -133,6 +133,7 @@ fun QuickPicksScreen(
     isPlaying: Boolean = false,
     onPlayPauseClick: () -> Unit = {},
     onCapsuleClick: (List<Song>) -> Unit = {},
+    onCapsuleHold: () -> Unit = {},
     glassHazeState: dev.chrisbanes.haze.HazeState? = null,
     glassStyle: dev.chrisbanes.haze.HazeStyle? = null
 ) {
@@ -339,7 +340,8 @@ fun QuickPicksScreen(
                     songs = songs,
                     textPrimary = textPrimary,
                     textSecondary = textSecondary,
-                    onCapsuleClick = onCapsuleClick
+                    onCapsuleClick = onCapsuleClick,
+                    onCapsuleHold = onCapsuleHold
                 )
             }
             item {

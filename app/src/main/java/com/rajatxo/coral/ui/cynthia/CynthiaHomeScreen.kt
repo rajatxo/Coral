@@ -55,6 +55,7 @@ import com.rajatxo.coral.ui.components.TabCapsule
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.screens.SettingsScreen
 import com.rajatxo.coral.ui.theme.CalSansFamily
+import com.rajatxo.coral.ui.screens.CardMode
 
 @androidx.compose.foundation.ExperimentalFoundationApi
 @Composable
@@ -93,6 +94,8 @@ fun CynthiaHomeScreen(
     //   (same pattern as Astra's HomeScreen).
     var showTopCard by remember { mutableStateOf(false) }
     var topCardSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
+    // ★ Customization mode — opens when capsule is held
+    var showTopCardCustomize by remember { mutableStateOf(false) }
 
     // ★ Record playback history + daily play count when the current song
     //   changes. This is the SAME tracking that Astra's HomeScreen has —
@@ -175,6 +178,9 @@ fun CynthiaHomeScreen(
                     onCapsuleClick = { tappedSongs ->
                         topCardSongs = tappedSongs
                         showTopCard = true
+                    },
+                    onCapsuleHold = {
+                        showTopCardCustomize = true
                     }
                 )
                 else -> Box(
@@ -411,7 +417,8 @@ fun CynthiaHomeScreen(
         )
 
         // ★ TodaysTopCard — rendered OUTSIDE the layerBackdrop Box (like nav bar).
-        //   Same pattern as Astra's HomeScreen.
+        //   Two modes: DISPLAY (tap) and CUSTOMIZE (hold).
+        //   Only one is visible at a time.
         com.rajatxo.coral.ui.screens.TodaysTopCard(
             visible = showTopCard,
             song1 = topCardSongs.getOrNull(0),
@@ -428,7 +435,22 @@ fun CynthiaHomeScreen(
                     onSongClickWithReset(song)
                 }
             },
-            backdrop = glassBackdrop
+            backdrop = glassBackdrop,
+            mode = CardMode.DISPLAY
+        )
+        // ★ Customization mode — opens when capsule is held
+        com.rajatxo.coral.ui.screens.TodaysTopCard(
+            visible = showTopCardCustomize,
+            song1 = null,
+            song2 = null,
+            color1 = Color.White,
+            color2 = Color.White,
+            currentSongId = null,
+            isPlaying = false,
+            onDismiss = { showTopCardCustomize = false },
+            onPlayPauseClick = {},
+            backdrop = glassBackdrop,
+            mode = CardMode.CUSTOMIZE
         )
     }
 }

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -28,22 +29,26 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.vibrancy
 
+enum class CardMode { DISPLAY, CUSTOMIZE }
+
 /**
  * ★ TodaysTopCard — floating glass card on TOP of the Speed Dial first row.
  *
- * Size: customizable (width, height, corner, shape) — like the nav bar card.
+ * Two modes:
+ *   DISPLAY — shows the actual content (balls, line) as customized
+ *   CUSTOMIZE — shows customization settings (width, height, corner, shape)
+ *              inside the card
+ *
+ * Size: customizable (width, height, corner, shape).
  * Draggable: drag handle on top.
  * Glass morphism: kyant backdrop blur.
- *
- * Content: two glowing white balls connected by a DISSOLVING dashed line.
- * The line FADES IN at the top, is BRIGHT between the two balls,
- * then FADES OUT at the bottom — like dissolving into the card.
  */
 @Composable
 fun TodaysTopCard(
@@ -57,9 +62,9 @@ fun TodaysTopCard(
     onDismiss: () -> Unit,
     onPlayPauseClick: (com.rajatxo.coral.domain.model.Song) -> Unit,
     backdrop: LayerBackdrop? = null,
+    mode: CardMode = CardMode.DISPLAY,
     modifier: Modifier = Modifier
 ) {
-    // ★ Read customization from prefs (same as nav bar)
     val cardCustom by com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.customization
         .collectAsState()
 
@@ -147,17 +152,9 @@ fun TodaysTopCard(
                         )
                     }
 
-                    // ═══ DISSOLVING DASHED LINE + GLOWING BALLS ═══
-                    //
-                    // The line DISSOLVES:
-                    //   top → fades in (alpha 0 → 0.55)
-                    //   ball 1 (bright, glowing)
-                    //   between balls → BRIGHT (alpha 0.55, full)
-                    //   ball 2 (bright, glowing)
-                    //   bottom → fades out (alpha 0.55 → 0)
-                    //
-                    // Like:  ·····•──────•·····
-                    //        (fade in) (bright) (fade out)
+                    // ★ CONTENT — depends on mode
+                    if (mode == CardMode.DISPLAY) {
+                        // ═══ DISPLAY MODE: dissolving dashed line + glowing balls ═══
 
                     Canvas(
                         modifier = Modifier
@@ -252,8 +249,77 @@ fun TodaysTopCard(
                             center = Offset(ballCenterX, ball2Y)
                         )
                     }
+                    } else {
+                        // ═══ CUSTOMIZE MODE: show settings inside the card ═══
+                        // For now, show simple text labels. We'll add the arc dial
+                        // + shape picker later.
+                        androidx.compose.foundation.layout.Column(
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)
+                        ) {
+                            androidx.compose.material3.Text(
+                                text = "Card Settings",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
+                            )
+                            androidx.compose.material3.Text(
+                                text = "W:${cardCustom.widthDp.toInt()} H:${cardCustom.heightDp.toInt()} " +
+                                       "C:${cardCustom.cornerRadiusDp.toInt()} ${cardCustom.shape.displayName}",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 11.sp,
+                                fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
+                            )
+                            // Quick adjust buttons
+                            androidx.compose.foundation.layout.Row(
+                                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Width +/-
+                                QuickButton("-", 26.dp) { com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.setWidth((cardCustom.widthDp - 10f).coerceAtLeast(200f)) }
+                                androidx.compose.material3.Text("Width", color = Color.White.copy(alpha = 0.7f), fontSize = 10.sp, fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily)
+                                QuickButton("+", 26.dp) { com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.setWidth((cardCustom.widthDp + 10f).coerceAtMost(400f)) }
+                            }
+                            androidx.compose.foundation.layout.Row(
+                                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                QuickButton("-", 26.dp) { com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.setHeight((cardCustom.heightDp - 10f).coerceAtLeast(60f)) }
+                                androidx.compose.material3.Text("Height", color = Color.White.copy(alpha = 0.7f), fontSize = 10.sp, fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily)
+                                QuickButton("+", 26.dp) { com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.setHeight((cardCustom.heightDp + 10f).coerceAtMost(200f)) }
+                            }
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun QuickButton(text: String, size: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(RoundedCornerShape(size / 2))
+            .background(Color.White.copy(alpha = 0.15f))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        androidx.compose.material3.Text(
+            text = text,
+            color = Color.White,
+            fontSize = 14.sp,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+            fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
+        )
     }
 }
