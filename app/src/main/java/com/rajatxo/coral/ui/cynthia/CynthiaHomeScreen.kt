@@ -89,6 +89,11 @@ fun CynthiaHomeScreen(
     var customizationPanelIsNavBar by remember { mutableStateOf(true) }
     val onSongClickWithReset: (Song) -> Unit = { song -> onSongClick(song) }
 
+    // ★ TodaysTopCard state — hoisted OUTSIDE the layerBackdrop Box
+    //   (same pattern as Astra's HomeScreen).
+    var showTopCard by remember { mutableStateOf(false) }
+    var topCardSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
+
     // ★ Record playback history + daily play count when the current song
     //   changes. This is the SAME tracking that Astra's HomeScreen has —
     //   without this, songs played in Cynthia don't show up in "Today's Top".
@@ -166,7 +171,11 @@ fun CynthiaHomeScreen(
                     currentSongArt = currentSongArt,
                     onSongClick = onSongClickWithReset,
                     isPlaying = isPlaying,
-                    onPlayPauseClick = onPlayPauseClick
+                    onPlayPauseClick = onPlayPauseClick,
+                    onCapsuleClick = { tappedSongs ->
+                        topCardSongs = tappedSongs
+                        showTopCard = true
+                    }
                 )
                 else -> Box(
                     modifier = Modifier.fillMaxSize(),
@@ -399,6 +408,27 @@ fun CynthiaHomeScreen(
             onDismiss = { showCustomizationPanel = false },
             backdrop = glassBackdrop,
             isNavBar = customizationPanelIsNavBar
+        )
+
+        // ★ TodaysTopCard — rendered OUTSIDE the layerBackdrop Box (like nav bar).
+        //   Same pattern as Astra's HomeScreen.
+        com.rajatxo.coral.ui.screens.TodaysTopCard(
+            visible = showTopCard,
+            song1 = topCardSongs.getOrNull(0),
+            song2 = topCardSongs.getOrNull(1),
+            color1 = Color(0xFFFF6B6B),
+            color2 = Color(0xFF6B9EFF),
+            currentSongId = currentSongId,
+            isPlaying = isPlaying,
+            onDismiss = { showTopCard = false },
+            onPlayPauseClick = { song ->
+                if (song.id == currentSongId) {
+                    onPlayPauseClick()
+                } else {
+                    onSongClickWithReset(song)
+                }
+            },
+            backdrop = glassBackdrop
         )
     }
 }
