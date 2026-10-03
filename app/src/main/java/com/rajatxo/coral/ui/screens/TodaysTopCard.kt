@@ -107,28 +107,7 @@ fun TodaysTopCard(
                 Box(
                     modifier = Modifier
                         .clip(cardShape)
-                        .then(
-                            if (backdrop != null) {
-                                Modifier.drawBackdrop(
-                                    backdrop = backdrop,
-                                    shape = { cardShape },
-                                    effects = {
-                                        vibrancy()
-                                        colorControls(
-                                            brightness = 0.1f,
-                                            contrast = 1f,
-                                            saturation = 1.3f
-                                        )
-                                        blur(30f.dp.toPx())
-                                    },
-                                    onDrawSurface = {
-                                        drawRect(Color.Black.copy(alpha = 0.45f))
-                                    }
-                                )
-                            } else {
-                                Modifier.background(Color(0xFF1A1A1A).copy(alpha = 0.92f))
-                            }
-                        )
+                        .background(Color(0xFF1A1A1A).copy(alpha = 0.88f))
                         .border(1.dp, Color.White.copy(alpha = 0.2f), cardShape)
                         .padding(20.dp)
                 ) {
