@@ -15,17 +15,17 @@ object CynthiaTodaysTopCardCustomization {
     private const val KEY_HEIGHT = "cynthia_top_card_height_c2"
     private const val KEY_CORNER = "cynthia_top_card_corner_c2"
     private const val KEY_SHAPE = "cynthia_top_card_shape_c2"
-    private const val KEY_OFFSET_X = "cynthia_top_card_offset_x_c1"
-    private const val KEY_OFFSET_Y = "cynthia_top_card_offset_y_c1"
+    private const val KEY_OFFSET_X = "cynthia_top_card_offset_x_c2"
+    private const val KEY_OFFSET_Y = "cynthia_top_card_offset_y_c2"
 
-    const val DEFAULT_WIDTH_DP = 320f
+    const val DEFAULT_WIDTH_DP = 329f
     const val DEFAULT_HEIGHT_DP = 110f
     const val DEFAULT_CORNER_DP = 10f
     val DEFAULT_SHAPE = com.rajatxo.coral.ui.cynthia.CynthiaCustomShape.PILL
 
-    // ★ Default position: 0,0 = centered over speed dial first row
-    const val DEFAULT_OFFSET_X = 0f
-    const val DEFAULT_OFFSET_Y = 0f
+    // ★ Default position — user-specified exact location
+    const val DEFAULT_OFFSET_X = -1f
+    const val DEFAULT_OFFSET_Y = 281f
 
     private lateinit var prefs: android.content.SharedPreferences
 

@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -213,6 +214,10 @@ private fun AnimatedCapsule(
         label = "bubbleAlpha"
     )
 
+    // ★ Outer Box — NOT clipped. Bubble renders here outside the clip.
+    Box(
+        modifier = modifier
+    ) {
     Box(
         modifier = modifier
             .height(56.dp)
@@ -329,6 +334,54 @@ private fun AnimatedCapsule(
                 }
             }
         }
+    }
+
+    // ★ Countdown bubble — OUTSIDE the clipped capsule, fully visible.
+    //   Rendered as a sibling of the capsule Box, above it.
+    if (bubbleAlpha > 0.01f) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .graphicsLayer {
+                    scaleX = bubbleScale
+                    scaleY = bubbleScale
+                    alpha = bubbleAlpha
+                }
+                .offset(y = (-50).dp)
+                .zIndex(2f)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color(0xFF1A1A1A))
+                .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Hold to move in",
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(Color.White),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = countdownNumber.toString(),
+                        color = Color.Black,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
     }
 }
 
