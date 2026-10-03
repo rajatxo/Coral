@@ -2,11 +2,6 @@ package com.rajatxo.coral.ui.screens
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -32,7 +27,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -160,40 +154,12 @@ private fun AnimatedCapsule(
     color2: Color,
     modifier: Modifier = Modifier
 ) {
-    // ★ ANIMATED gradient — rotates continuously for a "flowing" effect
-    // ★ CONTINUOUS FLOW — one smooth gradient (color1 → color2 → color1)
-    //   that flows around the border forever. No compartments, no jumps.
-    //
-    //   The sweep gradient has 3 smooth stops: color1 → color2 → color1.
-    //   To make it FLOW, we shift the stop positions over time (0→1→0→1...).
-    //   Since the gradient starts and ends with color1, shifting the stops
-    //   creates a seamless continuous flow with no visible loop point.
-    val flowShift by rememberInfiniteTransition(label = "gradientFlow").animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 5000, easing = { it }),  // 5 sec per loop
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "flowShift"
-    )
-
+    // ★ STATIC border — simple horizontal gradient from color1 → color2.
+    //   No animation for now. We'll revisit the flowing animation later.
     val capsuleShape = RoundedCornerShape(28.dp)
+    val borderBrush = Brush.horizontalGradient(listOf(color1, color2))
     val bgBrush = Brush.horizontalGradient(
         listOf(color1.copy(alpha = 0.25f), color2.copy(alpha = 0.25f))
-    )
-
-    // ★ Smooth sweep gradient with SHIFTING stops. The gradient goes
-    //   color1 → color2 → color1 (smooth, no hard edges). We shift all
-    //   stops by `flowShift` so the colors flow around the border.
-    //   Because the gradient is periodic (color1 at both ends), shifting
-    //   the stops by flowShift and taking mod 1 creates a seamless loop.
-    val flowBrush = Brush.sweepGradient(
-        colorStops = arrayOf(
-            0.0f to color1,
-            (0.5f + flowShift) % 1.0f to color2,
-            (1.0f + flowShift) % 1.0f to color1
-        )
     )
 
     Box(
@@ -201,33 +167,7 @@ private fun AnimatedCapsule(
             .height(56.dp)
             .clip(capsuleShape)
             .background(bgBrush)
-            // ★ Train-of-two-colors border — color1 then color2 travel
-            //   around the border like a train on a track. Uses a rotating
-            //   sweep gradient clipped to the capsule shape.
-            .drawWithContent {
-                drawContent()
-                val strokeWidth = 2.5.dp.toPx()
-                // ★ Draw the rounded-rectangle path with the animated sweep
-                //   gradient (NO rotation of the path itself — only the
-                //   gradient colors move via the shifting color stops).
-                val cornerRadius = 28.dp.toPx()
-                val path = androidx.compose.ui.graphics.Path().apply {
-                    addRoundRect(
-                        androidx.compose.ui.geometry.RoundRect(
-                            left = strokeWidth / 2,
-                            top = strokeWidth / 2,
-                            right = size.width - strokeWidth / 2,
-                            bottom = size.height - strokeWidth / 2,
-                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadius, cornerRadius)
-                        )
-                    )
-                }
-                drawPath(
-                    path = path,
-                    brush = flowBrush,
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidth)
-                )
-            }
+            .border(width = 2.5.dp, brush = borderBrush, shape = capsuleShape)
             .padding(6.dp),
         contentAlignment = Alignment.Center
     ) {
