@@ -1766,18 +1766,16 @@ private fun GreetingMoodHeader(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 4.dp)
+            .padding(start = 4.dp, bottom = 4.dp)  // ★ align with Speed Dial header (start = 4.dp)
     ) {
-        // ★ Greeting — large, bold, gradient text + shadow for readability
+        // ★ Greeting — large, bold, PURE WHITE + shadow for readability
         Text(
             text = greeting,
+            color = Color.White,
             fontFamily = CalSansFamily,
             fontSize = 32.sp,
             fontWeight = FontWeight.Bold,
             style = androidx.compose.ui.text.TextStyle(
-                brush = Brush.horizontalGradient(
-                    listOf(gradientStart, gradientEnd)
-                ),
                 shadow = androidx.compose.ui.graphics.Shadow(
                     color = Color.Black.copy(alpha = 0.6f),
                     offset = androidx.compose.ui.geometry.Offset(1f, 1f),
