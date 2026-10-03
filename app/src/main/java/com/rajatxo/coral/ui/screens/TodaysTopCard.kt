@@ -247,7 +247,7 @@ fun TodaysTopCard(
                             drawCircle(color = Color.White, radius = coreRadius, center = Offset(ballCenterX, ball2Y))
                         }
                     } else {
-                        // ═══ CUSTOMIZE MODE: same options as nav bar (no position X/Y) ═══
+                        // ═══ CUSTOMIZE MODE: all options including position X/Y ═══
                         Column(
                             modifier = Modifier
                                 .align(Alignment.Center)
@@ -266,6 +266,16 @@ fun TodaysTopCard(
                             // Corner
                             QuickRow("Corner", cardCustom.cornerRadiusDp, 0f..50f, "dp") {
                                 com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.setCornerRadius(it)
+                            }
+                            // ★ Position X — so user can set exact default location
+                            QuickRow("Pos X", cardCustom.offsetX, -300f..300f, "") {
+                                com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization
+                                    .setOffset(it, cardCustom.offsetY)
+                            }
+                            // ★ Position Y — so user can set exact default location
+                            QuickRow("Pos Y", cardCustom.offsetY, -200f..400f, "") {
+                                com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization
+                                    .setOffset(cardCustom.offsetX, it)
                             }
                             // Shape picker
                             Row(
