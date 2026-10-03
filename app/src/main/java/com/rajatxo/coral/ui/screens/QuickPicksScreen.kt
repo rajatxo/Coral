@@ -325,6 +325,16 @@ fun QuickPicksScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
+            // ═══ Greeting + Mood ═══
+            // Premium typography: large greeting + mood gradient.
+            // Greeting changes by time of day.
+            item {
+                GreetingMoodHeader(
+                    textPrimary = textPrimary,
+                    textSecondary = textSecondary
+                )
+            }
+
             // ═══ Speed Dial (first row) ═══
             // A paginated grid of square song cards + a "randomize" dice
             // button as the last slot. Tap a card to play that song.
@@ -1696,6 +1706,88 @@ private fun SectionHeader(
             color = textSecondary,
             fontSize = 14.sp,
             fontFamily = CalSansFamily
+        )
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// GREETING + MOOD HEADER
+// ════════════════════════════════════════════════════════════════════
+// Premium typography greeting that changes by time of day.
+// Uses CalSans font with careful weight/size/spacing hierarchy.
+//
+// Layout:
+//   "Good evening"     ← 32sp, Bold, CalSans, gradient text
+//   "Ready for some music?"  ← 14sp, Light, CalSans, secondary color
+//
+// The gradient on the greeting shifts with time of day:
+//   Morning  → warm gold → soft orange
+//   Afternoon → sky blue → soft cyan
+//   Evening  → coral pink → deep purple
+//   Night    → deep indigo → midnight blue
+
+@Composable
+private fun GreetingMoodHeader(
+    textPrimary: Color,
+    textSecondary: Color
+) {
+    val hour = remember {
+        java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    }
+
+    // ★ Greeting text based on time of day
+    val greeting = when (hour) {
+        in 5..11 -> "Good morning"
+        in 12..16 -> "Good afternoon"
+        in 17..21 -> "Good evening"
+        else -> "Good night"
+    }
+
+    // ★ Mood subtitle based on time of day
+    val moodText = when (hour) {
+        in 5..11 -> "Start your day with music"
+        in 12..16 -> "What's on your mind?"
+        in 17..21 -> "Ready for some music?"
+        else -> "Late night vibes"
+    }
+
+    // ★ Gradient colors based on time of day
+    val (gradientStart, gradientEnd) = when (hour) {
+        in 5..11 -> Color(0xFFFFD166) to Color(0xFFFF8FAB)      // gold → pink
+        in 12..16 -> Color(0xFF6B9EFF) to Color(0xFF51CF66)     // blue → green
+        in 17..21 -> Color(0xFFFF6B6B) to Color(0xFFB197FC)     // coral → purple
+        else -> Color(0xFF6B7BFF) to Color(0xFF1A1A2E)          // indigo → midnight
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 4.dp)
+    ) {
+        // ★ Greeting — large, bold, gradient text
+        //   Uses buildAnnotatedString for the gradient (premium technique)
+        Text(
+            text = greeting,
+            fontFamily = CalSansFamily,
+            fontSize = 32.sp,
+            fontWeight = FontWeight.Bold,
+            style = androidx.compose.ui.text.TextStyle(
+                brush = Brush.horizontalGradient(
+                    listOf(gradientStart, gradientEnd)
+                )
+            ),
+            letterSpacing = (-1).sp  // tight tracking for large display text
+        )
+
+        // ★ Mood subtitle — smaller, lighter, secondary color
+        Text(
+            text = moodText,
+            fontFamily = CalSansFamily,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Light,
+            color = textSecondary,
+            letterSpacing = 0.sp,
+            modifier = Modifier.padding(top = 2.dp)
         )
     }
 }
