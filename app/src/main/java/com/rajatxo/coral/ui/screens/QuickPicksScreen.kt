@@ -1754,14 +1754,10 @@ private fun GreetingMoodHeader(
     // ★ User name from prefs
     val userName by com.rajatxo.coral.data.prefs.UserName.name.collectAsState()
 
-    // ★ Greeting text based on time of day + user name
-    val greetingBase = when (hour) {
-        in 5..11 -> "Good morning"
-        in 12..16 -> "Good afternoon"
-        in 17..21 -> "Good evening"
-        else -> "Good night"
-    }
-    val greeting = if (userName.isNotBlank()) "$greetingBase $userName," else "$greetingBase,"
+    // ★ Greeting text — just "Hey," + user name. Shorter than "Good
+    //   evening" so the TodaysTopCard capsule can sit beside it without
+    //   overlapping. Format: "Hey, Rajat" (or just "Hey," if no name set).
+    val greeting = if (userName.isNotBlank()) "Hey, $userName" else "Hey,"
 
     // ★ Mood subtitle based on time of day
     val moodText = when (hour) {
