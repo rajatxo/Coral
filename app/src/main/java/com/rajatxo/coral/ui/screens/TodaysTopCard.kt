@@ -177,35 +177,86 @@ fun TodaysTopCard(
                 // ─── Cover circle (LEFT) ────────────────────────────────────
                 // Cover size scales with card height — keeps the cover
                 // proportional when the user changes Height in the panel.
+                // ★ A small pin icon sits at the top-right of the cover.
+                //   Tap the pin → toggles pin state for this song in the
+                //   Speed Dial. Pinned songs go to the front of the Speed
+                //   Dial pin list (max 5 — oldest gets kicked out).
                 val coverSize = (cardCustom.heightDp - 18f).coerceAtLeast(28f).dp
+
+                // ★ Pin state for this song (live updates when pin toggled).
+                val pinnedIds by com.rajatxo.coral.data.prefs.SpeedDialPinStore.pinnedIds
+                    .collectAsState()
+                val isSongPinned = song.id in pinnedIds
+
                 Box(
                     modifier = Modifier
                         .padding(start = 8.dp)
                         .size(coverSize)
-                        .clip(CircleShape),
-                    contentAlignment = Alignment.Center
                 ) {
-                    if (song.albumArtUri != null) {
-                        AsyncImage(
-                            model = song.albumArtUri,
-                            contentDescription = song.title,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color(0xFF1A1A1A)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = CoralIcons.Music,
-                                contentDescription = null,
-                                tint = Color(0xFFB0B0B0),
-                                modifier = Modifier.size(18.dp)
+                    // Album cover (fills the circle)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (song.albumArtUri != null) {
+                            AsyncImage(
+                                model = song.albumArtUri,
+                                contentDescription = song.title,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
                             )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color(0xFF1A1A1A)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = CoralIcons.Music,
+                                    contentDescription = null,
+                                    tint = Color(0xFFB0B0B0),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
+                    }
+
+                    // ★ Pin icon — top-right of the cover, small badge.
+                    //   Tap to toggle pin state. Filled coral color when
+                    //   pinned; translucent white when not.
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .offset(x = 4.dp, y = (-4).dp)
+                            .size(18.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (isSongPinned) Color(0xFFFF6B6B)
+                                else Color.Black.copy(alpha = 0.5f)
+                            )
+                            .border(
+                                width = 1.dp,
+                                color = if (isSongPinned) Color.White
+                                        else Color.White.copy(alpha = 0.4f),
+                                shape = CircleShape
+                            )
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = ripple(bounded = false)
+                            ) {
+                                com.rajatxo.coral.data.prefs.SpeedDialPinStore.togglePin(song.id)
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = CoralIcons.Pin,
+                            contentDescription = if (isSongPinned) "Unpin from Speed Dial" else "Pin to Speed Dial",
+                            tint = if (isSongPinned) Color.White else Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier.size(10.dp)
+                        )
                     }
                 }
 
@@ -236,7 +287,8 @@ fun TodaysTopCard(
 
                 // ─── Play/Pause (Spiral player style) ──────────────────────
                 // Plain Lucide icon, no circle background, ripple on tap.
-                // Smaller size (28dp) per user request.
+                // Small size (22dp) — smaller per user request so it fits
+                // in the narrower default card width (188dp).
                 val isCurrent = song.id == currentSongId
                 Icon(
                     imageVector = if (isCurrent && isPlaying) CoralIcons.PauseLucide
@@ -244,7 +296,7 @@ fun TodaysTopCard(
                     contentDescription = if (isPlaying) "Pause" else "Play",
                     tint = Color.White,
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(22.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = ripple(bounded = false)
@@ -260,7 +312,7 @@ fun TodaysTopCard(
                     tint = Color.White,
                     modifier = Modifier
                         .padding(end = 6.dp)
-                        .size(28.dp)
+                        .size(22.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = ripple(bounded = false)

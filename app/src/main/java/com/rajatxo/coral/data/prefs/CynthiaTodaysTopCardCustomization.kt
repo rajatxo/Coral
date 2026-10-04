@@ -11,21 +11,21 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 object CynthiaTodaysTopCardCustomization {
     private const val PREFS_NAME = "coral_prefs"
-    private const val KEY_WIDTH = "cynthia_top_card_width_c2"
-    private const val KEY_HEIGHT = "cynthia_top_card_height_c2"
-    private const val KEY_CORNER = "cynthia_top_card_corner_c2"
-    private const val KEY_SHAPE = "cynthia_top_card_shape_c2"
-    private const val KEY_OFFSET_X = "cynthia_top_card_offset_x_c2"
-    private const val KEY_OFFSET_Y = "cynthia_top_card_offset_y_c2"
+    private const val KEY_WIDTH = "cynthia_top_card_width_c3"
+    private const val KEY_HEIGHT = "cynthia_top_card_height_c3"
+    private const val KEY_CORNER = "cynthia_top_card_corner_c3"
+    private const val KEY_SHAPE = "cynthia_top_card_shape_c3"
+    private const val KEY_OFFSET_X = "cynthia_top_card_offset_x_c3"
+    private const val KEY_OFFSET_Y = "cynthia_top_card_offset_y_c3"
 
-    const val DEFAULT_WIDTH_DP = 329f
-    const val DEFAULT_HEIGHT_DP = 110f
-    const val DEFAULT_CORNER_DP = 10f
+    const val DEFAULT_WIDTH_DP = 188f
+    const val DEFAULT_HEIGHT_DP = 61f
+    const val DEFAULT_CORNER_DP = 50f
     val DEFAULT_SHAPE = com.rajatxo.coral.ui.cynthia.CynthiaCustomShape.PILL
 
     // ★ Default position — user-specified exact location
-    const val DEFAULT_OFFSET_X = -1f
-    const val DEFAULT_OFFSET_Y = 281f
+    const val DEFAULT_OFFSET_X = 20f
+    const val DEFAULT_OFFSET_Y = -814f
 
     private lateinit var prefs: android.content.SharedPreferences
 
