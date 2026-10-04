@@ -105,14 +105,13 @@ fun ListeningStatsCapsule(
         label = "bar5"
     )
 
-    // ★ Outer Box — NOT clipped. Holds the capsule + cat on top-right border.
-    //   The cat sits OUTSIDE the capsule, on the top-right corner.
+    // ★ Box holds capsule only. Cat is rendered as a SEPARATE composable
+    //   in QuickPicksScreen so it's not clipped by ANY box bounds.
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(48.dp)  // taller than capsule (40dp) so cat can overflow
+            .height(40.dp)
     ) {
-        // ★ The capsule itself (40dp, centered vertically)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -124,9 +123,9 @@ fun ListeningStatsCapsule(
                     width = 1.5.dp,
                     brush = androidx.compose.ui.graphics.Brush.verticalGradient(
                         listOf(
-                            Color.White.copy(alpha = 0.4f),  // top — glossy highlight
-                            Color.White.copy(alpha = 0.1f),  // middle
-                            Color.White.copy(alpha = 0.25f)   // bottom — subtle reflection
+                            Color.White.copy(alpha = 0.4f),
+                            Color.White.copy(alpha = 0.1f),
+                            Color.White.copy(alpha = 0.25f)
                         )
                     ),
                     shape = capsuleShape
@@ -138,7 +137,6 @@ fun ListeningStatsCapsule(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // ★ Equalizer bars (left side)
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(3.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -153,7 +151,6 @@ fun ListeningStatsCapsule(
 
                 Spacer(modifier = Modifier.width(2.dp))
 
-                // ★ Listening time text
                 Text(
                     text = timeText,
                     color = Color.White.copy(alpha = 0.8f),
@@ -163,19 +160,6 @@ fun ListeningStatsCapsule(
                 )
             }
         }
-
-        // ★ Cat — sits OUTSIDE the capsule, on the top-right corner.
-        //   Offset up and right so it overlaps the border.
-        LottieAnimation(
-            composition = rememberLottieComposition(
-                LottieCompositionSpec.Asset("cat_animation.json")
-            ).value,
-            iterations = LottieConstants.IterateForever,
-            modifier = Modifier
-                .size(200.dp)
-                .align(Alignment.TopEnd)
-                .offset(x = 4.dp, y = (-12).dp)  // sit on top-right border, overflow upward
-        )
     }
 }
 

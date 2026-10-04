@@ -335,13 +335,35 @@ fun QuickPicksScreen(
                 )
             }
 
-            // ═══ Listening Stats Capsule ═══
+            // ═══ Listening Stats Capsule + Cat ═══
+            // Cat is rendered as a SEPARATE item overlapping the capsule's
+            // top-right corner. Not clipped by ANY box.
             item {
-                ListeningStatsCapsule(
-                    isPlaying = isPlaying,
-                    listeningTimeSeconds = getDailyListeningSeconds(),
-                    modifier = Modifier.padding(bottom = 6.dp)  // 6dp base + 6dp = 12dp gap to speed dial
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 6.dp)
+                ) {
+                    // Capsule
+                    ListeningStatsCapsule(
+                        isPlaying = isPlaying,
+                        listeningTimeSeconds = getDailyListeningSeconds()
+                    )
+
+                    // ★ Cat — 500dp, aligned top-end, offset up so it
+                    //   sits on the top-right border of the capsule.
+                    //   Rendered as a sibling — NOT inside the capsule's clip.
+                    com.airbnb.lottie.compose.LottieAnimation(
+                        composition = com.airbnb.lottie.compose.rememberLottieComposition(
+                            com.airbnb.lottie.compose.LottieCompositionSpec.Asset("cat_animation.json")
+                        ).value,
+                        iterations = com.airbnb.lottie.compose.LottieConstants.IterateForever,
+                        modifier = Modifier
+                            .size(500.dp)
+                            .align(Alignment.TopEnd)
+                            .offset(x = 20.dp, y = (-250).dp)
+                    )
+                }
             }
 
             // ═══ Speed Dial (first row) ═══
