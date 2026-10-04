@@ -336,12 +336,11 @@ fun QuickPicksScreen(
             }
 
             // ═══ Listening Stats Capsule + Cat ═══
-            // Cat is rendered as a SEPARATE item overlapping the capsule's
-            // top-right corner. Not clipped by ANY box.
             item {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .height(40.dp)  // ★ FIXED height = capsule height only
                         .padding(bottom = 6.dp)
                 ) {
                     // Capsule
@@ -350,18 +349,19 @@ fun QuickPicksScreen(
                         listeningTimeSeconds = getDailyListeningSeconds()
                     )
 
-                    // ★ Cat — 500dp, aligned top-end, offset up so it
-                    //   sits on the top-right border of the capsule.
-                    //   Rendered as a sibling — NOT inside the capsule's clip.
+                    // ★ Cat — sized to fit the gap between greeting and capsule.
+                    //   Aligned TopEnd, offset up so it sits on the top-right border.
+                    //   The Box is fixed at 40dp so the cat overflowing upward
+                    //   does NOT push the layout down.
                     com.airbnb.lottie.compose.LottieAnimation(
                         composition = com.airbnb.lottie.compose.rememberLottieComposition(
                             com.airbnb.lottie.compose.LottieCompositionSpec.Asset("cat_animation.json")
                         ).value,
                         iterations = com.airbnb.lottie.compose.LottieConstants.IterateForever,
                         modifier = Modifier
-                            .size(500.dp)
+                            .size(120.dp)
                             .align(Alignment.TopEnd)
-                            .offset(x = 20.dp, y = (-250).dp)
+                            .offset(x = 8.dp, y = (-90).dp)
                     )
                 }
             }
