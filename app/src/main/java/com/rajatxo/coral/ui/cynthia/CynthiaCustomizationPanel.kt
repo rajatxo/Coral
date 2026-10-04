@@ -291,7 +291,7 @@ private fun CustomizationPanelContent(
             }
         )
         CustomizationMode.TOP_CARD -> listOf(
-            Field("Width", topCardCustom.widthDp, 180f..400f, "dp") {
+            Field("Width", topCardCustom.widthDp, 100f..400f, "dp") {
                 com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.setWidth(it)
             },
             Field("Height", topCardCustom.heightDp, 48f..200f, "dp") {
@@ -304,7 +304,7 @@ private fun CustomizationPanelContent(
                 com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization
                     .setOffset(it, topCardCustom.offsetY)
             },
-            Field("Pos Y", topCardCustom.offsetY, -200f..400f, "") {
+            Field("Pos Y", topCardCustom.offsetY, 50f..400f, "") {
                 com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization
                     .setOffset(topCardCustom.offsetX, it)
             }

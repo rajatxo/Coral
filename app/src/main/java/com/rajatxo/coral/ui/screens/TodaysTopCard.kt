@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -55,6 +57,12 @@ import com.rajatxo.coral.ui.theme.CalSansFamily
  * Card size/shape/position all read from CynthiaTodaysTopCardCustomization
  * prefs — user can open the square customization panel via the menu icon
  * and adjust Width/Height/Corner/Pos X/Pos Y/Shape live.
+ *
+ * SCREEN-AWARE CLAMPING:
+ *   Even if the user sets Width=400 AND Pos X=300 (max), the card
+ *   never goes off-screen horizontally. The rendered width is capped
+ *   to `screenWidth - 32dp` (16dp margin each side), and the offset
+ *   is clamped so the card's edges stay within screen bounds.
  */
 @Composable
 fun TodaysTopCard(
@@ -75,13 +83,11 @@ fun TodaysTopCard(
     val cardCustom by com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization
         .customization.collectAsState()
 
-    // Card dimensions + shape from prefs.
-    val cardWidth = cardCustom.widthDp.dp
-    val cardHeight = cardCustom.heightDp.dp
-    val cornerRadius = cardCustom.cornerRadiusDp.dp
-    val cardShape = androidx.compose.foundation.shape.RoundedCornerShape(cornerRadius)
+    val density = LocalDensity.current
 
-    Box(
+    // ★ Outer BoxWithConstraints — gives us the parent (screen) width so
+    //   we can clamp the card's width + offset to keep it on-screen.
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.3f))
@@ -89,19 +95,59 @@ fun TodaysTopCard(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onDismiss
-            ),
-        contentAlignment = Alignment.Center
+            )
     ) {
+        val screenMaxWidthPx = constraints.maxWidth.toFloat().coerceAtLeast(1f)
+
+        // ─── Cap rendered width to (screenWidth - 32dp) so the card
+        //   always fits horizontally with a 16dp margin on each side.
+        //   Even if the user sets Width=400 on a narrow phone, the
+        //   card will be capped to fit the screen.
+        val marginPx = with(density) { 16.dp.toPx() }
+        val maxAllowedWidthPx = (screenMaxWidthPx - marginPx * 2f).coerceAtLeast(0f)
+        val requestedWidthPx = with(density) { cardCustom.widthDp.dp.toPx() }
+        val effectiveWidthPx = requestedWidthPx.coerceAtMost(maxAllowedWidthPx)
+        val effectiveWidthDp = with(density) { effectiveWidthPx.toDp() }
+
+        // ─── Clamp offset X so the card stays within screen bounds.
+        //   Card is centered by Alignment.Center, then offset by
+        //   (offsetX, offsetY). The card's center after offset is at
+        //   (screenWidth/2 + offsetX). For the card's edges to stay
+        //   on-screen:
+        //     left edge  = centerX - width/2 ≥ 0
+        //     right edge = centerX + width/2 ≤ screenWidth
+        //   → -halfWidth + screenHalf ≤ offsetX ≤ halfWidth - screenHalf
+        //   (in absolute pixel terms from the center)
+        val halfCardPx = effectiveWidthPx / 2f
+        val halfScreenPx = screenMaxWidthPx / 2f
+        val maxOffsetX = (halfScreenPx - halfCardPx).coerceAtLeast(0f)
+        val minOffsetX = -maxOffsetX
+        val clampedOffsetX = cardCustom.offsetX.coerceIn(minOffsetX, maxOffsetX)
+
+        // ─── Clamp offset Y similarly so the card never goes off the
+        //   top or bottom of the screen.
+        val screenHeightPx = constraints.maxHeight.toFloat().coerceAtLeast(1f)
+        val requestedHeightPx = with(density) { cardCustom.heightDp.dp.toPx() }
+        val effectiveHeightPx = requestedHeightPx.coerceAtMost(screenHeightPx)
+        val halfCardHeightPx = effectiveHeightPx / 2f
+        val halfScreenHeightPx = screenHeightPx / 2f
+        val maxOffsetY = (halfScreenHeightPx - halfCardHeightPx).coerceAtLeast(0f)
+        val minOffsetY = -maxOffsetY
+        val clampedOffsetY = cardCustom.offsetY.coerceIn(minOffsetY, maxOffsetY)
+
+        val cornerRadius = cardCustom.cornerRadiusDp.dp
+        val cardShape = androidx.compose.foundation.shape.RoundedCornerShape(cornerRadius)
+
         Box(
             modifier = Modifier
                 .offset {
                     androidx.compose.ui.unit.IntOffset(
-                        cardCustom.offsetX.toInt(),
-                        cardCustom.offsetY.toInt()
+                        clampedOffsetX.toInt(),
+                        clampedOffsetY.toInt()
                     )
                 }
-                .width(cardWidth)
-                .height(cardHeight)
+                .width(effectiveWidthDp)
+                .height(with(density) { effectiveHeightPx.toDp() })
                 .clip(cardShape)
                 .then(
                     if (backdrop != null) {
@@ -131,7 +177,8 @@ fun TodaysTopCard(
                     indication = null,
                     // Consume click so tapping inside the capsule doesn't dismiss.
                     onClick = {}
-                )
+                ),
+            contentAlignment = Alignment.Center
         ) {
             Row(
                 modifier = Modifier.fillMaxSize(),
@@ -235,4 +282,5 @@ fun TodaysTopCard(
         }
     }
 }
+
 
