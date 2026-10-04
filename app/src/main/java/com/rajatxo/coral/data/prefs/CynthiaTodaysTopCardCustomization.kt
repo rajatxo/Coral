@@ -24,7 +24,7 @@ object CynthiaTodaysTopCardCustomization {
     val DEFAULT_SHAPE = com.rajatxo.coral.ui.cynthia.CynthiaCustomShape.PILL
 
     // ★ Default position — user-specified exact location
-    const val DEFAULT_OFFSET_X = 20f
+    const val DEFAULT_OFFSET_X = 208f
     const val DEFAULT_OFFSET_Y = -814f
 
     private lateinit var prefs: android.content.SharedPreferences

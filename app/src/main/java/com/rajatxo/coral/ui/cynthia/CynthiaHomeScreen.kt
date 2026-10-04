@@ -102,6 +102,12 @@ fun CynthiaHomeScreen(
     //   icon inside the TodaysTopCard. Same square glass panel as the
     //   nav bar's, but in TOP_CARD mode.
     var showTopCardCustomization by remember { mutableStateOf(false) }
+    // ★ SpeedDialCard — floating glass capsule that lets the user swipe to
+    //   change Speed Dial mode (Random / Last Played). Same shape + size +
+    //   position as TodaysTopCard. Rendered outside layerBackdrop (same
+    //   pattern). Opened by tapping the "Speed dial" text or the chevron
+    //   beside it in QuickPicksScreen.
+    var showSpeedDialCard by remember { mutableStateOf(false) }
     val onSongClickWithReset: (Song) -> Unit = { song -> onSongClick(song) }
 
     // ★ Record playback history + daily play count when the current song
@@ -185,7 +191,8 @@ fun CynthiaHomeScreen(
                     onCapsuleClick = { tappedSong ->
                         topCardSong = tappedSong
                         showTopCard = true
-                    }
+                    },
+                    onSpeedDialHeaderClick = { showSpeedDialCard = true }
                 )
                 else -> Box(
                     modifier = Modifier.fillMaxSize(),
@@ -439,6 +446,18 @@ fun CynthiaHomeScreen(
             onDismiss = { showTopCardCustomization = false },
             backdrop = glassBackdrop,
             mode = CustomizationMode.TOP_CARD
+        )
+
+        // ★ SpeedDialCard — floating glass capsule that lets the user swipe
+        //   left/right to switch Speed Dial mode (Random / Last Played).
+        //   Same shape + size + position as TodaysTopCard. Rendered OUTSIDE
+        //   the layerBackdrop Box (same pattern — no glass recursion crash).
+        //   Opened by tapping the "Speed dial" text or the chevron beside
+        //   it in QuickPicksScreen.
+        com.rajatxo.coral.ui.screens.SpeedDialCard(
+            visible = showSpeedDialCard,
+            onDismiss = { showSpeedDialCard = false },
+            backdrop = glassBackdrop
         )
 
         // ═══ Settings overlay ═══

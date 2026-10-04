@@ -133,6 +133,7 @@ fun QuickPicksScreen(
     isPlaying: Boolean = false,
     onPlayPauseClick: () -> Unit = {},
     onCapsuleClick: (Song) -> Unit = {},
+    onSpeedDialHeaderClick: () -> Unit = {},
     glassHazeState: dev.chrisbanes.haze.HazeState? = null,
     glassStyle: dev.chrisbanes.haze.HazeStyle? = null
 ) {
@@ -349,6 +350,12 @@ fun QuickPicksScreen(
                 )
             }
 
+            // ★ Extra gap between Today's Top and Speed Dial — 12dp total
+            //   (base 6dp from LazyColumn arrangement + 6dp here = 12dp).
+            item {
+                Spacer(Modifier.height(6.dp))
+            }
+
             // ═══ Speed Dial (first row) ═══
             // A paginated grid of square song cards + a "randomize" dice
             // button as the last slot. Tap a card to play that song.
@@ -365,6 +372,7 @@ fun QuickPicksScreen(
                     launchSeed = launchSeed,
                     pullProgress = ptrState.distanceFraction,
                     isRefreshing = isRefreshing,
+                    onSpeedDialHeaderClick = onSpeedDialHeaderClick,
                     glassHazeState = glassHazeState,
                     glassStyle = glassStyle
                 )
@@ -857,6 +865,7 @@ private fun SpeedDialSection(
     launchSeed: Int,
     pullProgress: Float = 0f,
     isRefreshing: Boolean = false,
+    onSpeedDialHeaderClick: () -> Unit = {},
     glassHazeState: dev.chrisbanes.haze.HazeState? = null,
     glassStyle: dev.chrisbanes.haze.HazeStyle? = null
 ) {
@@ -945,18 +954,12 @@ private fun SpeedDialSection(
 
     if (speedDialSongs.isEmpty()) return
 
-    // ─── "Based on" capsule popup state ──
-    var showBasedOnPopup by remember { mutableStateOf(false) }
-    val basedOnPopupAlpha by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (showBasedOnPopup) 1f else 0f,
-        animationSpec = androidx.compose.animation.core.tween(250),
-        label = "basedOnPopup"
-    )
-
     // Section header — "Speed dial" text + chevron right beside it.
-    // The "Based on" capsule is rendered as an OVERLAY on top of the
-    // BugLineRefreshIndicator so it doesn't push the layout around
-    // when it appears/disappears. (No layout shift = no movement.)
+    // ★ Both the text AND the chevron are clickable. Tapping either opens
+    //   the floating SpeedDialCard (rendered outside the layerBackdrop
+    //   by the caller — same pattern as TodaysTopCard). The card lets the
+    //   user swipe to switch Speed Dial mode (Random / Last Played) with
+    //   haptics + sound — same UX as the nav bar's tab switcher.
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -967,7 +970,7 @@ private fun SpeedDialSection(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // ★ "Speed dial" text — now clickable to show the "Based on" popup
+            // ★ "Speed dial" text — tap → open SpeedDialCard
             Text(
                 text = "Speed dial",
                 color = textPrimary,
@@ -976,18 +979,28 @@ private fun SpeedDialSection(
                 fontFamily = CalSansFamily,
                 modifier = Modifier.clickable(
                     interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) {
-                    showBasedOnPopup = !showBasedOnPopup
-                }
+                    indication = null,
+                    onClick = onSpeedDialHeaderClick
+                )
             )
-            // Chevron right beside the text
-            Icon(
-                imageVector = CoralIcons.ChevronRight,
-                contentDescription = null,
-                tint = textSecondary,
-                modifier = Modifier.size(20.dp)
-            )
+            // ★ Chevron right beside the text — also tap → open SpeedDialCard
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onSpeedDialHeaderClick
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = CoralIcons.ChevronRight,
+                    contentDescription = "Open Speed Dial mode card",
+                    tint = textSecondary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
             // ─── Bug-on-a-line pull-to-refresh indicator ──────────────
             BugLineRefreshIndicator(
                 progress = pullProgress,
@@ -996,69 +1009,6 @@ private fun SpeedDialSection(
                     .weight(1f)
                     .height(20.dp)
             )
-        }
-        // ★ "Based on" capsule popup — OVERLAY on top of the BugLineRefreshIndicator.
-        //   Positioned absolutely beside the chevron so the underlying Row
-        //   doesn't shift when the capsule appears/disappears.
-        //   Made THIN: smaller text + tighter padding + smaller inner capsule.
-        if (basedOnPopupAlpha > 0.01f) {
-            val currentMode = speedDialMode
-            val modeLabel = currentMode.displayName
-            val innerColor = Color(0xFFFF6B6B)
-            val innerTextColor = if (com.rajatxo.coral.util.luminanceOf(innerColor) < 0.5f)
-                Color.White else Color.Black
-            Row(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .graphicsLayer { alpha = basedOnPopupAlpha }
-                    // Offset to sit just right of the chevron (~120dp from start)
-                    .offset(x = 122.dp)
-                    .clip(RoundedCornerShape(11.dp))  // thinner rounded corners
-                    .background(Color.White)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        val newMode = if (currentMode == com.rajatxo.coral.data.prefs.SpeedDialModeManager.SpeedDialMode.RANDOM)
-                            com.rajatxo.coral.data.prefs.SpeedDialModeManager.SpeedDialMode.LAST_PLAYED
-                        else
-                            com.rajatxo.coral.data.prefs.SpeedDialModeManager.SpeedDialMode.RANDOM
-                        com.rajatxo.coral.data.prefs.SpeedDialModeManager.setMode(newMode)
-                    }
-                    .padding(end = 3.dp, top = 2.dp, bottom = 2.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Based on",
-                    color = Color.Black,
-                    fontSize = 9.sp,   // thinner — was 11sp
-                    fontWeight = FontWeight.Medium,
-                    fontFamily = CalSansFamily,
-                    modifier = Modifier.padding(start = 7.dp, end = 4.dp)
-                )
-                // Inner accent capsule — smaller
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))  // thinner
-                        .background(innerColor)
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = modeLabel,
-                        color = innerTextColor,
-                        fontSize = 8.sp,   // thinner — was 10sp
-                        fontWeight = FontWeight.SemiBold,
-                        fontFamily = CalSansFamily
-                    )
-                }
-            }
-            // Auto-hide after 4 seconds if the user doesn't interact
-            androidx.compose.runtime.LaunchedEffect(showBasedOnPopup) {
-                if (showBasedOnPopup) {
-                    kotlinx.coroutines.delay(4000)
-                    showBasedOnPopup = false
-                }
-            }
         }
     }
 
