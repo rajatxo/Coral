@@ -90,6 +90,9 @@ fun CynthiaHomeScreen(
     var customizationPanelIsNavBar by remember { mutableStateOf(true) }
     // ★ Profile panel state
     var showProfilePanel by remember { mutableStateOf(false) }
+    // ★ Search screen state — Cynthia has its own billing-style search screen
+    //   (separate from Astra's SearchScreen). Tapping the search FAB shows it.
+    var showSearch by remember { mutableStateOf(false) }
     val onSongClickWithReset: (Song) -> Unit = { song -> onSongClick(song) }
 
     // ★ Record playback history + daily play count when the current song
@@ -373,13 +376,23 @@ fun CynthiaHomeScreen(
         )
 
         CynthiaDraggableSearchCircle(
-            onSearchClick = { /* TODO: search screen */ },
+            onSearchClick = { showSearch = true },
             backdrop = glassBackdrop,
             onShowCustomizationPanel = { isNavBar ->
                 customizationPanelIsNavBar = isNavBar
                 showCustomizationPanel = true
             }
         )
+
+        // ═══ Cynthia search screen (billing style) ═══
+        // Tapping the search FAB opens this — dark printer slot + cream
+        // receipt paper with jagged torn bottom edge. Paper content (search
+        // text + results + history) will go inside the paper later.
+        if (showSearch) {
+            CynthiaSearchScreen(
+                onDismiss = { showSearch = false }
+            )
+        }
 
         // ═══ Settings overlay ═══
         if (showSettings) {
