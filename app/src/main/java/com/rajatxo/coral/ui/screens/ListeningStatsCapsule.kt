@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -104,66 +105,77 @@ fun ListeningStatsCapsule(
         label = "bar5"
     )
 
+    // ★ Outer Box — NOT clipped. Holds the capsule + cat on top-right border.
+    //   The cat sits OUTSIDE the capsule, on the top-right corner.
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(40.dp)
-            .clip(capsuleShape)
-            .background(Color.Black.copy(alpha = 0.02f))
-            .border(
-                width = 1.5.dp,
-                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                    listOf(
-                        Color.White.copy(alpha = 0.4f),  // top — glossy highlight
-                        Color.White.copy(alpha = 0.1f),  // middle
-                        Color.White.copy(alpha = 0.25f)   // bottom — subtle reflection
-                    )
-                ),
-                shape = capsuleShape
-            )
-            .padding(horizontal = 14.dp),
-        contentAlignment = Alignment.CenterStart
+            .height(48.dp)  // taller than capsule (40dp) so cat can overflow
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        // ★ The capsule itself (40dp, centered vertically)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(40.dp)
+                .align(Alignment.Center)
+                .clip(capsuleShape)
+                .background(Color.Black.copy(alpha = 0.02f))
+                .border(
+                    width = 1.5.dp,
+                    brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.4f),  // top — glossy highlight
+                            Color.White.copy(alpha = 0.1f),  // middle
+                            Color.White.copy(alpha = 0.25f)   // bottom — subtle reflection
+                        )
+                    ),
+                    shape = capsuleShape
+                )
+                .padding(horizontal = 14.dp),
+            contentAlignment = Alignment.CenterStart
         ) {
-            // ★ Equalizer bars (left side)
             Row(
-                horizontalArrangement = Arrangement.spacedBy(3.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.height(20.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                EqualizerBar(bar1)
-                EqualizerBar(bar2)
-                EqualizerBar(bar3)
-                EqualizerBar(bar4)
-                EqualizerBar(bar5)
+                // ★ Equalizer bars (left side)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.height(20.dp)
+                ) {
+                    EqualizerBar(bar1)
+                    EqualizerBar(bar2)
+                    EqualizerBar(bar3)
+                    EqualizerBar(bar4)
+                    EqualizerBar(bar5)
+                }
+
+                Spacer(modifier = Modifier.width(2.dp))
+
+                // ★ Listening time text
+                Text(
+                    text = timeText,
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = CalSansFamily
+                )
             }
-
-            Spacer(modifier = Modifier.width(2.dp))
-
-            // ★ Listening time text
-            Text(
-                text = timeText,
-                color = Color.White.copy(alpha = 0.8f),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                fontFamily = CalSansFamily
-            )
-
-            // ★ Cat sits on the right side of the capsule
-            Spacer(modifier = Modifier.weight(1f))
-
-            // ★ Lottie cat animation — sits on the right side of the capsule
-            LottieAnimation(
-                composition = rememberLottieComposition(
-                    LottieCompositionSpec.Asset("cat_animation.json")
-                ).value,
-                iterations = LottieConstants.IterateForever,
-                modifier = Modifier.size(32.dp)
-            )
         }
+
+        // ★ Cat — sits OUTSIDE the capsule, on the top-right corner.
+        //   Offset up and right so it overlaps the border.
+        LottieAnimation(
+            composition = rememberLottieComposition(
+                LottieCompositionSpec.Asset("cat_animation.json")
+            ).value,
+            iterations = LottieConstants.IterateForever,
+            modifier = Modifier
+                .size(48.dp)
+                .align(Alignment.TopEnd)
+                .offset(x = 4.dp, y = (-12).dp)  // sit on top-right border, overflow upward
+        )
     }
 }
 
