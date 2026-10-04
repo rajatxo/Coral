@@ -1,6 +1,9 @@
 package com.rajatxo.coral.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -9,15 +12,18 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -39,15 +45,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
@@ -59,15 +72,30 @@ import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
 
 /**
- * SearchScreen — premium search with playlist commands + history + pins.
+ * SearchScreen — billing/receipt styled search page.
  *
- * Features:
- *   • Type "p." prefix to search playlists instead of songs
- *   • Search history (last 20 searches, persisted)
- *   • Pin up to 5 searches (persisted)
- *   • Onboarding guide on first launch
- *   • Results as glossy capsule pills (same design as Songs tab)
- *   • Bottom fade gradient
+ * STRUCTURE (the "billing" skeleton — content inside the paper comes later):
+ *   ┌───────────────────────────────────────┐
+ *   │ Search bar  (back • field • clear)    │  ← screen header
+ *   ├───────────────────────────────────────┤
+ *   │ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ │  ← dark printer slot
+ *   │  ──────────────────  (slot opening)    │
+ *   │┌───────────────────────────────────┐  │
+ *   ││                                   │  │  ← cream paper emerging
+ *   ││   (content goes here — later)      │  │     from under the slot
+ *   ││                                   │  │
+ *   ││                                   │  │
+ *   ││  ████  ████  ████  ████  ████  │  │  ← jagged torn bottom edge
+ *   │└───────────────────────────────────┘  │
+ *   └───────────────────────────────────────┘
+ *
+ * The paper slides DOWN out of the slot on screen entry
+ * (spring animation), mirroring the reference video. The
+ * dark printer slot stays fixed; the paper's top edge is
+ * visually tucked under the slot.
+ *
+ * TODO (later): put search text + results + history inside
+ * the paper. For now the inside is an empty placeholder.
  */
 @Composable
 fun SearchScreen(
@@ -175,19 +203,6 @@ fun SearchScreen(
                     )
                 )
             )
-            // ★ CRITICAL: A plain `background()` modifier paints visually but
-            //   does NOT intercept touches in Compose. Without a pointer-input
-            //   modifier on this outer Box, taps that don't land on a specific
-            //   clickable child (e.g., a near-miss on the 28dp search icon)
-            //   fall through SearchScreen entirely and hit the song capsule
-            //   on the underlying page (QuickPicks/Songs) — causing the song
-            //   to start playing when the user thought they tapped the icon.
-            //   This no-op clickable swallows all such stray taps.
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = {}
-            )
     ) {
         Column(
             modifier = Modifier
@@ -243,12 +258,10 @@ fun SearchScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        // Search icon — tappable to submit the current query.
-                        // 44dp tap target (Material minimum) so a thumb tap
-                        // lands cleanly without leaking to the outer Box.
+                        // Search icon — tappable to submit the current query
                         Box(
                             modifier = Modifier
-                                .size(44.dp)
+                                .size(28.dp)
                                 .clip(CircleShape)
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
@@ -267,19 +280,8 @@ fun SearchScreen(
                         Spacer(Modifier.size(10.dp))
                         Box(modifier = Modifier.weight(1f)) {
                             if (query.isEmpty()) {
-                                // ★ First-install onboarding hint:
-                                //   Before the guide is dismissed → show the long hint
-                                //   ("Search songs... or type p. for playlists") so the
-                                //    user knows about the 'p.' prefix.
-                                //   After guide dismissed → switch to the short hint
-                                //   ("Search songs and playlists") since the user has
-                                //   already learned the prefix.
-                                val placeholder = if (!guideShown)
-                                    "Search songs... or type p. for playlists"
-                                else
-                                    "Search songs and playlists"
                                 Text(
-                                    text = placeholder,
+                                    text = "Search songs... or type p. for playlists",
                                     color = Color.White.copy(alpha = 0.35f),
                                     fontSize = 13.sp,
                                     fontFamily = CalSansFamily
@@ -356,171 +358,25 @@ fun SearchScreen(
                 }
             }
 
-            // ─── Content ────────────────────────────────────────────
-            when {
-                // ─── Onboarding guide (first launch) ───────────────
-                !hasQuery && showGuide -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp)
-                    ) {
-                        item { GuideCard(onGotIt = {
-                            showGuide = false
-                            SearchHistory.markGuideShown()
-                        }) }
-                        item { Spacer(Modifier.height(20.dp)) }
-                        // Pinned searches
-                        if (pinned.isNotEmpty()) {
-                            item {
-                                Text("Pinned", color = Color.White.copy(0.5f), fontSize = 13.sp,
-                                    fontFamily = CalSansFamily, modifier = Modifier.padding(bottom = 8.dp))
-                            }
-                            items(pinned) { entry ->
-                                HistoryChip(entry, onClick = { query = if (entry.isPlaylist) "p.${entry.query}" else entry.query })
-                            }
-                            item { Spacer(Modifier.height(16.dp)) }
-                        }
-                        // Recent history
-                        if (history.isNotEmpty()) {
-                            item {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Recent", color = Color.White.copy(0.5f), fontSize = 13.sp, fontFamily = CalSansFamily)
-                                    Spacer(Modifier.weight(1f))
-                                    Text("Clear all", color = Color(0xFFFF6B6B).copy(0.7f), fontSize = 12.sp,
-                                        fontFamily = CalSansFamily,
-                                        modifier = Modifier.clickable(
-                                            interactionSource = remember { MutableInteractionSource() }, indication = null
-                                        ) { SearchHistory.clearHistory() }
-                                    )
-                                }
-                            }
-                            items(history) { entry ->
-                                HistoryChip(entry, onClick = { query = if (entry.isPlaylist) "p.${entry.query}" else entry.query })
-                            }
-                        }
-                    }
-                }
-
-                // ─── Empty state (no query, guide already shown) ───
-                !hasQuery -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp)
-                    ) {
-                        // Pinned
-                        if (pinned.isNotEmpty()) {
-                            item {
-                                Text("Pinned", color = Color.White.copy(0.5f), fontSize = 13.sp,
-                                    fontFamily = CalSansFamily, modifier = Modifier.padding(bottom = 8.dp))
-                            }
-                            items(pinned) { entry ->
-                                HistoryChip(entry, onClick = { query = if (entry.isPlaylist) "p.${entry.query}" else entry.query })
-                            }
-                            item { Spacer(Modifier.height(16.dp)) }
-                        }
-                        // Recent
-                        if (history.isNotEmpty()) {
-                            item {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Recent", color = Color.White.copy(0.5f), fontSize = 13.sp, fontFamily = CalSansFamily)
-                                    Spacer(Modifier.weight(1f))
-                                    Text("Clear all", color = Color(0xFFFF6B6B).copy(0.7f), fontSize = 12.sp,
-                                        fontFamily = CalSansFamily,
-                                        modifier = Modifier.clickable(
-                                            interactionSource = remember { MutableInteractionSource() }, indication = null
-                                        ) { SearchHistory.clearHistory() }
-                                    )
-                                }
-                            }
-                            items(history) { entry ->
-                                HistoryChip(entry, onClick = { query = if (entry.isPlaylist) "p.${entry.query}" else entry.query })
-                            }
-                        }
-                        // Empty hint
-                        if (history.isEmpty() && pinned.isEmpty()) {
-                            item {
-                                Box(
-                                    modifier = Modifier.fillMaxWidth().padding(top = 80.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Box(
-                                            modifier = Modifier.size(80.dp).clip(CircleShape)
-                                                .background(Color.Black.copy(0.3f))
-                                                .border(1.dp, Color.White.copy(0.1f), CircleShape),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(CoralIcons.Search, null, tint = Color.White.copy(0.3f), modifier = Modifier.size(32.dp))
-                                        }
-                                        Spacer(Modifier.height(20.dp))
-                                        Text("Search your library", color = Color.White.copy(0.5f),
-                                            fontSize = 18.sp, fontWeight = FontWeight.SemiBold, fontFamily = CalSansFamily)
-                                        Spacer(Modifier.height(6.dp))
-                                        Text("Type p. to search playlists", color = Color.White.copy(0.3f),
-                                            fontSize = 13.sp, fontFamily = CalSansFamily)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // ─── No results ────────────────────────────────────
-                hasQuery && !hasResults -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("No results", color = Color.White.copy(0.5f),
-                                fontSize = 18.sp, fontWeight = FontWeight.SemiBold, fontFamily = CalSansFamily)
-                            Spacer(Modifier.height(6.dp))
-                            Text(if (isPlaylistSearch) "No playlists match \"${actualQuery}\"" else "No songs match \"${actualQuery}\"",
-                                color = Color.White.copy(0.3f), fontSize = 13.sp, fontFamily = CalSansFamily)
-                        }
-                    }
-                }
-
-                // ─── Results ────────────────────────────────────────
-                hasQuery && hasResults -> {
-                    // NOTE: History is NOT saved here on every keystroke.
-                    //   History is saved when:
-                    //     • User taps the search icon / presses IME Search (submitSearch)
-                    //     • User clicks a song result (saves song.title + song.artist)
-                    //     • User clicks a playlist result (saves playlist.name)
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 12.dp, end = 12.dp, bottom = 200.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        // Count header
-                        item {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                val count = if (isPlaylistSearch) playlistResults.size else songResults.size
-                                Text("$count result${if (count != 1) "s" else ""}",
-                                    color = Color.White.copy(0.5f), fontSize = 13.sp, fontFamily = CalSansFamily)
-                                Spacer(Modifier.weight(1f))
-                                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFFF6B6B)))
-                            }
-                        }
-
-                        if (isPlaylistSearch) {
-                            items(playlistResults, key = { it.id }) { playlist ->
-                                PlaylistResultCapsule(
-                                    playlist = playlist,
-                                    onClick = { onPlaylistResultClick(playlist) }
-                                )
-                            }
-                        } else {
-                            items(songResults, key = { it.id }) { song ->
-                                SearchResultCapsule(
-                                    song = song,
-                                    onClick = { onSongResultClick(song) }
-                                )
-                            }
-                        }
-                    }
-                }
+            // ═══ BILLING STRUCTURE ════════════════════════════════════════
+            // Dark printer slot at top, cream paper emerging downward with
+            // a jagged torn bottom edge. The inside of the paper is left
+            // empty for now (placeholder) — search text / results / history
+            // will go inside later.
+            //
+            // The paper slides DOWN out of the slot on screen entry,
+            // mirroring the reference video. The slot stays put; only
+            // the paper's visible height grows.
+            BillingPaperStructure(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                // ─── Content INSIDE the paper (placeholder for now) ─────
+                // TODO (later): move the `when { ... }` content (guide /
+                //   empty / no-results / results) in here, themed as ink
+                //   on cream paper instead of dark capsule pills.
+                PaperContentPlaceholder()
             }
         }
 
@@ -847,5 +703,326 @@ private fun PlaylistResultCapsule(
             }
             Spacer(Modifier.size(8.dp))
         }
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// BILLING STRUCTURE — printer slot + paper emerging + jagged bottom
+// ════════════════════════════════════════════════════════════════════
+// Visual layout (vertical):
+//
+//   ┌─────────────────────────────────────────────┐
+//   │  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │ ← dark printer slot
+//   │   ───────────────────────────────────────   │   (with slot opening line)
+//   │ ┌─────────────────────────────────────────┐ │
+//   │ │                                         │ │
+//   │ │   (paper content area — empty for now)  │ │ ← cream paper
+//   │ │                                         │ │
+//   │ │  ▲▼▲▼▲▼▲▼▲▼▲▼▲▼▲▼▲▼▲▼▲▼▲▼▲▼▲▼▲▼▲▼▲▼▲▼  │ │ ← jagged torn bottom
+//   │ └─────────────────────────────────────────┘ │
+//   └─────────────────────────────────────────────┘
+//
+// The paper slides DOWN out of the slot on first composition
+// (spring animation, no bouncy). The slot stays fixed.
+
+/**
+ * Outer container for the billing-style search results area.
+ *
+ * Composes a [PrinterSlot] at the top (always visible) and a
+ * [ReceiptPaper] below it that animates its reveal on entry.
+ *
+ * @param content  Composable rendered INSIDE the paper. For now
+ *                  this is [PaperContentPlaceholder] — search
+ *                  text + results will go here later.
+ */
+@Composable
+private fun BillingPaperStructure(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    // Reveal fraction: 0 → paper fully tucked under slot, 1 → fully out.
+    val reveal = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        reveal.animateTo(
+            targetValue = 1f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessLow
+            )
+        )
+    }
+
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxWidth()
+            .fillMaxHeight()
+    ) {
+        val fullHeightPx = constraints.maxHeight.toFloat()
+        val slotHeight = 44.dp
+        val slotHeightPx = with(LocalDensity.current) { slotHeight.toPx() }
+        // Paper reveals from slotHeight downward; at reveal=0 paper has
+        // ~0 visible height; at reveal=1 paper fills the rest of the box.
+        val visiblePaperHeightPx = (fullHeightPx - slotHeightPx).coerceAtLeast(0f) * reveal.value
+
+        Box(modifier = Modifier.fillMaxSize()) {
+            // ─── Paper (under the slot, grows downward on reveal) ───
+            // Anchored to the top so that as visible height grows from
+            // 0, the paper appears to slide out from under the slot.
+            ReceiptPaper(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopCenter)
+                    .padding(top = slotHeight)
+                    .height(
+                        with(LocalDensity.current) {
+                            visiblePaperHeightPx.toDp()
+                        }
+                    ),
+                content = content
+            )
+
+            // ─── Slot (drawn ON TOP of paper's top edge) ───
+            PrinterSlot(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(slotHeight)
+                    .align(Alignment.TopCenter)
+            )
+        }
+    }
+}
+
+// ─── Printer slot ──────────────────────────────────────────────────────
+
+/**
+ * The dark printer housing at the top of the billing structure.
+ * Visually sits on top of the paper's top edge so the paper
+ * appears to emerge from under it.
+ *
+ * Drawn as a dark rounded rectangle with:
+ *   • A subtle top-to-bottom gradient (lighter at top edge).
+ *   • A thin "slot opening" line near the bottom of the housing
+ *     (the slit the paper comes out of).
+ *   • A soft drop shadow underneath (cast onto the paper below).
+ */
+@Composable
+private fun PrinterSlot(modifier: Modifier = Modifier) {
+    val slotColor = Color(0xFF1A1A1F)
+    val slotColorBottom = Color(0xFF0B0B10)
+    val slotOpeningColor = Color(0xFF33333D)
+    val shadowColor = Color.Black.copy(alpha = 0.45f)
+
+    Box(modifier = modifier) {
+        // Drop shadow cast onto the paper below (a thin band, fading down).
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(14.dp)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f to shadowColor,
+                            1.0f to Color.Transparent
+                        )
+                    )
+                )
+        )
+
+        // Slot housing body (dark, rounded bottom corners only).
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(bottomStart = 14.dp, bottomEnd = 14.dp))
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0.0f to slotColor,
+                            0.6f to slotColor,
+                            1.0f to slotColorBottom
+                        )
+                    )
+                )
+        ) {
+            // Top edge highlight (subtle, suggests a 3D rounded top).
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(Color.White.copy(alpha = 0.06f))
+            )
+
+            // Slot opening — a thin darker slit near the bottom of the
+            // housing, indicating where the paper emerges from.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 24.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(slotOpeningColor)
+            )
+        }
+    }
+}
+
+// ─── Receipt paper ────────────────────────────────────────────────────
+
+/**
+ * The cream-colored receipt paper, clipped to a [JaggedBottomShape]
+ * so the bottom edge has a torn/zigzag appearance.
+ *
+ * Content is rendered on top of the cream background — for now it's
+ * just [PaperContentPlaceholder]; later this is where search text,
+ * results, history etc. will live (themed as ink on paper).
+ */
+@Composable
+private fun ReceiptPaper(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    val paperColor = Color(0xFFF5EFE0)        // warm cream
+    val paperColorEdge = Color(0xFFEBE3CF)    // slightly darker cream
+    val jaggedToothWidth = 14.dp
+    val jaggedToothHeight = 9.dp
+
+    val shape = remember(jaggedToothWidth, jaggedToothHeight) {
+        JaggedBottomShape(
+            toothWidthDp = jaggedToothWidth.value,
+            toothHeightDp = jaggedToothHeight.value
+        )
+    }
+
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(
+                Brush.verticalGradient(
+                    colorStops = arrayOf(
+                        0.0f to paperColor,
+                        0.85f to paperColor,
+                        1.0f to paperColorEdge
+                    )
+                )
+            )
+    ) {
+        // Soft side shadows (give the paper a bit of depth against the
+        // dark background — like the paper is hovering slightly).
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(8.dp)
+                .align(Alignment.CenterStart)
+                .background(
+                    Brush.horizontalGradient(
+                        colorStops = arrayOf(
+                            0.0f to Color.Black.copy(alpha = 0.18f),
+                            1.0f to Color.Transparent
+                        )
+                    )
+                )
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(8.dp)
+                .align(Alignment.CenterEnd)
+                .background(
+                    Brush.horizontalGradient(
+                        colorStops = arrayOf(
+                            0.0f to Color.Transparent,
+                            1.0f to Color.Black.copy(alpha = 0.18f)
+                        )
+                    )
+                )
+        )
+
+        // Actual paper content (placeholder for now).
+        content()
+    }
+}
+
+// ─── Jagged bottom edge shape ──────────────────────────────────────────
+
+/**
+ * A rectangle with the bottom edge replaced by a zigzag (torn paper)
+ * pattern. The top, left and right edges are straight — only the
+ * bottom is jagged.
+ *
+ * @param toothWidthDp   Width of each zigzag tooth in dp.
+ * @param toothHeightDp  Height of each zigzag tooth in dp (how deep
+ *                        the tear goes up into the paper).
+ */
+private class JaggedBottomShape(
+    private val toothWidthDp: Float,
+    private val toothHeightDp: Float
+) : Shape {
+    override fun createOutline(
+        size: Size,
+        layoutDirection: LayoutDirection,
+        density: Density
+    ): Outline {
+        val toothW = with(density) { toothWidthDp.dp.toPx() }
+        val toothH = with(density) { toothHeightDp.dp.toPx() }
+        val w = size.width
+        val h = size.height
+        // Number of teeth that fit across the width (rounded up so the
+        // last tooth always reaches the right edge cleanly).
+        val toothCount = ((w / toothW).toInt().coerceAtLeast(1))
+        // Recompute actual tooth width so the teeth distribute evenly
+        // and end exactly at the right edge.
+        val actualToothW = w / toothCount
+
+        val path = Path().apply {
+            moveTo(0f, 0f)
+            lineTo(w, 0f)
+            lineTo(w, h - toothH)
+            // Zigzag bottom from right → left.
+            var x = w
+            for (i in 0 until toothCount) {
+                val nextX = x - actualToothW
+                if (i % 2 == 0) {
+                    // Tooth pointing DOWN (paper extends further down).
+                    lineTo(nextX, h)
+                } else {
+                    // Notch pointing UP (tear cuts into the paper).
+                    lineTo(nextX, h - toothH)
+                }
+                x = nextX
+            }
+            // Close back to start (left edge → top-left corner).
+            lineTo(0f, h - toothH)
+            close()
+        }
+        return Outline.Generic(path)
+    }
+}
+
+// ─── Paper content placeholder ────────────────────────────────────────
+
+/**
+ * Empty placeholder rendered inside the receipt paper. Will be
+ * replaced with the actual search content (text + results +
+ * history) later — themed as ink on cream paper.
+ */
+@Composable
+private fun PaperContentPlaceholder() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp, vertical = 28.dp),
+        contentAlignment = Alignment.TopCenter
+    ) {
+        // Subtle hint text — visible only as a placeholder so it's
+        // obvious where content will go. Will be removed once real
+        // search text + results are moved in.
+        Text(
+            text = "• paper content •",
+            color = Color(0xFF8C8576),
+            fontSize = 11.sp,
+            fontFamily = CalSansFamily,
+            fontWeight = FontWeight.Light
+        )
     }
 }
