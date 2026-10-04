@@ -5,7 +5,6 @@ import android.graphics.BitmapFactory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,7 +13,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -27,7 +25,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,15 +32,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.zIndex
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
@@ -57,8 +49,7 @@ fun TodaysTopSection(
     modifier: Modifier = Modifier,
     textPrimary: Color = Color.White,
     textSecondary: Color = Color.White.copy(alpha = 0.6f),
-    onCapsuleClick: (List<Song>) -> Unit = {},
-    onCapsuleHold: () -> Unit = {}
+    onCapsuleClick: (Song) -> Unit = {}
 ) {
     // ★ Force-load daily plays on first composition
     val context = LocalContext.current
@@ -74,11 +65,6 @@ fun TodaysTopSection(
         dailyPlays.take(6).mapNotNull { entry ->
             songs.find { it.id == entry.songId }
         }
-    }
-
-    // ★ Get the durations (in seconds) for each of the top 6 songs
-    val topDurations: List<Int> = remember(dailyPlays) {
-        dailyPlays.take(6).map { it.playCount }  // playCount is now duration in seconds
     }
 
     var slotColors by remember { mutableStateOf<List<Color>>(List(6) { Color(0xFF333333) }) }
@@ -148,24 +134,16 @@ fun TodaysTopSection(
                 val song2 = slotSongs.getOrNull(slot2Index)
                 val color1 = slotColors.getOrNull(slot1Index) ?: Color(0xFF333333)
                 val color2 = slotColors.getOrNull(slot2Index) ?: Color(0xFF333333)
-                val duration1 = topDurations.getOrNull(slot1Index) ?: 0
-                val duration2 = topDurations.getOrNull(slot2Index) ?: 0
 
                 AnimatedCapsule(
                     song1 = song1,
                     song2 = song2,
                     color1 = color1,
                     color2 = color2,
-                    duration1 = duration1,
-                    duration2 = duration2,
                     modifier = Modifier.weight(1f),
-                    onClick = {
-                        val capsuleSongs = listOfNotNull(song1, song2)
-                        if (capsuleSongs.isNotEmpty()) {
-                            onCapsuleClick(capsuleSongs)
-                        }
-                    },
-                    onHold = onCapsuleHold
+                    onCoverClick = { song ->
+                        onCapsuleClick(song)
+                    }
                 )
             }
         }
@@ -174,6 +152,7 @@ fun TodaysTopSection(
 
 /**
  * A capsule with an ANIMATED rotating gradient border.
+ * Each cover inside is individually tappable → calls `onCoverClick(song)`.
  */
 @Composable
 private fun AnimatedCapsule(
@@ -181,11 +160,8 @@ private fun AnimatedCapsule(
     song2: Song?,
     color1: Color,
     color2: Color,
-    duration1: Int,
-    duration2: Int,
     modifier: Modifier = Modifier,
-    onClick: () -> Unit = {},
-    onHold: () -> Unit = {}
+    onCoverClick: (Song) -> Unit = {}
 ) {
     val capsuleShape = RoundedCornerShape(28.dp)
     val borderBrush = Brush.horizontalGradient(listOf(color1, color2))
@@ -193,91 +169,12 @@ private fun AnimatedCapsule(
         listOf(color1.copy(alpha = 0.25f), color2.copy(alpha = 0.25f))
     )
 
-    // ★ Hold detection state — same pattern as nav bar
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-    var isLongPressActivated by remember { mutableStateOf(false) }
-    var countdownJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    var showBubble by remember { mutableStateOf(false) }
-    var countdownNumber by remember { mutableStateOf(3) }
-
-    val bubbleScale by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (showBubble) 1f else 0f,
-        animationSpec = androidx.compose.animation.core.spring(
-            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
-            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium
-        ),
-        label = "bubbleScale"
-    )
-    val bubbleAlpha by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (showBubble) 1f else 0f,
-        animationSpec = androidx.compose.animation.core.tween(250),
-        label = "bubbleAlpha"
-    )
-
-    // ★ Outer Box — NOT clipped. Bubble renders here outside the clip.
-    Box(
-        modifier = modifier
-    ) {
     Box(
         modifier = modifier
             .height(56.dp)
             .clip(capsuleShape)
             .background(bgBrush)
             .border(width = 2.5.dp, brush = borderBrush, shape = capsuleShape)
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) {
-                        val down = awaitFirstDown()
-                        down.consume()
-                        isLongPressActivated = false
-
-                        countdownJob?.cancel()
-                        countdownJob = scope.launch {
-                            delay(2000L)
-                            showBubble = true
-                            countdownNumber = 3
-                            delay(1000L)
-                            countdownNumber = 2
-                            delay(1000L)
-                            countdownNumber = 1
-                            delay(1000L)
-                            showBubble = false
-                            isLongPressActivated = true
-                            onHold()
-                        }
-
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull() ?: break
-
-                            if (!change.pressed) {
-                                change.consume()
-                                if (!isLongPressActivated) {
-                                    // Short tap
-                                    val movedX = kotlin.math.abs(change.position.x - down.position.x)
-                                    val movedY = kotlin.math.abs(change.position.y - down.position.y)
-                                    if (movedX < 20f && movedY < 20f) {
-                                        onClick()
-                                    }
-                                }
-                                showBubble = false
-                                countdownJob?.cancel()
-                                break
-                            }
-
-                            // Cancel countdown if finger moved (swipe, not hold)
-                            if (!isLongPressActivated) {
-                                val movedX = kotlin.math.abs(change.position.x - down.position.x)
-                                val movedY = kotlin.math.abs(change.position.y - down.position.y)
-                                if (movedX > 20f || movedY > 20f) {
-                                    countdownJob?.cancel()
-                                    showBubble = false
-                                }
-                            }
-                        }
-                    }
-                }
-            }
             .padding(6.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -285,103 +182,13 @@ private fun AnimatedCapsule(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            CoverSlot(song = song1, color = color1, durationSeconds = duration1)
-            CoverSlot(song = song2, color = color2, durationSeconds = duration2)
-        }
-
-        // ★ Countdown bubble — shows above the capsule during hold
-        //   Same style as the nav bar's countdown bubble
-        if (bubbleAlpha > 0.01f) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .graphicsLayer {
-                        scaleX = bubbleScale
-                        scaleY = bubbleScale
-                        alpha = bubbleAlpha
-                    }
-                    .offset(y = (-40).dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xFF1A1A1A))
-                    .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "Hold to move in",
-                        color = Color.White.copy(alpha = 0.8f),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(26.dp)
-                            .clip(RoundedCornerShape(13.dp))
-                            .background(Color.White),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = countdownNumber.toString(),
-                            color = Color.Black,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
+            CoverSlot(song = song1, color = color1) { song ->
+                onCoverClick(song)
+            }
+            CoverSlot(song = song2, color = color2) { song ->
+                onCoverClick(song)
             }
         }
-    }
-
-    // ★ Countdown bubble — OUTSIDE the clipped capsule, fully visible.
-    //   Rendered as a sibling of the capsule Box, above it.
-    if (bubbleAlpha > 0.01f) {
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .graphicsLayer {
-                    scaleX = bubbleScale
-                    scaleY = bubbleScale
-                    alpha = bubbleAlpha
-                }
-                .offset(y = (-50).dp)
-                .zIndex(2f)
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF1A1A1A))
-                .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
-                .padding(horizontal = 14.dp, vertical = 8.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = "Hold to move in",
-                    color = Color.White.copy(alpha = 0.8f),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                Box(
-                    modifier = Modifier
-                        .size(26.dp)
-                        .clip(RoundedCornerShape(13.dp))
-                        .background(Color.White),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = countdownNumber.toString(),
-                        color = Color.Black,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-    }
     }
 }
 
@@ -389,7 +196,7 @@ private fun AnimatedCapsule(
 private fun CoverSlot(
     song: Song?,
     color: Color,
-    durationSeconds: Int = 0
+    onClick: (Song) -> Unit
 ) {
     val coverSize = 40.dp
 
@@ -402,7 +209,12 @@ private fun CoverSlot(
                     listOf(color, color.copy(alpha = 0.7f))
                 )
             )
-            .border(2.dp, Color.White.copy(alpha = 0.5f), CircleShape),
+            .border(2.dp, Color.White.copy(alpha = 0.5f), CircleShape)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = { song?.let { onClick(it) } }
+            ),
         contentAlignment = Alignment.Center
     ) {
         if (song != null && song.albumArtUri != null) {
@@ -430,33 +242,6 @@ private fun CoverSlot(
                 fontFamily = CalSansFamily
             )
         }
-
-        // ★ Listening time — plain text at the CENTER of the cover.
-        //   No background, no badge. Just white text on the cover.
-        //   <60 min → "Xm", ≥60 min → "Xhr".
-        if (song != null && durationSeconds > 0) {
-            Text(
-                text = formatDuration(durationSeconds),
-                color = Color.White,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = CalSansFamily
-            )
-        }
-    }
-}
-
-/**
- * Format duration: <60min → "Xm", ≥60min → "Xhr".
- * Only shows one number.
- */
-private fun formatDuration(seconds: Int): String {
-    val minutes = seconds / 60
-    return if (minutes < 60) {
-        "${minutes}m"
-    } else {
-        val hours = minutes / 60
-        "${hours}hr"
     }
 }
 

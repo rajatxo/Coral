@@ -171,12 +171,12 @@ fun HomeScreen(
     var showLyricsSettings by remember { mutableStateOf(false) }
     var showSpiralPalette by remember { mutableStateOf(false) }
     // ★ TodaysTopCard state — hoisted OUTSIDE the layerBackdrop Box.
-    //   When user taps a Today's Top capsule in QuickPicksScreen, the
-    //   tapped songs list is stashed here and the floating glass card
-    //   is shown as a sibling of the layerBackdrop Box (avoids the
-    //   glass-recursive-crash bug from earlier builds).
+    //   When user taps a Today's Top cover in QuickPicksScreen, the
+    //   tapped song is stashed here and the floating miniplayer-style
+    //   glass capsule is shown as a sibling of the layerBackdrop Box
+    //   (avoids the glass-recursive-crash bug from earlier builds).
     var showTopCard by remember { mutableStateOf(false) }
-    var topCardSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
+    var topCardSong by remember { mutableStateOf<Song?>(null) }
 
     // --- Add to playlist from FullPlayer ---
     // When user taps "Add to playlist" in the FullPlayer 3-dot menu,
@@ -451,8 +451,8 @@ fun HomeScreen(
                     onSongClick = onSongClickWithReset,
                     isPlaying = isPlaying,
                     onPlayPauseClick = onPlayPauseClick,
-                    onCapsuleClick = { tappedSongs ->
-                        topCardSongs = tappedSongs
+                    onCapsuleClick = { tappedSong ->
+                        topCardSong = tappedSong
                         showTopCard = true
                     }
                 )
@@ -599,13 +599,11 @@ fun HomeScreen(
         //   SIBLING of the content Box, so drawBackdrop samples the
         //   content behind it — no recursion, no crash. Same glass
         //   morphism as the nav bar. Shown when user taps a Today's Top
-        //   capsule in QuickPicksScreen.
+        //   cover in QuickPicksScreen. Miniplayer-style capsule shape
+        //   (matches Astra's mini player).
         com.rajatxo.coral.ui.screens.TodaysTopCard(
             visible = showTopCard,
-            song1 = topCardSongs.getOrNull(0),
-            song2 = topCardSongs.getOrNull(1),
-            color1 = androidx.compose.ui.graphics.Color(0xFFFF6B6B),
-            color2 = androidx.compose.ui.graphics.Color(0xFF6B9EFF),
+            song = topCardSong,
             currentSongId = currentSongId,
             isPlaying = isPlaying,
             onDismiss = { showTopCard = false },

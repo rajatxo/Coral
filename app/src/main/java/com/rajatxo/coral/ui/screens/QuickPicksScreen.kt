@@ -132,7 +132,7 @@ fun QuickPicksScreen(
     onBackClick: () -> Unit = {},
     isPlaying: Boolean = false,
     onPlayPauseClick: () -> Unit = {},
-    onCapsuleClick: (List<Song>) -> Unit = {},
+    onCapsuleClick: (Song) -> Unit = {},
     glassHazeState: dev.chrisbanes.haze.HazeState? = null,
     glassStyle: dev.chrisbanes.haze.HazeStyle? = null
 ) {
@@ -338,17 +338,14 @@ fun QuickPicksScreen(
 
             // ═══ Today's Top — Instagram-story style capsules ═══
             // 3 capsule stories with album covers + gradient borders.
-            // Tap a capsule → opens the floating glass card (TodaysTopCard,
-            // rendered outside the LazyColumn).
-            // Brought back from commit be2bcbd — replaces the previous
-            // ListeningStatsCapsule row.
+            // Tap a COVER inside a capsule → opens the floating
+            // miniplayer-style TodaysTopCard for that specific song.
             item {
                 TodaysTopSection(
                     songs = songs,
                     textPrimary = textPrimary,
                     textSecondary = textSecondary,
-                    onCapsuleClick = onCapsuleClick,
-                    onCapsuleHold = {}
+                    onCapsuleClick = onCapsuleClick
                 )
             }
 

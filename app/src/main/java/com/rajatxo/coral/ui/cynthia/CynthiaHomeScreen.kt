@@ -55,7 +55,6 @@ import com.rajatxo.coral.ui.components.TabCapsule
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.screens.SettingsScreen
 import com.rajatxo.coral.ui.theme.CalSansFamily
-import com.rajatxo.coral.ui.screens.CardMode
 
 @androidx.compose.foundation.ExperimentalFoundationApi
 @Composable
@@ -93,11 +92,12 @@ fun CynthiaHomeScreen(
     // ★ Search screen state — Cynthia has its own billing-style search screen
     //   (separate from Astra's SearchScreen). Tapping the search FAB shows it.
     var showSearch by remember { mutableStateOf(false) }
-    // ★ TodaysTopCard state — when user taps a Today's Top capsule in
-    //   QuickPicksScreen, the tapped songs are stashed here and the
-    //   floating glass card is shown as a sibling of the layerBackdrop.
+    // ★ TodaysTopCard state — when user taps a Today's Top cover in
+    //   QuickPicksScreen, the tapped song is stashed here and the
+    //   floating miniplayer-style glass capsule is shown as a sibling
+    //   of the layerBackdrop.
     var showTopCard by remember { mutableStateOf(false) }
-    var topCardSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
+    var topCardSong by remember { mutableStateOf<Song?>(null) }
     val onSongClickWithReset: (Song) -> Unit = { song -> onSongClick(song) }
 
     // ★ Record playback history + daily play count when the current song
@@ -178,8 +178,8 @@ fun CynthiaHomeScreen(
                     onSongClick = onSongClickWithReset,
                     isPlaying = isPlaying,
                     onPlayPauseClick = onPlayPauseClick,
-                    onCapsuleClick = { tappedSongs ->
-                        topCardSongs = tappedSongs
+                    onCapsuleClick = { tappedSong ->
+                        topCardSong = tappedSong
                         showTopCard = true
                     }
                 )
@@ -405,14 +405,11 @@ fun CynthiaHomeScreen(
 
         // ★ TodaysTopCard — rendered OUTSIDE the layerBackdrop Box (same
         //   pattern as in Astra's HomeScreen). Shown when user taps a
-        //   Today's Top capsule in QuickPicksScreen. Same glass morphism
-        //   as the nav bar.
+        //   Today's Top cover in QuickPicksScreen. Miniplayer-style
+        //   glass capsule (same shape & size as Astra's mini player).
         com.rajatxo.coral.ui.screens.TodaysTopCard(
             visible = showTopCard,
-            song1 = topCardSongs.getOrNull(0),
-            song2 = topCardSongs.getOrNull(1),
-            color1 = androidx.compose.ui.graphics.Color(0xFFFF6B6B),
-            color2 = androidx.compose.ui.graphics.Color(0xFF6B9EFF),
+            song = topCardSong,
             currentSongId = currentSongId,
             isPlaying = isPlaying,
             onDismiss = { showTopCard = false },
