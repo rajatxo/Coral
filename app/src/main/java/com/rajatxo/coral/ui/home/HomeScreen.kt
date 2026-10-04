@@ -177,6 +177,10 @@ fun HomeScreen(
     //   (avoids the glass-recursive-crash bug from earlier builds).
     var showTopCard by remember { mutableStateOf(false) }
     var topCardSong by remember { mutableStateOf<Song?>(null) }
+    // ★ TopCard customization panel — opens when user taps the menu (•••)
+    //   icon inside the TodaysTopCard. Same square glass panel as the
+    //   nav bar's, but in TOP_CARD mode.
+    var showTopCardCustomization by remember { mutableStateOf(false) }
 
     // --- Add to playlist from FullPlayer ---
     // When user taps "Add to playlist" in the FullPlayer 3-dot menu,
@@ -614,7 +618,22 @@ fun HomeScreen(
                     onSongClickWithReset(song)
                 }
             },
+            onMenuClick = { _ ->
+                // Open the square customization panel in TOP_CARD mode.
+                showTopCardCustomization = true
+            },
             backdrop = glassBackdrop
+        )
+
+        // ★ TodaysTopCard customization panel (square, same as nav bar's).
+        //   Opened by tapping the menu (•••) icon inside the TodaysTopCard.
+        //   Lets the user change Width/Height/Corner/Pos X/Pos Y/Shape of
+        //   the TodaysTopCard. Changes apply live.
+        com.rajatxo.coral.ui.cynthia.CynthiaCustomizationPanel(
+            visible = showTopCardCustomization,
+            onDismiss = { showTopCardCustomization = false },
+            backdrop = glassBackdrop,
+            mode = com.rajatxo.coral.ui.cynthia.CustomizationMode.TOP_CARD
         )
 
         // ─── FIXED HEADER (Quick Picks page only) ───────────────────

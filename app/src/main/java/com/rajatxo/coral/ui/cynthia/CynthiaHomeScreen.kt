@@ -98,6 +98,10 @@ fun CynthiaHomeScreen(
     //   of the layerBackdrop.
     var showTopCard by remember { mutableStateOf(false) }
     var topCardSong by remember { mutableStateOf<Song?>(null) }
+    // ★ TopCard customization panel — opens when user taps the menu (•••)
+    //   icon inside the TodaysTopCard. Same square glass panel as the
+    //   nav bar's, but in TOP_CARD mode.
+    var showTopCardCustomization by remember { mutableStateOf(false) }
     val onSongClickWithReset: (Song) -> Unit = { song -> onSongClick(song) }
 
     // ★ Record playback history + daily play count when the current song
@@ -420,7 +424,21 @@ fun CynthiaHomeScreen(
                     onSongClickWithReset(song)
                 }
             },
+            onMenuClick = { _ ->
+                showTopCardCustomization = true
+            },
             backdrop = glassBackdrop
+        )
+
+        // ★ TodaysTopCard customization panel (square, same as nav bar's).
+        //   Opened by tapping the menu (•••) icon inside the TodaysTopCard.
+        //   Lets the user change Width/Height/Corner/Pos X/Pos Y/Shape of
+        //   the TodaysTopCard. Changes apply live.
+        CynthiaCustomizationPanel(
+            visible = showTopCardCustomization,
+            onDismiss = { showTopCardCustomization = false },
+            backdrop = glassBackdrop,
+            mode = CustomizationMode.TOP_CARD
         )
 
         // ═══ Settings overlay ═══

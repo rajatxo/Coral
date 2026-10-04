@@ -62,13 +62,18 @@ import com.rajatxo.coral.ui.theme.CalSansFamily
  *   - Tick sound + haptic feedback on every value change
  *
  * Hold the nav bar or search FAB for 5 seconds → panel opens.
+ * Tapping the menu (•••) icon on the TodaysTopCard also opens this panel
+ * in TOP_CARD mode.
  */
+enum class CustomizationMode { NAV_BAR, SEARCH_FAB, TOP_CARD }
+
 @Composable
 internal fun CynthiaCustomizationPanel(
     visible: Boolean,
     onDismiss: () -> Unit,
     backdrop: LayerBackdrop?,
-    isNavBar: Boolean = true
+    isNavBar: Boolean = true,
+    mode: CustomizationMode? = null
 ) {
     // ★ Draggable card state — the user can move the card anywhere by
     //   dragging the handle bar at the top.
@@ -164,7 +169,8 @@ internal fun CynthiaCustomizationPanel(
                         Box(modifier = Modifier.padding(16.dp)) {
                             CustomizationPanelContent(
                                 onDismiss = onDismiss,
-                                isNavBar = isNavBar
+                                isNavBar = isNavBar,
+                                mode = mode
                             )
                         }
                     }
@@ -177,7 +183,8 @@ internal fun CynthiaCustomizationPanel(
 @Composable
 private fun CustomizationPanelContent(
     onDismiss: () -> Unit,
-    isNavBar: Boolean
+    isNavBar: Boolean,
+    mode: CustomizationMode? = null
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -228,8 +235,14 @@ private fun CustomizationPanelContent(
 
     val navCustom by CynthiaNavBarCustomization.customization.collectAsState()
     val searchCustom by CynthiaSearchFabCustomization.customization.collectAsState()
+    val topCardCustom by com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.customization.collectAsState()
     val savedSearchPos by com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition.position.collectAsState()
     val savedTabPos by com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.position.collectAsState()
+
+    // Effective mode — if `mode` is explicitly passed, it overrides
+    //   the legacy `isNavBar: Boolean` argument. This keeps backward
+    //   compatibility with existing call sites.
+    val effectiveMode = mode ?: if (isNavBar) CustomizationMode.NAV_BAR else CustomizationMode.SEARCH_FAB
 
     // ★ Which field is selected for the arc dial. Defaults to first field.
     //   Each field has: label, current value, range, suffix, setter.
@@ -241,8 +254,8 @@ private fun CustomizationPanelContent(
         val onValueChange: (Float) -> Unit
     )
 
-    val fields: List<Field> = if (isNavBar) {
-        listOf(
+    val fields: List<Field> = when (effectiveMode) {
+        CustomizationMode.NAV_BAR -> listOf(
             Field("Position X", savedTabPos.first * 100f, 5f..95f, "%") { x ->
                 com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition
                     .setPosition(x / 100f, savedTabPos.second)
@@ -261,8 +274,7 @@ private fun CustomizationPanelContent(
                 CynthiaNavBarCustomization.setCornerRadius(it)
             }
         )
-    } else {
-        listOf(
+        CustomizationMode.SEARCH_FAB -> listOf(
             Field("Position X", savedSearchPos.first * 100f, 5f..95f, "%") { x ->
                 com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition
                     .setPosition(x / 100f, savedSearchPos.second)
@@ -276,6 +288,25 @@ private fun CustomizationPanelContent(
             },
             Field("Corner", searchCustom.cornerRadiusDp, 0f..50f, "dp") {
                 CynthiaSearchFabCustomization.setCornerRadius(it)
+            }
+        )
+        CustomizationMode.TOP_CARD -> listOf(
+            Field("Width", topCardCustom.widthDp, 180f..400f, "dp") {
+                com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.setWidth(it)
+            },
+            Field("Height", topCardCustom.heightDp, 48f..200f, "dp") {
+                com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.setHeight(it)
+            },
+            Field("Corner", topCardCustom.cornerRadiusDp, 0f..50f, "dp") {
+                com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.setCornerRadius(it)
+            },
+            Field("Pos X", topCardCustom.offsetX, -300f..300f, "") {
+                com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization
+                    .setOffset(it, topCardCustom.offsetY)
+            },
+            Field("Pos Y", topCardCustom.offsetY, -200f..400f, "") {
+                com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization
+                    .setOffset(topCardCustom.offsetX, it)
             }
         )
     }
@@ -294,9 +325,13 @@ private fun CustomizationPanelContent(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Title (Nav Bar / Search Button)
+            // Title (Nav Bar / Search Button / Today's Card)
             Text(
-                text = if (isNavBar) "Nav Bar" else "Search Button",
+                text = when (effectiveMode) {
+                    CustomizationMode.NAV_BAR -> "Nav Bar"
+                    CustomizationMode.SEARCH_FAB -> "Search Button"
+                    CustomizationMode.TOP_CARD -> "Today's Card"
+                },
                 color = Color.White,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
@@ -315,12 +350,18 @@ private fun CustomizationPanelContent(
                             interactionSource = MutableInteractionSource(),
                             indication = null,
                             onClick = {
-                                if (isNavBar) {
-                                    CynthiaNavBarCustomization.reset()
-                                    com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.reset()
-                                } else {
-                                    CynthiaSearchFabCustomization.reset()
-                                    com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition.reset()
+                                when (effectiveMode) {
+                                    CustomizationMode.NAV_BAR -> {
+                                        CynthiaNavBarCustomization.reset()
+                                        com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.reset()
+                                    }
+                                    CustomizationMode.SEARCH_FAB -> {
+                                        CynthiaSearchFabCustomization.reset()
+                                        com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition.reset()
+                                    }
+                                    CustomizationMode.TOP_CARD -> {
+                                        com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.reset()
+                                    }
                                 }
                             }
                         )
@@ -488,12 +529,18 @@ private fun CustomizationPanelContent(
             suffix = currentField.suffix,
             onValueChange = currentField.onValueChange,
             onReset = {
-                if (isNavBar) {
-                    CynthiaNavBarCustomization.reset()
-                    com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.reset()
-                } else {
-                    CynthiaSearchFabCustomization.reset()
-                    com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition.reset()
+                when (effectiveMode) {
+                    CustomizationMode.NAV_BAR -> {
+                        CynthiaNavBarCustomization.reset()
+                        com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.reset()
+                    }
+                    CustomizationMode.SEARCH_FAB -> {
+                        CynthiaSearchFabCustomization.reset()
+                        com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition.reset()
+                    }
+                    CustomizationMode.TOP_CARD -> {
+                        com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.reset()
+                    }
                 }
             },
             modifier = Modifier.fillMaxWidth()
@@ -503,10 +550,18 @@ private fun CustomizationPanelContent(
 
         // ★ Shape picker (still useful — shapes don't fit on a dial)
         ShapePicker(
-            selected = if (isNavBar) navCustom.shape else searchCustom.shape,
+            selected = when (effectiveMode) {
+                CustomizationMode.NAV_BAR -> navCustom.shape
+                CustomizationMode.SEARCH_FAB -> searchCustom.shape
+                CustomizationMode.TOP_CARD -> topCardCustom.shape
+            },
             onSelected = {
-                if (isNavBar) CynthiaNavBarCustomization.setShape(it)
-                else CynthiaSearchFabCustomization.setShape(it)
+                when (effectiveMode) {
+                    CustomizationMode.NAV_BAR -> CynthiaNavBarCustomization.setShape(it)
+                    CustomizationMode.SEARCH_FAB -> CynthiaSearchFabCustomization.setShape(it)
+                    CustomizationMode.TOP_CARD ->
+                        com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.setShape(it)
+                }
             }
         )
     }

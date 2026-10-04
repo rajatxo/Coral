@@ -4,23 +4,19 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,6 +27,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import coil3.compose.AsyncImage
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.drawBackdrop
@@ -52,6 +51,10 @@ import com.rajatxo.coral.ui.theme.CalSansFamily
  *
  * Play/Pause icon style matches Spiral player (plain Lucide icon,
  * no circle, with ripple).
+ *
+ * Card size/shape/position all read from CynthiaTodaysTopCardCustomization
+ * prefs — user can open the square customization panel via the menu icon
+ * and adjust Width/Height/Corner/Pos X/Pos Y/Shape live.
  */
 @Composable
 fun TodaysTopCard(
@@ -67,10 +70,16 @@ fun TodaysTopCard(
 ) {
     if (!visible || song == null) return
 
-    // Same dimensions as Astra's mini player capsule.
-    val cardWidth = 240.dp
-    val cardHeight = 64.dp
-    val pillShape = RoundedCornerShape(32.dp)
+    // ★ Card customization — read from prefs (live updates when the user
+    //   changes values in the customization panel).
+    val cardCustom by com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization
+        .customization.collectAsState()
+
+    // Card dimensions + shape from prefs.
+    val cardWidth = cardCustom.widthDp.dp
+    val cardHeight = cardCustom.heightDp.dp
+    val cornerRadius = cardCustom.cornerRadiusDp.dp
+    val cardShape = androidx.compose.foundation.shape.RoundedCornerShape(cornerRadius)
 
     Box(
         modifier = Modifier
@@ -85,14 +94,20 @@ fun TodaysTopCard(
     ) {
         Box(
             modifier = Modifier
+                .offset {
+                    androidx.compose.ui.unit.IntOffset(
+                        cardCustom.offsetX.toInt(),
+                        cardCustom.offsetY.toInt()
+                    )
+                }
                 .width(cardWidth)
                 .height(cardHeight)
-                .clip(pillShape)
+                .clip(cardShape)
                 .then(
                     if (backdrop != null) {
                         Modifier.drawBackdrop(
                             backdrop = backdrop,
-                            shape = { pillShape },
+                            shape = { cardShape },
                             effects = {
                                 vibrancy()
                                 colorControls(
@@ -110,7 +125,7 @@ fun TodaysTopCard(
                         Modifier.background(Color(0xFF1A1A1A).copy(alpha = 0.88f))
                     }
                 )
-                .border(1.dp, Color.White.copy(alpha = 0.2f), pillShape)
+                .border(1.dp, Color.White.copy(alpha = 0.2f), cardShape)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -123,10 +138,13 @@ fun TodaysTopCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // ─── Cover circle (LEFT) ────────────────────────────────────
+                // Cover size scales with card height — keeps the cover
+                // proportional when the user changes Height in the panel.
+                val coverSize = (cardCustom.heightDp - 18f).coerceAtLeast(28f).dp
                 Box(
                     modifier = Modifier
                         .padding(start = 8.dp)
-                        .size(46.dp)
+                        .size(coverSize)
                         .clip(CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
@@ -181,6 +199,7 @@ fun TodaysTopCard(
 
                 // ─── Play/Pause (Spiral player style) ──────────────────────
                 // Plain Lucide icon, no circle background, ripple on tap.
+                // Smaller size (28dp) per user request.
                 val isCurrent = song.id == currentSongId
                 Icon(
                     imageVector = if (isCurrent && isPlaying) CoralIcons.PauseLucide
@@ -188,7 +207,7 @@ fun TodaysTopCard(
                     contentDescription = if (isPlaying) "Pause" else "Play",
                     tint = Color.White,
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(28.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = ripple(bounded = false)
@@ -216,3 +235,4 @@ fun TodaysTopCard(
         }
     }
 }
+
