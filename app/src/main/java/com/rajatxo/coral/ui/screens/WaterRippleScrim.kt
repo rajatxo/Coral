@@ -24,32 +24,19 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.max
 
 /**
- * ★ WaterRippleScrim — dark scrim with a real water-ripple dismiss animation.
+ * ★ WaterRippleScrim — dark scrim with a SUBTLE water-droplet dismiss animation.
  *
- * When user taps anywhere on the scrim:
- *   1. A bright "splash" appears at the tap point (radial gradient highlight
- *      that expands quickly and fades — like a drop hitting water).
- *   2. Multiple concentric water rings expand outward from the tap point
- *      with staggered delays. Each ring is drawn as a soft radial-gradient
- *      annulus with:
- *        - Dark "trough" shadow just inside the crest (gives 3D depth —
- *          looks like a real wave, not a flat circle)
- *        - Bright white "crest" at the ring radius
- *        - Dimmer "trail" just outside the crest
- *        - Transparent edges (soft fade, no hard line)
- *   3. The dark scrim itself fades out (alpha 0.3 → 0) as the rings expand.
- *   4. Once the animation completes (~900ms), `onDismiss` is called.
+ * Like a single drop falling from a leaf into a still pond:
+ *   - ONE soft ring expands slowly from the tap point
+ *   - A tiny secondary "echo" ring follows it (barely visible)
+ *   - A soft central "impact" highlight at the tap point (very dim)
+ *   - Dark scrim fades out gently as the ring expands
+ *
+ * NOT a noisy multi-ring splash — just one quiet drop.
  *
  * The card itself (rendered as a sibling ON TOP of this scrim) consumes
  * taps inside its bounds — so tapping the card doesn't trigger the ripple.
  * Only taps on the dark scrim area do.
- *
- * Real water feel comes from:
- *   - Radial gradients (not solid stroke circles) → soft, depth-y edges
- *   - Multiple staggered rings → looks like wave fronts moving outward
- *   - Trough shadow inside each crest → 3D depth (wave has height)
- *   - Central splash → water-drop impact highlight
- *   - Scrim fades as rings expand → "water absorbs the dark"
  */
 @Composable
 fun WaterRippleScrim(
@@ -62,13 +49,13 @@ fun WaterRippleScrim(
     val density = LocalDensity.current
 
     // Trigger the ripple + scrim fade animation when user taps.
-    // Animation runs 0 → 1 over 900ms, then calls onDismiss.
+    // Animation runs 0 → 1 over 1100ms (slow, gentle), then calls onDismiss.
     LaunchedEffect(tapPoint) {
         if (tapPoint != null) {
             progress.snapTo(0f)
             progress.animateTo(
                 targetValue = 1f,
-                animationSpec = tween(durationMillis = 900, easing = FastOutSlowInEasing)
+                animationSpec = tween(durationMillis = 1100, easing = FastOutSlowInEasing)
             )
             onDismiss()
             tapPoint = null
@@ -76,7 +63,7 @@ fun WaterRippleScrim(
     }
 
     val p = progress.value
-    // Scrim alpha fades from full → 0 as ripple expands.
+    // Scrim alpha fades from full → 0 as ripple expands. Gentle curve.
     val scrimAlpha = (1f - p).coerceIn(0f, 1f)
 
     Box(
@@ -92,82 +79,103 @@ fun WaterRippleScrim(
     ) {
         tapPoint?.let { point ->
             Canvas(modifier = Modifier.fillMaxSize()) {
-                val maxR = max(size.width, size.height) * 1.4f
+                val maxR = max(size.width, size.height) * 0.85f
 
-                // ─── Central splash — bright white highlight at the tap
-                //   point that expands quickly (5x faster than the rings)
-                //   and fades. Simulates a water drop hitting the surface.
-                val splashP = (p * 5f).coerceIn(0f, 1f)
-                if (splashP < 1f) {
-                    val splashR = with(density) { 25.dp.toPx() } * (1 + splashP * 2.5f)
+                // ─── Central impact highlight (very subtle) ───────────────
+                // Soft white glow at the tap point — small, fades quickly.
+                // Like the dimple a drop makes when it hits water.
+                val impactP = (p * 3f).coerceIn(0f, 1f)
+                if (impactP < 1f) {
+                    val impactR = with(density) { 18.dp.toPx() } * (1 + impactP * 1.5f)
                     drawCircle(
                         brush = Brush.radialGradient(
                             colors = listOf(
-                                Color.White.copy(alpha = (1f - splashP) * 0.95f),
-                                Color.White.copy(alpha = (1f - splashP) * 0.5f),
-                                Color.White.copy(alpha = (1f - splashP) * 0.1f),
+                                Color.White.copy(alpha = (1f - impactP) * 0.35f),
+                                Color.White.copy(alpha = (1f - impactP) * 0.12f),
                                 Color.Transparent
                             ),
                             center = point,
-                            radius = splashR
+                            radius = impactR
                         ),
                         center = point,
-                        radius = splashR
+                        radius = impactR
                     )
                 }
 
-                // ─── Multiple staggered water rings
-                // Each ring is delayed by `delay = i * 0.10f` so they don't
-                // all start at the same time — creates a "wave train" effect.
-                // Outer rings are progressively dimmer.
-                //
-                // Each ring's gradient has 6 stops:
-                //   0.0                                  transparent
-                //   peakPos - shadowW - crestW           transparent  (start of trough fade-in)
-                //   peakPos - crestW                     BLACK shadow  (trough — depth!)
-                //   peakPos                              WHITE crest   (wave peak)
-                //   peakPos + crestW                     WHITE trail   (dimmer)
-                //   peakPos + crestW + shadowW            transparent  (end of trail fade-out)
-                //   1.0                                  transparent
-                //
-                // The black trough inside the white crest is what gives
-                // the 3D depth — looks like a real wave with a crest and
-                // a trough behind it, not a flat circle outline.
-                val ringCount = 4
-                val ringWidthPx = with(density) { 20.dp.toPx() }
-                for (i in 0 until ringCount) {
-                    val delay = i * 0.10f
-                    val ringP = ((p - delay) / (1f - delay)).coerceIn(0f, 1f)
-                    if (ringP > 0 && ringP < 1f) {
-                        val ringR = maxR * ringP
-                        val baseAlpha = (1f - ringP) * 0.5f
-                        val ringAlpha = baseAlpha * (1f - i * 0.15f)
-                        if (ringAlpha > 0.01f && ringR > 0f) {
-                            val outerR = ringR + ringWidthPx * 2f
-                            val peakPos = (ringR / outerR).coerceIn(0f, 1f)
-                            val crestW = 0.035f
-                            val shadowW = 0.06f
+                // ─── Main ring — ONE soft expanding wave ──────────────────
+                // Drawn as a soft radial-gradient annulus with:
+                //   - A faint dark trough just inside the crest (depth)
+                //   - A soft white crest at the expanding radius
+                //   - A dimmer trail just outside
+                //   - Transparent edges
+                val ringP = p
+                if (ringP > 0f && ringP < 1f) {
+                    val ringR = maxR * ringP
+                    val baseAlpha = (1f - ringP) * 0.45f
+                    if (baseAlpha > 0.01f && ringR > 0f) {
+                        val ringWidthPx = with(density) { 16.dp.toPx() }
+                        val outerR = ringR + ringWidthPx * 2f
+                        val peakPos = (ringR / outerR).coerceIn(0f, 1f)
+                        val crestW = 0.025f
+                        val shadowW = 0.05f
 
-                            drawCircle(
-                                brush = Brush.radialGradient(
-                                    colorStops = arrayOf(
-                                        0f to Color.Transparent,
-                                        (peakPos - shadowW - crestW).coerceIn(0f, 1f) to Color.Transparent,
-                                        (peakPos - crestW).coerceIn(0f, 1f) to
-                                            Color.Black.copy(alpha = ringAlpha * 0.45f),
-                                        peakPos to Color.White.copy(alpha = ringAlpha),
-                                        (peakPos + crestW).coerceIn(0f, 1f) to
-                                            Color.White.copy(alpha = ringAlpha * 0.3f),
-                                        (peakPos + crestW + shadowW).coerceIn(0f, 1f) to Color.Transparent,
-                                        1f to Color.Transparent
-                                    ),
-                                    center = point,
-                                    radius = outerR
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colorStops = arrayOf(
+                                    0f to Color.Transparent,
+                                    (peakPos - shadowW - crestW).coerceIn(0f, 1f) to Color.Transparent,
+                                    (peakPos - crestW).coerceIn(0f, 1f) to
+                                        Color.Black.copy(alpha = baseAlpha * 0.25f),
+                                    peakPos to Color.White.copy(alpha = baseAlpha * 0.75f),
+                                    (peakPos + crestW).coerceIn(0f, 1f) to
+                                        Color.White.copy(alpha = baseAlpha * 0.2f),
+                                    (peakPos + crestW + shadowW).coerceIn(0f, 1f) to Color.Transparent,
+                                    1f to Color.Transparent
                                 ),
                                 center = point,
                                 radius = outerR
-                            )
-                        }
+                            ),
+                            center = point,
+                            radius = outerR
+                        )
+                    }
+                }
+
+                // ─── Echo ring — ONE secondary ring, very dim ──────────────
+                // Follows the main ring with a small delay. Barely visible —
+                // gives the impression of a single drop with a quiet echo,
+                // not a multi-ring splash.
+                val echoDelay = 0.18f
+                val echoP = ((p - echoDelay) / (1f - echoDelay)).coerceIn(0f, 1f)
+                if (echoP > 0f && echoP < 1f) {
+                    val echoR = maxR * echoP
+                    val echoAlpha = (1f - echoP) * 0.18f
+                    if (echoAlpha > 0.01f && echoR > 0f) {
+                        val echoWidthPx = with(density) { 10.dp.toPx() }
+                        val outerR = echoR + echoWidthPx * 2f
+                        val peakPos = (echoR / outerR).coerceIn(0f, 1f)
+                        val crestW = 0.022f
+                        val shadowW = 0.045f
+
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colorStops = arrayOf(
+                                    0f to Color.Transparent,
+                                    (peakPos - shadowW - crestW).coerceIn(0f, 1f) to Color.Transparent,
+                                    (peakPos - crestW).coerceIn(0f, 1f) to
+                                        Color.Black.copy(alpha = echoAlpha * 0.2f),
+                                    peakPos to Color.White.copy(alpha = echoAlpha),
+                                    (peakPos + crestW).coerceIn(0f, 1f) to
+                                        Color.White.copy(alpha = echoAlpha * 0.15f),
+                                    (peakPos + crestW + shadowW).coerceIn(0f, 1f) to Color.Transparent,
+                                    1f to Color.Transparent
+                                ),
+                                center = point,
+                                radius = outerR
+                            ),
+                            center = point,
+                            radius = outerR
+                        )
                     }
                 }
             }
