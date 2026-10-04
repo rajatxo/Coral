@@ -93,6 +93,11 @@ fun CynthiaHomeScreen(
     // ★ Search screen state — Cynthia has its own billing-style search screen
     //   (separate from Astra's SearchScreen). Tapping the search FAB shows it.
     var showSearch by remember { mutableStateOf(false) }
+    // ★ TodaysTopCard state — when user taps a Today's Top capsule in
+    //   QuickPicksScreen, the tapped songs are stashed here and the
+    //   floating glass card is shown as a sibling of the layerBackdrop.
+    var showTopCard by remember { mutableStateOf(false) }
+    var topCardSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     val onSongClickWithReset: (Song) -> Unit = { song -> onSongClick(song) }
 
     // ★ Record playback history + daily play count when the current song
@@ -172,7 +177,11 @@ fun CynthiaHomeScreen(
                     currentSongArt = currentSongArt,
                     onSongClick = onSongClickWithReset,
                     isPlaying = isPlaying,
-                    onPlayPauseClick = onPlayPauseClick
+                    onPlayPauseClick = onPlayPauseClick,
+                    onCapsuleClick = { tappedSongs ->
+                        topCardSongs = tappedSongs
+                        showTopCard = true
+                    }
                 )
                 else -> Box(
                     modifier = Modifier.fillMaxSize(),
@@ -384,15 +393,38 @@ fun CynthiaHomeScreen(
             }
         )
 
-        // ═══ Cynthia search screen (billing style) ═══
-        // Tapping the search FAB opens this — dark printer slot + cream
-        // receipt paper with jagged torn bottom edge. Paper content (search
-        // text + results + history) will go inside the paper later.
+        // ═══ Cynthia search screen (simple placeholder for now) ═══
+        // Tapping the search FAB opens this. Just a back button + "coming
+        // soon" text — the billing structure was reverted; will be rebuilt
+        // properly later when the design is finalized.
         if (showSearch) {
             CynthiaSearchScreen(
                 onDismiss = { showSearch = false }
             )
         }
+
+        // ★ TodaysTopCard — rendered OUTSIDE the layerBackdrop Box (same
+        //   pattern as in Astra's HomeScreen). Shown when user taps a
+        //   Today's Top capsule in QuickPicksScreen. Same glass morphism
+        //   as the nav bar.
+        com.rajatxo.coral.ui.screens.TodaysTopCard(
+            visible = showTopCard,
+            song1 = topCardSongs.getOrNull(0),
+            song2 = topCardSongs.getOrNull(1),
+            color1 = androidx.compose.ui.graphics.Color(0xFFFF6B6B),
+            color2 = androidx.compose.ui.graphics.Color(0xFF6B9EFF),
+            currentSongId = currentSongId,
+            isPlaying = isPlaying,
+            onDismiss = { showTopCard = false },
+            onPlayPauseClick = { song ->
+                if (song.id == currentSongId) {
+                    onPlayPauseClick()
+                } else {
+                    onSongClickWithReset(song)
+                }
+            },
+            backdrop = glassBackdrop
+        )
 
         // ═══ Settings overlay ═══
         if (showSettings) {

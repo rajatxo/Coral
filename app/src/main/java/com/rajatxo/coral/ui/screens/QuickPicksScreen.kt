@@ -132,6 +132,7 @@ fun QuickPicksScreen(
     onBackClick: () -> Unit = {},
     isPlaying: Boolean = false,
     onPlayPauseClick: () -> Unit = {},
+    onCapsuleClick: (List<Song>) -> Unit = {},
     glassHazeState: dev.chrisbanes.haze.HazeState? = null,
     glassStyle: dev.chrisbanes.haze.HazeStyle? = null
 ) {
@@ -335,35 +336,20 @@ fun QuickPicksScreen(
                 )
             }
 
-            // ═══ Listening Stats Capsule + Cat ═══
+            // ═══ Today's Top — Instagram-story style capsules ═══
+            // 3 capsule stories with album covers + gradient borders.
+            // Tap a capsule → opens the floating glass card (TodaysTopCard,
+            // rendered outside the LazyColumn).
+            // Brought back from commit be2bcbd — replaces the previous
+            // ListeningStatsCapsule row.
             item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(40.dp)  // ★ FIXED height = capsule height only
-                        .padding(bottom = 6.dp)
-                ) {
-                    // Capsule
-                    ListeningStatsCapsule(
-                        isPlaying = isPlaying,
-                        listeningTimeSeconds = getDailyListeningSeconds()
-                    )
-
-                    // ★ Cat — sized to fit the gap between greeting and capsule.
-                    //   Aligned TopEnd, offset up so it sits on the top-right border.
-                    //   The Box is fixed at 40dp so the cat overflowing upward
-                    //   does NOT push the layout down.
-                    com.airbnb.lottie.compose.LottieAnimation(
-                        composition = com.airbnb.lottie.compose.rememberLottieComposition(
-                            com.airbnb.lottie.compose.LottieCompositionSpec.Asset("cat_animation.json")
-                        ).value,
-                        iterations = com.airbnb.lottie.compose.LottieConstants.IterateForever,
-                        modifier = Modifier
-                            .size(120.dp)
-                            .align(Alignment.TopEnd)
-                            .offset(x = 8.dp, y = (-90).dp)
-                    )
-                }
+                TodaysTopSection(
+                    songs = songs,
+                    textPrimary = textPrimary,
+                    textSecondary = textSecondary,
+                    onCapsuleClick = onCapsuleClick,
+                    onCapsuleHold = {}
+                )
             }
 
             // ═══ Speed Dial (first row) ═══

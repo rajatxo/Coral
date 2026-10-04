@@ -170,6 +170,13 @@ fun HomeScreen(
     var showFontPicker by remember { mutableStateOf(false) }
     var showLyricsSettings by remember { mutableStateOf(false) }
     var showSpiralPalette by remember { mutableStateOf(false) }
+    // ★ TodaysTopCard state — hoisted OUTSIDE the layerBackdrop Box.
+    //   When user taps a Today's Top capsule in QuickPicksScreen, the
+    //   tapped songs list is stashed here and the floating glass card
+    //   is shown as a sibling of the layerBackdrop Box (avoids the
+    //   glass-recursive-crash bug from earlier builds).
+    var showTopCard by remember { mutableStateOf(false) }
+    var topCardSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
 
     // --- Add to playlist from FullPlayer ---
     // When user taps "Add to playlist" in the FullPlayer 3-dot menu,
@@ -443,7 +450,11 @@ fun HomeScreen(
                     onExtend = onExtend,
                     onSongClick = onSongClickWithReset,
                     isPlaying = isPlaying,
-                    onPlayPauseClick = onPlayPauseClick
+                    onPlayPauseClick = onPlayPauseClick,
+                    onCapsuleClick = { tappedSongs ->
+                        topCardSongs = tappedSongs
+                        showTopCard = true
+                    }
                 )
                 CoralTab.Discover -> PlaceholderScreen(
                     tabName = "Discover",
@@ -581,6 +592,31 @@ fun HomeScreen(
             onSearchClick = { showSearch = true },
             backdrop = glassBackdrop,
             onProximityChange = { isNear -> searchFabNearNavBar = isNear }
+        )
+
+        // ★ TodaysTopCard — rendered OUTSIDE the layerBackdrop Box (like
+        //   nav bar / search FAB). This is the key fix: the card is a
+        //   SIBLING of the content Box, so drawBackdrop samples the
+        //   content behind it — no recursion, no crash. Same glass
+        //   morphism as the nav bar. Shown when user taps a Today's Top
+        //   capsule in QuickPicksScreen.
+        com.rajatxo.coral.ui.screens.TodaysTopCard(
+            visible = showTopCard,
+            song1 = topCardSongs.getOrNull(0),
+            song2 = topCardSongs.getOrNull(1),
+            color1 = androidx.compose.ui.graphics.Color(0xFFFF6B6B),
+            color2 = androidx.compose.ui.graphics.Color(0xFF6B9EFF),
+            currentSongId = currentSongId,
+            isPlaying = isPlaying,
+            onDismiss = { showTopCard = false },
+            onPlayPauseClick = { song ->
+                if (song.id == currentSongId) {
+                    onPlayPauseClick()
+                } else {
+                    onSongClickWithReset(song)
+                }
+            },
+            backdrop = glassBackdrop
         )
 
         // ─── FIXED HEADER (Quick Picks page only) ───────────────────
