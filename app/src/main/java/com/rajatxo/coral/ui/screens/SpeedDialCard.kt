@@ -137,16 +137,23 @@ fun SpeedDialCard(
     val cornerRadius = cardCustom.cornerRadiusDp.dp
     val cardShape = RoundedCornerShape(cornerRadius)
 
+    // ★ Outer Box — wraps WaterRippleScrim (dismiss with water ripple
+    //   animation) + the card itself on top. Card is rendered AFTER the
+    //   scrim so it's visually on top and gets first chance at pointer
+    //   events — taps inside the card (swipe gestures, etc.) don't
+    //   trigger the ripple. Taps on the dark scrim area fall through
+    //   to WaterRippleScrim → ripple + fade + dismiss.
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.3f))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onDismiss
-            )
     ) {
+        // ★ Water ripple scrim — replaces the old plain dark Box + onClick.
+        //   Tapping anywhere outside the card triggers a real water ripple
+        //   that expands from the tap point, with the dark scrim fading out
+        //   as the ripple expands. After the animation completes, onDismiss
+        //   is called.
+        WaterRippleScrim(onDismiss = onDismiss)
+
         Box(
             modifier = Modifier
                 .align(Alignment.Center)

@@ -104,16 +104,24 @@ fun TodaysTopCard(
     val cornerRadius = cardCustom.cornerRadiusDp.dp
     val cardShape = androidx.compose.foundation.shape.RoundedCornerShape(cornerRadius)
 
+    // ★ Outer Box — wraps the WaterRippleScrim (dismiss with water ripple
+    //   animation) + the card itself on top. The card is rendered AFTER
+    //   the scrim so it's visually on top AND gets first chance at pointer
+    //   events — taps inside the card are consumed by the card's own
+    //   .clickable {} (don't trigger ripple). Taps on the dark scrim area
+    //   fall through to WaterRippleScrim's detectTapGestures → ripple +
+    //   fade + dismiss.
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.3f))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onDismiss
-            )
     ) {
+        // ★ Water ripple scrim — replaces the old plain dark Box + onClick.
+        //   Tapping anywhere outside the card triggers a real water ripple
+        //   that expands from the tap point, with the dark scrim fading out
+        //   as the ripple expands. After the animation completes, onDismiss
+        //   is called.
+        WaterRippleScrim(onDismiss = onDismiss)
+
         Box(
             modifier = Modifier
                 .align(Alignment.Center)
