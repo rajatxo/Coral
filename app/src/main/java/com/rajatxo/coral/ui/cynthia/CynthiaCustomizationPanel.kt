@@ -300,11 +300,11 @@ private fun CustomizationPanelContent(
             Field("Corner", topCardCustom.cornerRadiusDp, 0f..50f, "dp") {
                 com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.setCornerRadius(it)
             },
-            Field("Pos X", topCardCustom.offsetX, -300f..300f, "") {
+            Field("Pos X", topCardCustom.offsetX, -1000f..1000f, "") {
                 com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization
                     .setOffset(it, topCardCustom.offsetY)
             },
-            Field("Pos Y", topCardCustom.offsetY, 50f..400f, "") {
+            Field("Pos Y", topCardCustom.offsetY, -2000f..2000f, "") {
                 com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization
                     .setOffset(topCardCustom.offsetX, it)
             }

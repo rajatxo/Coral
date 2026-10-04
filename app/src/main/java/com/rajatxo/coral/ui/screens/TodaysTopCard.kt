@@ -3,9 +3,9 @@ package com.rajatxo.coral.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,13 +18,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,6 +44,7 @@ import com.kyant.backdrop.effects.vibrancy
 import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
+import kotlinx.coroutines.launch
 
 /**
  * ★ TodaysTopCard — miniplayer-inspired floating glass capsule.
@@ -55,14 +59,16 @@ import com.rajatxo.coral.ui.theme.CalSansFamily
  * no circle, with ripple).
  *
  * Card size/shape/position all read from CynthiaTodaysTopCardCustomization
- * prefs — user can open the square customization panel via the menu icon
- * and adjust Width/Height/Corner/Pos X/Pos Y/Shape live.
+ * prefs — user can adjust via the panel OR by dragging the card itself.
  *
- * SCREEN-AWARE CLAMPING:
- *   Even if the user sets Width=400 AND Pos X=300 (max), the card
- *   never goes off-screen horizontally. The rendered width is capped
- *   to `screenWidth - 32dp` (16dp margin each side), and the offset
- *   is clamped so the card's edges stay within screen bounds.
+ * DRAG-TO-MOVE:
+ *   User can drag the card body anywhere on screen. The drag updates
+ *   offsetX/offsetY live and persists to prefs on drag end. NO
+ *   clamping — the card can go anywhere the finger goes. This lets
+ *   the user position the card at extreme right / extreme bottom / etc.
+ *
+ *   The cover, title, play/pause, and menu icons still work — taps
+ *   are distinguished from drags by movement distance (<20px = tap).
  */
 @Composable
 fun TodaysTopCard(
@@ -79,15 +85,26 @@ fun TodaysTopCard(
     if (!visible || song == null) return
 
     // ★ Card customization — read from prefs (live updates when the user
-    //   changes values in the customization panel).
+    //   changes values in the customization panel or drags the card).
     val cardCustom by com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization
         .customization.collectAsState()
 
-    val density = LocalDensity.current
+    // ★ Live drag offset — starts at the saved pref, updates during drag,
+    //   saved back to prefs on drag end.
+    var liveOffsetX by remember { mutableStateOf(cardCustom.offsetX) }
+    var liveOffsetY by remember { mutableStateOf(cardCustom.offsetY) }
+    val scope = rememberCoroutineScope()
 
-    // ★ Outer BoxWithConstraints — gives us the parent (screen) width so
-    //   we can clamp the card's width + offset to keep it on-screen.
-    BoxWithConstraints(
+    // Re-sync live offset when the pref changes from elsewhere (panel).
+    androidx.compose.runtime.LaunchedEffect(cardCustom.offsetX, cardCustom.offsetY) {
+        liveOffsetX = cardCustom.offsetX
+        liveOffsetY = cardCustom.offsetY
+    }
+
+    val cornerRadius = cardCustom.cornerRadiusDp.dp
+    val cardShape = androidx.compose.foundation.shape.RoundedCornerShape(cornerRadius)
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.3f))
@@ -97,57 +114,17 @@ fun TodaysTopCard(
                 onClick = onDismiss
             )
     ) {
-        val screenMaxWidthPx = constraints.maxWidth.toFloat().coerceAtLeast(1f)
-
-        // ─── Cap rendered width to (screenWidth - 32dp) so the card
-        //   always fits horizontally with a 16dp margin on each side.
-        //   Even if the user sets Width=400 on a narrow phone, the
-        //   card will be capped to fit the screen.
-        val marginPx = with(density) { 16.dp.toPx() }
-        val maxAllowedWidthPx = (screenMaxWidthPx - marginPx * 2f).coerceAtLeast(0f)
-        val requestedWidthPx = with(density) { cardCustom.widthDp.dp.toPx() }
-        val effectiveWidthPx = requestedWidthPx.coerceAtMost(maxAllowedWidthPx)
-        val effectiveWidthDp = with(density) { effectiveWidthPx.toDp() }
-
-        // ─── Clamp offset X so the card stays within screen bounds.
-        //   Card is centered by Alignment.Center, then offset by
-        //   (offsetX, offsetY). The card's center after offset is at
-        //   (screenWidth/2 + offsetX). For the card's edges to stay
-        //   on-screen:
-        //     left edge  = centerX - width/2 ≥ 0
-        //     right edge = centerX + width/2 ≤ screenWidth
-        //   → -halfWidth + screenHalf ≤ offsetX ≤ halfWidth - screenHalf
-        //   (in absolute pixel terms from the center)
-        val halfCardPx = effectiveWidthPx / 2f
-        val halfScreenPx = screenMaxWidthPx / 2f
-        val maxOffsetX = (halfScreenPx - halfCardPx).coerceAtLeast(0f)
-        val minOffsetX = -maxOffsetX
-        val clampedOffsetX = cardCustom.offsetX.coerceIn(minOffsetX, maxOffsetX)
-
-        // ─── Clamp offset Y similarly so the card never goes off the
-        //   top or bottom of the screen.
-        val screenHeightPx = constraints.maxHeight.toFloat().coerceAtLeast(1f)
-        val requestedHeightPx = with(density) { cardCustom.heightDp.dp.toPx() }
-        val effectiveHeightPx = requestedHeightPx.coerceAtMost(screenHeightPx)
-        val halfCardHeightPx = effectiveHeightPx / 2f
-        val halfScreenHeightPx = screenHeightPx / 2f
-        val maxOffsetY = (halfScreenHeightPx - halfCardHeightPx).coerceAtLeast(0f)
-        val minOffsetY = -maxOffsetY
-        val clampedOffsetY = cardCustom.offsetY.coerceIn(minOffsetY, maxOffsetY)
-
-        val cornerRadius = cardCustom.cornerRadiusDp.dp
-        val cardShape = androidx.compose.foundation.shape.RoundedCornerShape(cornerRadius)
-
         Box(
             modifier = Modifier
+                .align(Alignment.Center)
                 .offset {
                     androidx.compose.ui.unit.IntOffset(
-                        clampedOffsetX.toInt(),
-                        clampedOffsetY.toInt()
+                        liveOffsetX.toInt(),
+                        liveOffsetY.toInt()
                     )
                 }
-                .width(effectiveWidthDp)
-                .height(with(density) { effectiveHeightPx.toDp() })
+                .width(cardCustom.widthDp.dp)
+                .height(cardCustom.heightDp.dp)
                 .clip(cardShape)
                 .then(
                     if (backdrop != null) {
@@ -172,13 +149,26 @@ fun TodaysTopCard(
                     }
                 )
                 .border(1.dp, Color.White.copy(alpha = 0.2f), cardShape)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    // Consume click so tapping inside the capsule doesn't dismiss.
-                    onClick = {}
-                ),
-            contentAlignment = Alignment.Center
+                // ★ Drag-to-move: drag the card body anywhere. No clamping.
+                //   Live updates liveOffsetX/Y; saves to prefs on drag end.
+                .pointerInput(Unit) {
+                    detectDragGestures(
+                        onDragEnd = {
+                            com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization
+                                .setOffset(liveOffsetX, liveOffsetY)
+                        },
+                        onDragCancel = {
+                            // Revert to last saved pref on cancel.
+                            liveOffsetX = cardCustom.offsetX
+                            liveOffsetY = cardCustom.offsetY
+                        },
+                        onDrag = { change, dragAmount ->
+                            change.consume()
+                            liveOffsetX += dragAmount.x
+                            liveOffsetY += dragAmount.y
+                        }
+                    )
+                }
         ) {
             Row(
                 modifier = Modifier.fillMaxSize(),
@@ -282,5 +272,3 @@ fun TodaysTopCard(
         }
     }
 }
-
-
