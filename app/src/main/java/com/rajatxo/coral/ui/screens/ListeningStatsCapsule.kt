@@ -172,7 +172,7 @@ fun ListeningStatsCapsule(
             ).value,
             iterations = LottieConstants.IterateForever,
             modifier = Modifier
-                .size(48.dp)
+                .size(200.dp)
                 .align(Alignment.TopEnd)
                 .offset(x = 4.dp, y = (-12).dp)  // sit on top-right border, overflow upward
         )
