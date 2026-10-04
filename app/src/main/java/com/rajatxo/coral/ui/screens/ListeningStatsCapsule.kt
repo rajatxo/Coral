@@ -29,6 +29,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rajatxo.coral.ui.theme.CalSansFamily
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.rememberLottieComposition
 
 /**
  * ★ ListeningStatsCapsule — glass capsule with:
@@ -139,13 +143,25 @@ fun ListeningStatsCapsule(
 
             Spacer(modifier = Modifier.width(2.dp))
 
-            // ★ Listening time text (right side)
+            // ★ Listening time text
             Text(
                 text = timeText,
                 color = Color.White.copy(alpha = 0.8f),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 fontFamily = CalSansFamily
+            )
+
+            // ★ Cat sits on the right side of the capsule
+            Spacer(modifier = Modifier.weight(1f))
+
+            // ★ Lottie cat animation — sits on the right side of the capsule
+            LottieAnimation(
+                composition = rememberLottieComposition(
+                    LottieCompositionSpec.Asset("cat_animation.json")
+                ).value,
+                iterations = LottieConstants.IterateForever,
+                modifier = Modifier.size(32.dp)
             )
         }
     }

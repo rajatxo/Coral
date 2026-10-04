@@ -91,4 +91,6 @@ dependencies {
     // Haze — crash-free glass morphism (used by ArchiveTune/BitChord)
     // Much simpler than kyant backdrop: HazeState() + hazeSource + hazeEffect
     implementation("dev.chrisbanes.haze:haze:1.6.9")
+    // ★ Lottie — animated cat (tiny JSON, renders natively in Compose)
+    implementation("com.airbnb.android:lottie-compose:6.6.2")
 }
