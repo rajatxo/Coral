@@ -66,21 +66,17 @@ fun ProfilePanel(
     var textInput by remember { mutableStateOf(userName) }
 
     if (visible) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.3f))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onDismiss
-                ),
-            contentAlignment = Alignment.Center
-        ) {
+        // ★ RippleDismissContainer — wraps scrim + AGSL water ripple + panel.
+        //   Tapping anywhere outside the panel triggers a real water ripple
+        //   that expands from the tap point. The panel fades out + scales
+        //   down slightly + drifts upward in sync with the ripple.
+        RippleDismissContainer(onDismiss = onDismiss) { progress ->
             Box(
                 modifier = Modifier
+                    .align(Alignment.Center)
                     .padding(horizontal = 36.dp)
                     .width(300.dp)
+                    .rippleFadeOut(progress)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,

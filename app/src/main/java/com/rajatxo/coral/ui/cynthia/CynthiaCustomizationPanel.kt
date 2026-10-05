@@ -49,6 +49,8 @@ import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.vibrancy
 import com.rajatxo.coral.data.prefs.CynthiaNavBarCustomization
 import com.rajatxo.coral.data.prefs.CynthiaSearchFabCustomization
+import com.rajatxo.coral.ui.screens.RippleDismissContainer
+import com.rajatxo.coral.ui.screens.rippleFadeOut
 import com.rajatxo.coral.ui.theme.CalSansFamily
 
 /**
@@ -85,27 +87,26 @@ internal fun CynthiaCustomizationPanel(
         enter = fadeIn() + scaleIn(initialScale = 0.8f),
         exit = fadeOut() + scaleOut(targetScale = 0.8f)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.3f))
-                .clickable(
-                    interactionSource = MutableInteractionSource(),
-                    indication = null,
-                    onClick = onDismiss
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            // ★ SQUARE panel — 300×340dp, glass morphism, rounded 24dp corners.
+        // ★ RippleDismissContainer — wraps scrim + AGSL water ripple + panel.
+        //   Tapping anywhere outside the panel triggers a real water ripple
+        //   that expands from the tap point. The panel fades out + scales
+        //   down slightly + drifts upward in sync with the ripple — feels
+        //   like it's being absorbed into the ripple, not just disappearing.
+        RippleDismissContainer(onDismiss = onDismiss) { progress ->
+            // ★ SQUARE panel — 320×440dp, glass morphism, rounded 24dp corners.
             //   Draggable via offset (cardOffsetX, cardOffsetY) updated by the
             //   drag handle at the top.
             Box(
                 modifier = Modifier
+                    .align(Alignment.Center)
                     .padding(horizontal = 36.dp)
                     .size(width = 320.dp, height = 440.dp)
                     .offset { androidx.compose.ui.unit.IntOffset(cardOffsetX.toInt(), cardOffsetY.toInt()) }
+                    // ★ Panel fade-out — fades + scales + drifts up in sync
+                    //   with the ripple animation.
+                    .rippleFadeOut(progress)
                     .clickable(
-                        interactionSource = MutableInteractionSource(),
+                        interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = {} // consume click so it doesn't dismiss
                     )

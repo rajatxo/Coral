@@ -9,6 +9,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -21,10 +22,112 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import kotlin.math.max
+
+/**
+ * ★ RippleDismissContainer — wraps content with a water-ripple dismiss overlay.
+ *
+ * Renders a dark scrim + AGSL water-ripple that originates from the user's
+ * tap point. The content (the card/panel) is rendered on top and receives
+ * the ripple's progress (0 → 1) so it can fade/scale out in sync with
+ * the ripple.
+ *
+ * Usage:
+ * ```
+ * RippleDismissContainer(onDismiss = onDismiss) { progress ->
+ *     Box(
+ *         modifier = Modifier
+ *             .rippleFadeOut(progress)  // fades + scales + drifts up
+ *             .align(Alignment.Center)
+ *             ...
+ *     ) { ... }
+ * }
+ * ```
+ *
+ * After the ripple animation completes (~1100ms), `onDismiss` is called.
+ */
+@Composable
+fun RippleDismissContainer(
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+    scrimColor: Color = Color.Black.copy(alpha = 0.3f),
+    content: @Composable BoxScope.(progress: Float) -> Unit
+) {
+    var tapPoint by remember { mutableStateOf<Offset?>(null) }
+    val progress = remember { Animatable(0f) }
+
+    // Trigger the ripple + scrim fade animation when user taps.
+    // Animation runs 0 → 1 over 1100ms (slow, gentle), then calls onDismiss.
+    LaunchedEffect(tapPoint) {
+        if (tapPoint != null) {
+            progress.snapTo(0f)
+            progress.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(durationMillis = 1100, easing = FastOutSlowInEasing)
+            )
+            onDismiss()
+            tapPoint = null
+        }
+    }
+
+    val p = progress.value
+    // Scrim alpha fades from full → 0 as ripple expands. Gentle curve.
+    val scrimAlpha = (1f - p).coerceIn(0f, 1f)
+
+    Box(modifier = modifier.fillMaxSize()) {
+        // ─── Scrim + ripple ────────────────────────────────────────────
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(scrimColor.copy(alpha = scrimColor.alpha * scrimAlpha))
+                .pointerInput(Unit) {
+                    detectTapGestures { offset ->
+                        // Only start a new ripple if no animation is in progress.
+                        if (tapPoint == null) tapPoint = offset
+                    }
+                }
+        )
+        tapPoint?.let { point ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                WaterRippleShaderCanvas(point, p, Modifier.fillMaxSize())
+            } else {
+                WaterRippleCanvasFallback(point, p, Modifier.fillMaxSize())
+            }
+        }
+
+        // ─── Card content — caller applies its own fade via `progress` ──
+        content(p)
+    }
+}
+
+/**
+ * ★ Modifier.rippleFadeOut — fades + scales + drifts the card out as the
+ *   ripple progresses.
+ *
+ * Animation behavior:
+ *   - alpha: 1.0 → 0.0 (full fade out)
+ *   - scale: 1.0 → 0.92 (subtle shrink — feels like the card is being
+ *     absorbed into the ripple, not just disappearing)
+ *   - translationY: 0 → -12dp (drifts upward as it fades — gives a
+ *     "lifted away" feel, like the card is floating up off the surface)
+ *
+ * Pass the same `progress` value that RippleDismissContainer provides
+ * to its content lambda.
+ */
+fun Modifier.rippleFadeOut(progress: Float): Modifier = this.graphicsLayer {
+    val p = progress.coerceIn(0f, 1f)
+    alpha = 1f - p
+    val scale = 1f - p * 0.08f
+    scaleX = scale
+    scaleY = scale
+    // Slight upward drift — feels like the card is being lifted away.
+    translationY = -p * 12f
+}
+
 
 /**
  * ★ WaterRippleScrim — dark scrim with a SUBTLE water-droplet dismiss animation.

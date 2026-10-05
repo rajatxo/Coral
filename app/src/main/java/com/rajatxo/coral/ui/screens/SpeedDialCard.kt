@@ -137,23 +137,12 @@ fun SpeedDialCard(
     val cornerRadius = cardCustom.cornerRadiusDp.dp
     val cardShape = RoundedCornerShape(cornerRadius)
 
-    // ★ Outer Box — wraps WaterRippleScrim (dismiss with water ripple
-    //   animation) + the card itself on top. Card is rendered AFTER the
-    //   scrim so it's visually on top and gets first chance at pointer
-    //   events — taps inside the card (swipe gestures, etc.) don't
-    //   trigger the ripple. Taps on the dark scrim area fall through
-    //   to WaterRippleScrim → ripple + fade + dismiss.
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-    ) {
-        // ★ Water ripple scrim — replaces the old plain dark Box + onClick.
-        //   Tapping anywhere outside the card triggers a real water ripple
-        //   that expands from the tap point, with the dark scrim fading out
-        //   as the ripple expands. After the animation completes, onDismiss
-        //   is called.
-        WaterRippleScrim(onDismiss = onDismiss)
-
+    // ★ RippleDismissContainer — wraps the scrim + AGSL ripple + card.
+    //   The card content receives `progress` (0 → 1) so it can fade/scale
+    //   in sync with the ripple animation. Card fades out + scales down
+    //   slightly + drifts upward — feels like it's being absorbed into
+    //   the ripple, not just disappearing.
+    RippleDismissContainer(onDismiss = onDismiss) { progress ->
         Box(
             modifier = Modifier
                 .align(Alignment.Center)
@@ -189,6 +178,9 @@ fun SpeedDialCard(
                     }
                 )
                 .border(1.dp, Color.White.copy(alpha = 0.2f), cardShape)
+                // ★ Card fade-out — fades + scales + drifts up in sync with
+                //   the ripple. As the ripple expands, the card fades away.
+                .rippleFadeOut(progress)
                 .pointerInput(modes, currentMode) {
                     detectHorizontalDragGestures(
                         onDragEnd = { dragAccumulator = 0f },
