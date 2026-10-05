@@ -525,6 +525,8 @@ fun CynthiaHomeScreen(
                     artist = currentSongArtist ?: "",
                     albumArtUri = currentSongArt,
                     isPlaying = isPlaying,
+                    positionMs = miniPlayerPositionMs,
+                    durationMs = miniPlayerDurationMs,
                     expansionFraction = playerExpansion.value,
                     onExpansionChange = { },
                     onPlayPauseClick = onPlayPauseClick,
@@ -537,13 +539,15 @@ fun CynthiaHomeScreen(
             }
         }
 
-        // ★ Full player overlay — fades in as the miniplayer blooms
+        // ★ Full player overlay — alpha DELAYED so the bloom is visible first.
+        //   Full player starts fading in at 40% expansion, reaches full at 100%.
         if (showFullPlayer || playerExpansion.value > 0.01f) {
+            val fullPlayerAlpha = ((playerExpansion.value - 0.4f) / 0.6f).coerceIn(0f, 1f)
             val playerStyle by com.rajatxo.coral.data.prefs.PlayerStyleManager.playerStyle.collectAsState()
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer { alpha = playerExpansion.value }
+                    .graphicsLayer { alpha = fullPlayerAlpha }
             ) {
                 if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.CORAL) {
                     com.rajatxo.coral.ui.player.CoralPlayer(

@@ -193,6 +193,47 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
+        // --- Player Style ---
+        SettingsSection(title = "Player UI") {
+            SettingsRow(
+                icon = CoralIcons.Music,
+                title = "Spiral",
+                subtitle = "Meditation-style vertical timeline",
+                value = if (playerStyle == PlayerStyleManager.SPIRAL) "Active" else "",
+                onClick = { PlayerStyleManager.setPlayerStyle(PlayerStyleManager.SPIRAL) }
+            )
+            SettingsRow(
+                icon = CoralIcons.Music,
+                title = "Spiral 2.0",
+                subtitle = "INK — color bleed between songs",
+                value = if (playerStyle == PlayerStyleManager.SPIRAL_2) "Active" else "",
+                onClick = { PlayerStyleManager.setPlayerStyle(PlayerStyleManager.SPIRAL_2) }
+            )
+            SettingsRow(
+                icon = CoralIcons.Music,
+                title = "Spiral 3.0",
+                subtitle = "Latest Spiral layout",
+                value = if (playerStyle == PlayerStyleManager.SPIRAL_3) "Active" else "",
+                onClick = { PlayerStyleManager.setPlayerStyle(PlayerStyleManager.SPIRAL_3) }
+            )
+            SettingsRow(
+                icon = CoralIcons.Music,
+                title = "Coral",
+                subtitle = "Glass morphism first",
+                value = if (playerStyle == PlayerStyleManager.CORAL) "Active" else "",
+                onClick = { PlayerStyleManager.setPlayerStyle(PlayerStyleManager.CORAL) }
+            )
+            SettingsRow(
+                icon = CoralIcons.Music,
+                title = "Full (BitChord)",
+                subtitle = "Full-bleed album art + gradient",
+                value = if (playerStyle == PlayerStyleManager.PROFILE) "Active" else "",
+                onClick = { PlayerStyleManager.setPlayerStyle(PlayerStyleManager.PROFILE) }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
         // --- Appearance ---
         SettingsSection(title = "Appearance") {
             SettingsRow(

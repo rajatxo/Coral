@@ -82,6 +82,8 @@ fun CynthiaMiniPlayer(
     artist: String,
     albumArtUri: android.net.Uri?,
     isPlaying: Boolean,
+    positionMs: Long = 0L,
+    durationMs: Long = 0L,
     expansionFraction: Float,
     onExpansionChange: (Float) -> Unit,
     onPlayPauseClick: () -> Unit,
@@ -118,17 +120,19 @@ fun CynthiaMiniPlayer(
         }
     }
 
-    // ★ Capsule dimensions — 240×56dp glass pill
+    // ★ Capsule dimensions — 240×64dp glass pill (SAME as Astra's miniplayer)
     val miniWidth = 240.dp
-    val miniHeight = 56.dp
-    // ★ Corner radius animates from pill (28dp) → 0dp as it blooms
-    val cornerRadius = (28f * (1f - expansionFraction)).dp
+    val miniHeight = 64.dp
+    // ★ Corner radius animates from pill (32dp) → 0dp as it blooms
+    val cornerRadius = (32f * (1f - expansionFraction)).coerceAtLeast(0f).dp
     val miniShape = RoundedCornerShape(cornerRadius)
 
-    // ★ Scale: 1.0 at rest → up to 12x as it blooms (fills the screen)
-    val bloomScale = 1f + expansionFraction * 11f
-    // ★ Alpha: text + border fade out as it blooms
-    val contentAlpha = (1f - expansionFraction * 1.5f).coerceIn(0f, 1f)
+    // ★ Bloom scale — same as Astra: 1x → 15x
+    val bloomScale = 1f + expansionFraction * 14f
+    // ★ Content alpha — fades SLOWLY so bloom is visible (same as Astra)
+    val contentAlpha = (1f - ((expansionFraction - 0.3f) / 0.6f)).coerceIn(0f, 1f)
+    // ★ Upward translation — drifts toward center as it blooms
+    val bloomTranslationY = -expansionFraction * 200f
 
     // Drag gesture handlers (swipe up to bloom, swipe horizontal to dismiss)
     val dragModifier = if (!isFullPlayerOpen) {
@@ -209,14 +213,16 @@ fun CynthiaMiniPlayer(
         modifier = Modifier
             .graphicsLayer {
                 compositingStrategy = CompositingStrategy.Offscreen
+                // ★ Transform origin = bottom center — grows upward
+                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
                 translationX = offsetX.value
-                translationY = offsetY.value.coerceAtLeast(-maxSwipeUpPx)
+                translationY = offsetY.value.coerceAtLeast(-maxSwipeUpPx) + bloomTranslationY
                 val s = scale.value * bloomScale
                 scaleX = s
                 scaleY = s
-                // Fade during horizontal swipe dismiss
                 alpha = (1f - abs(offsetX.value) / screenWidthPx).coerceIn(0f, 1f) *
-                    (1f - (abs(offsetY.value) / maxSwipeUpPx)).coerceIn(0f, 1f)
+                    (1f - (abs(offsetY.value) / maxSwipeUpPx)).coerceIn(0f, 1f) *
+                    contentAlpha
             }
             .then(dragModifier)
     ) {
@@ -268,11 +274,15 @@ fun CynthiaMiniPlayer(
                     .graphicsLayer { alpha = contentAlpha },
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // ── LEFT: circular album art ──────────────────────────────
+                // ── LEFT: circular album art with progress ring (SAME as Astra) ──
+                val progress = if (durationMs > 0) {
+                    (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+                } else 0f
+
                 Box(
                     modifier = Modifier
                         .padding(start = 8.dp)
-                        .size(40.dp)
+                        .size(56.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
@@ -280,8 +290,37 @@ fun CynthiaMiniPlayer(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
+                    // ★ Progress ring (around album art — same as Astra)
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val strokeWidth = 2.dp.toPx()
+                        val diameter = size.minDimension - strokeWidth
+                        val topLeft = androidx.compose.ui.geometry.Offset(
+                            (size.width - diameter) / 2f,
+                            (size.height - diameter) / 2f
+                        )
+                        val arcSize = androidx.compose.ui.geometry.Size(diameter, diameter)
+                        // Background ring
+                        drawArc(
+                            color = Color.White.copy(alpha = 0.15f),
+                            startAngle = -90f, sweepAngle = 360f, useCenter = false,
+                            topLeft = topLeft, size = arcSize,
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                width = strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round
+                            )
+                        )
+                        // Progress ring
+                        drawArc(
+                            color = Color.White,
+                            startAngle = -90f, sweepAngle = 360f * progress, useCenter = false,
+                            topLeft = topLeft, size = arcSize,
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                width = strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round
+                            )
+                        )
+                    }
+                    // Album art circle
                     Box(
-                        modifier = Modifier.size(36.dp).clip(CircleShape),
+                        modifier = Modifier.size(46.dp).clip(CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         if (albumArtUri != null) {

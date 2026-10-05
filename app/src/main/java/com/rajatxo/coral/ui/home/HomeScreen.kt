@@ -1022,14 +1022,17 @@ fun HomeScreen(
         // or FullPlayer (dating-app profile style) based on the user's
         // Player Design Style preference in Settings → Appearance.
         val playerStyle by com.rajatxo.coral.data.prefs.PlayerStyleManager.playerStyle.collectAsState()
-        // ★ Full player overlay — alpha tied to playerExpansion so it fades
-        //   in as the miniplayer blooms (scales up). Replaces the old
-        //   AnimatedVisibility(slideIn + fadeIn) with a smoother morph.
+        // ★ Full player overlay — alpha DELAYED so the bloom is visible first.
+        //   Full player starts fading in at 40% expansion, reaches full at 100%.
+        //   This way the first 40% of the animation is JUST the blooming miniplayer
+        //   (visible!), and the remaining 60% is the full player fading in over
+        //   the dissolved miniplayer.
         if (showFullPlayer || playerExpansion.value > 0.01f) {
+            val fullPlayerAlpha = ((playerExpansion.value - 0.4f) / 0.6f).coerceIn(0f, 1f)
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer { alpha = playerExpansion.value }
+                    .graphicsLayer { alpha = fullPlayerAlpha }
             ) {
             if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.CORAL) {
                 com.rajatxo.coral.ui.player.CoralPlayer(
@@ -1354,11 +1357,15 @@ private fun MiniPlayer(
     val pillShape: Shape = RoundedCornerShape((32f * (1f - expansionFraction)).coerceAtLeast(0f).dp)
 
     // ★ Bloom scale — miniplayer scales up to fill the screen as it blooms.
-    //   At expansion=0, scale=1 (normal). At expansion=1, scale=12 (fills screen).
-    val bloomScale = 1f + expansionFraction * 11f
-    // ★ Content alpha — fades out as the miniplayer blooms (so the full
-    //   player beneath shows through).
-    val contentAlpha = (1f - expansionFraction * 1.5f).coerceIn(0f, 1f)
+    //   At expansion=0, scale=1 (normal). At expansion=1, scale=15 (fills screen).
+    val bloomScale = 1f + expansionFraction * 14f
+    // ★ Content alpha — fades out SLOWLY so the bloom is visible. Stays
+    //   at full alpha until 30% expansion, then fades to 0 by 90%.
+    val contentAlpha = (1f - ((expansionFraction - 0.3f) / 0.6f)).coerceIn(0f, 1f)
+    // ★ Upward translation — as the miniplayer blooms, it drifts upward
+    //   toward the center of the screen. This makes the bloom feel like
+    //   the pill is "rising up" to become the full player.
+    val bloomTranslationY = -expansionFraction * 200f
 
     // ─── Gesture state ──────────────────────────────────────────────
     val scope = rememberCoroutineScope()
@@ -1411,11 +1418,11 @@ private fun MiniPlayer(
             .navigationBarsPadding()
             .graphicsLayer {
                 compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
+                // ★ Transform origin = bottom center — so the pill grows
+                //   upward from the bottom of the screen, filling it.
+                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
                 translationX = offsetX.value
-                // Cap upward drag — mini player only moves up to 60dp
-                // worth of pixels. Prevents dragging it all the way to the
-                // top of the screen. Beyond that, only the fade continues.
-                translationY = offsetY.value.coerceAtLeast(-maxSwipeUpPx)
+                translationY = offsetY.value.coerceAtLeast(-maxSwipeUpPx) + bloomTranslationY
                 // ★ Bloom scale — drag scale * bloom scale
                 val s = scale.value * bloomScale
                 scaleX = s
