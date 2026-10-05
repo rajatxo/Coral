@@ -120,6 +120,29 @@ fun CynthiaHomeScreen(
     androidx.compose.runtime.LaunchedEffect(currentSongId) {
         if (currentSongId != null) miniPlayerDismissed = false
     }
+
+    // ★ System back button handler — dismisses overlays instead of closing the app.
+    //   Priority order: full player → search → settings → customization panels →
+    //   profile → top card → speed dial card.
+    androidx.activity.compose.BackHandler(
+        enabled = showFullPlayer || showSearch || showSettings ||
+                  showCustomizationPanel || showProfilePanel ||
+                  showTopCard || showTopCardCustomization || showSpeedDialCard ||
+                  showMiniPlayerCustomization
+    ) {
+        when {
+            showFullPlayer -> onFullPlayerDismiss()
+            showSearch -> { showSearch = false }
+            showSettings -> { showSettings = false }
+            showCustomizationPanel -> { showCustomizationPanel = false }
+            showMiniPlayerCustomization -> { showMiniPlayerCustomization = false }
+            showTopCardCustomization -> { showTopCardCustomization = false }
+            showProfilePanel -> { showProfilePanel = false }
+            showTopCard -> { showTopCard = false }
+            showSpeedDialCard -> { showSpeedDialCard = false }
+        }
+    }
+
     val onSongClickWithReset: (Song) -> Unit = { song -> onSongClick(song) }
 
     // ★ Record playback history + daily play count when the current song
@@ -518,6 +541,7 @@ fun CynthiaHomeScreen(
                     title = currentSongTitle ?: "",
                     artist = currentSongArtist ?: "",
                     albumArtUri = currentSongArt,
+                    songId = currentSongId,
                     isPlaying = isPlaying,
                     positionMs = miniPlayerPositionMs,
                     durationMs = miniPlayerDurationMs,

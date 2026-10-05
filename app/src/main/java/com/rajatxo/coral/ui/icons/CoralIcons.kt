@@ -63,6 +63,28 @@ object CoralIcons {
         )
     }.build()
 
+    /** Material-style outline icon (stroke only, 960×960 viewport). */
+    private fun materialStroke(
+        name: String,
+        pathBuilder: PathBuilder.() -> Unit
+    ): ImageVector = ImageVector.Builder(
+        name = name,
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 960f,
+        viewportHeight = 960f
+    ).apply {
+        path(
+            fill = null,
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 40f,
+            strokeLineCap = StrokeCap.Round,
+            strokeLineJoin = StrokeJoin.Round,
+            strokeLineMiter = 4f,
+            pathBuilder = pathBuilder
+        )
+    }.build()
+
     /** Single musical note. Used as the "Songs" tab icon. */
     val Music: ImageVector = stroke("Music") {
         // stem + cross-bar
@@ -507,6 +529,63 @@ object CoralIcons {
         curveToRelative(-1.5f, -1.5f, -3f, -3.2f, -3f, -5.5f)
         close()
     }
+
+    /**
+     * Material-style outline heart (user-provided SVG, 960×960 viewport).
+     * Heart shape with a small notch at the bottom + rounded lobes.
+     * Used as the favorite toggle on the Cynthia miniplayer (RIGHT side).
+     */
+    val HeartOutline: ImageVector = materialStroke("HeartOutline") {
+        moveTo(480f, -120f)
+        lineTo(422f, -172f)
+        quadTo(321f, -263f, 255f, -329f)
+        quadTo(189f, -395f, 150f, -447.5f)
+        quadTo(111f, -500f, 95.5f, -544f)
+        quadTo(80f, -588f, 80f, -634f)
+        quadTo(80f, -728f, 143f, -791f)
+        quadTo(206f, -854f, 300f, -854f)
+        quadTo(352f, -854f, 399f, -832f)
+        quadTo(446f, -810f, 480f, -770f)
+        quadTo(514f, -810f, 561f, -832f)
+        quadTo(608f, -854f, 660f, -854f)
+        quadTo(754f, -854f, 817f, -791f)
+        quadTo(880f, -728f, 880f, -634f)
+        quadTo(880f, -588f, 864.5f, -544f)
+        quadTo(849f, -500f, 810f, -447.5f)
+        quadTo(771f, -395f, 705f, -329f)
+        quadTo(639f, -263f, 538f, -172f)
+        lineTo(480f, -120f)
+        close()
+    }
+
+    /**
+     * Material-style filled heart (user-provided SVG, 960×960 viewport).
+     * Same shape as HeartOutline but filled solid. Used when the song is
+     * favorited — coral color.
+     */
+    val HeartFilledMaterial: ImageVector = filled("HeartFilledMaterial", 960f, 960f) {
+        moveTo(480f, -120f)
+        lineTo(422f, -172f)
+        quadTo(321f, -263f, 255f, -329f)
+        quadTo(189f, -395f, 150f, -447.5f)
+        quadTo(111f, -500f, 95.5f, -544f)
+        quadTo(80f, -588f, 80f, -634f)
+        quadTo(80f, -728f, 143f, -791f)
+        quadTo(206f, -854f, 300f, -854f)
+        quadTo(352f, -854f, 399f, -832f)
+        quadTo(446f, -810f, 480f, -770f)
+        quadTo(514f, -810f, 561f, -832f)
+        quadTo(608f, -854f, 660f, -854f)
+        quadTo(754f, -854f, 817f, -791f)
+        quadTo(880f, -728f, 880f, -634f)
+        quadTo(880f, -588f, 864.5f, -544f)
+        quadTo(849f, -500f, 810f, -447.5f)
+        quadTo(771f, -395f, 705f, -329f)
+        quadTo(639f, -263f, 538f, -172f)
+        lineTo(480f, -120f)
+        close()
+    }
+
 
     /** Lucide search icon (magnifying glass, MIT licensed). */
     val Search: ImageVector = stroke("Search") {

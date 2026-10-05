@@ -76,6 +76,7 @@ fun CynthiaMiniPlayer(
     title: String,
     artist: String,
     albumArtUri: android.net.Uri?,
+    songId: Long?,
     isPlaying: Boolean,
     positionMs: Long = 0L,
     durationMs: Long = 0L,
@@ -364,6 +365,35 @@ fun CynthiaMiniPlayer(
                         fontFamily = CalSansFamily,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // ── RIGHT: favorite heart icon ─────────────────────────────
+                // ★ Material-style outline heart (user-provided SVG).
+                //   Tap → toggle favorite. Filled coral when favorited.
+                val favorites by com.rajatxo.coral.data.store.PlaylistStore.favorites.collectAsState()
+                val isFavorite = songId != null && songId in favorites.songIds
+                Box(
+                    modifier = Modifier
+                        .padding(end = 8.dp)
+                        .size(36.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = {
+                                songId?.let {
+                                    com.rajatxo.coral.data.store.PlaylistStore.toggleFavorite(it)
+                                }
+                            }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isFavorite) CoralIcons.HeartFilledMaterial
+                                      else CoralIcons.HeartOutline,
+                        contentDescription = if (isFavorite) "Unfavorite" else "Favorite",
+                        tint = if (isFavorite) Color(0xFFFF6B6B) else Color.White,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
