@@ -123,24 +123,57 @@ fun CynthiaMiniPlayer(
         }
     }
 
-    // ★ Read customization from prefs (width, height, corner, offset, shape).
-    //   Same pattern as TodaysTopCard — user can customize via the panel.
+    // ★ MORPH dimensions — the pill ACTUALLY grows to fill the screen,
+    //   not scaled up. This way the border + glass blur redraw at the
+    //   new size (sharp, not pixelated) and the pill's top edge actually
+    //   expands upward (which the user wants to see).
+    //
+    //   At expansion=0: 240×64dp pill at the bottom
+    //   At expansion=1: full screen (matches the full player's frame)
     val cardCustom by com.rajatxo.coral.data.prefs.CynthiaMiniPlayerCustomization
         .customization.collectAsState()
 
-    // ★ Capsule dimensions — from prefs (default 240×64dp, same as Astra)
-    val miniWidth = cardCustom.widthDp.dp
-    val miniHeight = cardCustom.heightDp.dp
-    // ★ Corner radius animates from saved corner → 0dp as it blooms
+    val screenWidthDp = with(density) {
+        androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp
+    }
+    val screenHeightDp = with(density) {
+        androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
+    }
+    // Lerp width: saved width → screen width
+    val morphWidth = androidx.compose.ui.unit.lerp(
+        cardCustom.widthDp.dp, screenWidthDp, expansionFraction
+    )
+    // Lerp height: saved height → screen height
+    val morphHeight = androidx.compose.ui.unit.lerp(
+        cardCustom.heightDp.dp, screenHeightDp, expansionFraction
+    )
+    // Lerp corner radius: saved corner → 0dp (rectangle)
     val cornerRadius = (cardCustom.cornerRadiusDp * (1f - expansionFraction)).coerceAtLeast(0f).dp
     val miniShape = RoundedCornerShape(cornerRadius)
 
-    // ★ Bloom scale — same as Astra: 1x → 15x
-    val bloomScale = 1f + expansionFraction * 14f
-    // ★ Content alpha — fades SLOWLY so bloom is visible (same as Astra)
-    val contentAlpha = (1f - ((expansionFraction - 0.3f) / 0.6f)).coerceIn(0f, 1f)
-    // ★ Upward translation — drifts toward center as it blooms
-    val bloomTranslationY = -expansionFraction * 200f
+    // ★ Content alpha — fades out so the full player shows through.
+    //   Stays at 1.0 until 40% expansion (so the morph is visible),
+    //   then fades to 0 by 90%.
+    val contentAlpha = (1f - ((expansionFraction - 0.4f) / 0.5f)).coerceIn(0f, 1f)
+
+    // ★ Upward translation — as the pill grows, it also moves UP so its
+    //   center stays roughly in place (instead of growing downward off
+    //   the screen). At expansion=0, no translation. At expansion=1,
+    //   the pill has grown to full screen so translation = 0 (it fills
+    //   the screen from top to bottom).
+    //
+    //   During the morph, translate up by: (grown height - original height) / 2
+    //   so the pill's vertical center stays put. But we also want it to
+    //   end up filling the screen, so cap the translation so the top
+    //   edge reaches y=0 by expansion=1.
+    val originalHeightPx = with(density) { cardCustom.heightDp.dp.toPx() }
+    val morphHeightPx = with(density) { morphHeight.toPx() }
+    val screenHeightPx = with(density) { screenHeightDp.toPx() }
+    // Translation so the pill's BOTTOM stays anchored at its original position
+    // while the TOP grows upward. At expansion=0: translation=0. At expansion=1:
+    // translation = -(screenHeightPx - originalHeightPx) so the top edge
+    // reaches y=0.
+    val bloomTranslationY = -(morphHeightPx - originalHeightPx)
 
     // Drag gesture handlers:
     //   - Swipe UP → bloom morph into full player
@@ -225,15 +258,17 @@ fun CynthiaMiniPlayer(
     Box(
         modifier = Modifier
             .graphicsLayer {
-                compositingStrategy = CompositingStrategy.Offscreen
-                // ★ Transform origin = bottom center — grows upward
-                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
+                // ★ NO offscreen compositing — we're morphing the actual
+                //   dimensions (not scaling a buffer), so the border + glass
+                //   blur redraw sharp at every size during the animation.
+                // ★ NO scale — width/height are lerped directly (morphWidth/morphHeight)
                 translationX = offsetX.value + cardCustom.offsetX
                 translationY = offsetY.value.coerceAtLeast(-maxSwipeUpPx) + bloomTranslationY + cardCustom.offsetY
-                val s = scale.value * bloomScale
+                // Drag scale (subtle, for press feedback) only — no bloom scale
+                val s = scale.value
                 scaleX = s
                 scaleY = s
-                // Fade during horizontal swipe dismiss OR bloom
+                // Fade during horizontal swipe dismiss OR content fade during morph
                 alpha = (1f - abs(offsetX.value) / screenWidthPx).coerceIn(0f, 1f) *
                     (1f - (abs(offsetY.value) / maxSwipeUpPx)).coerceIn(0f, 1f) *
                     contentAlpha
@@ -243,8 +278,8 @@ fun CynthiaMiniPlayer(
         // ─── Glass capsule body ─────────────────────────────────────────
         val bodyModifier = if (backdrop != null) {
             Modifier
-                .width(miniWidth)
-                .height(miniHeight)
+                .width(morphWidth)
+                .height(morphHeight)
                 .clip(miniShape)
                 .drawBackdrop(
                     backdrop = backdrop,
@@ -272,8 +307,8 @@ fun CynthiaMiniPlayer(
                 }
         } else {
             Modifier
-                .width(miniWidth)
-                .height(miniHeight)
+                .width(morphWidth)
+                .height(morphHeight)
                 .clip(miniShape)
                 .background(Color.Black.copy(alpha = 0.65f))
                 .border(1.dp, Color.White.copy(alpha = 0.18f * contentAlpha), miniShape)
