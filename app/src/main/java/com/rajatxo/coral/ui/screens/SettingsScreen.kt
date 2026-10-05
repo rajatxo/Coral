@@ -86,9 +86,10 @@ fun SettingsScreen(
     val defaultTab by com.rajatxo.coral.data.prefs.NavBarConfig.defaultTab.collectAsState()
     var versionTapCount by remember { mutableIntStateOf(0) }
 
-    // ★ Album cover color background (like Astra's songs page).
-    //   Reads the last cached palette from PaletteCache. Uses the palette's
-    //   primary color as the base for a dark vertical gradient.
+    // ★ SOLID album-cover-color background (like Astra's songs page).
+    //   Reads PaletteCache for the last extracted palette. Uses palette
+    //   colors at FULL alpha (not transparent) so the settings page is
+    //   solid — you can NOT see through it to the Quick Picks screen.
     val cachedPalette by PaletteCache.cached.collectAsState()
     val palette = cachedPalette?.second ?: com.rajatxo.coral.util.CoralPalette.Default
     val bgBase = palette.primary
@@ -100,8 +101,8 @@ fun SettingsScreen(
             .background(
                 Brush.verticalGradient(
                     colorStops = arrayOf(
-                        0.0f to bgBase.copy(alpha = 0.6f),
-                        0.3f to bgDeep.copy(alpha = 0.8f),
+                        0.0f to bgBase,
+                        0.3f to bgDeep,
                         1.0f to Color(0xFF050507)
                     )
                 )
@@ -109,7 +110,7 @@ fun SettingsScreen(
             .verticalScroll(rememberScrollState())
             .padding(bottom = 24.dp)
     ) {
-        // Big title at top-RIGHT + back button at top-LEFT
+        // Big title at CENTER + back button at top-LEFT
         Box(
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -120,9 +121,9 @@ fun SettingsScreen(
                 fontWeight = FontWeight.Bold,
                 fontFamily = CalSansFamily,
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
+                    .align(Alignment.TopCenter)
                     .statusBarsPadding()
-                    .padding(end = 20.dp, top = 16.dp)
+                    .padding(top = 16.dp)
             )
             // Back button (top-left, chevron down)
             Box(
