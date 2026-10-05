@@ -1121,19 +1121,9 @@ private fun SpeedDialSection(
             }
         }
 
-        // ═══ Page indicator — thin line with center dot showing page number ═══
-        // A short thin horizontal line with both ends fading to transparent,
-        // and a white circle (dot) centered on the line. Inside the dot,
-        // the current page number is shown (1, 2, 3).
-        //
-        // Replaces the previous LiquidBarPageIndicator (animated gradient
-        // bars) per user request — simpler, cleaner, more legible.
-        LineWithDotPageIndicator(
-            pagerState = pagerState,
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .padding(top = 2.dp)
-        )
+        // ═══ Page indicator — REMOVED per user request ═══
+        // The 1-2-3 dot page indicator below the Speed Dial grid was
+        // removed. Content below (Recent, etc.) automatically moves up.
     }
 }
 

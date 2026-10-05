@@ -67,7 +67,7 @@ import com.rajatxo.coral.ui.theme.CalSansFamily
  * Tapping the menu (•••) icon on the TodaysTopCard also opens this panel
  * in TOP_CARD mode.
  */
-enum class CustomizationMode { NAV_BAR, SEARCH_FAB, TOP_CARD }
+enum class CustomizationMode { NAV_BAR, SEARCH_FAB, TOP_CARD, MINI_PLAYER }
 
 @Composable
 internal fun CynthiaCustomizationPanel(
@@ -237,6 +237,7 @@ private fun CustomizationPanelContent(
     val navCustom by CynthiaNavBarCustomization.customization.collectAsState()
     val searchCustom by CynthiaSearchFabCustomization.customization.collectAsState()
     val topCardCustom by com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.customization.collectAsState()
+    val miniPlayerCustom by com.rajatxo.coral.data.prefs.CynthiaMiniPlayerCustomization.customization.collectAsState()
     val savedSearchPos by com.rajatxo.coral.data.prefs.CynthiaSearchFabPosition.position.collectAsState()
     val savedTabPos by com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.position.collectAsState()
 
@@ -310,6 +311,25 @@ private fun CustomizationPanelContent(
                     .setOffset(topCardCustom.offsetX, it)
             }
         )
+        CustomizationMode.MINI_PLAYER -> listOf(
+            Field("Width", miniPlayerCustom.widthDp, 180f..400f, "dp") {
+                com.rajatxo.coral.data.prefs.CynthiaMiniPlayerCustomization.setWidth(it)
+            },
+            Field("Height", miniPlayerCustom.heightDp, 48f..120f, "dp") {
+                com.rajatxo.coral.data.prefs.CynthiaMiniPlayerCustomization.setHeight(it)
+            },
+            Field("Corner", miniPlayerCustom.cornerRadiusDp, 0f..50f, "dp") {
+                com.rajatxo.coral.data.prefs.CynthiaMiniPlayerCustomization.setCornerRadius(it)
+            },
+            Field("Pos X", miniPlayerCustom.offsetX, -1000f..1000f, "") {
+                com.rajatxo.coral.data.prefs.CynthiaMiniPlayerCustomization
+                    .setOffset(it, miniPlayerCustom.offsetY)
+            },
+            Field("Pos Y", miniPlayerCustom.offsetY, -2000f..2000f, "") {
+                com.rajatxo.coral.data.prefs.CynthiaMiniPlayerCustomization
+                    .setOffset(miniPlayerCustom.offsetX, it)
+            }
+        )
     }
 
     // Currently selected field index
@@ -326,12 +346,13 @@ private fun CustomizationPanelContent(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Title (Nav Bar / Search Button / Today's Card)
+            // Title (Nav Bar / Search Button / Today's Card / Mini Player)
             Text(
                 text = when (effectiveMode) {
                     CustomizationMode.NAV_BAR -> "Nav Bar"
                     CustomizationMode.SEARCH_FAB -> "Search Button"
                     CustomizationMode.TOP_CARD -> "Today's Card"
+                    CustomizationMode.MINI_PLAYER -> "Mini Player"
                 },
                 color = Color.White,
                 fontSize = 16.sp,
@@ -362,6 +383,9 @@ private fun CustomizationPanelContent(
                                     }
                                     CustomizationMode.TOP_CARD -> {
                                         com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.reset()
+                                    }
+                                    CustomizationMode.MINI_PLAYER -> {
+                                        com.rajatxo.coral.data.prefs.CynthiaMiniPlayerCustomization.reset()
                                     }
                                 }
                             }
@@ -542,6 +566,9 @@ private fun CustomizationPanelContent(
                     CustomizationMode.TOP_CARD -> {
                         com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.reset()
                     }
+                    CustomizationMode.MINI_PLAYER -> {
+                        com.rajatxo.coral.data.prefs.CynthiaMiniPlayerCustomization.reset()
+                    }
                 }
             },
             modifier = Modifier.fillMaxWidth()
@@ -555,6 +582,7 @@ private fun CustomizationPanelContent(
                 CustomizationMode.NAV_BAR -> navCustom.shape
                 CustomizationMode.SEARCH_FAB -> searchCustom.shape
                 CustomizationMode.TOP_CARD -> topCardCustom.shape
+                CustomizationMode.MINI_PLAYER -> miniPlayerCustom.shape
             },
             onSelected = {
                 when (effectiveMode) {
@@ -562,6 +590,8 @@ private fun CustomizationPanelContent(
                     CustomizationMode.SEARCH_FAB -> CynthiaSearchFabCustomization.setShape(it)
                     CustomizationMode.TOP_CARD ->
                         com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.setShape(it)
+                    CustomizationMode.MINI_PLAYER ->
+                        com.rajatxo.coral.data.prefs.CynthiaMiniPlayerCustomization.setShape(it)
                 }
             }
         )

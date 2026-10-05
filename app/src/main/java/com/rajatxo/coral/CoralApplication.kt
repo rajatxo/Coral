@@ -28,6 +28,7 @@ class CoralApplication : Application() {
         com.rajatxo.coral.data.prefs.CynthiaNavBarCustomization.init(this)
         com.rajatxo.coral.data.prefs.CynthiaSearchFabCustomization.init(this)
         com.rajatxo.coral.data.prefs.CynthiaTodaysTopCardCustomization.init(this)
+        com.rajatxo.coral.data.prefs.CynthiaMiniPlayerCustomization.init(this)
         com.rajatxo.coral.data.prefs.UserName.init(this)
         com.rajatxo.coral.data.prefs.SoundHapticsManager.init(this)
         com.rajatxo.coral.data.prefs.CrossfadeManager.init(this)

@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -91,6 +93,7 @@ fun CynthiaMiniPlayer(
     onSwipeUp: () -> Unit,
     onSwipeDismiss: () -> Unit,
     isFullPlayerOpen: Boolean,
+    onShowCustomizationPanel: () -> Unit = {},
     backdrop: LayerBackdrop? = null
 ) {
     val scope = rememberCoroutineScope()
@@ -120,11 +123,16 @@ fun CynthiaMiniPlayer(
         }
     }
 
-    // ★ Capsule dimensions — 240×64dp glass pill (SAME as Astra's miniplayer)
-    val miniWidth = 240.dp
-    val miniHeight = 64.dp
-    // ★ Corner radius animates from pill (32dp) → 0dp as it blooms
-    val cornerRadius = (32f * (1f - expansionFraction)).coerceAtLeast(0f).dp
+    // ★ Read customization from prefs (width, height, corner, offset, shape).
+    //   Same pattern as TodaysTopCard — user can customize via the panel.
+    val cardCustom by com.rajatxo.coral.data.prefs.CynthiaMiniPlayerCustomization
+        .customization.collectAsState()
+
+    // ★ Capsule dimensions — from prefs (default 240×64dp, same as Astra)
+    val miniWidth = cardCustom.widthDp.dp
+    val miniHeight = cardCustom.heightDp.dp
+    // ★ Corner radius animates from saved corner → 0dp as it blooms
+    val cornerRadius = (cardCustom.cornerRadiusDp * (1f - expansionFraction)).coerceAtLeast(0f).dp
     val miniShape = RoundedCornerShape(cornerRadius)
 
     // ★ Bloom scale — same as Astra: 1x → 15x
@@ -215,8 +223,8 @@ fun CynthiaMiniPlayer(
                 compositingStrategy = CompositingStrategy.Offscreen
                 // ★ Transform origin = bottom center — grows upward
                 transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
-                translationX = offsetX.value
-                translationY = offsetY.value.coerceAtLeast(-maxSwipeUpPx) + bloomTranslationY
+                translationX = offsetX.value + cardCustom.offsetX
+                translationY = offsetY.value.coerceAtLeast(-maxSwipeUpPx) + bloomTranslationY + cardCustom.offsetY
                 val s = scale.value * bloomScale
                 scaleX = s
                 scaleY = s
@@ -249,11 +257,13 @@ fun CynthiaMiniPlayer(
                     }
                 )
                 .border(1.dp, Color.White.copy(alpha = 0.18f * contentAlpha), miniShape)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onClick
-                )
+                // ★ Tap → open full player. Long press (hold) → open customization panel.
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onTap = { onClick() },
+                        onLongPress = { onShowCustomizationPanel() }
+                    )
+                }
         } else {
             Modifier
                 .width(miniWidth)
@@ -261,11 +271,13 @@ fun CynthiaMiniPlayer(
                 .clip(miniShape)
                 .background(Color.Black.copy(alpha = 0.65f))
                 .border(1.dp, Color.White.copy(alpha = 0.18f * contentAlpha), miniShape)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onClick
-                )
+                // ★ Tap → open full player. Long press (hold) → open customization panel.
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onTap = { onClick() },
+                        onLongPress = { onShowCustomizationPanel() }
+                    )
+                }
         }
         Box(modifier = bodyModifier) {
             Row(

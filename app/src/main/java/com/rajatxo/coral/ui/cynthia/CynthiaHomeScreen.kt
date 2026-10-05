@@ -110,6 +110,9 @@ fun CynthiaHomeScreen(
     //   pattern). Opened by tapping the "Speed dial" text or the chevron
     //   beside it in QuickPicksScreen.
     var showSpeedDialCard by remember { mutableStateOf(false) }
+    // ★ MiniPlayer customization panel — opens when user HOLDS the miniplayer.
+    //   Same square glass panel as the nav bar's, but in MINI_PLAYER mode.
+    var showMiniPlayerCustomization by remember { mutableStateOf(false) }
     val onSongClickWithReset: (Song) -> Unit = { song -> onSongClick(song) }
 
     // ★ Record playback history + daily play count when the current song
@@ -458,6 +461,16 @@ fun CynthiaHomeScreen(
             mode = CustomizationMode.TOP_CARD
         )
 
+        // ★ MiniPlayer customization panel — opened by HOLDING the miniplayer.
+        //   Same square glass panel, but in MINI_PLAYER mode. Lets the user
+        //   change Width/Height/Corner/Pos X/Pos Y/Shape of the miniplayer.
+        CynthiaCustomizationPanel(
+            visible = showMiniPlayerCustomization,
+            onDismiss = { showMiniPlayerCustomization = false },
+            backdrop = glassBackdrop,
+            mode = CustomizationMode.MINI_PLAYER
+        )
+
         // ★ SpeedDialCard — floating glass capsule that lets the user swipe
         //   left/right to switch Speed Dial mode (Random / Last Played).
         //   Same shape + size + position as TodaysTopCard. Rendered OUTSIDE
@@ -534,6 +547,7 @@ fun CynthiaHomeScreen(
                     onSwipeUp = { onMiniPlayerClick() },
                     onSwipeDismiss = { },
                     isFullPlayerOpen = showFullPlayer,
+                    onShowCustomizationPanel = { showMiniPlayerCustomization = true },
                     backdrop = glassBackdrop
                 )
             }
