@@ -442,30 +442,6 @@ fun HomeScreen(
             animationSpec = tween(350),
             label = "pushBack"
         )
-        // ★ Bloom morph expansion — drives the miniplayer → full player
-        //   transition. 0 = collapsed (miniplayer), 1 = expanded (full player).
-        //   The miniplayer SCALES UP to fill the screen + corner radius
-        //   animates to 0, while the full player fades in on top.
-        val playerExpansion = remember { androidx.compose.animation.core.Animatable(0f) }
-        androidx.compose.runtime.LaunchedEffect(showFullPlayer) {
-            if (showFullPlayer) {
-                playerExpansion.animateTo(
-                    1f,
-                    spring(
-                        dampingRatio = Spring.DampingRatioLowBouncy,
-                        stiffness = Spring.StiffnessMediumLow
-                    )
-                )
-            } else {
-                playerExpansion.animateTo(
-                    0f,
-                    spring(
-                        dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = Spring.StiffnessMediumLow
-                    )
-                )
-            }
-        }
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -618,7 +594,6 @@ fun HomeScreen(
                     miniPlayerDismissed = true
                 },
                 isFullPlayerOpen = showFullPlayer,
-                expansionFraction = playerExpansion.value,
                 backdrop = glassBackdrop
             )
         }
@@ -1022,18 +997,11 @@ fun HomeScreen(
         // or FullPlayer (dating-app profile style) based on the user's
         // Player Design Style preference in Settings → Appearance.
         val playerStyle by com.rajatxo.coral.data.prefs.PlayerStyleManager.playerStyle.collectAsState()
-        // ★ Full player overlay — alpha DELAYED so the bloom is visible first.
-        //   Full player starts fading in at 40% expansion, reaches full at 100%.
-        //   This way the first 40% of the animation is JUST the blooming miniplayer
-        //   (visible!), and the remaining 60% is the full player fading in over
-        //   the dissolved miniplayer.
-        if (showFullPlayer || playerExpansion.value > 0.01f) {
-            val fullPlayerAlpha = ((playerExpansion.value - 0.4f) / 0.6f).coerceIn(0f, 1f)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { alpha = fullPlayerAlpha }
-            ) {
+        AnimatedVisibility(
+            visible = showFullPlayer,
+            enter = slideInVertically { it } + fadeIn(),
+            exit = fadeOut(animationSpec = tween(200))
+        ) {
             if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.CORAL_GLASS) {
                 com.rajatxo.coral.ui.player.CoralGlassPlayer(
                     mediaController = mediaController,
@@ -1152,8 +1120,7 @@ fun HomeScreen(
                     }
                 )
             }
-            }  // ← closes Box
-        }  // ← closes if (showFullPlayer || playerExpansion > 0.01f)
+        }
 
         // Full-screen playlist detail overlay (covers nav rail + everything)
         AnimatedVisibility(
@@ -1334,7 +1301,6 @@ private fun MiniPlayer(
     onSwipeUp: () -> Unit = {},
     onSwipeDismiss: () -> Unit = {},
     isFullPlayerOpen: Boolean = false,
-    expansionFraction: Float = 0f,
     backdrop: LayerBackdrop? = null
 ) {
     // Notched mini player — pill with a U-shaped concave notch at the
@@ -1370,20 +1336,7 @@ private fun MiniPlayer(
     val favorites by com.rajatxo.coral.data.store.PlaylistStore.favorites.collectAsState()
     val isFavorite = songId != null && songId in favorites.songIds
 
-    // ★ Pill shape — corner radius animates from 32dp (pill) → 0dp (rectangle)
-    //   as the miniplayer blooms into the full player.
-    val pillShape: Shape = RoundedCornerShape((32f * (1f - expansionFraction)).coerceAtLeast(0f).dp)
-
-    // ★ Bloom scale — miniplayer scales up to fill the screen as it blooms.
-    //   At expansion=0, scale=1 (normal). At expansion=1, scale=15 (fills screen).
-    val bloomScale = 1f + expansionFraction * 14f
-    // ★ Content alpha — fades out SLOWLY so the bloom is visible. Stays
-    //   at full alpha until 30% expansion, then fades to 0 by 90%.
-    val contentAlpha = (1f - ((expansionFraction - 0.3f) / 0.6f)).coerceIn(0f, 1f)
-    // ★ Upward translation — as the miniplayer blooms, it drifts upward
-    //   toward the center of the screen. This makes the bloom feel like
-    //   the pill is "rising up" to become the full player.
-    val bloomTranslationY = -expansionFraction * 200f
+    val pillShape: Shape = RoundedCornerShape(32.dp)
 
     // ─── Gesture state ──────────────────────────────────────────────
     val scope = rememberCoroutineScope()
@@ -1435,21 +1388,13 @@ private fun MiniPlayer(
             .padding(vertical = 4.dp)
             .navigationBarsPadding()
             .graphicsLayer {
-                compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
-                // ★ Transform origin = bottom center — so the pill grows
-                //   upward from the bottom of the screen, filling it.
-                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
                 translationX = offsetX.value
-                translationY = offsetY.value.coerceAtLeast(-maxSwipeUpPx) + bloomTranslationY
-                // ★ Bloom scale — drag scale * bloom scale
-                val s = scale.value * bloomScale
+                translationY = offsetY.value.coerceAtLeast(-maxSwipeUpPx)
+                val s = scale.value
                 scaleX = s
                 scaleY = s
-                // Fade out as the mini player slides off-screen horizontally
-                // OR blooms into the full player.
                 alpha = (1f - abs(offsetX.value) / screenWidthPx).coerceIn(0f, 1f) *
-                    (1f - (abs(offsetY.value) / maxSwipeUpPx)).coerceIn(0f, 1f) *
-                    contentAlpha
+                    (1f - (abs(offsetY.value) / maxSwipeUpPx)).coerceIn(0f, 1f)
             }
             .pointerInput(Unit) {
                 detectDragGestures(

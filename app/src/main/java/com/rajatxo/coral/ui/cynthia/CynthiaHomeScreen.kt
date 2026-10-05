@@ -386,53 +386,9 @@ fun CynthiaHomeScreen(
         val onNavBarDragged: (Float, Float) -> Unit = { _, _ -> }
         val onNavBarReleased: (Float, Float) -> Unit = { _, _ -> }
 
-        // ★ BLOOM MORPH — playerExpansion drives the miniplayer → full player
-        //   transition. 0 = collapsed (miniplayer visible), 1 = expanded
-        //   (full player visible).
-        //
-        //   Yuma/ArchiveTune-inspired approach (written from scratch, no code copied):
-        //   - Miniplayer scales UP + translates UP (expands toward top)
-        //   - Nav bar + search FAB translate DOWN (slide off the bottom)
-        //   - Full player fades in (delayed alpha so bloom is visible)
-        //   - On close: reverse — nav bar slides back up, miniplayer shrinks
-        val playerExpansion = remember { androidx.compose.animation.core.Animatable(0f) }
-        androidx.compose.runtime.LaunchedEffect(showFullPlayer) {
-            if (showFullPlayer) {
-                playerExpansion.animateTo(
-                    1f,
-                    spring(
-                        dampingRatio = Spring.DampingRatioLowBouncy,
-                        stiffness = Spring.StiffnessMediumLow
-                    )
-                )
-            } else {
-                playerExpansion.animateTo(
-                    0f,
-                    spring(
-                        dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = Spring.StiffnessMediumLow
-                    )
-                )
-            }
-        }
-        // ★ Nav bar + search FAB slide DOWN off the screen as player expands.
-        //   Translation = navSlideDistance * expansion. At expansion=0, no
-        //   translation (normal position). At expansion=1, fully off-screen.
-        val navSlideDownPx = playerExpansion.value * 300f  // 300px ≈ nav bar height + margin
-
         // Use the customization width directly (no align/misalign animation)
         val navBarWidth = 150.dp
 
-        // ★ Nav bar + search FAB wrapper — slides DOWN as player expands.
-        //   At expansion=0, normal position. At expansion=1, fully off-screen
-        //   below the bottom edge. Reappears when player closes.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    translationY = navSlideDownPx
-                }
-        ) {
         CynthiaDraggableNavBar(
             tabs = cynthiaTabs,
             activeTab = selectedTab,
@@ -445,8 +401,6 @@ fun CynthiaHomeScreen(
             },
             onNavBarDragged = onNavBarDragged,
             onNavBarReleased = onNavBarReleased,
-            // ★ Pass the effective position so the nav bar DISPLAYS at center
-            //   when misaligned, without overwriting its saved position.
             effectiveX = navBarEffectiveX,
             effectiveY = navBarEffectiveY
         )
@@ -459,7 +413,6 @@ fun CynthiaHomeScreen(
                 showCustomizationPanel = true
             }
         )
-        }  // ← closes nav bar + search FAB slide-down wrapper
 
         // ═══ Cynthia search screen (temporary — delegates to Astra's) ═══
         // Tapping the search FAB opens this. For now it uses Astra's
@@ -536,10 +489,8 @@ fun CynthiaHomeScreen(
         )
 
         // ════════════════════════════════════════════════════════════════
-        // ★ BLOOM MORPH MINIPLAYER + FULL PLAYER
+        // ★ MINIPLAYER + FULL PLAYER (simple fade transition — like Astra)
         // ════════════════════════════════════════════════════════════════
-        // playerExpansion + LaunchedEffect are defined ABOVE (before the nav bar)
-        // so the nav bar slide-down can reference playerExpansion.value.
 
         // ★ Position/duration polling from mediaController
         var miniPlayerPositionMs by remember { mutableStateOf(0L) }
@@ -555,10 +506,8 @@ fun CynthiaHomeScreen(
         }
 
         // ★ Mini player — rendered when a song is playing AND not dismissed
-        //   AND not fully expanded AND search screen is NOT open.
-        //   (Without the search check, the miniplayer floats on top of the
-        //    search page — confusing UX.)
-        if (currentSongId != null && !miniPlayerDismissed && !showSearch && playerExpansion.value < 0.95f) {
+        //   AND search screen is NOT open.
+        if (currentSongId != null && !miniPlayerDismissed && !showSearch) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -572,8 +521,6 @@ fun CynthiaHomeScreen(
                     isPlaying = isPlaying,
                     positionMs = miniPlayerPositionMs,
                     durationMs = miniPlayerDurationMs,
-                    expansionFraction = playerExpansion.value,
-                    onExpansionChange = { },
                     onPlayPauseClick = onPlayPauseClick,
                     onClick = { onMiniPlayerClick() },
                     onSwipeUp = { onMiniPlayerClick() },
@@ -590,17 +537,14 @@ fun CynthiaHomeScreen(
             }
         }
 
-        // ★ Full player overlay — alpha DELAYED so the bloom is visible first.
-        //   Full player starts fading in at 40% expansion, reaches full at 100%.
-        if (showFullPlayer || playerExpansion.value > 0.01f) {
-            val fullPlayerAlpha = ((playerExpansion.value - 0.4f) / 0.6f).coerceIn(0f, 1f)
+        // ★ Full player overlay — simple fade transition (like Astra)
+        androidx.compose.animation.AnimatedVisibility(
+            visible = showFullPlayer,
+            enter = androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.fadeOut()
+        ) {
             val playerStyle by com.rajatxo.coral.data.prefs.PlayerStyleManager.playerStyle.collectAsState()
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { alpha = fullPlayerAlpha }
-            ) {
-                if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.CORAL_GLASS) {
+            if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.CORAL_GLASS) {
                     com.rajatxo.coral.ui.player.CoralGlassPlayer(
                         mediaController = mediaController,
                         songId = currentSongId,
@@ -700,7 +644,6 @@ fun CynthiaHomeScreen(
                         onAddToPlaylist = { }
                     )
                 }
-            }
         }
 
         // ═══ Settings overlay ═══

@@ -36,7 +36,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -58,25 +57,19 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 /**
- * ★ CynthiaMiniPlayer — glass capsule miniplayer for Cynthia UI.
+ * ★ CynthiaMiniPlayer — simple glass capsule miniplayer for Cynthia UI.
  *
- * Clean design:
- *   [Cover circle LEFT] [Song name + Artist name CENTER]
+ * Same shape + size + behavior as Astra's miniplayer:
+ *   [Cover circle + progress ring LEFT] [Song name + Artist name CENTER]
  *
- * Glass morphism via kyant backdrop (same as nav bar). No heart, no counter,
- * no extra labels — just cover + title + artist.
+ * Glass morphism via kyant backdrop. No bloom morph — just a simple
+ * fade transition to the full player (like Astra).
  *
- * BLOOM MORPH ANIMATION:
- *   When user drags up or taps, the miniplayer BLOOMS into the full player:
- *   - The pill scales up to fill the screen (scale 1.0 → ~12x)
- *   - Corner radius animates from pill (half height) → 0 (full rectangle)
- *   - Album art grows proportionally
- *   - Text fades out as it scales up
- *   - Full player fades in on top
- *
- * The expansion is driven by `expansionFraction` (0 = collapsed, 1 = fully
- * expanded). The caller reads this fraction to control the full player's
- * alpha.
+ * Gestures:
+ *   - Tap → opens full player
+ *   - Long press → opens customization panel
+ *   - Swipe up → opens full player
+ *   - Swipe left/right → dismiss (pause + hide)
  */
 @Composable
 fun CynthiaMiniPlayer(
@@ -86,8 +79,6 @@ fun CynthiaMiniPlayer(
     isPlaying: Boolean,
     positionMs: Long = 0L,
     durationMs: Long = 0L,
-    expansionFraction: Float,
-    onExpansionChange: (Float) -> Unit,
     onPlayPauseClick: () -> Unit,
     onClick: () -> Unit,
     onSwipeUp: () -> Unit,
@@ -99,8 +90,8 @@ fun CynthiaMiniPlayer(
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
 
-    // ★ Drag state — swipe up = open full player, swipe left/right = dismiss
-    var dragDirection by remember { mutableStateOf<Int?>(null) }  // 0=H, 1=V
+    // ★ Drag state — swipe up = open, swipe left/right = dismiss
+    var dragDirection by remember { mutableStateOf<Int?>(null) }
     var totalDragX by remember { mutableStateOf(0f) }
     var totalDragY by remember { mutableStateOf(0f) }
     val offsetX = remember { Animatable(0f) }
@@ -112,7 +103,6 @@ fun CynthiaMiniPlayer(
     }
     val maxSwipeUpPx = with(density) { 60.dp.toPx() }
 
-    // Reset offsets when full player closes
     LaunchedEffect(isFullPlayerOpen) {
         if (!isFullPlayerOpen) {
             scope.launch {
@@ -123,63 +113,18 @@ fun CynthiaMiniPlayer(
         }
     }
 
-    // ★ MORPH dimensions — the pill ACTUALLY grows to fill the screen,
-    //   not scaled up. This way the border + glass blur redraw at the
-    //   new size (sharp, not pixelated) and the pill's top edge actually
-    //   expands upward (which the user wants to see).
-    //
-    //   At expansion=0: 240×64dp pill at the bottom
-    //   At expansion=1: full screen (matches the full player's frame)
+    // ★ Read customization from prefs
     val cardCustom by com.rajatxo.coral.data.prefs.CynthiaMiniPlayerCustomization
         .customization.collectAsState()
 
-    val screenWidthDp = with(density) {
-        androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp
-    }
-    val screenHeightDp = with(density) {
-        androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
-    }
-    // Lerp width: saved width → screen width
-    val morphWidth = androidx.compose.ui.unit.lerp(
-        cardCustom.widthDp.dp, screenWidthDp, expansionFraction
-    )
-    // Lerp height: saved height → screen height
-    val morphHeight = androidx.compose.ui.unit.lerp(
-        cardCustom.heightDp.dp, screenHeightDp, expansionFraction
-    )
-    // Lerp corner radius: saved corner → 0dp (rectangle)
-    val cornerRadius = (cardCustom.cornerRadiusDp * (1f - expansionFraction)).coerceAtLeast(0f).dp
-    val miniShape = RoundedCornerShape(cornerRadius)
+    val miniWidth = cardCustom.widthDp.dp
+    val miniHeight = cardCustom.heightDp.dp
+    val miniShape = RoundedCornerShape(cardCustom.cornerRadiusDp.dp)
+    val progress = if (durationMs > 0) {
+        (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+    } else 0f
 
-    // ★ Content alpha — fades out so the full player shows through.
-    //   Stays at 1.0 until 40% expansion (so the morph is visible),
-    //   then fades to 0 by 90%.
-    val contentAlpha = (1f - ((expansionFraction - 0.4f) / 0.5f)).coerceIn(0f, 1f)
-
-    // ★ Upward translation — as the pill grows, it also moves UP so its
-    //   center stays roughly in place (instead of growing downward off
-    //   the screen). At expansion=0, no translation. At expansion=1,
-    //   the pill has grown to full screen so translation = 0 (it fills
-    //   the screen from top to bottom).
-    //
-    //   During the morph, translate up by: (grown height - original height) / 2
-    //   so the pill's vertical center stays put. But we also want it to
-    //   end up filling the screen, so cap the translation so the top
-    //   edge reaches y=0 by expansion=1.
-    val originalHeightPx = with(density) { cardCustom.heightDp.dp.toPx() }
-    val morphHeightPx = with(density) { morphHeight.toPx() }
-    val screenHeightPx = with(density) { screenHeightDp.toPx() }
-    // Translation so the pill's BOTTOM stays anchored at its original position
-    // while the TOP grows upward. At expansion=0: translation=0. At expansion=1:
-    // translation = -(screenHeightPx - originalHeightPx) so the top edge
-    // reaches y=0.
-    val bloomTranslationY = -(morphHeightPx - originalHeightPx)
-
-    // Drag gesture handlers:
-    //   - Swipe UP → bloom morph into full player
-    //   - Swipe LEFT/RIGHT → dismiss (slide off + fade, pause playback)
-    //   - Tap → open full player (detectTapGestures on body)
-    //   - Long press → customization panel (detectTapGestures on body)
+    // Drag gesture handlers
     val dragModifier = if (!isFullPlayerOpen) {
         Modifier.pointerInput(Unit) {
             detectDragGestures(
@@ -193,7 +138,6 @@ fun CynthiaMiniPlayer(
                     change.consume()
                     totalDragX += dragAmount.x
                     totalDragY += dragAmount.y
-                    // Lock direction once drag exceeds 20px
                     if (dragDirection == null) {
                         if (abs(totalDragX) > 20f || abs(totalDragY) > 20f) {
                             dragDirection = if (abs(totalDragX) > abs(totalDragY)) 0 else 1
@@ -258,28 +202,21 @@ fun CynthiaMiniPlayer(
     Box(
         modifier = Modifier
             .graphicsLayer {
-                // ★ NO offscreen compositing — we're morphing the actual
-                //   dimensions (not scaling a buffer), so the border + glass
-                //   blur redraw sharp at every size during the animation.
-                // ★ NO scale — width/height are lerped directly (morphWidth/morphHeight)
                 translationX = offsetX.value + cardCustom.offsetX
-                translationY = offsetY.value.coerceAtLeast(-maxSwipeUpPx) + bloomTranslationY + cardCustom.offsetY
-                // Drag scale (subtle, for press feedback) only — no bloom scale
+                translationY = offsetY.value.coerceAtLeast(-maxSwipeUpPx) + cardCustom.offsetY
                 val s = scale.value
                 scaleX = s
                 scaleY = s
-                // Fade during horizontal swipe dismiss OR content fade during morph
                 alpha = (1f - abs(offsetX.value) / screenWidthPx).coerceIn(0f, 1f) *
-                    (1f - (abs(offsetY.value) / maxSwipeUpPx)).coerceIn(0f, 1f) *
-                    contentAlpha
+                    (1f - (abs(offsetY.value) / maxSwipeUpPx)).coerceIn(0f, 1f)
             }
             .then(dragModifier)
     ) {
         // ─── Glass capsule body ─────────────────────────────────────────
         val bodyModifier = if (backdrop != null) {
             Modifier
-                .width(morphWidth)
-                .height(morphHeight)
+                .width(miniWidth)
+                .height(miniHeight)
                 .clip(miniShape)
                 .drawBackdrop(
                     backdrop = backdrop,
@@ -297,8 +234,7 @@ fun CynthiaMiniPlayer(
                         drawRect(Color.Black.copy(alpha = 0.35f))
                     }
                 )
-                .border(1.dp, Color.White.copy(alpha = 0.18f * contentAlpha), miniShape)
-                // ★ Tap → open full player. Long press (hold) → open customization panel.
+                .border(1.dp, Color.White.copy(alpha = 0.18f), miniShape)
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onTap = { onClick() },
@@ -307,12 +243,11 @@ fun CynthiaMiniPlayer(
                 }
         } else {
             Modifier
-                .width(morphWidth)
-                .height(morphHeight)
+                .width(miniWidth)
+                .height(miniHeight)
                 .clip(miniShape)
                 .background(Color.Black.copy(alpha = 0.65f))
-                .border(1.dp, Color.White.copy(alpha = 0.18f * contentAlpha), miniShape)
-                // ★ Tap → open full player. Long press (hold) → open customization panel.
+                .border(1.dp, Color.White.copy(alpha = 0.18f), miniShape)
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onTap = { onClick() },
@@ -322,16 +257,10 @@ fun CynthiaMiniPlayer(
         }
         Box(modifier = bodyModifier) {
             Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { alpha = contentAlpha },
+                modifier = Modifier.fillMaxSize(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // ── LEFT: circular album art with progress ring (SAME as Astra) ──
-                val progress = if (durationMs > 0) {
-                    (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
-                } else 0f
-
+                // ── LEFT: circular album art with progress ring ──────────
                 Box(
                     modifier = Modifier
                         .padding(start = 8.dp)
@@ -343,7 +272,6 @@ fun CynthiaMiniPlayer(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    // ★ Progress ring (around album art — same as Astra)
                     Canvas(modifier = Modifier.fillMaxSize()) {
                         val strokeWidth = 2.dp.toPx()
                         val diameter = size.minDimension - strokeWidth
@@ -352,7 +280,6 @@ fun CynthiaMiniPlayer(
                             (size.height - diameter) / 2f
                         )
                         val arcSize = androidx.compose.ui.geometry.Size(diameter, diameter)
-                        // Background ring
                         drawArc(
                             color = Color.White.copy(alpha = 0.15f),
                             startAngle = -90f, sweepAngle = 360f, useCenter = false,
@@ -361,7 +288,6 @@ fun CynthiaMiniPlayer(
                                 width = strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round
                             )
                         )
-                        // Progress ring
                         drawArc(
                             color = Color.White,
                             startAngle = -90f, sweepAngle = 360f * progress, useCenter = false,
@@ -371,7 +297,6 @@ fun CynthiaMiniPlayer(
                             )
                         )
                     }
-                    // Album art circle
                     Box(
                         modifier = Modifier.size(46.dp).clip(CircleShape),
                         contentAlignment = Alignment.Center
@@ -398,7 +323,6 @@ fun CynthiaMiniPlayer(
                                 )
                             }
                         }
-                        // Play/pause overlay when paused
                         if (!isPlaying) {
                             Box(
                                 modifier = Modifier
