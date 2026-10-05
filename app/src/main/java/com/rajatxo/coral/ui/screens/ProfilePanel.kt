@@ -95,14 +95,14 @@ fun ProfilePanel(
                                     effects = {
                                         vibrancy()
                                         colorControls(
-                                            brightness = 0.05f,
+                                            brightness = 0.1f,
                                             contrast = 1f,
-                                            saturation = 1.5f
+                                            saturation = 1.3f
                                         )
-                                        blur(12f.dp.toPx())
+                                        blur(30f.dp.toPx())
                                     },
                                     onDrawSurface = {
-                                        drawRect(Color.Black.copy(alpha = 0.25f))
+                                        drawRect(Color.Black.copy(alpha = 0.45f))
                                     }
                                 )
                             } else {

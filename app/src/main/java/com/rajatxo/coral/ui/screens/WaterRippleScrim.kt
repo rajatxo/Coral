@@ -37,6 +37,20 @@ import kotlin.math.max
  * the ripple's progress (0 → 1) so it can fade/scale out in sync with
  * the ripple.
  *
+ * NON-BLOCKING DISMISS:
+ *   When the user taps outside the card, the ripple animation starts AND
+ *   the scrim immediately stops intercepting pointer events. This means
+ *   the user can interact with the screen (tap songs, swipe nav bar, drag
+ *   mini player, etc.) WHILE the ripple animation is still playing out.
+ *
+ *   The card/panel itself fades + scales + drifts up over ~1100ms, then
+ *   `onDismiss()` is called to remove it from the composition tree.
+ *
+ *   How it works:
+ *     - Pre-tap: scrim has `pointerInput` to detect taps → starts dismiss
+ *     - Post-tap: scrim + ripple have NO `pointerInput` → touches pass
+ *       through to whatever is underneath (the screen content)
+ *
  * Usage:
  * ```
  * RippleDismissContainer(onDismiss = onDismiss) { progress ->
@@ -48,8 +62,6 @@ import kotlin.math.max
  *     ) { ... }
  * }
  * ```
- *
- * After the ripple animation completes (~1100ms), `onDismiss` is called.
  */
 @Composable
 fun RippleDismissContainer(
@@ -62,7 +74,7 @@ fun RippleDismissContainer(
     val progress = remember { Animatable(0f) }
 
     // Trigger the ripple + scrim fade animation when user taps.
-    // Animation runs 0 → 1 over 1100ms (slow, gentle), then calls onDismiss.
+    // Animation runs 0 → 1 over 1100ms, THEN calls onDismiss.
     LaunchedEffect(tapPoint) {
         if (tapPoint != null) {
             progress.snapTo(0f)
@@ -78,19 +90,32 @@ fun RippleDismissContainer(
     val p = progress.value
     // Scrim alpha fades from full → 0 as ripple expands. Gentle curve.
     val scrimAlpha = (1f - p).coerceIn(0f, 1f)
+    // ★ isDismissing — true once the user has tapped (ripple is playing).
+    //   While true, the scrim + ripple do NOT intercept pointer events,
+    //   so the user can interact with the screen underneath.
+    val isDismissing = tapPoint != null
 
     Box(modifier = modifier.fillMaxSize()) {
         // ─── Scrim + ripple ────────────────────────────────────────────
+        //   Pre-tap: has pointerInput to detect the dismiss tap.
+        //   Post-tap (isDismissing=true): NO pointerInput — touches pass
+        //   through to the screen content underneath. The scrim + ripple
+        //   just play out visually as a non-interactive ghost.
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(scrimColor.copy(alpha = scrimColor.alpha * scrimAlpha))
-                .pointerInput(Unit) {
-                    detectTapGestures { offset ->
-                        // Only start a new ripple if no animation is in progress.
-                        if (tapPoint == null) tapPoint = offset
+                .then(
+                    if (!isDismissing) {
+                        Modifier.pointerInput(Unit) {
+                            detectTapGestures { offset ->
+                                if (tapPoint == null) tapPoint = offset
+                            }
+                        }
+                    } else {
+                        Modifier
                     }
-                }
+                )
         )
         tapPoint?.let { point ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
