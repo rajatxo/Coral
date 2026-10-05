@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -467,6 +469,168 @@ fun CynthiaHomeScreen(
             onDismiss = { showSpeedDialCard = false },
             backdrop = glassBackdrop
         )
+
+        // ════════════════════════════════════════════════════════════════
+        // ★ BLOOM MORPH MINIPLAYER + FULL PLAYER
+        // ════════════════════════════════════════════════════════════════
+        // The miniplayer BLOOMS into the full player — instead of a boring
+        // fade, the pill scales up to fill the screen, corner radius
+        // animates to 0, text fades, and the full player fades in on top.
+        val playerExpansion = remember { androidx.compose.animation.core.Animatable(0f) }
+
+        // ★ Position/duration polling from mediaController
+        var miniPlayerPositionMs by remember { mutableStateOf(0L) }
+        var miniPlayerDurationMs by remember { mutableStateOf(0L) }
+        androidx.compose.runtime.LaunchedEffect(mediaController, isPlaying) {
+            while (true) {
+                mediaController?.let { controller ->
+                    miniPlayerPositionMs = controller.currentPosition.coerceAtLeast(0L)
+                    miniPlayerDurationMs = controller.duration.coerceAtLeast(0L)
+                }
+                kotlinx.coroutines.delay(500)
+            }
+        }
+
+        // ★ Animate expansion when showFullPlayer changes
+        androidx.compose.runtime.LaunchedEffect(showFullPlayer) {
+            if (showFullPlayer) {
+                playerExpansion.animateTo(
+                    1f,
+                    spring(
+                        dampingRatio = Spring.DampingRatioLowBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                )
+            } else {
+                playerExpansion.animateTo(
+                    0f,
+                    spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                )
+            }
+        }
+
+        // ★ Mini player — rendered when a song is playing AND not fully expanded
+        if (currentSongId != null && playerExpansion.value < 0.95f) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = 100.dp)
+            ) {
+                CynthiaMiniPlayer(
+                    title = currentSongTitle ?: "",
+                    artist = currentSongArtist ?: "",
+                    albumArtUri = currentSongArt,
+                    isPlaying = isPlaying,
+                    expansionFraction = playerExpansion.value,
+                    onExpansionChange = { },
+                    onPlayPauseClick = onPlayPauseClick,
+                    onClick = { onMiniPlayerClick() },
+                    onSwipeUp = { onMiniPlayerClick() },
+                    onSwipeDismiss = { },
+                    isFullPlayerOpen = showFullPlayer,
+                    backdrop = glassBackdrop
+                )
+            }
+        }
+
+        // ★ Full player overlay — fades in as the miniplayer blooms
+        if (showFullPlayer || playerExpansion.value > 0.01f) {
+            val playerStyle by com.rajatxo.coral.data.prefs.PlayerStyleManager.playerStyle.collectAsState()
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = playerExpansion.value }
+            ) {
+                if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.CORAL) {
+                    com.rajatxo.coral.ui.player.CoralPlayer(
+                        mediaController = mediaController,
+                        songId = currentSongId,
+                        title = currentSongTitle ?: "",
+                        artist = currentSongArtist ?: "",
+                        albumName = currentSongAlbum,
+                        albumArtUri = currentSongArt,
+                        isPlaying = isPlaying,
+                        onPlayPauseClick = onPlayPauseClick,
+                        onNextClick = onNextClick,
+                        onPrevClick = onPrevClick,
+                        onSeek = onSeek,
+                        onDismiss = onFullPlayerDismiss,
+                        onAddToPlaylist = { }
+                    )
+                } else if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.SPIRAL) {
+                    com.rajatxo.coral.ui.player.SpiralPlayer(
+                        mediaController = mediaController,
+                        songId = currentSongId,
+                        title = currentSongTitle ?: "",
+                        artist = currentSongArtist ?: "",
+                        albumName = currentSongAlbum,
+                        albumArtUri = currentSongArt,
+                        isPlaying = isPlaying,
+                        onPlayPauseClick = onPlayPauseClick,
+                        onNextClick = onNextClick,
+                        onPrevClick = onPrevClick,
+                        onSeek = onSeek,
+                        onDismiss = onFullPlayerDismiss,
+                        onAddToPlaylist = { },
+                        onSongDelete = { }
+                    )
+                } else if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.SPIRAL_2) {
+                    com.rajatxo.coral.ui.player.Spiral2Player(
+                        mediaController = mediaController,
+                        songId = currentSongId,
+                        title = currentSongTitle ?: "",
+                        artist = currentSongArtist ?: "",
+                        albumName = currentSongAlbum,
+                        albumArtUri = currentSongArt,
+                        isPlaying = isPlaying,
+                        onPlayPauseClick = onPlayPauseClick,
+                        onNextClick = onNextClick,
+                        onPrevClick = onPrevClick,
+                        onSeek = onSeek,
+                        onDismiss = onFullPlayerDismiss,
+                        onAddToPlaylist = { },
+                        onSongDelete = { }
+                    )
+                } else if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.SPIRAL_3) {
+                    com.rajatxo.coral.ui.player.Spiral3Player(
+                        mediaController = mediaController,
+                        songId = currentSongId,
+                        title = currentSongTitle ?: "",
+                        artist = currentSongArtist ?: "",
+                        albumName = currentSongAlbum,
+                        albumArtUri = currentSongArt,
+                        isPlaying = isPlaying,
+                        onPlayPauseClick = onPlayPauseClick,
+                        onNextClick = onNextClick,
+                        onPrevClick = onPrevClick,
+                        onSeek = onSeek,
+                        onDismiss = onFullPlayerDismiss,
+                        onAddToPlaylist = { },
+                        onSongDelete = { }
+                    )
+                } else {
+                    com.rajatxo.coral.ui.player.FullPlayer(
+                        mediaController = mediaController,
+                        songId = currentSongId,
+                        title = currentSongTitle ?: "",
+                        artist = currentSongArtist ?: "",
+                        albumName = currentSongAlbum,
+                        albumArtUri = currentSongArt,
+                        isPlaying = isPlaying,
+                        onPlayPauseClick = onPlayPauseClick,
+                        onNextClick = onNextClick,
+                        onPrevClick = onPrevClick,
+                        onSeek = onSeek,
+                        onDismiss = onFullPlayerDismiss,
+                        onAddToPlaylist = { }
+                    )
+                }
+            }
+        }
 
         // ═══ Settings overlay ═══
         if (showSettings) {

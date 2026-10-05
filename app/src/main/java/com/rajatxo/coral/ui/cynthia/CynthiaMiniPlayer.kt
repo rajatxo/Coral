@@ -1,0 +1,356 @@
+package com.rajatxo.coral.ui.cynthia
+
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
+import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.colorControls
+import com.kyant.backdrop.effects.vibrancy
+import com.rajatxo.coral.ui.icons.CoralIcons
+import com.rajatxo.coral.ui.theme.CalSansFamily
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.abs
+
+/**
+ * ★ CynthiaMiniPlayer — glass capsule miniplayer for Cynthia UI.
+ *
+ * Clean design:
+ *   [Cover circle LEFT] [Song name + Artist name CENTER]
+ *
+ * Glass morphism via kyant backdrop (same as nav bar). No heart, no counter,
+ * no extra labels — just cover + title + artist.
+ *
+ * BLOOM MORPH ANIMATION:
+ *   When user drags up or taps, the miniplayer BLOOMS into the full player:
+ *   - The pill scales up to fill the screen (scale 1.0 → ~12x)
+ *   - Corner radius animates from pill (half height) → 0 (full rectangle)
+ *   - Album art grows proportionally
+ *   - Text fades out as it scales up
+ *   - Full player fades in on top
+ *
+ * The expansion is driven by `expansionFraction` (0 = collapsed, 1 = fully
+ * expanded). The caller reads this fraction to control the full player's
+ * alpha.
+ */
+@Composable
+fun CynthiaMiniPlayer(
+    title: String,
+    artist: String,
+    albumArtUri: android.net.Uri?,
+    isPlaying: Boolean,
+    expansionFraction: Float,
+    onExpansionChange: (Float) -> Unit,
+    onPlayPauseClick: () -> Unit,
+    onClick: () -> Unit,
+    onSwipeUp: () -> Unit,
+    onSwipeDismiss: () -> Unit,
+    isFullPlayerOpen: Boolean,
+    backdrop: LayerBackdrop? = null
+) {
+    val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
+
+    // ★ Drag state — same pattern as Astra's MiniPlayer
+    var dragDirection by remember { mutableStateOf<Int?>(null) }
+    var totalDragX by remember { mutableStateOf(0f) }
+    var totalDragY by remember { mutableStateOf(0f) }
+    val offsetX = remember { Animatable(0f) }
+    val offsetY = remember { Animatable(0f) }
+    val scale = remember { Animatable(1f) }
+
+    val screenWidthPx = with(density) {
+        androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp.toPx()
+    }
+    val maxSwipeUpPx = with(density) { 60.dp.toPx() }
+
+    // Reset offsets when full player closes
+    LaunchedEffect(isFullPlayerOpen) {
+        if (!isFullPlayerOpen) {
+            scope.launch {
+                offsetY.snapTo(0f)
+                offsetX.snapTo(0f)
+                scale.snapTo(1f)
+            }
+        }
+    }
+
+    // ★ Capsule dimensions — 240×56dp glass pill
+    val miniWidth = 240.dp
+    val miniHeight = 56.dp
+    // ★ Corner radius animates from pill (28dp) → 0dp as it blooms
+    val cornerRadius = (28f * (1f - expansionFraction)).dp
+    val miniShape = RoundedCornerShape(cornerRadius)
+
+    // ★ Scale: 1.0 at rest → up to 12x as it blooms (fills the screen)
+    val bloomScale = 1f + expansionFraction * 11f
+    // ★ Alpha: text + border fade out as it blooms
+    val contentAlpha = (1f - expansionFraction * 1.5f).coerceIn(0f, 1f)
+
+    // Drag gesture handlers (swipe up to bloom, swipe horizontal to dismiss)
+    val dragModifier = if (!isFullPlayerOpen) {
+        Modifier.pointerInput(Unit) {
+            detectDragGestures(
+                onDragStart = {
+                    dragDirection = null
+                    totalDragX = 0f
+                    totalDragY = 0f
+                    scope.launch { scale.snapTo(0.96f) }
+                },
+                onDrag = { change, dragAmount ->
+                    change.consume()
+                    totalDragX += dragAmount.x
+                    totalDragY += dragAmount.y
+                    if (dragDirection == null) {
+                        if (abs(totalDragX) > 20f || abs(totalDragY) > 20f) {
+                            dragDirection = if (abs(totalDragX) > abs(totalDragY)) 0 else 1
+                        }
+                    }
+                    when (dragDirection) {
+                        0 -> scope.launch { offsetX.snapTo(totalDragX) }
+                        1 -> {
+                            if (totalDragY < 0) {
+                                scope.launch { offsetY.snapTo(totalDragY * 0.4f) }
+                            }
+                        }
+                    }
+                },
+                onDragEnd = {
+                    scope.launch {
+                        scale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                    }
+                    when (dragDirection) {
+                        0 -> {
+                            if (abs(totalDragX) > screenWidthPx * 0.4f) {
+                                val target = if (totalDragX < 0) -screenWidthPx else screenWidthPx
+                                scope.launch {
+                                    offsetX.animateTo(target, tween(200))
+                                    onSwipeDismiss()
+                                    delay(100)
+                                    offsetX.snapTo(0f)
+                                }
+                            } else {
+                                scope.launch {
+                                    offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                                }
+                            }
+                        }
+                        1 -> {
+                            if (totalDragY < -30f) {
+                                scope.launch {
+                                    offsetY.animateTo(-maxSwipeUpPx * 2f, tween(200))
+                                    onSwipeUp()
+                                }
+                            } else {
+                                scope.launch {
+                                    offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                                }
+                            }
+                        }
+                    }
+                },
+                onDragCancel = {
+                    scope.launch {
+                        scale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                        offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                        offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                    }
+                }
+            )
+        }
+    } else {
+        Modifier
+    }
+
+    Box(
+        modifier = Modifier
+            .graphicsLayer {
+                compositingStrategy = CompositingStrategy.Offscreen
+                translationX = offsetX.value
+                translationY = offsetY.value.coerceAtLeast(-maxSwipeUpPx)
+                val s = scale.value * bloomScale
+                scaleX = s
+                scaleY = s
+                // Fade during horizontal swipe dismiss
+                alpha = (1f - abs(offsetX.value) / screenWidthPx).coerceIn(0f, 1f) *
+                    (1f - (abs(offsetY.value) / maxSwipeUpPx)).coerceIn(0f, 1f)
+            }
+            .then(dragModifier)
+    ) {
+        // ─── Glass capsule body ─────────────────────────────────────────
+        val bodyModifier = if (backdrop != null) {
+            Modifier
+                .width(miniWidth)
+                .height(miniHeight)
+                .clip(miniShape)
+                .drawBackdrop(
+                    backdrop = backdrop,
+                    shape = { miniShape },
+                    effects = {
+                        vibrancy()
+                        colorControls(
+                            brightness = 0.05f,
+                            contrast = 1f,
+                            saturation = 1.4f
+                        )
+                        blur(20f.dp.toPx())
+                    },
+                    onDrawSurface = {
+                        drawRect(Color.Black.copy(alpha = 0.35f))
+                    }
+                )
+                .border(1.dp, Color.White.copy(alpha = 0.18f * contentAlpha), miniShape)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClick
+                )
+        } else {
+            Modifier
+                .width(miniWidth)
+                .height(miniHeight)
+                .clip(miniShape)
+                .background(Color.Black.copy(alpha = 0.65f))
+                .border(1.dp, Color.White.copy(alpha = 0.18f * contentAlpha), miniShape)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClick
+                )
+        }
+        Box(modifier = bodyModifier) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = contentAlpha },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // ── LEFT: circular album art ──────────────────────────────
+                Box(
+                    modifier = Modifier
+                        .padding(start = 8.dp)
+                        .size(40.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onPlayPauseClick
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier.size(36.dp).clip(CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (albumArtUri != null) {
+                            AsyncImage(
+                                model = albumArtUri,
+                                contentDescription = "Album art",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color(0xFF1A1A1A)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = CoralIcons.Music,
+                                    contentDescription = null,
+                                    tint = Color(0xFFB0B0B0),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                        // Play/pause overlay when paused
+                        if (!isPlaying) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.45f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = CoralIcons.Play,
+                                    contentDescription = "Play",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // ── CENTER: song name + artist name ────────────────────────
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 10.dp),
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = title,
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        fontFamily = CalSansFamily,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = artist,
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 10.sp,
+                        fontFamily = CalSansFamily,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
