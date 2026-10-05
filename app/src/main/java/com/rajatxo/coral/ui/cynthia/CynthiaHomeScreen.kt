@@ -404,12 +404,20 @@ fun CynthiaHomeScreen(
             }
         )
 
-        // ═══ Cynthia search screen (simple placeholder for now) ═══
-        // Tapping the search FAB opens this. Just a back button + "coming
-        // soon" text — the billing structure was reverted; will be rebuilt
-        // properly later when the design is finalized.
+        // ═══ Cynthia search screen (temporary — delegates to Astra's) ═══
+        // Tapping the search FAB opens this. For now it uses Astra's
+        // SearchScreen so the user can search songs. A custom Cynthia
+        // search UI will be built later.
         if (showSearch) {
             CynthiaSearchScreen(
+                songs = songs,
+                onSongClick = { song ->
+                    showSearch = false
+                    onSongClickWithReset(song)
+                },
+                onPlaylistClick = { _ ->
+                    showSearch = false
+                },
                 onDismiss = { showSearch = false }
             )
         }
