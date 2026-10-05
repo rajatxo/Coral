@@ -113,6 +113,13 @@ fun CynthiaHomeScreen(
     // ★ MiniPlayer customization panel — opens when user HOLDS the miniplayer.
     //   Same square glass panel as the nav bar's, but in MINI_PLAYER mode.
     var showMiniPlayerCustomization by remember { mutableStateOf(false) }
+    // ★ MiniPlayer dismissed state — set to true when user swipes down on
+    //   the miniplayer. Resets to false when a new song starts playing.
+    var miniPlayerDismissed by remember { mutableStateOf(false) }
+    // Reset dismissed state when the current song changes
+    androidx.compose.runtime.LaunchedEffect(currentSongId) {
+        if (currentSongId != null) miniPlayerDismissed = false
+    }
     val onSongClickWithReset: (Song) -> Unit = { song -> onSongClick(song) }
 
     // ★ Record playback history + daily play count when the current song
@@ -525,8 +532,9 @@ fun CynthiaHomeScreen(
             }
         }
 
-        // ★ Mini player — rendered when a song is playing AND not fully expanded
-        if (currentSongId != null && playerExpansion.value < 0.95f) {
+        // ★ Mini player — rendered when a song is playing AND not dismissed
+        //   AND not fully expanded
+        if (currentSongId != null && !miniPlayerDismissed && playerExpansion.value < 0.95f) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -545,7 +553,12 @@ fun CynthiaHomeScreen(
                     onPlayPauseClick = onPlayPauseClick,
                     onClick = { onMiniPlayerClick() },
                     onSwipeUp = { onMiniPlayerClick() },
-                    onSwipeDismiss = { },
+                    onSwipeDismiss = {
+                        // Pause playback + hide the mini player.
+                        // The mini player reappears when a new song is selected.
+                        if (isPlaying) onPlayPauseClick()
+                        miniPlayerDismissed = true
+                    },
                     isFullPlayerOpen = showFullPlayer,
                     onShowCustomizationPanel = { showMiniPlayerCustomization = true },
                     backdrop = glassBackdrop

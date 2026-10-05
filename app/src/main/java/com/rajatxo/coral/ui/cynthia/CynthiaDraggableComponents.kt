@@ -807,6 +807,13 @@ internal fun CynthiaDraggableSearchCircle(
                                     countdownNumber = 1
                                     delay(1000L)
                                     showBubble = false
+                                    // ★ Mark as long-press activated so the release
+                                    //   handler does NOT call onSearchClick().
+                                    //   Without this, the release after the hold
+                                    //   was triggering onSearchClick() → opening
+                                    //   the search page behind the customization
+                                    //   panel.
+                                    isLongPressActivated = true
                                     // ★ Open the customization panel directly.
                                     currentOnShowCustomizationPanel(false)
                                 }

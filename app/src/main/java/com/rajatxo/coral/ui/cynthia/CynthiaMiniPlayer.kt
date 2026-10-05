@@ -99,17 +99,11 @@ fun CynthiaMiniPlayer(
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
 
-    // ★ Drag state — same pattern as Astra's MiniPlayer
-    var dragDirection by remember { mutableStateOf<Int?>(null) }
-    var totalDragX by remember { mutableStateOf(0f) }
+    // ★ Drag state — only vertical now (swipe up = open, swipe down = dismiss)
     var totalDragY by remember { mutableStateOf(0f) }
-    val offsetX = remember { Animatable(0f) }
     val offsetY = remember { Animatable(0f) }
     val scale = remember { Animatable(1f) }
 
-    val screenWidthPx = with(density) {
-        androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp.toPx()
-    }
     val maxSwipeUpPx = with(density) { 60.dp.toPx() }
 
     // Reset offsets when full player closes
@@ -117,7 +111,6 @@ fun CynthiaMiniPlayer(
         if (!isFullPlayerOpen) {
             scope.launch {
                 offsetY.snapTo(0f)
-                offsetX.snapTo(0f)
                 scale.snapTo(1f)
             }
         }
@@ -142,64 +135,52 @@ fun CynthiaMiniPlayer(
     // ★ Upward translation — drifts toward center as it blooms
     val bloomTranslationY = -expansionFraction * 200f
 
-    // Drag gesture handlers (swipe up to bloom, swipe horizontal to dismiss)
+    // Drag gesture handlers:
+    //   - Swipe UP → bloom morph into full player
+    //   - Swipe DOWN → dismiss (slide down + fade, pause playback)
+    //   - Tap → open full player (handled by detectTapGestures on body)
+    //   - Long press → customization panel (detectTapGestures on body)
+    //
+    // No direction lock needed — only vertical drags are tracked. Both
+    // up and down are valid gestures (up = open, down = dismiss).
     val dragModifier = if (!isFullPlayerOpen) {
         Modifier.pointerInput(Unit) {
             detectDragGestures(
                 onDragStart = {
-                    dragDirection = null
-                    totalDragX = 0f
                     totalDragY = 0f
                     scope.launch { scale.snapTo(0.96f) }
                 },
                 onDrag = { change, dragAmount ->
                     change.consume()
-                    totalDragX += dragAmount.x
                     totalDragY += dragAmount.y
-                    if (dragDirection == null) {
-                        if (abs(totalDragX) > 20f || abs(totalDragY) > 20f) {
-                            dragDirection = if (abs(totalDragX) > abs(totalDragY)) 0 else 1
-                        }
-                    }
-                    when (dragDirection) {
-                        0 -> scope.launch { offsetX.snapTo(totalDragX) }
-                        1 -> {
-                            if (totalDragY < 0) {
-                                scope.launch { offsetY.snapTo(totalDragY * 0.4f) }
-                            }
-                        }
-                    }
+                    // Follow finger vertically (both up AND down)
+                    scope.launch { offsetY.snapTo(totalDragY * 0.4f) }
                 },
                 onDragEnd = {
                     scope.launch {
                         scale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
                     }
-                    when (dragDirection) {
-                        0 -> {
-                            if (abs(totalDragX) > screenWidthPx * 0.4f) {
-                                val target = if (totalDragX < 0) -screenWidthPx else screenWidthPx
-                                scope.launch {
-                                    offsetX.animateTo(target, tween(200))
-                                    onSwipeDismiss()
-                                    delay(100)
-                                    offsetX.snapTo(0f)
-                                }
-                            } else {
-                                scope.launch {
-                                    offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
-                                }
+                    when {
+                        // Swipe UP → open full player
+                        totalDragY < -30f -> {
+                            scope.launch {
+                                offsetY.animateTo(-maxSwipeUpPx * 2f, tween(200))
+                                onSwipeUp()
                             }
                         }
-                        1 -> {
-                            if (totalDragY < -30f) {
-                                scope.launch {
-                                    offsetY.animateTo(-maxSwipeUpPx * 2f, tween(200))
-                                    onSwipeUp()
-                                }
-                            } else {
-                                scope.launch {
-                                    offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
-                                }
+                        // Swipe DOWN → dismiss (slide down + fade)
+                        totalDragY > 30f -> {
+                            scope.launch {
+                                offsetY.animateTo(maxSwipeUpPx * 4f, tween(200))
+                                onSwipeDismiss()
+                                delay(100)
+                                offsetY.snapTo(0f)
+                            }
+                        }
+                        // Not enough swipe → spring back
+                        else -> {
+                            scope.launch {
+                                offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
                             }
                         }
                     }
@@ -207,7 +188,6 @@ fun CynthiaMiniPlayer(
                 onDragCancel = {
                     scope.launch {
                         scale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
-                        offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
                         offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
                     }
                 }
@@ -223,13 +203,13 @@ fun CynthiaMiniPlayer(
                 compositingStrategy = CompositingStrategy.Offscreen
                 // ★ Transform origin = bottom center — grows upward
                 transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
-                translationX = offsetX.value + cardCustom.offsetX
-                translationY = offsetY.value.coerceAtLeast(-maxSwipeUpPx) + bloomTranslationY + cardCustom.offsetY
+                translationX = cardCustom.offsetX
+                translationY = offsetY.value + bloomTranslationY + cardCustom.offsetY
                 val s = scale.value * bloomScale
                 scaleX = s
                 scaleY = s
-                alpha = (1f - abs(offsetX.value) / screenWidthPx).coerceIn(0f, 1f) *
-                    (1f - (abs(offsetY.value) / maxSwipeUpPx)).coerceIn(0f, 1f) *
+                // Fade as the miniplayer slides off during dismiss or bloom
+                alpha = (1f - (abs(offsetY.value) / maxSwipeUpPx)).coerceIn(0f, 1f) *
                     contentAlpha
             }
             .then(dragModifier)

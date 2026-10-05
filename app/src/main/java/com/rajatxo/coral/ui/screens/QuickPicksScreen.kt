@@ -350,12 +350,6 @@ fun QuickPicksScreen(
                 )
             }
 
-            // ★ Extra gap between Today's Top and Speed Dial — 12dp total
-            //   (base 6dp from LazyColumn arrangement + 6dp here = 12dp).
-            item {
-                Spacer(Modifier.height(6.dp))
-            }
-
             // ═══ Speed Dial (first row) ═══
             // A paginated grid of square song cards + a "randomize" dice
             // button as the last slot. Tap a card to play that song.
@@ -1012,7 +1006,7 @@ private fun SpeedDialSection(
         }
     }
 
-    Spacer(modifier = Modifier.height(12.dp))
+    Spacer(modifier = Modifier.height(6.dp))
 
     // Grid layout: 3 columns, paginated
     val targetItemSize = 110.dp
