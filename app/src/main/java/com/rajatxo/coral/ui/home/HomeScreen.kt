@@ -1485,111 +1485,68 @@ private fun MiniPlayer(
                 )
             }
     ) {
-        // ─── NEW GLASS MINIPLAYER ───────────────────────────────────────
-        // Inspired by Ali Zafar Iqbal's reference video: a wide stadium-
-        // shaped glass capsule with [album art LEFT] [3-row stacked text
-        // CENTER] [live ticking counter RIGHT], tiny label on top, drag
-        // handle on bottom.
+        // --- Main player body (standard pill) ---
+        // Frosted-glass background: same drawBackdrop mechanism as the nav
+        // bar. Samples the home-screen content behind the mini player and
+        // applies AGSL-based blur + vibrancy + subtle dark tint for
+        // readability. Falls back to a flat dark background if the backdrop
+        // isn't available (shouldn't happen in practice — HomeScreen always
+        // provides one).
         //
-        // Dimensions: 320dp × 72dp — wider than the old 240×64 so it can
-        // fit the 3-row text + side counter without crowding.
-        //
-        // Glass: same kyant backdrop as the nav bar (vibrancy + color
-        // controls + AGSL blur + subtle dark tint). Offscreen compositing
-        // so the glass fades correctly with the parent's graphicsLayer
-        // alpha during drag/swipe gestures.
-        val miniWidth = 320.dp
-        val miniHeight = 72.dp
-        val miniShape = RoundedCornerShape(miniHeight / 2)  // stadium shape
-        val progress = if (durationMs > 0) {
-            (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
-        } else 0f
-
+        // WIDTH: 240dp — matches the TabCapsule width exactly. Both are
+        // centered horizontally (via Alignment.BottomCenter on the parent
+        // AnimatedVisibility), so their rounded pill ends align perfectly.
+        // Was fillMaxWidth + 12dp horizontal padding (way wider than the
+        // TabCapsule below it — the ends didn't line up).
         val bodyModifier = if (backdrop != null) {
             Modifier
-                .width(miniWidth)
-                .height(miniHeight)
-                .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
-                .clip(miniShape)
+                .width(240.dp)
+                .height(64.dp)
+                .clip(pillShape)
                 .drawBackdrop(
                     backdrop = backdrop,
-                    shape = { miniShape },
+                    shape = { pillShape },
                     effects = {
                         vibrancy()
                         colorControls(
                             brightness = 0.05f,
                             contrast = 1f,
-                            saturation = 1.4f
+                            saturation = 1.3f
                         )
-                        blur(20f.dp.toPx())
+                        blur(18f.dp.toPx())  // AGSL real-time backdrop blur
                     },
                     onDrawSurface = {
                         drawRect(Color.Black.copy(alpha = 0.35f))
                     }
                 )
-                .border(1.dp, Color.White.copy(alpha = 0.18f), miniShape)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onClick
-                )
+                .border(1.dp, Color.White.copy(alpha = 0.2f), pillShape)
+                .clickable(onClick = onClick)
         } else {
             Modifier
-                .width(miniWidth)
-                .height(miniHeight)
-                .clip(miniShape)
-                .background(Color.Black.copy(alpha = 0.65f))
-                .border(1.dp, Color.White.copy(alpha = 0.18f), miniShape)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onClick
-                )
+                .width(240.dp)
+                .height(64.dp)
+                .clip(pillShape)
+                .background(Color.Black.copy(alpha = 0.6f))
+                .border(1.dp, Color.White.copy(alpha = 0.2f), pillShape)
+                .clickable(onClick = onClick)
         }
-        Box(modifier = bodyModifier) {
-            // ─── Top edge: tiny "NOW PLAYING" label + tiny duration ──────
+        Box(
+            modifier = bodyModifier
+        ) {
+            // Content row (album art + title + heart)
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.TopCenter)
-                    .padding(horizontal = 18.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxSize(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "NOW PLAYING",
-                    color = Color.White.copy(alpha = 0.4f),
-                    fontSize = 8.sp,
-                    fontWeight = FontWeight.Medium,
-                    fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily,
-                    letterSpacing = 1.sp
-                )
-                Text(
-                    text = if (durationMs > 0)
-                        String.format(
-                            java.util.Locale.US, "%d:%02d",
-                            (durationMs / 1000) / 60, (durationMs / 1000) % 60
-                        ) else "—:—",
-                    color = Color.White.copy(alpha = 0.4f),
-                    fontSize = 8.sp,
-                    fontWeight = FontWeight.Medium,
-                    fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily,
-                    letterSpacing = 0.5.sp
-                )
-            }
+                // --- Circular album art + progress ring (LEFT) ---
+                val progress = if (durationMs > 0) {
+                    (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+                } else 0f
 
-            // ─── Main content row ─────────────────────────────────────────
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = 12.dp, bottom = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // ── LEFT: circular album art with progress ring ──────────
                 Box(
                     modifier = Modifier
-                        .padding(start = 10.dp)
-                        .size(46.dp)
+                        .padding(start = 8.dp)
+                        .size(56.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
@@ -1597,7 +1554,7 @@ private fun MiniPlayer(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    // Progress ring (around album art)
+                    // Progress ring
                     Canvas(modifier = Modifier.fillMaxSize()) {
                         val strokeWidth = 2.dp.toPx()
                         val diameter = size.minDimension - strokeWidth
@@ -1606,7 +1563,7 @@ private fun MiniPlayer(
                             (size.height - diameter) / 2f
                         )
                         val arcSize = androidx.compose.ui.geometry.Size(diameter, diameter)
-                        // Background ring
+
                         drawArc(
                             color = Color.White.copy(alpha = 0.15f),
                             startAngle = -90f, sweepAngle = 360f, useCenter = false,
@@ -1615,7 +1572,6 @@ private fun MiniPlayer(
                                 width = strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round
                             )
                         )
-                        // Progress ring
                         drawArc(
                             color = Color.White,
                             startAngle = -90f, sweepAngle = 360f * progress, useCenter = false,
@@ -1625,9 +1581,10 @@ private fun MiniPlayer(
                             )
                         )
                     }
-                    // Album art circle
+
+                    // Album art
                     Box(
-                        modifier = Modifier.size(38.dp).clip(CircleShape),
+                        modifier = Modifier.size(46.dp).clip(CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         if (albumArtUri != null) {
@@ -1646,129 +1603,78 @@ private fun MiniPlayer(
                                     imageVector = CoralIcons.Music,
                                     contentDescription = null,
                                     tint = Color(0xFFB0B0B0),
-                                    modifier = Modifier.size(14.dp)
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
                         }
-                        // Play/pause overlay (subtle, only visible when paused)
-                        if (!isPlaying) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(Color.Black.copy(alpha = 0.45f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = CoralIcons.Play,
-                                    contentDescription = "Play",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // ── CENTER: 3 stacked rows — artist / title pill / album ─
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                    .padding(horizontal = 10.dp),
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    // Row 1: Artist (small, gray)
-                    Text(
-                        text = artist,
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 9.sp,
-                        fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        letterSpacing = 0.5.sp
-                    )
-                    // Row 2: Song title inside a dark pill (looks tappable)
-                    Box(
-                        modifier = Modifier
-                            .padding(vertical = 1.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color.Black.copy(alpha = 0.4f))
-                            .border(
-                                0.5.dp,
-                                Color.White.copy(alpha = 0.15f),
-                                RoundedCornerShape(8.dp)
+                        // Play/pause overlay
+                        Box(
+                            modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isPlaying) CoralIcons.Pause else CoralIcons.Play,
+                                contentDescription = if (isPlaying) "Pause" else "Play",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
                             )
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = title,
-                            color = Color.White,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        }
                     }
-                    // Row 3: Album (small, gray)
-                    Text(
-                        text = artist,  // TODO: pass album separately if needed — for now reuse artist as 3rd row
-                        color = Color.White.copy(alpha = 0.35f),
-                        fontSize = 8.sp,
-                        fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        letterSpacing = 0.5.sp
-                    )
                 }
 
-                // ── RIGHT: live ticking counter (current seconds) ─────────
-                // Inspired by the video's BPM counter — but for Coral, the
-                // big number is the current playback position in SECONDS
-                // (ticks every second), and below it is "MM:SS" formatted.
-                // Gives the live-ticking feel + is actually useful.
-                val currentSeconds = (positionMs / 1000).toInt()
-                val totalSeconds = (durationMs / 1000).toInt()
+                // --- Title + artist ---
+                // Both use CalSans (the same display font used elsewhere in
+                // Coral for headings) — gives the mini player a distinctive
+                // typographic identity, matching the rest of the app's
+                // display type. Was the system default FontFamily before.
                 Column(
-                    modifier = Modifier
-                        .padding(end = 14.dp),
-                    horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.Center
+                    modifier = Modifier.weight(1f).padding(horizontal = 12.dp)
                 ) {
-                    // Big ticking number (current seconds)
                     Text(
-                        text = currentSeconds.toString(),
+                        text = title,
                         color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily,
-                        letterSpacing = (-0.5).sp
-                    )
-                    // Smaller "MM:SS / TOTAL MM:SS" below
-                    Text(
-                        text = String.format(
-                            java.util.Locale.US, "%d:%02d / %d:%02d",
-                            currentSeconds / 60, currentSeconds % 60,
-                            totalSeconds / 60, totalSeconds % 60
-                        ),
-                        color = Color.White.copy(alpha = 0.4f),
-                        fontSize = 7.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Medium,
                         fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily,
-                        letterSpacing = 0.5.sp
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = artist,
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 12.sp,
+                        fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // --- Heart button (RIGHT) ---
+                Box(
+                    modifier = Modifier
+                        .padding(end = 8.dp)
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.12f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = {
+                                if (songId != null) {
+                                    com.rajatxo.coral.data.store.PlaylistStore.toggleFavorite(songId)
+                                }
+                            }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isFavorite) CoralIcons.HeartLucideFilled else CoralIcons.HeartLucide,
+                        contentDescription = if (isFavorite) "Unfavorite" else "Favorite",
+                        tint = if (isFavorite) CoralColors.Coral else Color.White,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
-
-            // ─── Bottom edge: thin progress line as drag handle ─────────
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 4.dp)
-                    .width(28.dp)
-                    .height(2.dp)
-                    .clip(RoundedCornerShape(1.dp))
-                    .background(Color.White.copy(alpha = 0.25f))
-            )
         }
     }
 }
