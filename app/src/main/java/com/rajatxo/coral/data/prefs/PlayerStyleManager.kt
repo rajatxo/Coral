@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 object PlayerStyleManager {
 
+    const val CORAL_GLASS = "Coral Glass"  // ★ NEW — glass morphism player UI
     const val CORAL = "Coral"
     const val PROFILE = "Profile"
     const val SPIRAL = "Spiral"
@@ -21,11 +22,11 @@ object PlayerStyleManager {
     const val SPIRAL_3 = "Spiral 3.0"
 
     private const val PREFS_NAME = "coral_prefs"
-    private const val KEY_PLAYER_STYLE = "player_style_v4"  // bumped v3→v4 to reset default to SPIRAL
+    private const val KEY_PLAYER_STYLE = "player_style_v5"  // bumped v4→v5 to add CORAL_GLASS
 
     private lateinit var prefs: android.content.SharedPreferences
 
-    private val _playerStyle = MutableStateFlow(SPIRAL)  // ★ Default = SPIRAL
+    private val _playerStyle = MutableStateFlow(CORAL_GLASS)  // ★ Default = CORAL_GLASS (new glass player)
     val playerStyle: StateFlow<String> = _playerStyle.asStateFlow()
 
     fun init(context: Context) {

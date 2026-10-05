@@ -197,6 +197,13 @@ fun SettingsScreen(
         SettingsSection(title = "Player UI") {
             SettingsRow(
                 icon = CoralIcons.Music,
+                title = "Coral Glass",
+                subtitle = "Glass morphism — new default",
+                value = if (playerStyle == PlayerStyleManager.CORAL_GLASS) "Active" else "",
+                onClick = { PlayerStyleManager.setPlayerStyle(PlayerStyleManager.CORAL_GLASS) }
+            )
+            SettingsRow(
+                icon = CoralIcons.Music,
                 title = "Spiral",
                 subtitle = "Meditation-style vertical timeline",
                 value = if (playerStyle == PlayerStyleManager.SPIRAL) "Active" else "",
@@ -219,7 +226,7 @@ fun SettingsScreen(
             SettingsRow(
                 icon = CoralIcons.Music,
                 title = "Coral",
-                subtitle = "Glass morphism first",
+                subtitle = "Original glass morphism",
                 value = if (playerStyle == PlayerStyleManager.CORAL) "Active" else "",
                 onClick = { PlayerStyleManager.setPlayerStyle(PlayerStyleManager.CORAL) }
             )

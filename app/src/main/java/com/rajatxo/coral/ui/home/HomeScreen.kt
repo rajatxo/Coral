@@ -1034,7 +1034,25 @@ fun HomeScreen(
                     .fillMaxSize()
                     .graphicsLayer { alpha = fullPlayerAlpha }
             ) {
-            if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.CORAL) {
+            if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.CORAL_GLASS) {
+                com.rajatxo.coral.ui.player.CoralGlassPlayer(
+                    mediaController = mediaController,
+                    songId = currentSongId,
+                    title = currentSongTitle ?: "",
+                    artist = currentSongArtist ?: "",
+                    albumName = currentSongAlbum,
+                    albumArtUri = currentSongArt,
+                    isPlaying = isPlaying,
+                    onPlayPauseClick = onPlayPauseClick,
+                    onNextClick = onNextClick,
+                    onPrevClick = onPrevClick,
+                    onSeek = onSeek,
+                    onDismiss = onFullPlayerDismiss,
+                    onAddToPlaylist = { songId ->
+                        songToAddToPlaylist = songId
+                    }
+                )
+            } else if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.CORAL) {
                 com.rajatxo.coral.ui.player.CoralPlayer(
                     mediaController = mediaController,
                     songId = currentSongId,
