@@ -679,7 +679,8 @@ fun CynthiaHomeScreen(
                 onOpenSleepTimer = { showSettings = false },
                 onOpenFontPicker = { showSettings = false },
                 onOpenLyrics = { showSettings = false },
-                onOpenSpiralPalette = { showSettings = false }
+                onOpenSpiralPalette = { showSettings = false },
+                backdrop = glassBackdrop
             )
         }
 

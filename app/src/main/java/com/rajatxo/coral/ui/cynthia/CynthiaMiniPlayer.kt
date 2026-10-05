@@ -352,7 +352,7 @@ fun CynthiaMiniPlayer(
                     Text(
                         text = title,
                         color = Color.White,
-                        fontSize = 13.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Medium,
                         fontFamily = CalSansFamily,
                         maxLines = 1,
@@ -360,23 +360,23 @@ fun CynthiaMiniPlayer(
                     )
                     Text(
                         text = artist,
-                        color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 10.sp,
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 12.sp,
                         fontFamily = CalSansFamily,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                // ── RIGHT: favorite heart icon ─────────────────────────────
-                // ★ Material-style outline heart (user-provided SVG).
-                //   Tap → toggle favorite. Filled coral when favorited.
+                // ── RIGHT: favorite heart button (matches Astra's style) ────
                 val favorites by com.rajatxo.coral.data.store.PlaylistStore.favorites.collectAsState()
                 val isFavorite = songId != null && songId in favorites.songIds
                 Box(
                     modifier = Modifier
                         .padding(end = 8.dp)
-                        .size(36.dp)
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.12f))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,

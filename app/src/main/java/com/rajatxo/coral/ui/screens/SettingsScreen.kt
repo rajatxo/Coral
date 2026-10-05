@@ -30,11 +30,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.colorControls
+import com.kyant.backdrop.effects.vibrancy
 import com.rajatxo.coral.data.premium.PremiumManager
 import com.rajatxo.coral.data.prefs.CrossfadeManager
 import com.rajatxo.coral.data.prefs.PlayerStyleManager
@@ -42,6 +48,8 @@ import com.rajatxo.coral.data.prefs.SoundHapticsManager
 import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.components.CoralTab
+import com.rajatxo.coral.ui.theme.CalSansFamily
+import com.rajatxo.coral.util.PaletteCache
 
 /**
  * Settings tab — real (read-only for now) settings surface.
@@ -62,7 +70,8 @@ fun SettingsScreen(
     onOpenSleepTimer: () -> Unit,
     onOpenFontPicker: () -> Unit,
     onOpenLyrics: () -> Unit,
-    onOpenSpiralPalette: () -> Unit
+    onOpenSpiralPalette: () -> Unit,
+    backdrop: LayerBackdrop? = null
 ) {
     val isPremium by PremiumManager.isPremium.collectAsState()
     val currentFont by com.rajatxo.coral.data.prefs.FontManager.currentFont.collectAsState()
@@ -77,14 +86,30 @@ fun SettingsScreen(
     val defaultTab by com.rajatxo.coral.data.prefs.NavBarConfig.defaultTab.collectAsState()
     var versionTapCount by remember { mutableIntStateOf(0) }
 
+    // ★ Album cover color background (like Astra's songs page).
+    //   Reads the last cached palette from PaletteCache. Uses the palette's
+    //   primary color as the base for a dark vertical gradient.
+    val cachedPalette by PaletteCache.cached.collectAsState()
+    val palette = cachedPalette?.second ?: com.rajatxo.coral.util.CoralPalette.Default
+    val bgBase = palette.primary
+    val bgDeep = palette.secondary
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(
+                Brush.verticalGradient(
+                    colorStops = arrayOf(
+                        0.0f to bgBase.copy(alpha = 0.6f),
+                        0.3f to bgDeep.copy(alpha = 0.8f),
+                        1.0f to Color(0xFF050507)
+                    )
+                )
+            )
             .verticalScroll(rememberScrollState())
             .padding(bottom = 24.dp)
     ) {
-        // Big title at top-RIGHT (ViTune style) + back button at top-LEFT
+        // Big title at top-RIGHT + back button at top-LEFT
         Box(
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -93,7 +118,7 @@ fun SettingsScreen(
                 color = Color.White,
                 fontSize = 34.sp,
                 fontWeight = FontWeight.Bold,
-                fontFamily = com.rajatxo.coral.ui.theme.QuirkFontFamily,
+                fontFamily = CalSansFamily,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .statusBarsPadding()
@@ -521,6 +546,7 @@ private fun VersionRow(
 @Composable
 private fun SettingsSection(
     title: String,
+    backdrop: LayerBackdrop? = null,
     content: @Composable () -> Unit
 ) {
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
@@ -529,13 +555,36 @@ private fun SettingsSection(
             color = Color(0xFFFF6B6B),
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
+            fontFamily = CalSansFamily,
             modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
         )
+        val sectionShape = RoundedCornerShape(16.dp)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(CoralColors.SurfaceVariant)
+                .clip(sectionShape)
+                .then(
+                    if (backdrop != null) {
+                        Modifier.drawBackdrop(
+                            backdrop = backdrop,
+                            shape = { sectionShape },
+                            effects = {
+                                vibrancy()
+                                colorControls(
+                                    brightness = 0.05f,
+                                    contrast = 1f,
+                                    saturation = 1.3f
+                                )
+                                blur(20f.dp.toPx())
+                            },
+                            onDrawSurface = {
+                                drawRect(Color.Black.copy(alpha = 0.3f))
+                            }
+                        )
+                    } else {
+                        Modifier.background(Color.White.copy(alpha = 0.05f))
+                    }
+                )
         ) {
             content()
         }
@@ -583,18 +632,21 @@ private fun SettingsRow(
                 text = title,
                 color = Color.White,
                 fontSize = 15.sp,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                fontFamily = CalSansFamily
             )
             Text(
                 text = subtitle,
                 color = Color(0xFFB0B0B0),
-                fontSize = 12.sp
+                fontSize = 12.sp,
+                fontFamily = CalSansFamily
             )
         }
         Text(
             text = value,
             color = Color(0xFFB0B0B0),
-            fontSize = 13.sp
+            fontSize = 13.sp,
+            fontFamily = CalSansFamily
         )
     }
 }
