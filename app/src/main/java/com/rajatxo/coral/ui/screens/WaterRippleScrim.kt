@@ -22,6 +22,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -120,6 +121,12 @@ fun RippleDismissContainer(
  */
 fun Modifier.rippleFadeOut(progress: Float): Modifier = this.graphicsLayer {
     val p = progress.coerceIn(0f, 1f)
+    // ★ Offscreen compositing — forces the ENTIRE layer (glass backdrop +
+    //   border + inner content) to render to an offscreen buffer first,
+    //   then composite with alpha. Without this, the kyant drawBackdrop
+    //   glass blur can bypass the graphicsLayer alpha and stay fully
+    //   visible while only the inner content fades.
+    compositingStrategy = CompositingStrategy.Offscreen
     alpha = 1f - p
     val scale = 1f - p * 0.08f
     scaleX = scale

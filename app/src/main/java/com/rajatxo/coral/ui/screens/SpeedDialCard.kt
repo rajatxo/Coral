@@ -154,6 +154,10 @@ fun SpeedDialCard(
                 }
                 .width(cardCustom.widthDp.dp)
                 .height(cardCustom.heightDp.dp)
+                // ★ Card fade-out — MUST come BEFORE .clip() and .drawBackdrop()
+                //   so graphicsLayer wraps the ENTIRE capsule (glass + border +
+                //   content). If placed after, only the inner content fades.
+                .rippleFadeOut(progress)
                 .clip(cardShape)
                 .then(
                     if (backdrop != null) {
@@ -178,9 +182,6 @@ fun SpeedDialCard(
                     }
                 )
                 .border(1.dp, Color.White.copy(alpha = 0.2f), cardShape)
-                // ★ Card fade-out — fades + scales + drifts up in sync with
-                //   the ripple. As the ripple expands, the card fades away.
-                .rippleFadeOut(progress)
                 .pointerInput(modes, currentMode) {
                     detectHorizontalDragGestures(
                         onDragEnd = { dragAccumulator = 0f },
