@@ -152,12 +152,9 @@ fun Modifier.rippleFadeOut(progress: Float): Modifier = this.graphicsLayer {
     //   glass blur can bypass the graphicsLayer alpha and stay fully
     //   visible while only the inner content fades.
     compositingStrategy = CompositingStrategy.Offscreen
+    // ★ Fade ONLY — no scale, no drift. Scaling causes the border to
+    //   shrink which looks bad. Pure alpha fade is clean.
     alpha = 1f - p
-    val scale = 1f - p * 0.08f
-    scaleX = scale
-    scaleY = scale
-    // Slight upward drift — feels like the card is being lifted away.
-    translationY = -p * 12f
 }
 
 

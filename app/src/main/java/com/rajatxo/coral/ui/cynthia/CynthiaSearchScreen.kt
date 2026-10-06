@@ -85,8 +85,13 @@ fun CynthiaSearchScreen(
         bottomStart = config.corner.dp, bottomEnd = config.corner.dp
     )
 
+    // ★ Bottom padding — gap between card bottom and nav bar / miniplayer.
+    //   Miniplayer sits at 100dp from bottom, height 64dp → top at 164dp.
+    //   Card should end at 164dp + 4dp gap = 168dp when miniplayer visible.
+    //   Nav bar sits at ~80dp from bottom → card ends at 84dp (4dp gap).
+    //   Gap value (4dp) matches the gap between miniplayer and nav bar.
     val miniPlayerOffsetY = miniPlayerCustom.offsetY
-    val baseBottomPadding = if (isMiniPlayerVisible) 154f else 84f
+    val baseBottomPadding = if (isMiniPlayerVisible) 168f else 84f
     val bottomPadding = (baseBottomPadding + miniPlayerOffsetY + config.heightExtra)
         .coerceAtLeast(60f).dp
 
