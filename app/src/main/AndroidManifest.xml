@@ -30,6 +30,14 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- ★ MUSIC_PLAYER intent filter — tells launchers (Niagara, etc.)
+                 that Coral is a music app. Enables "Set as music app" option
+                 when long-pressing the icon, and auto-shows in headphone/
+                 Bluetooth connection favorite pages. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MUSIC_PLAYER" />
+                <category android:name="android.intent.category.CATEGORY_APP_MUSIC" />
+            </intent-filter>
         </activity>
 
         <service
