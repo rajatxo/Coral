@@ -93,6 +93,10 @@ fun CynthiaSearchScreen(
     RippleDismissContainer(onDismiss = onDismiss) { progress ->
     Box(modifier = Modifier.fillMaxSize()) {
         // ─── Search glass card ───────────────────────────────────────
+        //   ★ rippleFadeOut MUST come BEFORE clip + drawBackdrop + border
+        //   so graphicsLayer wraps the ENTIRE card (glass + border + content).
+        //   If placed after, only the inner content fades — the glass stays
+        //   visible until the ripple finishes. Same lesson as TodaysTopCard.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -101,6 +105,7 @@ fun CynthiaSearchScreen(
                     androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
                         .minus(bottomPadding)
                 )
+                .rippleFadeOut(progress)
                 .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
                 .clip(cardShape)
                 .background(Color(0xFF0A0A0F))
@@ -127,7 +132,6 @@ fun CynthiaSearchScreen(
                     }
                 )
                 .border(1.dp, Color.White.copy(alpha = 0.1f), cardShape)
-                .rippleFadeOut(progress)
                 .statusBarsPadding()
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -275,7 +279,7 @@ private fun SearchCardCustomizationPanel(
     val fields = listOf(
         Field("Blur", config.blur, 0f..80f, "dp") { onBlurChange(it); tickHaptic() },
         Field("Darkness", config.darkness * 100f, 0f..100f, "%") { onDarknessChange(it / 100f); tickHaptic() },
-        Field("Height", config.heightExtra, -100f..200f, "dp") { onHeightChange(it); tickHaptic() },
+        Field("Height", config.heightExtra, -150f..200f, "dp") { onHeightChange(it); tickHaptic() },
         Field("Corner", config.corner, 0f..50f, "dp") { onCornerChange(it); tickHaptic() }
     )
 
