@@ -19,11 +19,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -32,30 +37,32 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.vibrancy
-import com.rajatxo.coral.ui.screens.WaterRippleScrim
+import com.rajatxo.coral.ui.screens.RippleDismissContainer
+import com.rajatxo.coral.ui.screens.rippleFadeOut
 import com.rajatxo.coral.ui.theme.CalSansFamily
 
 // ★ BLUR VALUES — user can tell me the best values.
-private const val SEARCH_BLUR_RADIUS = 40f      // blur radius in dp (was 12, now 40)
-private const val SEARCH_TINT_ALPHA = 0.45f      // 45% black (was 30%, now matches nav bar hold card)
-private const val SEARCH_SATURATION = 1.6f       // 160% saturation (was 140%, now boosted)
-private const val SEARCH_BRIGHTNESS = 0.1f       // 10% brightness (was 5%, now matches nav bar hold card)
+private const val SEARCH_BLUR_RADIUS = 40f      // blur radius in dp
+private const val SEARCH_TINT_ALPHA = 0.33f      // 33% black (was 45%, now lighter)
+private const val SEARCH_SATURATION = 1.6f       // 160% saturation (boosted)
+private const val SEARCH_BRIGHTNESS = 0.08f       // 8% brightness
 
 /**
  * ★ CynthiaSearchScreen — glass card that drops from the top of the screen.
  *
  * Design:
- *   - Card starts at the TOP of the screen (flush, no rounded top corners)
- *   - Bottom corners are rounded (24dp)
- *   - Kyant backdrop glass morphism (blur=40, tint=45%, saturation=160%)
- *   - Card NEVER covers the nav bar, search FAB, or miniplayer
+ *   - Card starts at TOP of screen (flush, no rounded top corners)
+ *   - Bottom corners rounded (24dp)
+ *   - Kyant backdrop glass morphism
+ *   - Card NEVER covers nav bar, search FAB, or miniplayer
  *
  * Expansion logic:
- *   - When NO miniplayer: card extends from top to just above nav bar
+ *   - When NO miniplayer: card extends from top to just above nav bar (small gap)
  *   - When miniplayer IS present: card shrinks, sits above miniplayer
+ *   - Card follows miniplayer's saved Y offset (if user moved miniplayer up/down)
  *
  * Dismiss:
- *   - Tap outside the card → water ripple effect + dismiss
+ *   - Tap outside → water ripple + card fades out (same as TodaysTopCard)
  */
 @Composable
 fun CynthiaSearchScreen(
@@ -70,16 +77,43 @@ fun CynthiaSearchScreen(
         bottomEnd = 24.dp
     )
 
-    val bottomPadding = if (isMiniPlayerVisible) 120.dp else 80.dp
+    // ★ Read miniplayer's saved offset so the card can follow it.
+    //   If the user moved the miniplayer up/down via the customization panel,
+    //   the search card adjusts its bottom padding accordingly.
+    val miniPlayerCustom by com.rajatxo.coral.data.prefs.CynthiaMiniPlayerCustomization
+        .customization.collectAsState()
+    val density = LocalDensity.current
 
-    // ★ Water ripple scrim — tap outside the card → ripple + dismiss.
-    //   The scrim covers the ENTIRE screen but the card is rendered ON TOP
-    //   of it, so taps inside the card are consumed by the card.
-    com.rajatxo.coral.ui.screens.RippleDismissContainer(onDismiss = onDismiss) { progress ->
+    // ★ Bottom padding — how much space to leave at the bottom of the screen
+    //   for nav bar + search FAB + miniplayer.
+    //
+    //   When miniplayer visible: nav bar (~80dp) + miniplayer height (~64dp)
+    //     + gap (~10dp) + miniplayer's saved offsetY = ~154dp + offset
+    //   When no miniplayer: nav bar (~80dp) + small gap (~4dp) = ~84dp
+    //
+    //   The miniplayer's offsetY is added so if the user moved the miniplayer
+    //   up (negative offset), the card extends further down. If moved down
+    //   (positive offset), the card shrinks.
+    val miniPlayerOffsetY = miniPlayerCustom.offsetY
+    val bottomPadding = if (isMiniPlayerVisible) {
+        // Nav bar (80dp) + miniplayer (64dp) + gap (10dp) + offset = 154dp + offset
+        (154f + miniPlayerOffsetY).coerceAtLeast(80f).dp
+    } else {
+        // Just nav bar + tiny gap
+        84.dp
+    }
+
+    // ★ RippleDismissContainer — water ripple dismiss + card fade-out.
+    //   Same technique as TodaysTopCard: card fades + scales + drifts up
+    //   in sync with the ripple animation.
+    RippleDismissContainer(onDismiss = onDismiss) { progress ->
     Box(
         modifier = Modifier.fillMaxSize()
     ) {
         // ─── Search glass card ───────────────────────────────────────
+        //   Offscreen compositing so the glass blur renders evenly across
+        //   the ENTIRE card (including edges — fixes the "edges not blurring"
+        //   bug). Without this, kyant samples differently at the clip boundary.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -88,7 +122,13 @@ fun CynthiaSearchScreen(
                     androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
                         .minus(bottomPadding)
                 )
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
                 .clip(cardShape)
+                // ★ Background fallback — fills the card with a solid dark
+                //   color BEFORE drawBackdrop. This ensures the edges have
+                //   SOMETHING to blur even if kyant's sampling is weaker at
+                //   the clip boundary. Fixes "edges still transparent" bug.
+                .background(Color(0xFF0A0A0F))
                 .then(
                     if (backdrop != null) {
                         Modifier.drawBackdrop(
@@ -111,8 +151,11 @@ fun CynthiaSearchScreen(
                         Modifier.background(Color.Black.copy(alpha = 0.7f))
                     }
                 )
+                .border(1.dp, Color.White.copy(alpha = 0.1f), cardShape)
+                // ★ Card fade-out — fades + scales + drifts up in sync
+                //   with the ripple animation (same as TodaysTopCard).
+                .rippleFadeOut(progress)
                 .statusBarsPadding()
-                .padding(bottom = bottomPadding)
                 // ★ Consume clicks inside the card so they don't trigger the
                 //   ripple dismiss scrim behind it.
                 .clickable(
