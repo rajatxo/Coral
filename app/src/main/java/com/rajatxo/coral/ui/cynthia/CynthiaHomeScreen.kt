@@ -441,17 +441,15 @@ fun CynthiaHomeScreen(
         // Tapping the search FAB opens this. For now it uses Astra's
         // SearchScreen so the user can search songs. A custom Cynthia
         // search UI will be built later.
+        // ★ NEW SEARCH SCREEN — glass card drops from the top of the screen.
+        //   Rounded bottom corners only, kyant backdrop glass morphism.
+        //   Card adjusts height based on whether the miniplayer is visible.
+        //   Nav bar + search FAB + miniplayer always visible below the card.
         if (showSearch) {
             CynthiaSearchScreen(
-                songs = songs,
-                onSongClick = { song ->
-                    showSearch = false
-                    onSongClickWithReset(song)
-                },
-                onPlaylistClick = { _ ->
-                    showSearch = false
-                },
-                onDismiss = { showSearch = false }
+                onDismiss = { showSearch = false },
+                backdrop = glassBackdrop,
+                isMiniPlayerVisible = currentSongId != null && !miniPlayerDismissed
             )
         }
 
