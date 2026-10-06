@@ -16,13 +16,13 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 object CynthiaNavBarCustomization {
     private const val PREFS_NAME = "coral_prefs"
-    private const val KEY_WIDTH = "cynthia_nav_width_c2"
-    private const val KEY_HEIGHT = "cynthia_nav_height_c2"
-    private const val KEY_CORNER = "cynthia_nav_corner_c3"
+    private const val KEY_WIDTH = "cynthia_nav_width_c3"
+    private const val KEY_HEIGHT = "cynthia_nav_height_c3"
+    private const val KEY_CORNER = "cynthia_nav_corner_c4"
     private const val KEY_SHAPE = "cynthia_nav_shape_c2"
 
     // ★ User-specified defaults: 153dp wide, 50dp tall, 50 corner (full pill), PILL shape.
-    const val DEFAULT_WIDTH_DP = 153f
+    const val DEFAULT_WIDTH_DP = 202f
     const val DEFAULT_HEIGHT_DP = 50f
     const val DEFAULT_CORNER_DP = 50f
     val DEFAULT_SHAPE = com.rajatxo.coral.ui.cynthia.CynthiaCustomShape.PILL

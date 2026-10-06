@@ -16,8 +16,8 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 object CynthiaSearchFabCustomization {
     private const val PREFS_NAME = "coral_prefs"
-    private const val KEY_SIZE = "cynthia_search_size_c2"
-    private const val KEY_CORNER = "cynthia_search_corner_c3"
+    private const val KEY_SIZE = "cynthia_search_size_c3"
+    private const val KEY_CORNER = "cynthia_search_corner_c4"
     private const val KEY_SHAPE = "cynthia_search_shape_c2"
 
     // ★ User-specified defaults: 51dp size, 50 corner (full circle), CIRCLE shape.

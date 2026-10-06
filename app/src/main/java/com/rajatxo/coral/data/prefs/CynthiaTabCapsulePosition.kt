@@ -18,13 +18,13 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 object CynthiaTabCapsulePosition {
     private const val PREFS_NAME = "coral_prefs"
-    private const val KEY_X = "cynthia_tab_capsule_x_c3"
-    private const val KEY_Y = "cynthia_tab_capsule_y_c3"
+    private const val KEY_X = "cynthia_tab_capsule_x_c4"
+    private const val KEY_Y = "cynthia_tab_capsule_y_c4"
     // ★ Cynthia defaults — user-specified (latest):
     //   X = 0.39 (39%), Y = 0.89 (89%) — near bottom-left.
     //   Width/height/corner/shape are in CynthiaNavBarCustomization.
-    const val DEFAULT_X = 0.39f
-    const val DEFAULT_Y = 0.89f
+    const val DEFAULT_X = 0.43f
+    const val DEFAULT_Y = 0.91f
 
     private lateinit var prefs: android.content.SharedPreferences
 

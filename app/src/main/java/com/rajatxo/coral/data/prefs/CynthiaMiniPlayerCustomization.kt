@@ -14,23 +14,23 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 object CynthiaMiniPlayerCustomization {
     private const val PREFS_NAME = "coral_prefs"
-    private const val KEY_WIDTH = "cynthia_mini_player_width_c1"
-    private const val KEY_HEIGHT = "cynthia_mini_player_height_c1"
-    private const val KEY_CORNER = "cynthia_mini_player_corner_c1"
+    private const val KEY_WIDTH = "cynthia_mini_player_width_c2"
+    private const val KEY_HEIGHT = "cynthia_mini_player_height_c2"
+    private const val KEY_CORNER = "cynthia_mini_player_corner_c2"
     private const val KEY_SHAPE = "cynthia_mini_player_shape_c1"
-    private const val KEY_OFFSET_X = "cynthia_mini_player_offset_x_c1"
-    private const val KEY_OFFSET_Y = "cynthia_mini_player_offset_y_c1"
+    private const val KEY_OFFSET_X = "cynthia_mini_player_offset_x_c2"
+    private const val KEY_OFFSET_Y = "cynthia_mini_player_offset_y_c2"
 
     // ★ Default = Astra's miniplayer size (240×64dp, 32dp corner, PILL shape)
-    const val DEFAULT_WIDTH_DP = 240f
+    const val DEFAULT_WIDTH_DP = 259f
     const val DEFAULT_HEIGHT_DP = 64f
-    const val DEFAULT_CORNER_DP = 32f
+    const val DEFAULT_CORNER_DP = 50f
     val DEFAULT_SHAPE = com.rajatxo.coral.ui.cynthia.CynthiaCustomShape.PILL
 
     // ★ Default position — centered at the bottom (offset 0,0 from the
     //   bottom-center alignment that the caller uses).
-    const val DEFAULT_OFFSET_X = 0f
-    const val DEFAULT_OFFSET_Y = 0f
+    const val DEFAULT_OFFSET_X = 17f
+    const val DEFAULT_OFFSET_Y = 126f
 
     private lateinit var prefs: android.content.SharedPreferences
 
