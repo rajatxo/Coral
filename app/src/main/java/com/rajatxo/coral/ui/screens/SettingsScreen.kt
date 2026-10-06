@@ -1,6 +1,7 @@
 package com.rajatxo.coral.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -36,13 +37,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.colorControls
-import com.kyant.backdrop.effects.vibrancy
 import com.rajatxo.coral.data.premium.PremiumManager
 import com.rajatxo.coral.data.prefs.CrossfadeManager
 import com.rajatxo.coral.data.prefs.PlayerStyleManager
@@ -95,21 +89,14 @@ fun SettingsScreen(
     val bgBase = blendWithBlack(palette.primary, 0.55f)
     val bgDeep = blendWithBlack(palette.secondary, 0.7f)
 
-    // ★ SETTINGS' OWN BACKDROP — same approach as HomeScreen's nav bar.
-    //   The settings page creates its own LayerBackdrop that captures the
-    //   album-color gradient background. Sections then use drawBackdrop to
-    //   blur THAT captured content — not the Quick Picks page behind.
+    // ★ NOTE: drawBackdrop CANNOT be used inside a verticalScroll — it
+    //   crashes (same bug as LazyColumn). So sections use a simulated glass
+    //   look: semi-transparent dark overlay with a subtle border. Looks
+    //   glassy against the album-color gradient background without needing
+    //   a real backdrop blur.
     //
-    //   Pattern (same as HomeScreen):
-    //     1. rememberGraphicsLayer + rememberLayerBackdrop
-    //     2. Wrap content in Box(.layerBackdrop(settingsBackdrop))
-    //     3. Sections use drawBackdrop(settingsBackdrop) to blur the bg
-    val settingsGraphicsLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
-    val settingsBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop(
-        graphicsLayer = settingsGraphicsLayer
-    ) {
-        drawContent()
-    }
+    //   The real kyant backdrop is only on the back button circle (which
+    //   is NOT inside the scroll — it's in the header Box).
 
     Box(
         modifier = Modifier
@@ -127,7 +114,6 @@ fun SettingsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .layerBackdrop(settingsBackdrop)
             .verticalScroll(rememberScrollState())
             .padding(bottom = 24.dp)
     ) {
@@ -146,7 +132,7 @@ fun SettingsScreen(
                     .statusBarsPadding()
                     .padding(top = 16.dp)
             )
-            // ★ Back button — chevron LEFT (not down), glass morphism circle
+            // ★ Back button — chevron LEFT, glass-look circle
             val backShape = RoundedCornerShape(20.dp)
             Box(
                 modifier = Modifier
@@ -155,24 +141,8 @@ fun SettingsScreen(
                     .padding(start = 16.dp, top = 16.dp)
                     .size(40.dp)
                     .clip(backShape)
-                    .then(
-                        Modifier.drawBackdrop(
-                            backdrop = settingsBackdrop,
-                            shape = { backShape },
-                            effects = {
-                                vibrancy()
-                                colorControls(
-                                    brightness = 0.05f,
-                                    contrast = 1f,
-                                    saturation = 1.4f
-                                )
-                                blur(16f.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(Color.Black.copy(alpha = 0.3f))
-                            }
-                        )
-                    )
+                    .background(Color.White.copy(alpha = 0.1f))
+                    .border(1.dp, Color.White.copy(alpha = 0.15f), backShape)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
@@ -190,7 +160,7 @@ fun SettingsScreen(
         }
 
         // Premium section — always at the top so the user knows about it
-        SettingsSection(title = "Premium", backdrop = settingsBackdrop) {
+        SettingsSection(title = "Premium") {
             SettingsRow(
                 icon = CoralIcons.Heart,
                 title = "Coral Premium",
@@ -203,7 +173,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         // Premium-gated features
-        SettingsSection(title = "Premium features", backdrop = settingsBackdrop) {
+        SettingsSection(title = "Premium features") {
             SettingsRow(
                 icon = CoralIcons.Music,
                 title = "Equalizer",
@@ -229,7 +199,7 @@ fun SettingsScreen(
         //   ASTRA   — the EXISTING UI we built so far.
         // ═══════════════════════════════════════════════════════════════
         val currentAppUI by com.rajatxo.coral.data.prefs.AppUIManager.appUI.collectAsState()
-        SettingsSection(title = "App UI", backdrop = settingsBackdrop) {
+        SettingsSection(title = "App UI") {
             // Cynthia button
             SettingsRow(
                 icon = CoralIcons.Music,
@@ -259,7 +229,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         // --- Player Style ---
-        SettingsSection(title = "Player UI", backdrop = settingsBackdrop) {
+        SettingsSection(title = "Player UI") {
             SettingsRow(
                 icon = CoralIcons.Music,
                 title = "Coral Glass",
@@ -307,7 +277,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         // --- Appearance ---
-        SettingsSection(title = "Appearance", backdrop = settingsBackdrop) {
+        SettingsSection(title = "Appearance") {
             SettingsRow(
                 icon = CoralIcons.Settings,
                 title = "Theme",
@@ -355,7 +325,7 @@ fun SettingsScreen(
         // Controls for haptic feedback + sound effects app-wide.
         // Rules: both off → nothing; only haptics → haptics only;
         // only sounds → sounds only at the chosen volume; both → both fire.
-        SettingsSection(title = "Sound and Haptics", backdrop = settingsBackdrop) {
+        SettingsSection(title = "Sound and Haptics") {
             ToggleRow(
                 icon = CoralIcons.Music,
                 title = "Haptics",
@@ -381,7 +351,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        SettingsSection(title = "Playback", backdrop = settingsBackdrop) {
+        SettingsSection(title = "Playback") {
             SettingsRow(
                 icon = CoralIcons.Play,
                 title = "Crossfade",
@@ -443,7 +413,7 @@ fun SettingsScreen(
         //   1. Enable/disable each tab (toggle on the right of each row)
         //   2. Reorder tabs (up/down chevrons on the left of each row)
         //   3. Pick which tab opens by default on app launch
-        SettingsSection(title = "Nav bar UI", backdrop = settingsBackdrop) {
+        SettingsSection(title = "Nav bar UI") {
             // All 6 tabs (in their enum order, not the user's custom order).
             // Each row shows: up chevron | down chevron | name | subtitle | toggle.
             // The position in the list reflects the user's custom order.
@@ -487,7 +457,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        SettingsSection(title = "Lyrics", backdrop = settingsBackdrop) {
+        SettingsSection(title = "Lyrics") {
             SettingsRow(
                 icon = CoralIcons.ListMusic,
                 title = "Lyrics provider",
@@ -504,7 +474,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        SettingsSection(title = "About", backdrop = settingsBackdrop) {
+        SettingsSection(title = "About") {
             // The version row has the hidden long-press trigger for debug unlock
             VersionRow(
                 isPremium = isPremium,
@@ -587,7 +557,6 @@ private fun VersionRow(
 @Composable
 private fun SettingsSection(
     title: String,
-    backdrop: LayerBackdrop,
     content: @Composable () -> Unit
 ) {
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
@@ -604,22 +573,8 @@ private fun SettingsSection(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(sectionShape)
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { sectionShape },
-                    effects = {
-                        vibrancy()
-                        colorControls(
-                            brightness = 0.05f,
-                            contrast = 1f,
-                            saturation = 1.3f
-                        )
-                        blur(20f.dp.toPx())
-                    },
-                    onDrawSurface = {
-                        drawRect(Color.Black.copy(alpha = 0.3f))
-                    }
-                )
+                .background(Color.White.copy(alpha = 0.06f))
+                .border(1.dp, Color.White.copy(alpha = 0.08f), sectionShape)
         ) {
             content()
         }
