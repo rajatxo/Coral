@@ -1,12 +1,19 @@
 package com.rajatxo.coral.ui.screens
 
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import dev.chrisbanes.haze.hazeEffect
-import dev.chrisbanes.haze.hazeSource
+import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.colorControls
+import com.kyant.backdrop.effects.vibrancy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -91,38 +98,62 @@ fun SettingsScreen(
     val bgBase = blendWithBlack(palette.primary, 0.55f)
     val bgDeep = blendWithBlack(palette.secondary, 0.7f)
 
-    // ★ GLASS MORPHISM via Haze — works inside verticalScroll (unlike kyant).
-    //   Pattern:
-    //     1. HazeState created here
-    //     2. Background Box marked with .hazeSource(hazeState) — captures the gradient
-    //     3. Each SettingsSection uses .hazeEffect(hazeState, style) — blurs the captured bg
-    val hazeState = remember { dev.chrisbanes.haze.HazeState() }
-    val glassStyle = dev.chrisbanes.haze.HazeStyle(
-        backgroundColor = Color.Transparent,
-        tint = dev.chrisbanes.haze.HazeTint(Color.Black.copy(alpha = 0.35f)),
-        blurRadius = 20.dp
+    // ★ USER'S APPROACH: kyant backdrop as a separate transparent layer.
+    //
+    // Structure (top to bottom in z-order):
+    //   Layer 1: Background gradient (solid, visible, NOT clickable)
+    //   Layer 2: layerBackdrop Box — transparent, NOT clickable, NOT scrollable
+    //            This captures the gradient behind it. drawBackdrop on sections
+    //            will blur THIS captured gradient.
+    //   Layer 3: Scrollable settings content (sections with drawBackdrop)
+    //
+    // Why this works: layerBackdrop is OUTSIDE the scroll (kyant criteria met).
+    // Only drawBackdrop is inside the scroll. The previous crash was because
+    // BOTH layerBackdrop AND drawBackdrop were inside the scroll.
+    val settingsGraphicsLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
+    val settingsBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop(
+        graphicsLayer = settingsGraphicsLayer
+    ) {
+        drawContent()
+    }
+    val bgGradient = Brush.verticalGradient(
+        colorStops = arrayOf(
+            0.0f to bgBase,
+            0.3f to bgDeep,
+            1.0f to Color(0xFF030307)
+        )
     )
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colorStops = arrayOf(
-                        0.0f to bgBase,
-                        0.3f to bgDeep,
-                        1.0f to Color(0xFF030307)
-                    )
-                )
-            )
-            .hazeSource(hazeState)
+        modifier = Modifier.fillMaxSize()
     ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(bottom = 24.dp)
-    ) {
+        // ─── Layer 1: Solid gradient background (visible) ────────────
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(bgGradient)
+        )
+
+        // ─── Layer 2: Transparent capture layer (NOT scrollable, NOT clickable)
+        //   Has the SAME gradient drawn inside it so layerBackdrop captures it.
+        //   Zero interactivity — just exists to be captured by kyant.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(bgGradient)
+                .layerBackdrop(settingsBackdrop)
+        )
+
+        // ─── Layer 3: Scrollable settings content ─────────────────────
+        //   Sections use drawBackdrop(settingsBackdrop) to blur the captured
+        //   gradient from Layer 2. layerBackdrop is NOT here (it's in Layer 2),
+        //   so kyant criteria is met — no crash.
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 24.dp)
+        ) {
         // Big title at CENTER + back button at top-LEFT
         Box(
             modifier = Modifier.fillMaxWidth()
@@ -138,7 +169,7 @@ fun SettingsScreen(
                     .statusBarsPadding()
                     .padding(top = 16.dp)
             )
-            // ★ Back button — chevron LEFT, glass via Haze
+            // ★ Back button — chevron LEFT, kyant glass
             val backShape = RoundedCornerShape(20.dp)
             Box(
                 modifier = Modifier
@@ -147,9 +178,21 @@ fun SettingsScreen(
                     .padding(start = 16.dp, top = 16.dp)
                     .size(40.dp)
                     .clip(backShape)
-                    .hazeEffect(
-                        state = hazeState,
-                        style = glassStyle
+                    .drawBackdrop(
+                        backdrop = settingsBackdrop,
+                        shape = { backShape },
+                        effects = {
+                            vibrancy()
+                            colorControls(
+                                brightness = 0.05f,
+                                contrast = 1f,
+                                saturation = 1.4f
+                            )
+                            blur(16f.dp.toPx())
+                        },
+                        onDrawSurface = {
+                            drawRect(Color.Black.copy(alpha = 0.3f))
+                        }
                     )
                     .border(1.dp, Color.White.copy(alpha = 0.15f), backShape)
                     .clickable(
@@ -169,7 +212,7 @@ fun SettingsScreen(
         }
 
         // Premium section — always at the top so the user knows about it
-        SettingsSection(title = "Premium", hazeState = hazeState, glassStyle = glassStyle) {
+        SettingsSection(title = "Premium", settingsBackdrop = settingsBackdrop) {
             SettingsRow(
                 icon = CoralIcons.Heart,
                 title = "Coral Premium",
@@ -182,7 +225,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         // Premium-gated features
-        SettingsSection(title = "Premium features", hazeState = hazeState, glassStyle = glassStyle) {
+        SettingsSection(title = "Premium features", settingsBackdrop = settingsBackdrop) {
             SettingsRow(
                 icon = CoralIcons.Music,
                 title = "Equalizer",
@@ -208,7 +251,7 @@ fun SettingsScreen(
         //   ASTRA   — the EXISTING UI we built so far.
         // ═══════════════════════════════════════════════════════════════
         val currentAppUI by com.rajatxo.coral.data.prefs.AppUIManager.appUI.collectAsState()
-        SettingsSection(title = "App UI", hazeState = hazeState, glassStyle = glassStyle) {
+        SettingsSection(title = "App UI", settingsBackdrop = settingsBackdrop) {
             // Cynthia button
             SettingsRow(
                 icon = CoralIcons.Music,
@@ -238,7 +281,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         // --- Player Style ---
-        SettingsSection(title = "Player UI", hazeState = hazeState, glassStyle = glassStyle) {
+        SettingsSection(title = "Player UI", settingsBackdrop = settingsBackdrop) {
             SettingsRow(
                 icon = CoralIcons.Music,
                 title = "Coral Glass",
@@ -286,7 +329,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         // --- Appearance ---
-        SettingsSection(title = "Appearance", hazeState = hazeState, glassStyle = glassStyle) {
+        SettingsSection(title = "Appearance", settingsBackdrop = settingsBackdrop) {
             SettingsRow(
                 icon = CoralIcons.Settings,
                 title = "Theme",
@@ -334,7 +377,7 @@ fun SettingsScreen(
         // Controls for haptic feedback + sound effects app-wide.
         // Rules: both off → nothing; only haptics → haptics only;
         // only sounds → sounds only at the chosen volume; both → both fire.
-        SettingsSection(title = "Sound and Haptics", hazeState = hazeState, glassStyle = glassStyle) {
+        SettingsSection(title = "Sound and Haptics", settingsBackdrop = settingsBackdrop) {
             ToggleRow(
                 icon = CoralIcons.Music,
                 title = "Haptics",
@@ -360,7 +403,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        SettingsSection(title = "Playback", hazeState = hazeState, glassStyle = glassStyle) {
+        SettingsSection(title = "Playback", settingsBackdrop = settingsBackdrop) {
             SettingsRow(
                 icon = CoralIcons.Play,
                 title = "Crossfade",
@@ -422,7 +465,7 @@ fun SettingsScreen(
         //   1. Enable/disable each tab (toggle on the right of each row)
         //   2. Reorder tabs (up/down chevrons on the left of each row)
         //   3. Pick which tab opens by default on app launch
-        SettingsSection(title = "Nav bar UI", hazeState = hazeState, glassStyle = glassStyle) {
+        SettingsSection(title = "Nav bar UI", settingsBackdrop = settingsBackdrop) {
             // All 6 tabs (in their enum order, not the user's custom order).
             // Each row shows: up chevron | down chevron | name | subtitle | toggle.
             // The position in the list reflects the user's custom order.
@@ -466,7 +509,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        SettingsSection(title = "Lyrics", hazeState = hazeState, glassStyle = glassStyle) {
+        SettingsSection(title = "Lyrics", settingsBackdrop = settingsBackdrop) {
             SettingsRow(
                 icon = CoralIcons.ListMusic,
                 title = "Lyrics provider",
@@ -483,7 +526,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        SettingsSection(title = "About", hazeState = hazeState, glassStyle = glassStyle) {
+        SettingsSection(title = "About", settingsBackdrop = settingsBackdrop) {
             // The version row has the hidden long-press trigger for debug unlock
             VersionRow(
                 isPremium = isPremium,
@@ -566,8 +609,7 @@ private fun VersionRow(
 @Composable
 private fun SettingsSection(
     title: String,
-    hazeState: dev.chrisbanes.haze.HazeState,
-    glassStyle: dev.chrisbanes.haze.HazeStyle,
+    settingsBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop,
     content: @Composable () -> Unit
 ) {
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
@@ -584,9 +626,21 @@ private fun SettingsSection(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(sectionShape)
-                .hazeEffect(
-                    state = hazeState,
-                    style = glassStyle
+                .drawBackdrop(
+                    backdrop = settingsBackdrop,
+                    shape = { sectionShape },
+                    effects = {
+                        vibrancy()
+                        colorControls(
+                            brightness = 0.05f,
+                            contrast = 1f,
+                            saturation = 1.3f
+                        )
+                        blur(20f.dp.toPx())
+                    },
+                    onDrawSurface = {
+                        drawRect(Color.Black.copy(alpha = 0.3f))
+                    }
                 )
                 .border(1.dp, Color.White.copy(alpha = 0.08f), sectionShape)
         ) {
