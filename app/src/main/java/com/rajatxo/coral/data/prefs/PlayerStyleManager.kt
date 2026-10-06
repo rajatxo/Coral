@@ -22,11 +22,11 @@ object PlayerStyleManager {
     const val SPIRAL_3 = "Spiral 3.0"
 
     private const val PREFS_NAME = "coral_prefs"
-    private const val KEY_PLAYER_STYLE = "player_style_v5"  // bumped v4→v5 to add CORAL_GLASS
+    private const val KEY_PLAYER_STYLE = "player_style_v6"  // bumped v5→v6 to reset default to SPIRAL_2
 
     private lateinit var prefs: android.content.SharedPreferences
 
-    private val _playerStyle = MutableStateFlow(CORAL_GLASS)  // ★ Default = CORAL_GLASS (new glass player)
+    private val _playerStyle = MutableStateFlow(SPIRAL_2)  // ★ Default = SPIRAL 2.0
     val playerStyle: StateFlow<String> = _playerStyle.asStateFlow()
 
     fun init(context: Context) {

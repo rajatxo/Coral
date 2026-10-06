@@ -86,14 +86,13 @@ fun SettingsScreen(
     val defaultTab by com.rajatxo.coral.data.prefs.NavBarConfig.defaultTab.collectAsState()
     var versionTapCount by remember { mutableIntStateOf(0) }
 
-    // ★ SOLID album-cover-color background (like Astra's songs page).
-    //   Reads PaletteCache for the last extracted palette. Uses palette
-    //   colors at FULL alpha (not transparent) so the settings page is
-    //   solid — you can NOT see through it to the Quick Picks screen.
+    // ★ SOLID album-cover-color background — vibrant but darker.
+    //   Palette primary at 80% blend with black → deep, saturated, dark.
     val cachedPalette by PaletteCache.cached.collectAsState()
     val palette = cachedPalette?.second ?: com.rajatxo.coral.util.CoralPalette.Default
-    val bgBase = palette.primary
-    val bgDeep = palette.secondary
+    // Blend palette primary with black to darken (keeps the hue, removes brightness)
+    val bgBase = blendWithBlack(palette.primary, 0.55f)
+    val bgDeep = blendWithBlack(palette.secondary, 0.7f)
 
     Column(
         modifier = Modifier
@@ -103,7 +102,7 @@ fun SettingsScreen(
                     colorStops = arrayOf(
                         0.0f to bgBase,
                         0.3f to bgDeep,
-                        1.0f to Color(0xFF050507)
+                        1.0f to Color(0xFF030307)
                     )
                 )
             )
@@ -125,15 +124,37 @@ fun SettingsScreen(
                     .statusBarsPadding()
                     .padding(top = 16.dp)
             )
-            // Back button (top-left, chevron down)
+            // ★ Back button — chevron LEFT (not down), glass morphism circle
+            val backShape = RoundedCornerShape(20.dp)
             Box(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .statusBarsPadding()
                     .padding(start = 16.dp, top = 16.dp)
                     .size(40.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color.White.copy(alpha = 0.08f))
+                    .clip(backShape)
+                    .then(
+                        if (backdrop != null) {
+                            Modifier.drawBackdrop(
+                                backdrop = backdrop,
+                                shape = { backShape },
+                                effects = {
+                                    vibrancy()
+                                    colorControls(
+                                        brightness = 0.05f,
+                                        contrast = 1f,
+                                        saturation = 1.4f
+                                    )
+                                    blur(16f.dp.toPx())
+                                },
+                                onDrawSurface = {
+                                    drawRect(Color.Black.copy(alpha = 0.3f))
+                                }
+                            )
+                        } else {
+                            Modifier.background(Color.White.copy(alpha = 0.08f))
+                        }
+                    )
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
@@ -142,7 +163,7 @@ fun SettingsScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = CoralIcons.ChevronDown,
+                    imageVector = CoralIcons.ChevronLeft,
                     contentDescription = "Back",
                     tint = Color.White,
                     modifier = Modifier.size(22.dp)
@@ -151,7 +172,7 @@ fun SettingsScreen(
         }
 
         // Premium section — always at the top so the user knows about it
-        SettingsSection(title = "Premium") {
+        SettingsSection(title = "Premium", backdrop = backdrop) {
             SettingsRow(
                 icon = CoralIcons.Heart,
                 title = "Coral Premium",
@@ -164,7 +185,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         // Premium-gated features
-        SettingsSection(title = "Premium features") {
+        SettingsSection(title = "Premium features", backdrop = backdrop) {
             SettingsRow(
                 icon = CoralIcons.Music,
                 title = "Equalizer",
@@ -190,7 +211,7 @@ fun SettingsScreen(
         //   ASTRA   — the EXISTING UI we built so far.
         // ═══════════════════════════════════════════════════════════════
         val currentAppUI by com.rajatxo.coral.data.prefs.AppUIManager.appUI.collectAsState()
-        SettingsSection(title = "App UI") {
+        SettingsSection(title = "App UI", backdrop = backdrop) {
             // Cynthia button
             SettingsRow(
                 icon = CoralIcons.Music,
@@ -220,7 +241,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         // --- Player Style ---
-        SettingsSection(title = "Player UI") {
+        SettingsSection(title = "Player UI", backdrop = backdrop) {
             SettingsRow(
                 icon = CoralIcons.Music,
                 title = "Coral Glass",
@@ -268,7 +289,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         // --- Appearance ---
-        SettingsSection(title = "Appearance") {
+        SettingsSection(title = "Appearance", backdrop = backdrop) {
             SettingsRow(
                 icon = CoralIcons.Settings,
                 title = "Theme",
@@ -316,7 +337,7 @@ fun SettingsScreen(
         // Controls for haptic feedback + sound effects app-wide.
         // Rules: both off → nothing; only haptics → haptics only;
         // only sounds → sounds only at the chosen volume; both → both fire.
-        SettingsSection(title = "Sound and Haptics") {
+        SettingsSection(title = "Sound and Haptics", backdrop = backdrop) {
             ToggleRow(
                 icon = CoralIcons.Music,
                 title = "Haptics",
@@ -342,7 +363,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        SettingsSection(title = "Playback") {
+        SettingsSection(title = "Playback", backdrop = backdrop) {
             SettingsRow(
                 icon = CoralIcons.Play,
                 title = "Crossfade",
@@ -404,7 +425,7 @@ fun SettingsScreen(
         //   1. Enable/disable each tab (toggle on the right of each row)
         //   2. Reorder tabs (up/down chevrons on the left of each row)
         //   3. Pick which tab opens by default on app launch
-        SettingsSection(title = "Nav bar UI") {
+        SettingsSection(title = "Nav bar UI", backdrop = backdrop) {
             // All 6 tabs (in their enum order, not the user's custom order).
             // Each row shows: up chevron | down chevron | name | subtitle | toggle.
             // The position in the list reflects the user's custom order.
@@ -448,7 +469,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        SettingsSection(title = "Lyrics") {
+        SettingsSection(title = "Lyrics", backdrop = backdrop) {
             SettingsRow(
                 icon = CoralIcons.ListMusic,
                 title = "Lyrics provider",
@@ -465,7 +486,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        SettingsSection(title = "About") {
+        SettingsSection(title = "About", backdrop = backdrop) {
             // The version row has the hidden long-press trigger for debug unlock
             VersionRow(
                 isPremium = isPremium,
@@ -888,4 +909,12 @@ private fun NavTabRow(
             )
         )
     }
+}
+
+/** Blend a color with black by the given ratio (0 = original, 1 = pure black). */
+private fun blendWithBlack(color: Color, ratio: Float): Color {
+    val r = color.red * (1f - ratio)
+    val g = color.green * (1f - ratio)
+    val b = color.blue * (1f - ratio)
+    return Color(red = r, green = g, blue = b, alpha = 1f)
 }
