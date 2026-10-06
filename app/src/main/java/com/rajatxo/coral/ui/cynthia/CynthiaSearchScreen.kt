@@ -83,10 +83,18 @@ fun CynthiaSearchScreen(
         modifier = Modifier.fillMaxSize()
     ) {
         // ─── Search glass card ───────────────────────────────────────
+        //   Does NOT fill the whole screen — only from top to bottomPadding.
+        //   The nav bar + search FAB + miniplayer below stay visible + unblurred.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
+                .height(
+                    // Card height = screen height - bottom padding
+                    // This ensures the card ends ABOVE the nav bar / miniplayer
+                    androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
+                        .minus(bottomPadding)
+                )
                 .clip(cardShape)
                 .then(
                     if (backdrop != null) {
