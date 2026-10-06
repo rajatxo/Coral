@@ -988,8 +988,7 @@ fun HomeScreen(
                 onOpenSpiralPalette = {
                     showSettings = false
                     showSpiralPalette = true
-                },
-                backdrop = glassBackdrop
+                }
             )
         }
 
