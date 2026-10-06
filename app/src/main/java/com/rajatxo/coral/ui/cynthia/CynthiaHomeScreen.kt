@@ -528,7 +528,10 @@ fun CynthiaHomeScreen(
 
         // ★ Mini player — rendered when a song is playing AND not dismissed
         //   AND search screen is NOT open.
-        if (currentSongId != null && !miniPlayerDismissed && !showSearch) {
+        // ★ Mini player — rendered when a song is playing AND not dismissed.
+        //   Search card is rendered ABOVE the miniplayer, so the miniplayer
+        //   should still be visible when search is open (below the card).
+        if (currentSongId != null && !miniPlayerDismissed) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)

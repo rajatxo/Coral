@@ -32,14 +32,14 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.vibrancy
+import com.rajatxo.coral.ui.screens.WaterRippleScrim
 import com.rajatxo.coral.ui.theme.CalSansFamily
 
-// ★ BLUR VALUE — easy to change. User can tell me the best value.
-//   Higher = more blur. 12f is a good starting point (matches nav bar).
-private const val SEARCH_BLUR_RADIUS = 12f
-
-// ★ Tint overlay — how dark the glass looks. 0.3f = 30% black overlay.
-private const val SEARCH_TINT_ALPHA = 0.3f
+// ★ BLUR VALUES — user can tell me the best values.
+private const val SEARCH_BLUR_RADIUS = 40f      // blur radius in dp (was 12, now 40)
+private const val SEARCH_TINT_ALPHA = 0.45f      // 45% black (was 30%, now matches nav bar hold card)
+private const val SEARCH_SATURATION = 1.6f       // 160% saturation (was 140%, now boosted)
+private const val SEARCH_BRIGHTNESS = 0.1f       // 10% brightness (was 5%, now matches nav bar hold card)
 
 /**
  * ★ CynthiaSearchScreen — glass card that drops from the top of the screen.
@@ -47,19 +47,15 @@ private const val SEARCH_TINT_ALPHA = 0.3f
  * Design:
  *   - Card starts at the TOP of the screen (flush, no rounded top corners)
  *   - Bottom corners are rounded (24dp)
- *   - Kyant backdrop glass morphism (blurs whatever is behind it)
+ *   - Kyant backdrop glass morphism (blur=40, tint=45%, saturation=160%)
  *   - Card NEVER covers the nav bar, search FAB, or miniplayer
  *
  * Expansion logic:
- *   - When NO miniplayer: card extends from top of screen to just above nav bar
- *   - When miniplayer IS present: card shrinks vertically, sits above miniplayer
- *   - Nav bar + search FAB + miniplayer are ALWAYS visible below the card
+ *   - When NO miniplayer: card extends from top to just above nav bar
+ *   - When miniplayer IS present: card shrinks, sits above miniplayer
  *
- * The card's bottom padding adjusts dynamically based on:
- *   - isMiniPlayerVisible: true if a song is playing and miniplayer is shown
- *
- * Content inside the card (search field, results, history) will be added later.
- * For now this is just the structure.
+ * Dismiss:
+ *   - Tap outside the card → water ripple effect + dismiss
  */
 @Composable
 fun CynthiaSearchScreen(
@@ -74,24 +70,21 @@ fun CynthiaSearchScreen(
         bottomEnd = 24.dp
     )
 
-    // ★ Card bottom padding — adjusts based on miniplayer presence.
-    //   When miniplayer is visible: card ends above the miniplayer (120dp from bottom)
-    //   When no miniplayer: card ends above the nav bar (80dp from bottom)
     val bottomPadding = if (isMiniPlayerVisible) 120.dp else 80.dp
 
+    // ★ Water ripple scrim — tap outside the card → ripple + dismiss.
+    //   The scrim covers the ENTIRE screen but the card is rendered ON TOP
+    //   of it, so taps inside the card are consumed by the card.
+    com.rajatxo.coral.ui.screens.RippleDismissContainer(onDismiss = onDismiss) { progress ->
     Box(
         modifier = Modifier.fillMaxSize()
     ) {
         // ─── Search glass card ───────────────────────────────────────
-        //   Does NOT fill the whole screen — only from top to bottomPadding.
-        //   The nav bar + search FAB + miniplayer below stay visible + unblurred.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
                 .height(
-                    // Card height = screen height - bottom padding
-                    // This ensures the card ends ABOVE the nav bar / miniplayer
                     androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
                         .minus(bottomPadding)
                 )
@@ -104,9 +97,9 @@ fun CynthiaSearchScreen(
                             effects = {
                                 vibrancy()
                                 colorControls(
-                                    brightness = 0.05f,
+                                    brightness = SEARCH_BRIGHTNESS,
                                     contrast = 1f,
-                                    saturation = 1.4f
+                                    saturation = SEARCH_SATURATION
                                 )
                                 blur(SEARCH_BLUR_RADIUS.dp.toPx())
                             },
@@ -120,8 +113,14 @@ fun CynthiaSearchScreen(
                 )
                 .statusBarsPadding()
                 .padding(bottom = bottomPadding)
+                // ★ Consume clicks inside the card so they don't trigger the
+                //   ripple dismiss scrim behind it.
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {}
+                )
         ) {
-            // ─── Card content (placeholder for now) ──────────────────
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -140,7 +139,6 @@ fun CynthiaSearchScreen(
                         fontWeight = FontWeight.Bold,
                         fontFamily = CalSansFamily
                     )
-                    // Close button
                     Box(
                         modifier = Modifier
                             .size(36.dp)
@@ -173,4 +171,5 @@ fun CynthiaSearchScreen(
             }
         }
     }
+    }  // ← closes RippleDismissContainer
 }
