@@ -15,6 +15,7 @@
     <application
         android:name=".CoralApplication"
         android:allowBackup="true"
+        android:appCategory="audio"
         android:icon="@mipmap/ic_launcher"
         android:label="${appName}"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -28,15 +29,11 @@
             android:theme="@style/Theme.Coral">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            <!-- ★ MUSIC_PLAYER intent filter — tells launchers (Niagara, etc.)
-                 that Coral is a music app. Enables "Set as music app" option
-                 when long-pressing the icon, and auto-shows in headphone/
-                 Bluetooth connection favorite pages. -->
-            <intent-filter>
                 <action android:name="android.intent.action.MUSIC_PLAYER" />
-                <category android:name="android.intent.category.CATEGORY_APP_MUSIC" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.APP_MUSIC" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
 
