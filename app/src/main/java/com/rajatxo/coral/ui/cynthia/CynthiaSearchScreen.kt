@@ -18,6 +18,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -94,12 +99,29 @@ fun CynthiaSearchScreen(
     // ★ Card height — smooth tween animation when miniplayer is dismissed.
     //   Uses tween (not spring) for a smooth, linear-ish expand.
     //   The expanded part dissolves smoothly — no sudden change.
+    // ★ Keyboard-aware card height — shrinks when keyboard opens.
+    //   Detects keyboard (IME) height and subtracts it from the card
+    //   height + 8dp gap so the glossy bottom border stays visible
+    //   above the keyboard.
     val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
+    val density = androidx.compose.ui.platform.LocalDensity.current
+
+    // Get keyboard (IME) inset in dp
+    val imeInsetPx = WindowInsets.ime.getBottom(density)
+    val imeInsetDp = with(density) { imeInsetPx.toDp() }
+    // 8dp gap above keyboard
+    val keyboardGap: androidx.compose.ui.unit.Dp = if (imeInsetDp.value > 0f) {
+        imeInsetDp + 8.dp
+    } else {
+        0.dp
+    }
+
     val targetHeightExtra = if (isMiniPlayerVisible) {
         config.heightExtra - 48f
     } else {
         config.heightExtra
     }
+    // Subtract keyboard gap from the height so the card shrinks
     val animatedHeightExtra by androidx.compose.animation.core.animateFloatAsState(
         targetValue = targetHeightExtra,
         animationSpec = androidx.compose.animation.core.tween(
@@ -108,7 +130,16 @@ fun CynthiaSearchScreen(
         ),
         label = "cardHeight"
     )
-    val cardHeight = screenHeight + animatedHeightExtra.dp
+    // Animate the keyboard gap too (smooth shrink/grow when keyboard opens/closes)
+    val animatedKeyboardGap by androidx.compose.animation.core.animateDpAsState(
+        targetValue = keyboardGap,
+        animationSpec = androidx.compose.animation.core.tween(
+            durationMillis = 300,
+            easing = androidx.compose.animation.core.FastOutSlowInEasing
+        ),
+        label = "keyboardGap"
+    )
+    val cardHeight = screenHeight + animatedHeightExtra.dp - animatedKeyboardGap
 
     RippleDismissContainer(onDismiss = onDismiss) { progress ->
     Box(modifier = Modifier.fillMaxSize()) {
