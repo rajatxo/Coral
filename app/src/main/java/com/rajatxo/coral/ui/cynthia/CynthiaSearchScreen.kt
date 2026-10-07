@@ -96,50 +96,15 @@ fun CynthiaSearchScreen(
         bottomStart = config.corner.dp, bottomEnd = config.corner.dp
     )
 
-    // ★ Card height — smooth tween animation when miniplayer is dismissed.
-    //   Uses tween (not spring) for a smooth, linear-ish expand.
-    //   The expanded part dissolves smoothly — no sudden change.
-    // ★ Keyboard-aware card height — shrinks when keyboard opens.
-    //   Detects keyboard (IME) height and subtracts it from the card
-    //   height + 8dp gap so the glossy bottom border stays visible
-    //   above the keyboard.
+    // ★ Instant card height — no animation, no keyboard detection.
+    //   Height changes instantly when miniplayer appears/disappears.
     val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
-    val density = androidx.compose.ui.platform.LocalDensity.current
-
-    // Get keyboard (IME) inset in dp
-    val imeInsetPx = WindowInsets.ime.getBottom(density)
-    val imeInsetDp = with(density) { imeInsetPx.toDp() }
-    // 8dp gap above keyboard
-    val keyboardGap: androidx.compose.ui.unit.Dp = if (imeInsetDp.value > 0f) {
-        imeInsetDp + 8.dp
-    } else {
-        0.dp
-    }
-
-    val targetHeightExtra = if (isMiniPlayerVisible) {
+    val heightExtra = if (isMiniPlayerVisible) {
         config.heightExtra - 48f
     } else {
         config.heightExtra
     }
-    // Subtract keyboard gap from the height so the card shrinks
-    val animatedHeightExtra by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = targetHeightExtra,
-        animationSpec = androidx.compose.animation.core.tween(
-            durationMillis = 400,
-            easing = androidx.compose.animation.core.FastOutSlowInEasing
-        ),
-        label = "cardHeight"
-    )
-    // Animate the keyboard gap too (smooth shrink/grow when keyboard opens/closes)
-    val animatedKeyboardGap by androidx.compose.animation.core.animateDpAsState(
-        targetValue = keyboardGap,
-        animationSpec = androidx.compose.animation.core.tween(
-            durationMillis = 300,
-            easing = androidx.compose.animation.core.FastOutSlowInEasing
-        ),
-        label = "keyboardGap"
-    )
-    val cardHeight = screenHeight + animatedHeightExtra.dp - animatedKeyboardGap
+    val cardHeight = screenHeight + heightExtra.dp
 
     RippleDismissContainer(onDismiss = onDismiss) { progress ->
     Box(modifier = Modifier.fillMaxSize()) {
