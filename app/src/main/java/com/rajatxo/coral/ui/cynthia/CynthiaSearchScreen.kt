@@ -19,9 +19,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -82,8 +79,6 @@ fun CynthiaSearchScreen(
         .customization.collectAsState()
 
     // ★ Read nav bar position to calculate the exact same gap as miniplayer-nav.
-    val savedTabPos by com.rajatxo.coral.data.prefs.CynthiaTabCapsulePosition.position.collectAsState()
-    val navBarCustom by com.rajatxo.coral.data.prefs.CynthiaNavBarCustomization.customization.collectAsState()
 
     var showCustomization by remember { mutableStateOf(false) }
 
@@ -92,43 +87,13 @@ fun CynthiaSearchScreen(
         bottomStart = config.corner.dp, bottomEnd = config.corner.dp
     )
 
-    // ★ EXACT SAME GAP as miniplayer-to-nav-bar gap (10dp).
-    //   This uses the SAME calculation as Astra's HomeScreen:
-    //     navBarCenterFromBottom = screenHeight × (1 - navBarYFraction)
-    //     navBarTopFromBottom = navBarCenterFromBottom + (navBarHeight / 2)
-    //     miniPlayerBottom = navBarTopFromBottom + 10dp (the gap)
-    //
-    //   For the search card:
-    //     When miniplayer IS visible:
-    //       cardBottom = miniPlayerBottom + miniPlayerHeight + 10dp (same 10dp gap above miniplayer)
-    //     When miniplayer is NOT visible:
-    //       cardBottom = navBarTopFromBottom + 10dp (same 10dp gap above nav bar)
-    //
-    //   This guarantees the search card has the EXACT SAME gap as the
-    //   miniplayer has with the nav bar. Always 10dp. No overlap. Ever.
-    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
-    val systemNavInset = androidx.compose.foundation.layout.WindowInsets.navigationBars
-        .asPaddingValues().calculateBottomPadding()
-
-    val navBarYFraction = savedTabPos.second
-    val navBarHeight = navBarCustom.heightDp.dp
-    val navBarCenterFromBottom = configuration.screenHeightDp.dp * (1f - navBarYFraction)
-    val navBarTopFromBottom = navBarCenterFromBottom + (navBarHeight / 2)
-    val gapValue = 10.dp  // ★ SAME gap as miniplayer-to-nav-bar
-
-    val miniPlayerHeight = miniPlayerCustom.heightDp.dp
-    val miniPlayerOffsetY = miniPlayerCustom.offsetY
-
-    val bottomPadding = if (isMiniPlayerVisible) {
-        // Card bottom = nav bar top + gap + miniplayer height + gap + miniplayer offset
-        (navBarTopFromBottom + gapValue + miniPlayerHeight + gapValue +
-                miniPlayerOffsetY.dp + config.heightExtra.dp)
-            .coerceAtLeast(navBarTopFromBottom + gapValue)
-    } else {
-        // Card bottom = nav bar top + gap + height extra
-        (navBarTopFromBottom + gapValue + config.heightExtra.dp)
-            .coerceAtLeast(navBarTopFromBottom + gapValue)
-    }
+    // ★ SIMPLE — card height = full screen height + heightExtra.
+    //   User can expand/shrink freely via the customization panel.
+    //   No gap calculations, no nav bar math, no miniplayer positioning.
+    //   heightExtra goes from -150 (shorter) to +200 (taller, but screen
+    //   is already full so +200 just adds scroll space).
+    val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
+    val cardHeight = screenHeight + config.heightExtra.dp
 
     RippleDismissContainer(onDismiss = onDismiss) { progress ->
     Box(modifier = Modifier.fillMaxSize()) {
@@ -141,10 +106,7 @@ fun CynthiaSearchScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
-                .height(
-                    androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
-                        .minus(bottomPadding)
-                )
+                .height(cardHeight)
                 .rippleFadeOut(progress)
                 .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
                 .clip(cardShape)
