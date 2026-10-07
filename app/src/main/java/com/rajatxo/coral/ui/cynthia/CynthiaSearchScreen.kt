@@ -80,39 +80,19 @@ fun CynthiaSearchScreen(
 
     var showCustomization by remember { mutableStateOf(false) }
 
-    val cardShape = RoundedCornerShape(
-        topStart = 0.dp, topEnd = 0.dp,
-        bottomStart = config.corner.dp, bottomEnd = config.corner.dp
-    )
-
-    // ★ Bottom padding — gap between card bottom and nav bar / miniplayer.
-    //   Miniplayer sits at 100dp from bottom, height 64dp → top at 164dp.
-    //   Card should end at 164dp + 4dp gap = 168dp when miniplayer visible.
-    //   Nav bar sits at ~80dp from bottom → card ends at 84dp (4dp gap).
-    //   Gap value (4dp) matches the gap between miniplayer and nav bar.
-    val miniPlayerOffsetY = miniPlayerCustom.offsetY
-    val baseBottomPadding = if (isMiniPlayerVisible) 168f else 84f
-    val bottomPadding = (baseBottomPadding + miniPlayerOffsetY + config.heightExtra)
-        .coerceAtLeast(60f).dp
+    // ★ FULL SCREEN — card covers the entire screen, no bottom padding,
+    //   no gap for nav bar or miniplayer. User will tell me how to
+    //   adjust later.
+    val cardShape = RoundedCornerShape(0.dp)  // no rounded corners — full screen
 
     RippleDismissContainer(onDismiss = onDismiss) { progress ->
     Box(modifier = Modifier.fillMaxSize()) {
-        // ─── Search glass card ───────────────────────────────────────
-        //   ★ rippleFadeOut MUST come BEFORE clip + drawBackdrop + border
-        //   so graphicsLayer wraps the ENTIRE card (glass + border + content).
-        //   If placed after, only the inner content fades — the glass stays
-        //   visible until the ripple finishes. Same lesson as TodaysTopCard.
+        // ─── Search glass card — FULL SCREEN ──────────────────────
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.TopCenter)
-                .height(
-                    androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
-                        .minus(bottomPadding)
-                )
+                .fillMaxSize()
                 .rippleFadeOut(progress)
                 .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-                .clip(cardShape)
                 .background(Color(0xFF0A0A0F))
                 .then(
                     if (backdrop != null) {
@@ -136,7 +116,6 @@ fun CynthiaSearchScreen(
                         Modifier.background(Color.Black.copy(alpha = 0.7f))
                     }
                 )
-                .border(1.dp, Color.White.copy(alpha = 0.1f), cardShape)
                 .statusBarsPadding()
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
