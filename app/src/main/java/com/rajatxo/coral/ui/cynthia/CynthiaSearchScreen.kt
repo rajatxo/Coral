@@ -88,12 +88,17 @@ fun CynthiaSearchScreen(
     )
 
     // ★ SIMPLE — card height = full screen height + heightExtra.
-    //   User can expand/shrink freely via the customization panel.
-    //   No gap calculations, no nav bar math, no miniplayer positioning.
-    //   heightExtra goes from -150 (shorter) to +200 (taller, but screen
-    //   is already full so +200 just adds scroll space).
+    //   heightExtra is adjusted based on miniplayer presence:
+    //     - No miniplayer: use config.heightExtra (default -62dp)
+    //     - Miniplayer visible: subtract 48dp more (default -62 + -48 = -110dp)
+    //   User can still adjust via the customization panel.
     val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
-    val cardHeight = screenHeight + config.heightExtra.dp
+    val effectiveHeightExtra = if (isMiniPlayerVisible) {
+        config.heightExtra - 48f  // -48dp extra to make room for miniplayer
+    } else {
+        config.heightExtra
+    }
+    val cardHeight = screenHeight + effectiveHeightExtra.dp
 
     RippleDismissContainer(onDismiss = onDismiss) { progress ->
     Box(modifier = Modifier.fillMaxSize()) {

@@ -572,7 +572,6 @@ fun HomeScreen(
             exit = slideOutVertically { it } + fadeOut(),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
                 .padding(bottom = miniPlayerPaddingBottom)
         ) {
             MiniPlayer(
@@ -1386,7 +1385,6 @@ private fun MiniPlayer(
     Box(
         modifier = Modifier
             .padding(vertical = 4.dp)
-            .navigationBarsPadding()
             .graphicsLayer {
                 translationX = offsetX.value
                 translationY = offsetY.value.coerceAtLeast(-maxSwipeUpPx)

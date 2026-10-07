@@ -1296,9 +1296,8 @@ fun Spiral2Player(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
                 .padding(horizontal = 28.dp)
-                .padding(bottom = 32.dp)
+                .padding(bottom = 48.dp)
                 .pointerInput(Unit) {
                     detectVerticalDragGestures(
                         onVerticalDrag = { _, dragAmount ->

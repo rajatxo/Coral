@@ -11,16 +11,16 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 object SearchCardCustomization {
     private const val PREFS_NAME = "coral_prefs"
-    private const val KEY_BLUR = "search_card_blur_c1"
-    private const val KEY_DARKNESS = "search_card_darkness_c1"
-    private const val KEY_HEIGHT = "search_card_height_c1"
-    private const val KEY_CORNER = "search_card_corner_c1"
+    private const val KEY_BLUR = "search_card_blur_c2"
+    private const val KEY_DARKNESS = "search_card_darkness_c2"
+    private const val KEY_HEIGHT = "search_card_height_c2"
+    private const val KEY_CORNER = "search_card_corner_c2"
 
-    // ★ Defaults — user will tell me the best values
-    const val DEFAULT_BLUR = 40f       // blur radius in dp
-    const val DEFAULT_DARKNESS = 0.33f  // 33% black tint
-    const val DEFAULT_HEIGHT_EXTRA = 0f // extra height in dp (0 = auto)
-    const val DEFAULT_CORNER = 24f      // bottom corner radius in dp
+    // ★ Defaults — user-specified values
+    const val DEFAULT_BLUR = 49f        // blur radius in dp
+    const val DEFAULT_DARKNESS = 0.15f   // 15% black tint
+    const val DEFAULT_HEIGHT_EXTRA = -62f // -62dp when no miniplayer
+    const val DEFAULT_CORNER = 32f       // bottom corner radius in dp
 
     private lateinit var prefs: android.content.SharedPreferences
 

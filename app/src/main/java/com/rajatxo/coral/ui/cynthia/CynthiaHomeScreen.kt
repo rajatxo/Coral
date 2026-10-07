@@ -535,7 +535,6 @@ fun CynthiaHomeScreen(
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
                     .padding(bottom = 100.dp)
             ) {
                 CynthiaMiniPlayer(
