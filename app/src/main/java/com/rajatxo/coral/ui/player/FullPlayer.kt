@@ -375,7 +375,7 @@ fun FullPlayer(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                
+                .navigationBarsPadding()
                 .padding(horizontal = 20.dp, vertical = 12.dp)
         ) {
             // Seek bar ──────────────────────────────────────────────────

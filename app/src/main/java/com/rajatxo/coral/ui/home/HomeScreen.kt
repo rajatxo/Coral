@@ -346,7 +346,7 @@ fun HomeScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(CoralColors.Surface).navigationBarsPadding()) {
+    Box(modifier = Modifier.fillMaxSize().background(CoralColors.Surface)) {
         // --- Sleep timer capsule state (top-level scope, accessible by all overlays) ---
         val capsuleVisible = sleepTimerState.active &&
             (sleepRemainingMs > 0 || sleepTimerState.endOfSong)
@@ -572,6 +572,7 @@ fun HomeScreen(
             exit = slideOutVertically { it } + fadeOut(),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
                 .padding(bottom = miniPlayerPaddingBottom)
         ) {
             MiniPlayer(
@@ -1385,6 +1386,7 @@ private fun MiniPlayer(
     Box(
         modifier = Modifier
             .padding(vertical = 4.dp)
+            .navigationBarsPadding()
             .graphicsLayer {
                 translationX = offsetX.value
                 translationY = offsetY.value.coerceAtLeast(-maxSwipeUpPx)
