@@ -450,7 +450,12 @@ fun CynthiaHomeScreen(
             CynthiaSearchScreen(
                 onDismiss = { showSearch = false },
                 backdrop = glassBackdrop,
-                isMiniPlayerVisible = currentSongId != null && !miniPlayerDismissed
+                isMiniPlayerVisible = currentSongId != null && !miniPlayerDismissed,
+                songs = songs,
+                onSongClick = { song ->
+                    showSearch = false
+                    onSongClickWithReset(song)
+                }
             )
         }
 

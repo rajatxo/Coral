@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -72,7 +74,9 @@ private const val SEARCH_BRIGHTNESS = 0.08f
 fun CynthiaSearchScreen(
     onDismiss: () -> Unit,
     backdrop: LayerBackdrop? = null,
-    isMiniPlayerVisible: Boolean = false
+    isMiniPlayerVisible: Boolean = false,
+    songs: List<com.rajatxo.coral.domain.model.Song> = emptyList(),
+    onSongClick: (com.rajatxo.coral.domain.model.Song) -> Unit = {}
 ) {
     val config by SearchCardCustomization.config.collectAsState()
     val miniPlayerCustom by com.rajatxo.coral.data.prefs.CynthiaMiniPlayerCustomization
@@ -87,10 +91,9 @@ fun CynthiaSearchScreen(
         bottomStart = config.corner.dp, bottomEnd = config.corner.dp
     )
 
-    // ★ Card height — animates smoothly when miniplayer is dismissed.
-    //   When miniplayer is visible: heightExtra - 48dp (room for miniplayer)
-    //   When miniplayer is dismissed: heightExtra (card expands down)
-    //   The transition is animated with a spring for a cool expand effect.
+    // ★ Card height — smooth tween animation when miniplayer is dismissed.
+    //   Uses tween (not spring) for a smooth, linear-ish expand.
+    //   The expanded part dissolves smoothly — no sudden change.
     val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
     val targetHeightExtra = if (isMiniPlayerVisible) {
         config.heightExtra - 48f
@@ -99,9 +102,9 @@ fun CynthiaSearchScreen(
     }
     val animatedHeightExtra by androidx.compose.animation.core.animateFloatAsState(
         targetValue = targetHeightExtra,
-        animationSpec = androidx.compose.animation.core.spring(
-            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioLowBouncy,
-            stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+        animationSpec = androidx.compose.animation.core.tween(
+            durationMillis = 400,
+            easing = androidx.compose.animation.core.FastOutSlowInEasing
         ),
         label = "cardHeight"
     )
@@ -212,15 +215,125 @@ fun CynthiaSearchScreen(
                     )
                 }
 
-                // ─── Search content placeholder ──────────────────────────
+                // ─── Search content ──────────────────────────────────
                 if (!showCustomization) {
-                    Spacer(modifier = Modifier.height(20.dp))
-                    Text(
-                        text = "Search content goes here",
-                        color = Color.White.copy(alpha = 0.4f),
-                        fontSize = 14.sp,
-                        fontFamily = CalSansFamily
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // ★ Search field
+                    var query by remember { mutableStateOf("") }
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        textStyle = androidx.compose.ui.text.TextStyle(
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontFamily = CalSansFamily
+                        ),
+                        cursorBrush = androidx.compose.ui.graphics.SolidColor(Color(0xFFFF6B6B)),
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            imeAction = androidx.compose.ui.text.input.ImeAction.Search
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.White.copy(alpha = 0.08f))
+                            .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
+                            .padding(horizontal = 16.dp, vertical = 14.dp)
                     )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // ★ Search results — filter songs by query
+                    val results = remember(query, songs) {
+                        if (query.isBlank()) emptyList()
+                        else {
+                            val q = query.lowercase()
+                            songs.filter {
+                                it.title.lowercase().contains(q) ||
+                                it.artist.lowercase().contains(q) ||
+                                it.album.lowercase().contains(q)
+                            }.take(20)
+                        }
+                    }
+
+                    if (query.isNotBlank() && results.isEmpty()) {
+                        Text(
+                            text = "No results for \"$query\"",
+                            color = Color.White.copy(alpha = 0.4f),
+                            fontSize = 14.sp,
+                            fontFamily = CalSansFamily,
+                            modifier = Modifier.padding(top = 20.dp)
+                        )
+                    }
+
+                    // Results list
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(results, key = { it.id }) { song ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = {
+                                            onSongClick(song)
+                                            onDismiss()
+                                        }
+                                    )
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Album art thumbnail
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF1A1A1A)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (song.albumArtUri != null) {
+                                        coil3.compose.AsyncImage(
+                                            model = song.albumArtUri,
+                                            contentDescription = null,
+                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = CoralIcons.Music,
+                                            contentDescription = null,
+                                            tint = Color(0xFFB0B0B0),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.size(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = song.title,
+                                        color = Color.White,
+                                        fontSize = 14.sp,
+                                        fontFamily = CalSansFamily,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = song.artist,
+                                        color = Color.White.copy(alpha = 0.5f),
+                                        fontSize = 12.sp,
+                                        fontFamily = CalSansFamily,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
