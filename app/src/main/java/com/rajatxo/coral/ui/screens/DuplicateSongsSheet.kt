@@ -58,6 +58,7 @@ import com.rajatxo.coral.domain.model.Song
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
 import kotlinx.coroutines.launch
+import com.rajatxo.coral.ui.util.consistentNavBarPadding
 
 /**
  * DuplicateSongsSheet — premium glass morphism popup that shows the
@@ -304,7 +305,7 @@ fun DuplicateSongsSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(20.dp)
-                        .navigationBarsPadding()
+                        .consistentNavBarPadding()
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -401,7 +402,7 @@ fun DuplicateSongsSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(20.dp)
-                        .navigationBarsPadding()
+                        .consistentNavBarPadding()
                 ) {
                     Box(
                         modifier = Modifier

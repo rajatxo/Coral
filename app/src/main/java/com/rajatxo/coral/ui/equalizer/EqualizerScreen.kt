@@ -46,6 +46,7 @@ import com.rajatxo.coral.audio.EqualizerController
 import com.rajatxo.coral.audio.EqualizerPreset
 import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.icons.CoralIcons
+import com.rajatxo.coral.ui.util.consistentNavBarPadding
 
 /**
  * Equalizer screen — Phase 7 premium feature.
@@ -74,7 +75,7 @@ fun EqualizerScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .navigationBarsPadding()
+                .consistentNavBarPadding()
         ) {
             // Top bar
             Row(

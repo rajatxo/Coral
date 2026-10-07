@@ -80,6 +80,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.PI
 import kotlin.math.sin
+import com.rajatxo.coral.ui.util.consistentNavBarPadding
 
 /**
  * Cinematic lyrics sheet — ArchiveTune-inspired.
@@ -260,7 +261,7 @@ fun LyricsSheet(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .navigationBarsPadding()
+                .consistentNavBarPadding()
         ) {
             // ─── Header: thumbnail · title · 3-dot menu ─────────────────
             Row(

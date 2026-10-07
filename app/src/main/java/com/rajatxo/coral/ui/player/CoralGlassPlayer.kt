@@ -49,6 +49,7 @@ import coil3.compose.AsyncImage
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
 import kotlinx.coroutines.delay
+import com.rajatxo.coral.ui.util.consistentNavBarPadding
 
 /**
  * ★ CoralGlassPlayer — the new glass morphism full player UI for Coral.
@@ -139,7 +140,7 @@ fun CoralGlassPlayer(
                 .fillMaxSize()
                 .statusBarsPadding()
                 .padding(horizontal = 24.dp)
-                .navigationBarsPadding()
+                .consistentNavBarPadding()
                 .padding(bottom = 40.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween

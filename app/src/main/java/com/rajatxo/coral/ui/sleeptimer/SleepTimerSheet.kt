@@ -31,6 +31,7 @@ import com.rajatxo.coral.data.premium.SleepTimer
 import com.rajatxo.coral.data.premium.SleepTimerState
 import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.icons.CoralIcons
+import com.rajatxo.coral.ui.util.consistentNavBarPadding
 
 /**
  * Sleep timer sheet — Phase 7 premium feature.
@@ -50,7 +51,7 @@ fun SleepTimerSheet(
         modifier = Modifier
             .fillMaxWidth()
             .background(CoralColors.SurfaceVariant)
-            .navigationBarsPadding()
+            .consistentNavBarPadding()
             .padding(horizontal = 20.dp, vertical = 16.dp)
     ) {
         Row(

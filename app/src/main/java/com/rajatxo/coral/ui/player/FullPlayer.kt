@@ -70,6 +70,7 @@ import com.rajatxo.coral.ui.theme.CalSansFamily
 import com.rajatxo.coral.util.CoralPalette
 import com.rajatxo.coral.util.extractPalette
 import kotlinx.coroutines.delay
+import com.rajatxo.coral.ui.util.consistentNavBarPadding
 
 /**
  * Full player — dating-app profile style.
@@ -375,7 +376,7 @@ fun FullPlayer(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
+                .consistentNavBarPadding()
                 .padding(horizontal = 20.dp, vertical = 12.dp)
         ) {
             // Seek bar ──────────────────────────────────────────────────

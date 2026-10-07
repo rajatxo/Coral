@@ -57,6 +57,7 @@ import com.rajatxo.coral.ui.components.TabCapsule
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.screens.SettingsScreen
 import com.rajatxo.coral.ui.theme.CalSansFamily
+import com.rajatxo.coral.ui.util.consistentNavBarPadding
 
 @androidx.compose.foundation.ExperimentalFoundationApi
 @Composable
@@ -535,7 +536,7 @@ fun CynthiaHomeScreen(
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
+                    .consistentNavBarPadding()
                     .padding(bottom = 100.dp)
             ) {
                 CynthiaMiniPlayer(

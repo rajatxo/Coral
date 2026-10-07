@@ -36,6 +36,7 @@ import com.rajatxo.coral.data.prefs.CoralFont
 import com.rajatxo.coral.data.prefs.FontManager
 import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.icons.CoralIcons
+import com.rajatxo.coral.ui.util.consistentNavBarPadding
 
 /**
  * Font picker screen — opened from Settings → Appearance → Font.
@@ -68,7 +69,7 @@ fun FontPickerScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .navigationBarsPadding()
+                .consistentNavBarPadding()
         ) {
             // Top bar
             Row(

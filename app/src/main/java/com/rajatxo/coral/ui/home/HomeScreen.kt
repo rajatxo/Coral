@@ -95,6 +95,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import com.rajatxo.coral.ui.util.consistentNavBarPadding
 
 /**
  * Root composable for the post-launch experience.
@@ -523,7 +524,7 @@ fun HomeScreen(
         //   navBarTopFromBottom    = navBarCenterFromBottom + 26dp (half of 52dp capsule)
         //   miniPlayerBottom       = navBarTopFromBottom + 10dp (gap)
         //   .padding(bottom = miniPlayerBottom - systemNavInset)
-        //     (because .navigationBarsPadding() already adds the system nav inset)
+        //     (because .consistentNavBarPadding() already adds the system nav inset)
         //
         // Default yFrac=0.89 → mini player bottom ≈ 122dp from screen bottom.
         val savedTabPos by com.rajatxo.coral.data.prefs.TabCapsulePosition.position.collectAsState()
@@ -572,7 +573,7 @@ fun HomeScreen(
             exit = slideOutVertically { it } + fadeOut(),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
+                .consistentNavBarPadding()
                 .padding(bottom = miniPlayerPaddingBottom)
         ) {
             MiniPlayer(
@@ -1386,7 +1387,7 @@ private fun MiniPlayer(
     Box(
         modifier = Modifier
             .padding(vertical = 4.dp)
-            .navigationBarsPadding()
+            .consistentNavBarPadding()
             .graphicsLayer {
                 translationX = offsetX.value
                 translationY = offsetY.value.coerceAtLeast(-maxSwipeUpPx)

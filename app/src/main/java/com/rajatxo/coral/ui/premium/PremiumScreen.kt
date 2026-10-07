@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.rajatxo.coral.data.premium.PremiumManager
 import com.rajatxo.coral.ui.components.CoralColors
 import com.rajatxo.coral.ui.icons.CoralIcons
+import com.rajatxo.coral.ui.util.consistentNavBarPadding
 
 /**
  * Premium info screen — shown when the user taps "Premium" in Settings.
@@ -69,7 +70,7 @@ fun PremiumScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .navigationBarsPadding()
+                .consistentNavBarPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
         ) {

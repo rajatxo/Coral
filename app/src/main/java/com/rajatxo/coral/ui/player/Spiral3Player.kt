@@ -118,6 +118,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+import com.rajatxo.coral.ui.util.consistentNavBarPadding
 
 /**
  * Immersive player — BitChord-style.
@@ -1238,7 +1239,7 @@ fun Spiral3Player(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
+                .consistentNavBarPadding()
                 .padding(horizontal = 28.dp)
                 .padding(bottom = 32.dp)
         ) {

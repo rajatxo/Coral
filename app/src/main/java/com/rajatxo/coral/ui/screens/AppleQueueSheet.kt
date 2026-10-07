@@ -52,6 +52,7 @@ import coil3.compose.AsyncImage
 import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
 import kotlinx.coroutines.delay
+import com.rajatxo.coral.ui.util.consistentNavBarPadding
 
 /**
  * AppleQueueSheet — Apple Music style "Playing Next" queue.
@@ -161,7 +162,7 @@ fun AppleQueueSheet(
                     )
                 )
                 .statusBarsPadding()
-                .navigationBarsPadding()
+                .consistentNavBarPadding()
                 .padding(horizontal = 20.dp)
         ) {
             // ─── Header ──
