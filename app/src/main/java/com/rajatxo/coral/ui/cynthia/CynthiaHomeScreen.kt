@@ -208,6 +208,7 @@ fun CynthiaHomeScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .navigationBarsPadding()
     ) {
         // ═══ INNER BOX — layerBackdrop captures page content ═══
         Box(

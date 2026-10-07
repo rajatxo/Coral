@@ -346,7 +346,7 @@ fun HomeScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(CoralColors.Surface)) {
+    Box(modifier = Modifier.fillMaxSize().background(CoralColors.Surface).navigationBarsPadding()) {
         // --- Sleep timer capsule state (top-level scope, accessible by all overlays) ---
         val capsuleVisible = sleepTimerState.active &&
             (sleepRemainingMs > 0 || sleepTimerState.endOfSong)
