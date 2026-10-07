@@ -87,18 +87,25 @@ fun CynthiaSearchScreen(
         bottomStart = config.corner.dp, bottomEnd = config.corner.dp
     )
 
-    // ★ SIMPLE — card height = full screen height + heightExtra.
-    //   heightExtra is adjusted based on miniplayer presence:
-    //     - No miniplayer: use config.heightExtra (default -62dp)
-    //     - Miniplayer visible: subtract 48dp more (default -62 + -48 = -110dp)
-    //   User can still adjust via the customization panel.
+    // ★ Card height — animates smoothly when miniplayer is dismissed.
+    //   When miniplayer is visible: heightExtra - 48dp (room for miniplayer)
+    //   When miniplayer is dismissed: heightExtra (card expands down)
+    //   The transition is animated with a spring for a cool expand effect.
     val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
-    val effectiveHeightExtra = if (isMiniPlayerVisible) {
-        config.heightExtra - 48f  // -48dp extra to make room for miniplayer
+    val targetHeightExtra = if (isMiniPlayerVisible) {
+        config.heightExtra - 48f
     } else {
         config.heightExtra
     }
-    val cardHeight = screenHeight + effectiveHeightExtra.dp
+    val animatedHeightExtra by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = targetHeightExtra,
+        animationSpec = androidx.compose.animation.core.spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioLowBouncy,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+        ),
+        label = "cardHeight"
+    )
+    val cardHeight = screenHeight + animatedHeightExtra.dp
 
     RippleDismissContainer(onDismiss = onDismiss) { progress ->
     Box(modifier = Modifier.fillMaxSize()) {
