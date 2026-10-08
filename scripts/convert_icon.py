@@ -66,12 +66,12 @@ with open(bg_path, "w") as f:
     f.write(bg_drawable)
 print(f"✓ Background: {bg_path} (color: {magenta_hex})")
 
-# ─── 2. Foreground PNG (432x432) — flower scaled to 82% + offset ──────
+# ─── 2. Foreground PNG (432x432) — flower scaled to 95% + offset ──────
 foreground_size = 432
-flower_scale = 0.82
+flower_scale = 0.95  # 95% of canvas — barely any reduction, just enough margin
 flower_size = int(foreground_size * flower_scale)
-offset_x = int((foreground_size - flower_size) / 2) + 8
-offset_y = int((foreground_size - flower_size) / 2) + 8
+offset_x = int((foreground_size - flower_size) / 2) + 6   # +6px right shift
+offset_y = int((foreground_size - flower_size) / 2) + 6   # +6px down shift
 
 fg_canvas = Image.new("RGBA", (foreground_size, foreground_size), (0, 0, 0, 0))
 flower_resized = img.resize((flower_size, flower_size), Image.LANCZOS)
