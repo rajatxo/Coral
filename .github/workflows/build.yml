@@ -1,4 +1,4 @@
-name: Build APK
+name: Build Signed APK
 
 on:
   push:
@@ -24,15 +24,58 @@ jobs:
       - name: Generate Gradle Wrapper
         run: gradle wrapper --gradle-version 8.11.1
 
-      - name: Build debug APK only
-        # NOTE: We don't build release here because keystore.properties +
-        # coral-release.jks are gitignored (they contain the signing key,
-        # which is secret). Build the release APK locally where the
-        # keystore exists, then upload it to wherever you want.
+      # ─── Restore signing keystore from GitHub Secrets ─────────────
+      # The keystore + keystore.properties are gitignored locally (they're
+      # secrets). For GitHub Actions, we store them as repo secrets and
+      # decode them at build time. This way every Actions-built APK is
+      # signed with the same permanent key → updates install cleanly over
+      # previous versions, no uninstall needed.
+      - name: Restore signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          # Decode the keystore file from base64
+          echo "$KEYSTORE_BASE64" | base64 -d > coral-release.jks
+          # Create keystore.properties (read by app/build.gradle.kts)
+          # Use printf to avoid heredoc indentation issues
+          printf 'storeFile=coral-release.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > keystore.properties
+          # Verify the keystore is valid
+          keytool -list -keystore coral-release.jks -storepass "$KEYSTORE_PASSWORD" | head -10
+
+      - name: Build debug APK
         run: ./gradlew assembleDebug --stacktrace
+
+      - name: Build release APK (R8 minified + resource-shrunk, signed)
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Verify signing on both APKs
+        run: |
+          BUILD_TOOLS=$ANDROID_HOME/build-tools/34.0.0
+          echo "=== Debug APK signing ==="
+          $BUILD_TOOLS/apksigner verify --print-certs app/build/outputs/apk/debug/app-debug.apk | head -4
+          echo ""
+          echo "=== Release APK signing ==="
+          $BUILD_TOOLS/apksigner verify --print-certs app/build/outputs/apk/release/app-release.apk | head -4
+
+      - name: Rename APKs with version
+        run: |
+          VERSION=$(grep versionName app/build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          mv app/build/outputs/apk/debug/app-debug.apk "app/build/outputs/apk/debug/Coral-v${VERSION}-debug.apk"
+          mv app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/Coral-v${VERSION}-release.apk"
+          ls -lh app/build/outputs/apk/debug/*.apk app/build/outputs/apk/release/*.apk
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: coral-debug
+          name: Coral-debug
           path: app/build/outputs/apk/debug/*.apk
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Coral-release
+          path: app/build/outputs/apk/release/*.apk
