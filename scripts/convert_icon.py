@@ -16,7 +16,7 @@ from PIL import Image
 import os
 from collections import Counter
 
-SRC = "/home/z/my-project/upload/1791484378788.png"
+SRC = "/home/z/my-project/upload/1791494171066.png"
 RES = "/home/z/coral-push/app/src/main/res"
 
 img = Image.open(SRC).convert("RGBA")
@@ -72,17 +72,16 @@ with open(bg_path, "w") as f:
     f.write(bg_drawable)
 print(f"✓ Background: {bg_path} (color: {magenta_hex})")
 
-# ─── 2. Foreground PNG (432x432) — like v1.0.6 but moved right + UP ──
-# ★ USER REQUEST: "make it like 1.0.6, but just move it little bit right and up"
+# ─── 2. Foreground PNG (432x432) — EXACT v1.0.6 arrangement ──────────
+# ★ USER REQUEST: "use this image and apply same arrangement you use for 1.0.6"
 # v1.0.6 was: 82% scale + 8px right + 8px DOWN
-# This build: 82% scale + 5px right + 5px UP (smaller offset, opposite Y direction)
 foreground_size = 432
 flower_scale = 0.82  # matches v1.0.6 exactly
 flower_size = int(foreground_size * flower_scale)  # ~354px
-# Center the flower, then apply offset: right = +X, UP = -Y
+# Center the flower, then apply v1.0.6's offset
 center_offset = int((foreground_size - flower_size) / 2)  # ~39px (centers the 354px flower in 432px canvas)
-offset_x = center_offset + 5   # +5px right shift (less than v1.0.6's 8px)
-offset_y = center_offset - 5   # -5px = 5px UP shift (v1.0.6 was +8px down)
+offset_x = center_offset + 8   # +8px right shift (exact v1.0.6 value)
+offset_y = center_offset + 8   # +8px DOWN shift (exact v1.0.6 value)
 
 fg_canvas = Image.new("RGBA", (foreground_size, foreground_size), (0, 0, 0, 0))
 flower_resized = img.resize((flower_size, flower_size), Image.LANCZOS)
@@ -91,8 +90,8 @@ fg_canvas.paste(flower_resized, (offset_x, offset_y), flower_resized)
 fg_path = f"{RES}/drawable/ic_launcher_foreground.png"
 fg_canvas.save(fg_path, "PNG")
 print(f"✓ Foreground: {fg_path} ({foreground_size}x{foreground_size})")
-print(f"  Flower scaled to {flower_scale*100:.0f}% ({flower_size}x{flower_size}) — matches v1.0.6")
-print(f"  Offset: +5px right, -5px up (v1.0.6 was +8px right, +8px down)")
+print(f"  Flower scaled to {flower_scale*100:.0f}% ({flower_size}x{flower_size}) — exact v1.0.6")
+print(f"  Offset: +8px right, +8px down — exact v1.0.6")
 
 # ─── 3. Legacy PNG icons ──────────────────────────────────────────────
 densities = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
