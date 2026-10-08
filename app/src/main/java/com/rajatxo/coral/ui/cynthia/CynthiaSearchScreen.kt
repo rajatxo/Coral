@@ -99,15 +99,10 @@ fun CynthiaSearchScreen(
         bottomStart = config.corner.dp, bottomEnd = config.corner.dp
     )
 
-    // ★ Instant card height — no animation, no keyboard detection.
-    //   Height changes instantly when miniplayer appears/disappears.
+    // ★ Fixed card height — no longer adjusts based on miniplayer visibility.
+    //   User wants a constant -171dp offset regardless of playback state.
     val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
-    val heightExtra = if (isMiniPlayerVisible) {
-        config.heightExtra - 48f
-    } else {
-        config.heightExtra
-    }
-    val cardHeight = screenHeight + heightExtra.dp
+    val cardHeight = screenHeight + config.heightExtra.dp
 
     RippleDismissContainer(onDismiss = onDismiss) { progress ->
     Box(modifier = Modifier.fillMaxSize()) {

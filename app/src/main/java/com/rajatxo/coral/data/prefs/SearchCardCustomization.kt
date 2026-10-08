@@ -19,7 +19,7 @@ object SearchCardCustomization {
     // ★ Defaults — user-specified values
     const val DEFAULT_BLUR = 49f        // blur radius in dp
     const val DEFAULT_DARKNESS = 0.15f   // 15% black tint
-    const val DEFAULT_HEIGHT_EXTRA = -62f // -62dp when no miniplayer
+    const val DEFAULT_HEIGHT_EXTRA = -171f // -171dp fixed height (no miniplayer adjustment)
     const val DEFAULT_CORNER = 32f       // bottom corner radius in dp
 
     private lateinit var prefs: android.content.SharedPreferences
