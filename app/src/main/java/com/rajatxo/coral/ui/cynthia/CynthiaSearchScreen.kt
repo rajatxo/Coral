@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -47,6 +48,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -250,15 +252,35 @@ fun CynthiaSearchScreen(
                     }
 
                     // ★ Song results — filter songs by query (only when NOT playlist search)
+                    //   SORT ORDER (relevance):
+                    //     1. Title starts with query (e.g. "Uda" → "Udaariyaan")
+                    //     2. Artist starts with query
+                    //     3. Title contains query (e.g. "uda" → "jUDAai")
+                    //     4. Artist contains query
+                    //     5. Album contains query
+                    //   This puts exact prefix matches first, fuzzy contains last.
                     val songResults = remember(query, songs) {
                         if (isPlaylistSearch || actualQuery.isBlank()) emptyList()
                         else {
-                            val lowerQuery = actualQuery.lowercase()
-                            songs.filter {
-                                it.title.lowercase().contains(lowerQuery) ||
-                                it.artist.lowercase().contains(lowerQuery) ||
-                                it.album.lowercase().contains(lowerQuery)
-                            }.take(20)
+                            val q = actualQuery.lowercase()
+                            data class ScoredSong(val song: com.rajatxo.coral.domain.model.Song, val score: Int)
+                            songs.mapNotNull { song ->
+                                val titleLower = song.title.lowercase()
+                                val artistLower = song.artist.lowercase()
+                                val albumLower = song.album.lowercase()
+                                val score = when {
+                                    titleLower.startsWith(q) -> 0
+                                    artistLower.startsWith(q) -> 1
+                                    titleLower.contains(q) -> 2
+                                    artistLower.contains(q) -> 3
+                                    albumLower.contains(q) -> 4
+                                    else -> -1
+                                }
+                                if (score >= 0) ScoredSong(song, score) else null
+                            }
+                            .sortedWith(compareBy({ it.score }, { it.song.title.lowercase() }))
+                            .map { it.song }
+                            .take(30)
                         }
                     }
 
@@ -410,6 +432,8 @@ fun CynthiaSearchScreen(
                     }
 
                     // ★ Pinned searches (only shown when query is empty)
+                    //   Reversed so the LATEST pin (most recent) is at the RIGHT
+                    //   end of the row → always visible without swiping.
                     if (query.isEmpty() && pinned.isNotEmpty()) {
                         Text(
                             text = "Pinned",
@@ -419,14 +443,30 @@ fun CynthiaSearchScreen(
                             fontFamily = CalSansFamily,
                             modifier = Modifier.padding(bottom = 6.dp)
                         )
+                        val reversedPinned = pinned.reversed()
+                        val pinnedListState = remember { androidx.compose.foundation.lazy.LazyListState() }
+                        // ★ Auto-scroll to the end (latest pin) when the list changes
+                        androidx.compose.runtime.LaunchedEffect(reversedPinned.size) {
+                            if (reversedPinned.isNotEmpty()) {
+                                kotlinx.coroutines.delay(50)
+                                pinnedListState.animateScrollToItem(reversedPinned.lastIndex)
+                            }
+                        }
                         androidx.compose.foundation.lazy.LazyRow(
+                            state = pinnedListState,
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(end = 8.dp)
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 4.dp, end = 8.dp)
                         ) {
-                            items(pinned, key = { it.query + it.isPlaylist }) { entry ->
+                            items(reversedPinned, key = { it.query + it.isPlaylist }) { entry ->
                                 PinnedChip(
                                     entry = entry,
-                                    onClick = { query = if (entry.isPlaylist) "p. ${entry.query}" else entry.query }
+                                    onClick = { query = if (entry.isPlaylist) "p. ${entry.query}" else entry.query },
+                                    onLongPress = {
+                                        // ★ Unpin via long-press — chips don't have a separate unpin button
+                                        com.rajatxo.coral.data.prefs.SearchHistory.togglePin(
+                                            entry.query, entry.isPlaylist
+                                        )
+                                    }
                                 )
                             }
                         }
@@ -588,18 +628,18 @@ fun CynthiaSearchScreen(
                                     }
                                     Spacer(Modifier.size(10.dp))
                                     Column(modifier = Modifier.weight(1f)) {
+                                        // ★ Combined title + artist in one line: "Title • Artist"
+                                        //   User wants to see what they searched for as one
+                                        //   continuous string, not split into two rows.
+                                        val combinedText = if (song.artist.isNotBlank()) {
+                                            "${song.title} • ${song.artist}"
+                                        } else {
+                                            song.title
+                                        }
                                         Text(
-                                            text = song.title,
+                                            text = combinedText,
                                             color = Color.White,
                                             fontSize = 14.sp,
-                                            fontFamily = CalSansFamily,
-                                            maxLines = 1,
-                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                        )
-                                        Text(
-                                            text = song.artist,
-                                            color = Color.White.copy(alpha = 0.5f),
-                                            fontSize = 12.sp,
                                             fontFamily = CalSansFamily,
                                             maxLines = 1,
                                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -640,10 +680,10 @@ fun CynthiaSearchScreen(
                                         fontFamily = CalSansFamily,
                                         modifier = Modifier.weight(1f)
                                     )
-                                    // Pin/unpin toggle
+                                    // Pin/unpin toggle — uses pin icons (replaces old heart icon)
                                     Box(
                                         modifier = Modifier
-                                            .size(24.dp)
+                                            .size(28.dp)
                                             .clip(CircleShape)
                                             .clickable(
                                                 interactionSource = remember { MutableInteractionSource() },
@@ -657,12 +697,12 @@ fun CynthiaSearchScreen(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
-                                            imageVector = if (entry in pinned) CoralIcons.HeartLucideFilled
-                                                else CoralIcons.HeartLucide,
-                                            contentDescription = "Pin",
+                                            imageVector = if (entry in pinned) CoralIcons.PinFilled
+                                                else CoralIcons.PinFilled,  // both states use filled pin; tint differs
+                                            contentDescription = if (entry in pinned) "Unpin" else "Pin",
                                             tint = if (entry in pinned) Color(0xFFFF6B6B)
                                                 else Color.White.copy(alpha = 0.4f),
-                                            modifier = Modifier.size(14.dp)
+                                            modifier = Modifier.size(16.dp)
                                         )
                                     }
                                 }
@@ -893,27 +933,30 @@ private fun SearchCardCustomizationPanel(
 /**
  * PinnedChip — small glass chip for a pinned search query.
  * Tap to fill the search field with this query.
+ * Long-press to unpin (remove from pinned list).
  */
 @Composable
 private fun PinnedChip(
     entry: com.rajatxo.coral.data.prefs.SearchHistory.SearchEntry,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongPress: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(13.dp))
             .background(Color.White.copy(alpha = 0.1f))
             .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(13.dp))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { onClick() },
+                    onLongPress = { onLongPress() }
+                )
+            }
             .padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = if (entry.isPlaylist) CoralIcons.ListMusic else CoralIcons.Search,
+            imageVector = CoralIcons.PinFilled,
             contentDescription = null,
             tint = Color(0xFFFF6B6B),
             modifier = Modifier.size(11.dp)

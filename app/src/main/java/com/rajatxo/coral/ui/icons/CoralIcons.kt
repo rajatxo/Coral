@@ -85,6 +85,23 @@ object CoralIcons {
         )
     }.build()
 
+    /** Material-style filled icon (fill only, 960×960 viewport). */
+    private fun materialFilled(
+        name: String,
+        pathBuilder: PathBuilder.() -> Unit
+    ): ImageVector = ImageVector.Builder(
+        name = name,
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 960f,
+        viewportHeight = 960f
+    ).apply {
+        path(
+            fill = SolidColor(Color.Black),
+            pathBuilder = pathBuilder
+        )
+    }.build()
+
     /** Single musical note. Used as the "Songs" tab icon. */
     val Music: ImageVector = stroke("Music") {
         // stem + cross-bar
@@ -1350,4 +1367,53 @@ object CoralIcons {
         horizontalLineToRelative(8f)
     }
 
+    /**
+     * Material-style filled pin (location pin icon, 960×960 viewport).
+     * Source: Material Symbols "location_on" filled.
+     * Used for the pinned state in search.
+     */
+    val PinFilled: ImageVector = materialFilled("PinFilled") {
+        // ★ User-provided SVG path (filled):
+        // M480-388q54-50 84-80t47-50q16-20 22.5-37t6.5-37q0-36-26-62t-62-26q-21 0-40.5 8.5T480-648q-12-15-31-23.5t-41-8.5q-36 0-62 26t-26 62q0 21 6 37t22 36q17 20 46 50t86 81Z
+        moveTo(480f, 388f)
+        quadTo(534f, 338f, 564f, 308f)
+        quadTo(611f, 258f, 611f, 258f)
+        quadTo(627f, 238f, 633.5f, 221f)
+        quadTo(640f, 204f, 640f, 184f)
+        quadToRelative(0f, -36f, -26f, -62f)
+        reflectiveQuadToRelative(-62f, -26f)
+        quadToRelative(0f, -21f, 8.5f, -40.5f)
+        quadTo(480f, 648f, 480f, 648f)
+        quadTo(468f, 633f, 449f, 624.5f)
+        reflectiveQuadToRelative(-41f, -8.5f)
+        quadToRelative(0f, -36f, -26f, -62f)
+        reflectiveQuadToRelative(-62f, -26f)
+        quadToRelative(0f, 21f, 6f, 37f)
+        quadTo(342f, 236f, 342f, 236f)
+        quadTo(359f, 256f, 388f, 286f)
+        quadToRelative(86f, 81f, 86f, 81f)
+        close()
+        // M480-186q122-112 181-203.5T720-552q0-109-69.5-178.5T480-800q-101 0-170.5 69.5T240-552q0 71 59 162.5T480-186Z
+        moveTo(480f, 186f)
+        quadTo(602f, 74f, 661f, -17.5f)
+        quadTo(720f, -109f, 720f, -109f)
+        quadTo(720f, -218f, 650.5f, -287.5f)
+        quadTo(580f, -357f, 480f, -357f)
+        quadToRelative(0f, -101f, -170.5f, -69.5f)
+        quadTo(240f, -287f, 240f, -287f)
+        quadTo(240f, -216f, 299f, -125.5f)
+        quadTo(358f, -35f, 480f, -35f)
+        close()
+        // m0 106Q319-217 239.5-334.5T160-552q0-150 96.5-239T480-880q127 0 223.5 89T800-552q0 100-79.5 217.5T480-80Z
+        moveTo(480f, 80f)
+        quadTo(319f, -217f, 239.5f, -334.5f)
+        quadTo(160f, -452f, 160f, -452f)
+        quadToRelative(0f, -150f, 96.5f, -239f)
+        quadTo(256f, -691f, 480f, -691f)
+        quadToRelative(0f, 127f, 223.5f, 89f)
+        quadTo(800f, -602f, 800f, -602f)
+        quadTo(800f, -502f, 720.5f, -384.5f)
+        quadTo(641f, -267f, 480f, -267f)
+        close()
+    }
 }

@@ -24,7 +24,7 @@ object SearchHistory {
     private const val KEY_GUIDE_SHOWN = "search_guide_shown_v1"
 
     private const val MAX_HISTORY = 20
-    private const val MAX_PINS = 5
+    private const val MAX_PINS = 15
 
     private val json = Json { ignoreUnknownKeys = true }
 
