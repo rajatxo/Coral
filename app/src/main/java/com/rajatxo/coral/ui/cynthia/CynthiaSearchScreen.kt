@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
@@ -41,6 +42,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
@@ -215,47 +218,242 @@ fun CynthiaSearchScreen(
                 if (!showCustomization) {
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // ★ Search field
+                    // ★ Search field — auto-focuses keyboard on open
                     var query by remember { mutableStateOf("") }
-                    androidx.compose.foundation.text.BasicTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        textStyle = androidx.compose.ui.text.TextStyle(
-                            color = Color.White,
-                            fontSize = 16.sp,
-                            fontFamily = CalSansFamily
-                        ),
-                        cursorBrush = androidx.compose.ui.graphics.SolidColor(Color(0xFFFF6B6B)),
-                        singleLine = true,
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                            imeAction = androidx.compose.ui.text.input.ImeAction.Search
-                        ),
+                    val focusRequester = remember { FocusRequester() }
+                    val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+
+                    // ★ Auto-show keyboard when search opens (port from Astra)
+                    androidx.compose.runtime.LaunchedEffect(Unit) {
+                        try {
+                            focusRequester.requestFocus()
+                            // Slight delay so focus completes before keyboard opens
+                            kotlinx.coroutines.delay(50)
+                            keyboardController?.show()
+                        } catch (_: Exception) { }
+                    }
+
+                    // ★ Read search history + playlist data
+                    val history by com.rajatxo.coral.data.prefs.SearchHistory.history.collectAsState()
+                    val pinned by com.rajatxo.coral.data.prefs.SearchHistory.pinned.collectAsState()
+                    val guideShown by com.rajatxo.coral.data.prefs.SearchHistory.guideShown.collectAsState()
+                    val playlists by com.rajatxo.coral.data.store.PlaylistStore.playlists.collectAsState()
+
+                    // ★ "p." prefix = playlist search. Otherwise = song search.
+                    val isPlaylistSearch = query.startsWith("p.", ignoreCase = true)
+                    val actualQuery = if (isPlaylistSearch) {
+                        query.removePrefix("p.").removePrefix("P.").trim()
+                    } else query.trim()
+
+                    // ★ Submit handler — saves query to history + hides keyboard
+                    val submitSearch: () -> Unit = {
+                        val trimmed = actualQuery.trim()
+                        if (trimmed.isNotBlank()) {
+                            com.rajatxo.coral.data.prefs.SearchHistory.addSearch(trimmed, isPlaylistSearch)
+                            keyboardController?.hide()
+                        }
+                    }
+
+                    // ★ Song results — filter songs by query (only when NOT playlist search)
+                    val songResults = remember(query, songs) {
+                        if (isPlaylistSearch || actualQuery.isBlank()) emptyList()
+                        else {
+                            val lowerQuery = actualQuery.lowercase()
+                            songs.filter {
+                                it.title.lowercase().contains(lowerQuery) ||
+                                it.artist.lowercase().contains(lowerQuery) ||
+                                it.album.lowercase().contains(lowerQuery)
+                            }.take(20)
+                        }
+                    }
+
+                    // ★ Playlist results — filter playlists by query (only when playlist search)
+                    val playlistResults = remember(query, playlists) {
+                        if (!isPlaylistSearch || actualQuery.isBlank()) emptyList()
+                        else {
+                            val lowerQuery = actualQuery.lowercase()
+                            playlists.filter {
+                                it.name.lowercase().contains(lowerQuery) ||
+                                it.tags.any { tag -> tag.lowercase().contains(lowerQuery) }
+                            }.take(10)
+                        }
+                    }
+
+                    // ★ Search field with icon, placeholder, clear button
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(16.dp))
                             .background(Color.White.copy(alpha = 0.08f))
                             .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
-                            .padding(horizontal = 16.dp, vertical = 14.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // ★ Search results — filter songs by query
-                    val results = remember(query, songs) {
-                        if (query.isBlank()) emptyList()
-                        else {
-                            val q = query.lowercase()
-                            songs.filter {
-                                it.title.lowercase().contains(q) ||
-                                it.artist.lowercase().contains(q) ||
-                                it.album.lowercase().contains(q)
-                            }.take(20)
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Search icon (left) — tap to submit
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = { submitSearch() }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isPlaylistSearch) CoralIcons.ListMusic else CoralIcons.Search,
+                                contentDescription = "Search",
+                                tint = if (isPlaylistSearch) Color(0xFFFF6B6B) else Color.White.copy(alpha = 0.5f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(Modifier.size(10.dp))
+                        Box(modifier = Modifier.weight(1f)) {
+                            // ★ Placeholder text — long version before guide dismissed,
+                            //   short version after.
+                            if (query.isEmpty()) {
+                                val placeholder = if (!guideShown)
+                                    "Search songs... or type p. for playlists"
+                                else
+                                    "Search songs and playlists"
+                                Text(
+                                    text = placeholder,
+                                    color = Color.White.copy(alpha = 0.35f),
+                                    fontSize = 13.sp,
+                                    fontFamily = CalSansFamily
+                                )
+                            }
+                            androidx.compose.foundation.text.BasicTextField(
+                                value = query,
+                                onValueChange = { query = it },
+                                textStyle = androidx.compose.ui.text.TextStyle(
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontFamily = CalSansFamily
+                                ),
+                                cursorBrush = androidx.compose.ui.graphics.SolidColor(Color(0xFFFF6B6B)),
+                                singleLine = true,
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                    imeAction = androidx.compose.ui.text.input.ImeAction.Search
+                                ),
+                                keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                                    onSearch = { submitSearch() }
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .focusRequester(focusRequester)
+                            )
+                        }
+                        // Clear button (right) — only shows when there's text
+                        if (query.isNotEmpty()) {
+                            Spacer(Modifier.size(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White.copy(alpha = 0.15f))
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = { query = "" }
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "×",
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
 
-                    if (query.isNotBlank() && results.isEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // ★ "p." guide hint — shown once on first install
+                    if (!guideShown && !isPlaylistSearch && query.isEmpty()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color.White.copy(alpha = 0.05f))
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = CoralIcons.ListMusic,
+                                contentDescription = null,
+                                tint = Color(0xFFFF6B6B),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(Modifier.size(8.dp))
+                            Text(
+                                text = "Type p. before your search to find playlists",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 12.sp,
+                                fontFamily = CalSansFamily,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                text = "Got it",
+                                color = Color(0xFFFF6B6B),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = CalSansFamily,
+                                modifier = Modifier.clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = {
+                                        com.rajatxo.coral.data.prefs.SearchHistory.markGuideShown()
+                                    }
+                                )
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+
+                    // ★ Pinned searches (only shown when query is empty)
+                    if (query.isEmpty() && pinned.isNotEmpty()) {
                         Text(
-                            text = "No results for \"$query\"",
+                            text = "Pinned",
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = CalSansFamily,
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        )
+                        androidx.compose.foundation.lazy.LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(end = 8.dp)
+                        ) {
+                            items(pinned, key = { it.query + it.isPlaylist }) { entry ->
+                                PinnedChip(
+                                    entry = entry,
+                                    onClick = { query = if (entry.isPlaylist) "p. ${entry.query}" else entry.query }
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+
+                    // ★ Recent searches (only when query is empty)
+                    if (query.isEmpty() && history.isNotEmpty()) {
+                        Text(
+                            text = "Recent",
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = CalSansFamily,
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        )
+                    }
+
+                    // ★ No results message
+                    if (query.isNotBlank() && songResults.isEmpty() && playlistResults.isEmpty()) {
+                        Text(
+                            text = "No results for \"$actualQuery\"",
                             color = Color.White.copy(alpha = 0.4f),
                             fontSize = 14.sp,
                             fontFamily = CalSansFamily,
@@ -263,69 +461,215 @@ fun CynthiaSearchScreen(
                         )
                     }
 
-                    // Results list
+                    // ★ Results list — songs + playlists
                     androidx.compose.foundation.lazy.LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        items(results, key = { it.id }) { song ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                        onClick = {
-                                            onSongClick(song)
-                                            onDismiss()
-                                        }
-                                    )
-                                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Album art thumbnail
-                                Box(
+                        // Playlist results section
+                        if (playlistResults.isNotEmpty()) {
+                            item {
+                                Text(
+                                    text = "Playlists",
+                                    color = Color(0xFFFF6B6B),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontFamily = CalSansFamily,
+                                    modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
+                                )
+                            }
+                            items(playlistResults, key = { it.id }) { playlist ->
+                                Row(
                                     modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF1A1A1A)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (song.albumArtUri != null) {
-                                        coil3.compose.AsyncImage(
-                                            model = song.albumArtUri,
-                                            contentDescription = null,
-                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize()
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null,
+                                            onClick = {
+                                                com.rajatxo.coral.data.prefs.SearchHistory.addSearch(
+                                                    playlist.name, isPlaylist = true
+                                                )
+                                                onSongClick(songs.firstOrNull() ?: return@clickable)
+                                                onDismiss()
+                                            }
                                         )
-                                    } else {
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(Color(0xFF1A1A1A)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
                                         Icon(
-                                            imageVector = CoralIcons.Music,
+                                            imageVector = CoralIcons.ListMusic,
                                             contentDescription = null,
-                                            tint = Color(0xFFB0B0B0),
-                                            modifier = Modifier.size(16.dp)
+                                            tint = Color(0xFFFF6B6B),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    Spacer(Modifier.size(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = playlist.name,
+                                            color = Color.White,
+                                            fontSize = 14.sp,
+                                            fontFamily = CalSansFamily,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = "${playlist.songIds.size} songs",
+                                            color = Color.White.copy(alpha = 0.5f),
+                                            fontSize = 12.sp,
+                                            fontFamily = CalSansFamily
                                         )
                                     }
                                 }
-                                Spacer(Modifier.size(10.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = song.title,
-                                        color = Color.White,
-                                        fontSize = 14.sp,
-                                        fontFamily = CalSansFamily,
-                                        maxLines = 1,
-                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            }
+                        }
+
+                        // Songs section
+                        if (songResults.isNotEmpty()) {
+                            item {
+                                Text(
+                                    text = "Songs",
+                                    color = Color.White.copy(alpha = 0.5f),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontFamily = CalSansFamily,
+                                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                                )
+                            }
+                            items(songResults, key = { it.id }) { song ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null,
+                                            onClick = {
+                                                com.rajatxo.coral.data.prefs.SearchHistory.addSearch(
+                                                    song.title, isPlaylist = false
+                                                )
+                                                if (song.artist.isNotBlank()) {
+                                                    com.rajatxo.coral.data.prefs.SearchHistory.addSearch(
+                                                        song.artist, isPlaylist = false
+                                                    )
+                                                }
+                                                onSongClick(song)
+                                                onDismiss()
+                                            }
+                                        )
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF1A1A1A)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (song.albumArtUri != null) {
+                                            coil3.compose.AsyncImage(
+                                                model = song.albumArtUri,
+                                                contentDescription = null,
+                                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = CoralIcons.Music,
+                                                contentDescription = null,
+                                                tint = Color(0xFFB0B0B0),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(Modifier.size(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = song.title,
+                                            color = Color.White,
+                                            fontSize = 14.sp,
+                                            fontFamily = CalSansFamily,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = song.artist,
+                                            color = Color.White.copy(alpha = 0.5f),
+                                            fontSize = 12.sp,
+                                            fontFamily = CalSansFamily,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Recent searches (only when query is empty)
+                        if (query.isEmpty()) {
+                            items(history, key = { it.query + it.isPlaylist }) { entry ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null,
+                                            onClick = {
+                                                query = if (entry.isPlaylist) "p. ${entry.query}" else entry.query
+                                            }
+                                        )
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = if (entry.isPlaylist) CoralIcons.ListMusic else CoralIcons.Search,
+                                        contentDescription = null,
+                                        tint = Color.White.copy(alpha = 0.4f),
+                                        modifier = Modifier.size(14.dp)
                                     )
+                                    Spacer(Modifier.size(10.dp))
                                     Text(
-                                        text = song.artist,
-                                        color = Color.White.copy(alpha = 0.5f),
-                                        fontSize = 12.sp,
+                                        text = entry.query,
+                                        color = Color.White.copy(alpha = 0.8f),
+                                        fontSize = 13.sp,
                                         fontFamily = CalSansFamily,
-                                        maxLines = 1,
-                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        modifier = Modifier.weight(1f)
                                     )
+                                    // Pin/unpin toggle
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(CircleShape)
+                                            .clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = null,
+                                                onClick = {
+                                                    com.rajatxo.coral.data.prefs.SearchHistory.togglePin(
+                                                        entry.query, entry.isPlaylist
+                                                    )
+                                                }
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = if (entry in pinned) CoralIcons.HeartLucideFilled
+                                                else CoralIcons.HeartLucide,
+                                            contentDescription = "Pin",
+                                            tint = if (entry in pinned) Color(0xFFFF6B6B)
+                                                else Color.White.copy(alpha = 0.4f),
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -402,7 +746,7 @@ private fun SearchCardCustomizationPanel(
     val fields = listOf(
         Field("Blur", config.blur, 0f..80f, "dp") { onBlurChange(it); tickHaptic() },
         Field("Darkness", config.darkness * 100f, 0f..100f, "%") { onDarknessChange(it / 100f); tickHaptic() },
-        Field("Height", config.heightExtra, -150f..200f, "dp") { onHeightChange(it); tickHaptic() },
+        Field("Height", config.heightExtra, -500f..300f, "dp") { onHeightChange(it); tickHaptic() },
         Field("Corner", config.corner, 0f..50f, "dp") { onCornerChange(it); tickHaptic() }
     )
 
@@ -547,6 +891,47 @@ private fun SearchCardCustomizationPanel(
             onValueChange = currentField.onValueChange,
             onReset = { onReset(); tickHaptic() },
             modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+/**
+ * PinnedChip — small glass chip for a pinned search query.
+ * Tap to fill the search field with this query.
+ */
+@Composable
+private fun PinnedChip(
+    entry: com.rajatxo.coral.data.prefs.SearchHistory.SearchEntry,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(13.dp))
+            .background(Color.White.copy(alpha = 0.1f))
+            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(13.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = if (entry.isPlaylist) CoralIcons.ListMusic else CoralIcons.Search,
+            contentDescription = null,
+            tint = Color(0xFFFF6B6B),
+            modifier = Modifier.size(11.dp)
+        )
+        Spacer(Modifier.size(4.dp))
+        Text(
+            text = entry.query,
+            color = Color.White,
+            fontSize = 11.sp,
+            fontFamily = CalSansFamily,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 80.dp)
         )
     }
 }

@@ -115,11 +115,15 @@ fun CynthiaHomeScreen(
     //   Same square glass panel as the nav bar's, but in MINI_PLAYER mode.
     var showMiniPlayerCustomization by remember { mutableStateOf(false) }
     // ★ MiniPlayer dismissed state — set to true when user swipes down on
-    //   the miniplayer. Resets to false when a new song starts playing.
+    //   the miniplayer. Resets to false when a new song starts playing OR
+    //   when playback resumes (e.g. user taps the same song they dismissed).
     var miniPlayerDismissed by remember { mutableStateOf(false) }
-    // Reset dismissed state when the current song changes
-    androidx.compose.runtime.LaunchedEffect(currentSongId) {
-        if (currentSongId != null) miniPlayerDismissed = false
+    // Reset dismissed state when the current song changes OR when playback
+    // resumes (isPlaying false→true). Without the isPlaying check, dismissing
+    // the miniplayer then tapping the SAME song wouldn't show it again
+    // (because currentSongId didn't change → LaunchedEffect didn't fire).
+    androidx.compose.runtime.LaunchedEffect(currentSongId, isPlaying) {
+        if (currentSongId != null && isPlaying) miniPlayerDismissed = false
     }
 
     // ★ System back button handler — dismisses overlays instead of closing the app.
