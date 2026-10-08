@@ -72,24 +72,27 @@ with open(bg_path, "w") as f:
     f.write(bg_drawable)
 print(f"✓ Background: {bg_path} (color: {magenta_hex})")
 
-# ─── 2. Foreground PNG (432x432) — full size + very tiny offset ──────
-# ★ USER FEEDBACK: "revert to first build, then move it very slightly,
-#   less than the previous build when I asked you to move"
-# First build: full image, transparent corners, no scaling.
-# This build: same + tiny +3px right, +3px down offset (was +8px before).
+# ─── 2. Foreground PNG (432x432) — like v1.0.6 but moved right + UP ──
+# ★ USER REQUEST: "make it like 1.0.6, but just move it little bit right and up"
+# v1.0.6 was: 82% scale + 8px right + 8px DOWN
+# This build: 82% scale + 5px right + 5px UP (smaller offset, opposite Y direction)
 foreground_size = 432
-offset_x = 3   # very tiny right shift (was 8px before — too much)
-offset_y = 3   # very tiny down shift (was 8px before — too much)
+flower_scale = 0.82  # matches v1.0.6 exactly
+flower_size = int(foreground_size * flower_scale)  # ~354px
+# Center the flower, then apply offset: right = +X, UP = -Y
+center_offset = int((foreground_size - flower_size) / 2)  # ~39px (centers the 354px flower in 432px canvas)
+offset_x = center_offset + 5   # +5px right shift (less than v1.0.6's 8px)
+offset_y = center_offset - 5   # -5px = 5px UP shift (v1.0.6 was +8px down)
 
 fg_canvas = Image.new("RGBA", (foreground_size, foreground_size), (0, 0, 0, 0))
-# Resize the source image to 429x429 (leaves 3px margin on left/top for the offset)
-resized = img.resize((foreground_size - offset_x, foreground_size - offset_y), Image.LANCZOS)
-fg_canvas.paste(resized, (offset_x, offset_y), resized)
+flower_resized = img.resize((flower_size, flower_size), Image.LANCZOS)
+fg_canvas.paste(flower_resized, (offset_x, offset_y), flower_resized)
 
 fg_path = f"{RES}/drawable/ic_launcher_foreground.png"
 fg_canvas.save(fg_path, "PNG")
 print(f"✓ Foreground: {fg_path} ({foreground_size}x{foreground_size})")
-print(f"  Full size (no scaling), tiny offset: +{offset_x}px right, +{offset_y}px down")
+print(f"  Flower scaled to {flower_scale*100:.0f}% ({flower_size}x{flower_size}) — matches v1.0.6")
+print(f"  Offset: +5px right, -5px up (v1.0.6 was +8px right, +8px down)")
 
 # ─── 3. Legacy PNG icons ──────────────────────────────────────────────
 densities = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
@@ -109,10 +112,12 @@ for x in range(img.size[0]):
         if a < 128: continue
         if (r + g + b) / 3 < 100:
             mono_img.putpixel((x, y), (255, 255, 255, 255))
-mono_img = mono_img.resize((foreground_size, foreground_size), Image.LANCZOS)
-# Full-bleed, no offset (matches the foreground)
+mono_img = mono_img.resize((flower_size, flower_size), Image.LANCZOS)
+# Apply the same right+UP offset as the foreground (matches v1.0.6 + right+up)
+mono_canvas = Image.new("RGBA", (foreground_size, foreground_size), (0, 0, 0, 0))
+mono_canvas.paste(mono_img, (offset_x, offset_y), mono_img)
 mono_path = f"{RES}/drawable/ic_launcher_monochrome.png"
-mono_img.save(mono_path, "PNG")
+mono_canvas.save(mono_path, "PNG")
 print(f"✓ Monochrome: {mono_path}")
 
 print(f"\n✅ Done. Background: {magenta_hex}, flower scaled + shifted.")
