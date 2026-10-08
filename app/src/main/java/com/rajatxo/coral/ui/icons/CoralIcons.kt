@@ -512,6 +512,16 @@ object CoralIcons {
         close()
     }
 
+    /** X (close) icon — used for "remove from history" button in search. */
+    val Close: ImageVector = stroke("Close") {
+        // M18 6 L6 18
+        moveTo(18f, 6f)
+        lineTo(6f, 18f)
+        // M6 6 L18 18
+        moveTo(6f, 6f)
+        lineTo(18f, 18f)
+    }
+
     /**
      * Lucide heart outline (MIT licensed).
      * Source: lucide.dev — cleaner, more elegant than the previous heart.

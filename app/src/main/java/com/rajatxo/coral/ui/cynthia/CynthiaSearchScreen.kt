@@ -236,6 +236,20 @@ fun CynthiaSearchScreen(
                     val guideShown by com.rajatxo.coral.data.prefs.SearchHistory.guideShown.collectAsState()
                     val playlists by com.rajatxo.coral.data.store.PlaylistStore.playlists.collectAsState()
 
+                    // ★ Song-based history + favorites (new system)
+                    val songHistoryIds by com.rajatxo.coral.data.prefs.SearchHistory.songHistory.collectAsState()
+                    val favoriteSongIds by com.rajatxo.coral.data.prefs.SearchHistory.favoriteSongs.collectAsState()
+
+                    // Map song IDs back to Song objects (skip songs that no longer exist)
+                    val recentSongs = remember(songs, songHistoryIds) {
+                        val songMap = songs.associateBy { it.id }
+                        songHistoryIds.mapNotNull { songMap[it] }
+                    }
+                    val favoriteSongs = remember(songs, favoriteSongIds) {
+                        val songMap = songs.associateBy { it.id }
+                        favoriteSongIds.mapNotNull { songMap[it] }
+                    }
+
                     // ★ "p." prefix = playlist search. Otherwise = song search.
                     val isPlaylistSearch = query.startsWith("p.", ignoreCase = true)
                     val actualQuery = if (isPlaylistSearch) {
@@ -431,41 +445,36 @@ fun CynthiaSearchScreen(
                         Spacer(modifier = Modifier.height(12.dp))
                     }
 
-                    // ★ Pinned searches (only shown when query is empty)
-                    //   Reversed so the LATEST pin (most recent) is at the RIGHT
-                    //   end of the row → always visible without swiping.
-                    if (query.isEmpty() && pinned.isNotEmpty()) {
+                    // ★ Favorites section (only shown when query is empty AND there are favorites)
+                    //   Replaces the old "Pinned" section. Shows favorited songs as chips.
+                    if (query.isEmpty() && favoriteSongs.isNotEmpty()) {
                         Text(
-                            text = "Pinned",
+                            text = "Favorites",
                             color = Color.White.copy(alpha = 0.5f),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             fontFamily = CalSansFamily,
                             modifier = Modifier.padding(bottom = 6.dp)
                         )
-                        val reversedPinned = pinned.reversed()
-                        val pinnedListState = remember { androidx.compose.foundation.lazy.LazyListState() }
-                        // ★ Auto-scroll to the end (latest pin) when the list changes
-                        androidx.compose.runtime.LaunchedEffect(reversedPinned.size) {
-                            if (reversedPinned.isNotEmpty()) {
+                        val reversedFavorites = favoriteSongs.reversed()
+                        val favListState = remember { androidx.compose.foundation.lazy.LazyListState() }
+                        androidx.compose.runtime.LaunchedEffect(reversedFavorites.size) {
+                            if (reversedFavorites.isNotEmpty()) {
                                 kotlinx.coroutines.delay(50)
-                                pinnedListState.animateScrollToItem(reversedPinned.lastIndex)
+                                favListState.animateScrollToItem(reversedFavorites.lastIndex)
                             }
                         }
                         androidx.compose.foundation.lazy.LazyRow(
-                            state = pinnedListState,
+                            state = favListState,
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 4.dp, end = 8.dp)
                         ) {
-                            items(reversedPinned, key = { it.query + it.isPlaylist }) { entry ->
-                                PinnedChip(
-                                    entry = entry,
-                                    onClick = { query = if (entry.isPlaylist) "p. ${entry.query}" else entry.query },
+                            items(reversedFavorites, key = { it.id }) { song ->
+                                FavoriteChip(
+                                    song = song,
+                                    onClick = { onSongClick(song); onDismiss() },
                                     onLongPress = {
-                                        // ★ Unpin via long-press — chips don't have a separate unpin button
-                                        com.rajatxo.coral.data.prefs.SearchHistory.togglePin(
-                                            entry.query, entry.isPlaylist
-                                        )
+                                        com.rajatxo.coral.data.prefs.SearchHistory.toggleFavorite(song.id)
                                     }
                                 )
                             }
@@ -473,16 +482,45 @@ fun CynthiaSearchScreen(
                         Spacer(modifier = Modifier.height(12.dp))
                     }
 
-                    // ★ Recent searches (only when query is empty)
-                    if (query.isEmpty() && history.isNotEmpty()) {
-                        Text(
-                            text = "Recent",
-                            color = Color.White.copy(alpha = 0.5f),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            fontFamily = CalSansFamily,
-                            modifier = Modifier.padding(bottom = 6.dp)
-                        )
+                    // ★ Recent songs header + Clear button (only when query is empty AND there are recent songs)
+                    if (query.isEmpty() && recentSongs.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Recent",
+                                color = Color.White.copy(alpha = 0.5f),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = CalSansFamily
+                            )
+                            // ★ Clear history button — wipes ALL recent songs
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(13.dp))
+                                    .background(Color.White.copy(alpha = 0.1f))
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = {
+                                            com.rajatxo.coral.data.prefs.SearchHistory.clearSongHistory()
+                                        }
+                                    )
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "Clear",
+                                    color = Color(0xFFFF6B6B),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = CalSansFamily
+                                )
+                            }
+                        }
                     }
 
                     // ★ No results message
@@ -588,14 +626,12 @@ fun CynthiaSearchScreen(
                                             interactionSource = remember { MutableInteractionSource() },
                                             indication = null,
                                             onClick = {
-                                                com.rajatxo.coral.data.prefs.SearchHistory.addSearch(
-                                                    song.title, isPlaylist = false
+                                                // ★ Save the SONG to history (not the text)
+                                                //   Stores the song ID so we can show the full
+                                                //   song row with album art in Recent.
+                                                com.rajatxo.coral.data.prefs.SearchHistory.addSongToHistory(
+                                                    song.id
                                                 )
-                                                if (song.artist.isNotBlank()) {
-                                                    com.rajatxo.coral.data.prefs.SearchHistory.addSearch(
-                                                        song.artist, isPlaylist = false
-                                                    )
-                                                }
                                                 onSongClick(song)
                                                 onDismiss()
                                             }
@@ -649,9 +685,10 @@ fun CynthiaSearchScreen(
                             }
                         }
 
-                        // Recent searches (only when query is empty)
+                        // ★ Recent songs — song rows with album art, title/artist,
+                        //   favorite icon, and X remove button (only when query is empty)
                         if (query.isEmpty()) {
-                            items(history, key = { it.query + it.isPlaylist }) { entry ->
+                            items(recentSongs, key = { it.id }) { song ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -660,27 +697,55 @@ fun CynthiaSearchScreen(
                                             interactionSource = remember { MutableInteractionSource() },
                                             indication = null,
                                             onClick = {
-                                                query = if (entry.isPlaylist) "p. ${entry.query}" else entry.query
+                                                onSongClick(song)
+                                                onDismiss()
                                             }
                                         )
                                         .padding(horizontal = 12.dp, vertical = 8.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        imageVector = if (entry.isPlaylist) CoralIcons.ListMusic else CoralIcons.Search,
-                                        contentDescription = null,
-                                        tint = Color.White.copy(alpha = 0.4f),
-                                        modifier = Modifier.size(14.dp)
-                                    )
+                                    // Album art thumbnail
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF1A1A1A)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (song.albumArtUri != null) {
+                                            coil3.compose.AsyncImage(
+                                                model = song.albumArtUri,
+                                                contentDescription = null,
+                                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = CoralIcons.Music,
+                                                contentDescription = null,
+                                                tint = Color(0xFFB0B0B0),
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                    }
                                     Spacer(Modifier.size(10.dp))
+                                    // Combined title + artist
+                                    val combinedText = if (song.artist.isNotBlank()) {
+                                        "${song.title} • ${song.artist}"
+                                    } else {
+                                        song.title
+                                    }
                                     Text(
-                                        text = entry.query,
+                                        text = combinedText,
                                         color = Color.White.copy(alpha = 0.8f),
                                         fontSize = 13.sp,
                                         fontFamily = CalSansFamily,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                         modifier = Modifier.weight(1f)
                                     )
-                                    // Pin/unpin toggle — uses pin icons (replaces old heart icon)
+                                    // ★ Favorite toggle (heart icon — same as Astra miniplayer)
+                                    val isFavorite = song.id in favoriteSongIds
                                     Box(
                                         modifier = Modifier
                                             .size(28.dp)
@@ -689,19 +754,38 @@ fun CynthiaSearchScreen(
                                                 interactionSource = remember { MutableInteractionSource() },
                                                 indication = null,
                                                 onClick = {
-                                                    com.rajatxo.coral.data.prefs.SearchHistory.togglePin(
-                                                        entry.query, entry.isPlaylist
-                                                    )
+                                                    com.rajatxo.coral.data.prefs.SearchHistory.toggleFavorite(song.id)
                                                 }
                                             ),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
-                                            imageVector = if (entry in pinned) CoralIcons.PinFilled
-                                                else CoralIcons.PinFilled,  // both states use filled pin; tint differs
-                                            contentDescription = if (entry in pinned) "Unpin" else "Pin",
-                                            tint = if (entry in pinned) Color(0xFFFF6B6B)
+                                            imageVector = if (isFavorite) CoralIcons.HeartLucideFilled
+                                                else CoralIcons.HeartLucide,
+                                            contentDescription = if (isFavorite) "Unfavorite" else "Favorite",
+                                            tint = if (isFavorite) Color(0xFFFF6B6B)
                                                 else Color.White.copy(alpha = 0.4f),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                    // ★ Remove from history (X button)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clip(CircleShape)
+                                            .clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = null,
+                                                onClick = {
+                                                    com.rajatxo.coral.data.prefs.SearchHistory.removeSongFromHistory(song.id)
+                                                }
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = CoralIcons.Close,
+                                            contentDescription = "Remove",
+                                            tint = Color.White.copy(alpha = 0.5f),
                                             modifier = Modifier.size(16.dp)
                                         )
                                     }
@@ -931,13 +1015,13 @@ private fun SearchCardCustomizationPanel(
 }
 
 /**
- * PinnedChip — small glass chip for a pinned search query.
- * Tap to fill the search field with this query.
- * Long-press to unpin (remove from pinned list).
+ * FavoriteChip — small glass chip for a favorited song.
+ * Tap to play the song.
+ * Long-press to unfavorite (remove from favorites).
  */
 @Composable
-private fun PinnedChip(
-    entry: com.rajatxo.coral.data.prefs.SearchHistory.SearchEntry,
+private fun FavoriteChip(
+    song: com.rajatxo.coral.domain.model.Song,
     onClick: () -> Unit,
     onLongPress: () -> Unit = {}
 ) {
@@ -952,18 +1036,18 @@ private fun PinnedChip(
                     onLongPress = { onLongPress() }
                 )
             }
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .padding(horizontal = 8.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = CoralIcons.PinFilled,
+            imageVector = CoralIcons.HeartLucideFilled,
             contentDescription = null,
             tint = Color(0xFFFF6B6B),
             modifier = Modifier.size(11.dp)
         )
         Spacer(Modifier.size(4.dp))
         Text(
-            text = entry.query,
+            text = song.title,
             color = Color.White,
             fontSize = 11.sp,
             fontFamily = CalSansFamily,

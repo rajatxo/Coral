@@ -67,16 +67,33 @@ with open(bg_path, "w") as f:
 print(f"✓ Background: {bg_path} (color: {magenta_hex})")
 
 # ─── 2. Foreground PNG (432x432 = 108dp @ xxxhdpi) ───────────────────
-# The foreground layer includes the pink square + flower.
-# The launcher masks it into circle/squircle, so corners (now transparent)
-# will be outside the mask.
+# ★ USER ADJUSTMENT: make the flower smaller (~82% of canvas) + shift
+#   slightly right and down so the petal ends aren't cropped by the
+#   launcher's circular/squircle mask.
+#
+# The adaptive icon safe zone is the center 66% (~285px in a 432px canvas).
+# The flower was filling most of the image → petal ends got cropped.
+# Fix: scale the source down to 82% and offset it slightly right+down.
 foreground_size = 432
-fg_img = img.resize((foreground_size, foreground_size), Image.LANCZOS)
+flower_scale = 0.82  # 82% of canvas — leaves margin so petals aren't cropped
+flower_size = int(foreground_size * flower_scale)  # ~354px
+offset_x = int((foreground_size - flower_size) / 2) + 8   # +8px right shift
+offset_y = int((foreground_size - flower_size) / 2) + 8   # +8px down shift
+
+# Create a transparent 432x432 canvas + paste the scaled flower at the offset
+fg_canvas = Image.new("RGBA", (foreground_size, foreground_size), (0, 0, 0, 0))
+flower_resized = img.resize((flower_size, flower_size), Image.LANCZOS)
+fg_canvas.paste(flower_resized, (offset_x, offset_y), flower_resized)
+
 fg_path = f"{RES}/drawable/ic_launcher_foreground.png"
-fg_img.save(fg_path, "PNG")
+fg_canvas.save(fg_path, "PNG")
 print(f"✓ Foreground: {fg_path} ({foreground_size}x{foreground_size})")
+print(f"  Flower scaled to {flower_scale*100:.0f}% ({flower_size}x{flower_size})")
+print(f"  Offset: +{offset_x}px right, +{offset_y}px down")
 
 # ─── 3. Legacy PNG icons (for Android < 8.0) ─────────────────────────
+# Uses the same adjusted canvas as the adaptive foreground (smaller flower,
+# shifted right+down) so the legacy icons match the adaptive icon look.
 densities = {
     "mdpi": 48,
     "hdpi": 72,
@@ -87,7 +104,8 @@ densities = {
 for density, size in densities.items():
     out_dir = f"{RES}/mipmap-{density}"
     os.makedirs(out_dir, exist_ok=True)
-    legacy_img = img.resize((size, size), Image.LANCZOS)
+    # Scale the adjusted canvas down to this density's size
+    legacy_img = fg_canvas.resize((size, size), Image.LANCZOS)
     legacy_img.save(f"{out_dir}/ic_launcher.png", "PNG")
     legacy_img.save(f"{out_dir}/ic_launcher_round.png", "PNG")
     print(f"✓ mipmap-{density}/ic_launcher.png ({size}x{size})")
@@ -104,8 +122,12 @@ for x in range(img.size[0]):
         if luminance < 100:  # dark = flower
             mono_img.putpixel((x, y), (255, 255, 255, 255))
 mono_img = mono_img.resize((foreground_size, foreground_size), Image.LANCZOS)
+# ★ Apply the same right+down offset as the foreground so the mono icon
+#   aligns with the color icon.
+mono_canvas = Image.new("RGBA", (foreground_size, foreground_size), (0, 0, 0, 0))
+mono_canvas.paste(mono_img, (offset_x, offset_y), mono_img)
 mono_path = f"{RES}/drawable/ic_launcher_monochrome.png"
-mono_img.save(mono_path, "PNG")
+mono_canvas.save(mono_path, "PNG")
 print(f"✓ Monochrome: {mono_path}")
 
 print(f"\n✅ Done. Background: {magenta_hex}, flower preserved.")
