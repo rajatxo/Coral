@@ -13,13 +13,13 @@ object SearchCardCustomization {
     private const val PREFS_NAME = "coral_prefs"
     private const val KEY_BLUR = "search_card_blur_c2"
     private const val KEY_DARKNESS = "search_card_darkness_c2"
-    private const val KEY_HEIGHT = "search_card_height_c2"
+    private const val KEY_HEIGHT = "search_card_height_c3"  // bumped c2→c3 to invalidate old saved value
     private const val KEY_CORNER = "search_card_corner_c2"
 
     // ★ Defaults — user-specified values
     const val DEFAULT_BLUR = 49f        // blur radius in dp
     const val DEFAULT_DARKNESS = 0.15f   // 15% black tint
-    const val DEFAULT_HEIGHT_EXTRA = -171f // -171dp fixed height (no miniplayer adjustment)
+    const val DEFAULT_HEIGHT_EXTRA = -218f // -218dp fixed height (user-specified)
     const val DEFAULT_CORNER = 32f       // bottom corner radius in dp
 
     private lateinit var prefs: android.content.SharedPreferences
