@@ -23,15 +23,9 @@ img = Image.open(SRC).convert("RGBA")
 w, h = img.size
 print(f"Source: {w}x{h}")
 
-# ─── Make gray checker pixels transparent + FILL the canvas with pink ──
-# ★ BORDER FIX: the original image has a pink ROUNDED SQUARE with gray
-#   checker corners. When the launcher masks the icon, the rounded square's
-#   edge creates a visible boundary against the magenta background → looks
-#   like a "whitish border" or "glass effect".
-# ★ FIX: make gray corners transparent, then FILL those transparent
-#   corners with the magenta background color. Result: the foreground PNG
-#   is fully opaque (no transparency), the launcher's mask handles the
-#   shape. No visible edge, no border, no halo.
+# ─── Make gray checker pixels transparent (like the very first build) ─
+# Reverting the "fill corners with magenta" change — that caused the
+# whitish border issue. Going back to transparent corners.
 new_img = img.copy()
 pixels = new_img.load()
 gray_count = 0
@@ -47,9 +41,9 @@ for x in range(w):
             pixels[x, y] = (0, 0, 0, 0)
             gray_count += 1
 img = new_img
-print(f"✓ Made {gray_count} gray pixels transparent")
+print(f"✓ Made {gray_count} gray pixels transparent (back to first-build approach)")
 
-# ★ Now extract the magenta color BEFORE filling corners
+# ─── Auto-extract the magenta color ───────────────────────────────────
 colors = Counter()
 for x in range(0, w, 5):
     for y in range(0, h, 5):
@@ -62,23 +56,9 @@ if colors:
     avg_g = sum(c[1] for c, n in top) // len(top)
     avg_b = sum(c[2] for c, n in top) // len(top)
     magenta_hex = f"#{avg_r:02X}{avg_g:02X}{avg_b:02X}"
-    magenta_rgb = (avg_r, avg_g, avg_b, 255)
 else:
     magenta_hex = "#FF61DC"
-    magenta_rgb = (255, 97, 220, 255)
 print(f"✓ Auto-extracted magenta: {magenta_hex}")
-
-# ★ FILL transparent corners with the magenta color — no transparency
-#   in the final foreground, no visible edge against the background XML.
-filled_count = 0
-pixels = img.load()
-for x in range(w):
-    for y in range(h):
-        r, g, b, a = pixels[x, y]
-        if a < 255:
-            pixels[x, y] = magenta_rgb
-            filled_count += 1
-print(f"✓ Filled {filled_count} transparent pixels with magenta (no border)")
 
 # ─── 1. Background XML — solid magenta ────────────────────────────────
 bg_drawable = f'''<?xml version="1.0" encoding="utf-8"?>
@@ -92,16 +72,24 @@ with open(bg_path, "w") as f:
     f.write(bg_drawable)
 print(f"✓ Background: {bg_path} (color: {magenta_hex})")
 
-# ─── 2. Foreground PNG (432x432) — full-bleed, no scaling ────────────
-# ★ USER FEEDBACK: "make it like before" — full canvas, no shrinking.
-#   The flower should fill the entire 432x432 foreground. The launcher
-#   masks the corners, so we just need the image to fill the canvas.
+# ─── 2. Foreground PNG (432x432) — full size + very tiny offset ──────
+# ★ USER FEEDBACK: "revert to first build, then move it very slightly,
+#   less than the previous build when I asked you to move"
+# First build: full image, transparent corners, no scaling.
+# This build: same + tiny +3px right, +3px down offset (was +8px before).
 foreground_size = 432
-fg_canvas = img.resize((foreground_size, foreground_size), Image.LANCZOS)
+offset_x = 3   # very tiny right shift (was 8px before — too much)
+offset_y = 3   # very tiny down shift (was 8px before — too much)
+
+fg_canvas = Image.new("RGBA", (foreground_size, foreground_size), (0, 0, 0, 0))
+# Resize the source image to 429x429 (leaves 3px margin on left/top for the offset)
+resized = img.resize((foreground_size - offset_x, foreground_size - offset_y), Image.LANCZOS)
+fg_canvas.paste(resized, (offset_x, offset_y), resized)
 
 fg_path = f"{RES}/drawable/ic_launcher_foreground.png"
 fg_canvas.save(fg_path, "PNG")
-print(f"✓ Foreground: {fg_path} ({foreground_size}x{foreground_size}) — full bleed, no scaling")
+print(f"✓ Foreground: {fg_path} ({foreground_size}x{foreground_size})")
+print(f"  Full size (no scaling), tiny offset: +{offset_x}px right, +{offset_y}px down")
 
 # ─── 3. Legacy PNG icons ──────────────────────────────────────────────
 densities = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
