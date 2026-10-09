@@ -775,18 +775,19 @@ private fun PlaylistWheel(
                 val playlist = playlists[modIdx]
 
                 // Fractional offset from center (0 = apex). Negative = above.
-                val fractionalOffset = rotationItems - rotationItems.roundToInt() + offset
+                // ★ VISUAL FLIP: negate fractionalOffset so items visually
+                //   come FROM BELOW when scrolling up. The array index stays
+                //   in sync (rawIdx uses +offset, not negated), so the correct
+                //   playlist still shows at center.
+                val fractionalOffset = -(rotationItems - rotationItems.roundToInt() + offset)
                 val absOffset = abs(fractionalOffset)
 
                 if (absOffset > visibleSpan) continue
 
                 // Angular position: apex = 0°, items above go negative, below positive.
-                // ★ SWAP DIRECTION: negate so that when scrolling up, items visually
-                //   come FROM BELOW to center (not from center going up).
-                //   Before: fractionalOffset > 0 → below center (items move UP to center)
-                //   After:  fractionalOffset > 0 → above center (items come DOWN to center from below)
-                //   This makes the below playlist feel like it's rising up to center.
-                val itemAngleDeg = -fractionalOffset * angleStepDeg
+                // fractionalOffset is already negated above (for visual flip), so
+                // this uses the negated value directly.
+                val itemAngleDeg = fractionalOffset * angleStepDeg
                 val itemAngleRad = (itemAngleDeg * PI / 180f).toFloat()
 
                 // Position on the arc (Cartesian from pivot)
@@ -850,7 +851,7 @@ private fun PlaylistWheel(
                 // Balls on the first arc (arcRadius) rotate in the OPPOSITE
                 // direction. Pully coupling — like two meshed gears.
                 // ALWAYS WHITE — dynamic accent color is only for the second arc.
-                val firstArcFractionalOffset = fractionalOffset  // SWAPPED (was -fractionalOffset) — text is now negated, so this keeps the pully coupling
+                val firstArcFractionalOffset = -fractionalOffset  // opposite to text (pully coupling preserved)
                 val firstArcAngleDeg = firstArcFractionalOffset * angleStepDeg
                 val firstArcAngleRad = (firstArcAngleDeg * PI / 180f).toFloat()
                 val firstArcBallX = pivotX + arcRadius * cos(firstArcAngleRad)
