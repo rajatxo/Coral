@@ -336,7 +336,7 @@ fun PlaylistsScreen(
                     // ─── Right: wheel (fills remaining width) ───
                     PlaylistWheel(
                         playlists = playlists,
-                        accentColor = accentColor,
+                        accentColor = palette.primary,  // ★ dynamic: song's dominant color
                         onRotationStart = { isRotating = true },
                         onRotationEnd = { isRotating = false },
                         onCenterPlaylistChange = { centerPlaylist = it },
@@ -872,8 +872,16 @@ private fun PlaylistWheel(
                 val firstArcBallX = pivotX + arcRadius * cos(firstArcAngleRad)
                 val firstArcBallY = pivotY + arcRadius * sin(firstArcAngleRad)
                 val firstArcBallRadiusPx = with(density) { 3.dp.toPx() }
+                // ★ BALL GRADIENT (#3): center ball = accentColor, adjacent balls
+                //   = blend of accentColor → white, far balls = white.
+                //   Matches the text gradient transition.
+                val firstArcBallColor = when {
+                    absOffset < 0.5f -> accentColor  // center = accent
+                    absOffset < 1.5f -> androidx.compose.ui.graphics.lerp(accentColor, Color.White, (absOffset - 0.5f))  // adjacent = gradient
+                    else -> Color.White  // far = white
+                }
                 drawCircle(
-                    color = Color.White,  // always white, no accent color
+                    color = firstArcBallColor,
                     radius = firstArcBallRadiusPx,
                     center = Offset(firstArcBallX, firstArcBallY),
                     alpha = alpha
@@ -884,8 +892,13 @@ private fun PlaylistWheel(
                 // text anchor point on the second arc. Moves with the wheel.
                 // ACTIVE ball = accent color; INACTIVE balls = white.
                 // Diameter = 8dp, gap between consecutive balls ≈ 29dp.
+                // ★ BALL GRADIENT (#3): center = accentColor, adjacent = blend, far = white
                 val ballRadiusPx = with(density) { 4.dp.toPx() }
-                val ballColor = if (isActive) accentColor else Color.White
+                val ballColor = when {
+                    isActive -> accentColor  // center = accent
+                    absOffset < 1.5f -> androidx.compose.ui.graphics.lerp(accentColor, Color.White, (absOffset - 0.5f))  // adjacent = gradient
+                    else -> Color.White  // far = white
+                }
                 drawCircle(
                     color = ballColor,
                     radius = ballRadiusPx,
@@ -1042,22 +1055,32 @@ private fun PlaylistWheel(
             }
         }
 
-        // ★ #1 TAP CENTER NAME TO OPEN:
-        //   Transparent overlay covering the wheel area.
-        //   detectTapGestures only fires on a clean tap (no drag) — if the
-        //   user drags, the wheel's detectVerticalDragGestures handles it.
-        //   We use the onRotationStart/onRotationEnd callbacks to know if
-        //   the wheel is currently rotating (skip tap during rotation).
+        // ★ #1 TAP ONLY THE CENTER TEXT TO OPEN:
+        //   The overlay covers ONLY the center area (where the main text sits),
+        //   NOT the whole screen. The center text is at the apex of the arc,
+        //   which is at approximately 15% from left + 50% from top.
+        //   We use align(Center) + a constrained size so only taps near the
+        //   center text trigger the open.
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(playlists.size) {
                     detectTapGestures(
-                        onTap = {
-                            val centerIdx = indexAtOffset(scrollOffset.value)
-                            val centerPl = playlists.getOrNull(centerIdx)
-                            if (centerPl != null) {
-                                onOpenPlaylist(centerPl)
+                        onTap = { offset ->
+                            // ★ Only open if tap is near the vertical center
+                            //   (within 80dp of the center Y). This prevents
+                            //   taps on the top/bottom arcs from opening.
+                            val canvasHeight = size.height
+                            val centerY = canvasHeight / 2f
+                            val tapY = offset.y
+                            val distFromCenter = kotlin.math.abs(tapY - centerY)
+                            val maxDist = with(density) { 80.dp.toPx() }
+                            if (distFromCenter < maxDist) {
+                                val centerIdx = indexAtOffset(scrollOffset.value)
+                                val centerPl = playlists.getOrNull(centerIdx)
+                                if (centerPl != null) {
+                                    onOpenPlaylist(centerPl)
+                                }
                             }
                         }
                     )

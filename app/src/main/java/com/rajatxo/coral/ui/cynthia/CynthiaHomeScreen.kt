@@ -134,10 +134,11 @@ fun CynthiaHomeScreen(
         enabled = showFullPlayer || showSearch || showSettings ||
                   showCustomizationPanel || showProfilePanel ||
                   showTopCard || showTopCardCustomization || showSpeedDialCard ||
-                  showMiniPlayerCustomization
+                  showMiniPlayerCustomization || selectedPlaylist != null
     ) {
         when {
             showFullPlayer -> onFullPlayerDismiss()
+            selectedPlaylist != null -> { selectedPlaylist = null }
             showSearch -> { showSearch = false }
             showSettings -> { showSettings = false }
             showCustomizationPanel -> { showCustomizationPanel = false }
