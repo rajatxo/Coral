@@ -234,6 +234,24 @@ fun CynthiaHomeScreen(
                     },
                     onSpeedDialHeaderClick = { showSpeedDialCard = true }
                 )
+                CoralTab.Songs -> com.rajatxo.coral.ui.screens.SongsScreen(
+                    songs = songs,
+                    currentSongId = currentSongId,
+                    currentSongTitle = currentSongTitle,
+                    currentSongArt = currentSongArt,
+                    onSongClick = onSongClickWithReset,
+                    capsuleVisible = false,
+                    capsuleRemaining = 0L,
+                    onExtend = { },
+                    onRefresh = onRefresh
+                )
+                CoralTab.Playlists -> com.rajatxo.coral.ui.screens.PlaylistsScreen(
+                    onPlaylistClick = { /* TODO: open playlist detail */ },
+                    capsuleVisible = false,
+                    capsuleRemaining = 0L,
+                    onExtend = { },
+                    accentColor = Color(0xFFF4B400)
+                )
                 else -> Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center

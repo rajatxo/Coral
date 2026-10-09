@@ -963,19 +963,31 @@ private fun PlaylistWheel(
 
                 drawContext.canvas.save()
                 // Translate to text center, rotate radially, draw text centered.
-                drawContext.canvas.translate(textCenterX, textCenterY)
-                drawContext.canvas.rotate(radialDeg)
+                // ★ VIBRATING TEXT FIX: round positions to integers.
+                //   When scrollOffset.value changes every frame, textCenterX/Y
+                //   are Float values that vary by sub-pixel amounts. Text
+                //   rendering then wobbles between sub-pixel positions →
+                //   looks like the text is "slowly vibrating".
+                //   Fix: round to nearest pixel before translating.
+                val textCenterXRounded = textCenterX.roundToInt().toFloat()
+                val textCenterYRounded = textCenterY.roundToInt().toFloat()
+                val textWRounded = (textW / 2f).roundToInt().toFloat()
+                val textHRounded = (textH / 2f).roundToInt().toFloat()
+                // Round rotation to 0.1 degree to prevent micro-jitter
+                val radialDegRounded = (radialDeg * 10f).roundToInt() / 10f
+                drawContext.canvas.translate(textCenterXRounded, textCenterYRounded)
+                drawContext.canvas.rotate(radialDegRounded)
                 if (textBrush != null) {
                     drawText(
                         textLayoutResult = textLayout,
-                        topLeft = Offset(-textW / 2f, -textH / 2f),
+                        topLeft = Offset(-textWRounded, -textHRounded),
                         alpha = alpha,
                         brush = textBrush
                     )
                 } else {
                     drawText(
                         textLayoutResult = textLayout,
-                        topLeft = Offset(-textW / 2f, -textH / 2f),
+                        topLeft = Offset(-textWRounded, -textHRounded),
                         alpha = alpha
                     )
                 }
