@@ -15,6 +15,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -339,6 +340,7 @@ fun PlaylistsScreen(
                         onRotationStart = { isRotating = true },
                         onRotationEnd = { isRotating = false },
                         onCenterPlaylistChange = { centerPlaylist = it },
+                        onOpenPlaylist = { onPlaylistClick(it) },
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
@@ -418,7 +420,8 @@ private fun PlaylistWheel(
     accentColor: Color = Color(0xFFF4B400),
     onRotationStart: () -> Unit = {},
     onRotationEnd: () -> Unit = {},
-    onCenterPlaylistChange: (Playlist) -> Unit = {}
+    onCenterPlaylistChange: (Playlist) -> Unit = {},
+    onOpenPlaylist: (Playlist) -> Unit = {}
 ) {
     if (playlists.isEmpty()) return
 
@@ -1038,6 +1041,28 @@ private fun PlaylistWheel(
                 drawContext.canvas.restore()
             }
         }
+
+        // ★ #1 TAP CENTER NAME TO OPEN:
+        //   Transparent overlay covering the wheel area.
+        //   detectTapGestures only fires on a clean tap (no drag) — if the
+        //   user drags, the wheel's detectVerticalDragGestures handles it.
+        //   We use the onRotationStart/onRotationEnd callbacks to know if
+        //   the wheel is currently rotating (skip tap during rotation).
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(playlists.size) {
+                    detectTapGestures(
+                        onTap = {
+                            val centerIdx = indexAtOffset(scrollOffset.value)
+                            val centerPl = playlists.getOrNull(centerIdx)
+                            if (centerPl != null) {
+                                onOpenPlaylist(centerPl)
+                            }
+                        }
+                    )
+                }
+        )
     }
 }
 

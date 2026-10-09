@@ -85,6 +85,7 @@ fun CynthiaHomeScreen(
     val cynthiaTabs = listOf(CoralTab.QuickPicks, CoralTab.Songs, CoralTab.Playlists)
     var selectedTab by remember { mutableStateOf(CoralTab.QuickPicks) }
     var showSettings by remember { mutableStateOf(false) }
+    var selectedPlaylist by remember { mutableStateOf<com.rajatxo.coral.data.model.Playlist?>(null) }
     // ★ Customization panel state — shown when user holds nav bar or search
     //   FAB for 5 seconds. `customizationPanelIsNavBar` = true → nav bar held,
     //   false → search FAB held. Controls which section the panel shows.
@@ -246,7 +247,7 @@ fun CynthiaHomeScreen(
                     onRefresh = onRefresh
                 )
                 CoralTab.Playlists -> com.rajatxo.coral.ui.screens.PlaylistsScreen(
-                    onPlaylistClick = { /* TODO: open playlist detail */ },
+                    onPlaylistClick = { selectedPlaylist = it },
                     capsuleVisible = false,
                     capsuleRemaining = 0L,
                     onExtend = { },
@@ -729,5 +730,35 @@ fun CynthiaHomeScreen(
             onDismiss = { showProfilePanel = false },
             backdrop = glassBackdrop
         )
+
+        // ═══ Playlist detail overlay (#1 — tap center name to open) ═══
+        androidx.compose.animation.AnimatedVisibility(
+            visible = selectedPlaylist != null,
+            enter = androidx.compose.animation.slideInVertically { it },
+            exit = androidx.compose.animation.slideOutVertically { it }
+        ) {
+            selectedPlaylist?.let { playlist ->
+                com.rajatxo.coral.ui.screens.PlaylistDetailScreen(
+                    playlist = playlist,
+                    allSongs = songs,
+                    currentSongTitle = currentSongTitle,
+                    onBackClick = { selectedPlaylist = null },
+                    onPlayAll = { songList ->
+                        onSongClickWithQueue(songList.first(), songList)
+                    },
+                    onShuffle = { songList ->
+                        val shuffled = songList.shuffled()
+                        if (shuffled.isNotEmpty()) {
+                            onSongClickWithQueue(shuffled.first(), shuffled)
+                        }
+                    },
+                    onSongClick = { song, songList ->
+                        onSongClickWithQueue(song, songList)
+                    },
+                    onAddSongsClick = { },
+                    onDeletePlaylist = { selectedPlaylist = null }
+                )
+            }
+        }
     }
 }
