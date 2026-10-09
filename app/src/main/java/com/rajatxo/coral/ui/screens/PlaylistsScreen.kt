@@ -64,6 +64,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.drawText
 import coil3.compose.AsyncImage
+import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.colorControls
+import com.kyant.backdrop.effects.vibrancy
 import com.rajatxo.coral.data.model.Playlist
 import com.rajatxo.coral.data.store.PlaylistStore
 import com.rajatxo.coral.ui.components.CoralColors
@@ -82,7 +87,8 @@ fun PlaylistsScreen(
     capsuleVisible: Boolean = false,
     capsuleRemaining: Long = 0L,
     onExtend: () -> Unit = {},
-    accentColor: Color = Color(0xFFF4B400)
+    accentColor: Color = Color(0xFFF4B400),
+    backdrop: LayerBackdrop? = null
 ) {
     val playlists by PlaylistStore.playlists.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
@@ -90,38 +96,14 @@ fun PlaylistsScreen(
     // --- Wheel/Grid toggle state ---
     var useWheel by remember { mutableStateOf(true) }
 
-    // --- Wheel rotation state ---
+    // --- Wheel rotation state (kept for PlaylistWheel callback) ---
     var isRotating by remember { mutableStateOf(false) }
     var centerPlaylist by remember { mutableStateOf<Playlist?>(null) }
-
-    // --- "All Playlist" pill text + 3-second timeout ---
-    // Default: "All Playlist". When user rotates the wheel, the center
-    // playlist name shows. After 3 seconds of no change, reverts to
-    // "All Playlist". The capsule itself is ALWAYS visible (permanent).
-    var playlistPillText by remember { mutableStateOf("All Playlist") }
-    var playlistPillJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    val pillScope = rememberCoroutineScope()
-
-    // When the center playlist changes, update the pill text and start
-    // a 3-second timer to revert to "All Playlist".
-    androidx.compose.runtime.LaunchedEffect(centerPlaylist) {
-        if (centerPlaylist != null) {
-            playlistPillText = centerPlaylist!!.name
-            playlistPillJob?.cancel()
-            playlistPillJob = pillScope.launch {
-                kotlinx.coroutines.delay(3000L)
-                playlistPillText = "All Playlist"
-            }
-        }
-    }
 
     Box(modifier = Modifier
         .fillMaxSize()
         .background(Color(0xFF05050A))  // darkBase
         .background(
-            // Same gradient style as QuickPicks/Songs — vibrant top
-            // fading to dark bottom. Uses accentColor as the vibrant
-            // top (since PlaylistsScreen doesn't have album art palette).
             Brush.verticalGradient(
                 colorStops = arrayOf(
                     0.0f  to accentColor.copy(alpha = 0.85f),
@@ -132,148 +114,106 @@ fun PlaylistsScreen(
             )
         )
     ) {
-        // Header Column: Row(capsule + title) + big capsule with inner items
-        // zIndex(1f) keeps the header ABOVE the wheel so the Grid/Wheel
-        // toggle capsule stays clickable (otherwise the wheel's pointerInput
-        // would intercept touches over the header area).
-        Column(
+        // ═══ TOP ROW: 2 kyant backdrop capsules (New + Grid/Wheel toggle) ═══
+        // Replaces the old big capsule. Just 2 small glass capsules at the top.
+        Row(
             modifier = Modifier
+                .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(start = 16.dp, end = 20.dp, top = 16.dp)
-                .zIndex(1f)
+                .padding(horizontal = 20.dp, vertical = 16.dp)
+                .zIndex(1f),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Header Row: Sleep timer capsule (if visible) — no big title text
-            // (the blur header from HomeScreen already shows "Playlists")
-            // ★ Keep a 40dp Spacer where the old title text was so the
-            //   capsule below stays at the same vertical position as before.
-            //   Without this, removing the text collapses the Row and the
-            //   capsule moves up.
+            // ★ "New" capsule — opens the create playlist dialog
             Row(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(40.dp),  // match the old title height
-                verticalAlignment = Alignment.CenterVertically
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .then(
+                        if (backdrop != null) {
+                            Modifier.drawBackdrop(
+                                backdrop = backdrop,
+                                shape = { RoundedCornerShape(20.dp) },
+                                effects = {
+                                    vibrancy()
+                                    colorControls(
+                                        brightness = 0f,
+                                        contrast = 1f,
+                                        saturation = 1.1f
+                                    )
+                                    blur(20f.dp.toPx())
+                                }
+                            )
+                        } else {
+                            Modifier.background(Color.White.copy(alpha = 0.15f))
+                        }
+                    )
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { showCreateDialog = true }
+                    )
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                com.rajatxo.coral.ui.components.SleepTimerCapsule(
-                    visible = capsuleVisible,
-                    remainingMs = capsuleRemaining,
-                    onExtend = onExtend,
-                    modifier = Modifier.weight(1f)
+                Icon(
+                    imageVector = CoralIcons.Play,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(12.dp)
+                )
+                Text(
+                    text = "New",
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
                 )
             }
 
-            Spacer(modifier = Modifier.size(8.dp))
-
-            // === ONE big capsule: New + Playlist Name + Grid/Wheel ===
+            // ★ Grid/Wheel toggle capsule
             Row(
                 modifier = Modifier
-                    .fillMaxWidth()
                     .height(40.dp)
                     .clip(RoundedCornerShape(20.dp))
-                    .background(CoralColors.SurfaceVariant)
-                    .padding(horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                // "New" capsule (left)
-                Row(
-                    modifier = Modifier
-                        .height(32.dp)
-                        .width(IntrinsicSize.Max)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color.White)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { showCreateDialog = true }
-                        )
-                        .padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Icon(
-                        imageVector = CoralIcons.Play,
-                        contentDescription = null,
-                        tint = Color.Black,
-                        modifier = Modifier.size(10.dp)
-                    )
-                    Text(
-                        text = "New",
-                        color = Color.Black,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-
-                // ★ Playlist Name capsule (center) — shows the playlist name
-                //   when rotating the wheel, or "All Playlist" by default.
-                //   Clickable to open the centered playlist.
-                val pillLuminance = 0.299f * accentColor.red +
-                    0.587f * accentColor.green +
-                    0.114f * accentColor.blue
-                val pillTextColor = if (pillLuminance > 0.5f) Color.Black else Color.White
-
-                Row(
-                    modifier = Modifier
-                        .height(32.dp)
-                        .width(IntrinsicSize.Max)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(accentColor)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = {
-                                if (playlistPillText != "All Playlist" && centerPlaylist != null) {
-                                    centerPlaylist?.let { onPlaylistClick(it) }
+                    .then(
+                        if (backdrop != null) {
+                            Modifier.drawBackdrop(
+                                backdrop = backdrop,
+                                shape = { RoundedCornerShape(20.dp) },
+                                effects = {
+                                    vibrancy()
+                                    colorControls(
+                                        brightness = 0f,
+                                        contrast = 1f,
+                                        saturation = 1.1f
+                                    )
+                                    blur(20f.dp.toPx())
                                 }
-                            }
-                        )
-                        .padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "All Playlist",
-                            color = Color.Transparent,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = playlistPillText,
-                            color = pillTextColor,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.weight(1f))
-
-                // Grid/Wheel toggle capsule (right)
-                Row(
-                    modifier = Modifier
-                        .height(32.dp)
-                        .width(IntrinsicSize.Max)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color.White)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { useWheel = !useWheel }
-                        )
-                        .padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (useWheel) "Grid" else "Wheel",
-                        color = Color.Black,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold
+                            )
+                        } else {
+                            Modifier.background(Color.White.copy(alpha = 0.15f))
+                        }
                     )
-                }
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { useWheel = !useWheel }
+                    )
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = if (useWheel) "Grid" else "Wheel",
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
+                )
             }
         }
 
@@ -312,7 +252,7 @@ fun PlaylistsScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .statusBarsPadding()
-                        .padding(top = 170.dp, bottom = 16.dp)
+                        .padding(top = 80.dp, bottom = 16.dp)
                 )
             } else {
                 LazyVerticalGrid(

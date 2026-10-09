@@ -61,19 +61,59 @@ object DuplicateDetector {
     /**
      * Find all duplicate groups in [songs].
      *
+     * DUPLICATE RULE (user spec):
+     *   Two songs are duplicates if their NORMALIZED TITLES match AND
+     *   their artists SHARE AT LEAST ONE COMMON ARTIST NAME.
+     *
+     *   Examples:
+     *     "Swim" by "Chase Atlantic"  vs  "Swim" by "Chase Atlantic, Mitchell Cave"
+     *       → DUPLICATES (both have "Chase Atlantic")
+     *
+     *     "Swim" by "Chase Atlantic"  vs  "Swim" by "Pink Floyd"
+     *       → NOT duplicates (no shared artist name)
+     *
+     *   Artist names are split on common separators (comma, "&", "and",
+     *   "feat.", "ft.", "with", "x") so "Chase Atlantic, Mitchell Cave"
+     *   becomes ["Chase Atlantic", "Mitchell Cave"].
+     *
      * @return Empty list if no duplicates. Otherwise, one [DuplicateGroup]
-     *   per title+artist combo that has more than one song.
+     *   per title+artist-combo that has more than one song.
      */
     fun findDuplicates(songs: List<Song>): List<DuplicateGroup> {
         if (songs.isEmpty()) return emptyList()
 
-        // Group by normalized (lowercase, trimmed) title + artist
-        val groups = songs.groupBy { song ->
-            normalizeTitle(song.title) + "|" + normalizeArtist(song.artist)
+        // Group by normalized title first
+        val byTitle = songs.groupBy { normalizeTitle(it.title) }
+
+        val groups = mutableListOf<List<Song>>()
+        for ((_, group) in byTitle) {
+            if (group.size < 2) continue
+            // Within the same-title group, find songs whose artist sets overlap.
+            // Two songs are duplicates if they share at least one artist name.
+            val visited = mutableSetOf<Long>()
+            for (i in group.indices) {
+                if (group[i].id in visited) continue
+                val artistSetI = splitArtists(group[i].artist)
+                if (artistSetI.isEmpty()) continue  // skip if no recognizable artist
+                val cluster = mutableListOf(group[i])
+                visited.add(group[i].id)
+                for (j in (i + 1) until group.size) {
+                    if (group[j].id in visited) continue
+                    val artistSetJ = splitArtists(group[j].artist)
+                    if (artistSetJ.isEmpty()) continue
+                    // Check if there's any overlap between the two artist sets
+                    if (artistSetI.intersect(artistSetJ).isNotEmpty()) {
+                        cluster.add(group[j])
+                        visited.add(group[j].id)
+                    }
+                }
+                if (cluster.size > 1) {
+                    groups.add(cluster)
+                }
+            }
         }
 
-        return groups.values
-            .filter { it.size > 1 }
+        return groups
             .map { group ->
                 val keeper = pickKeeper(group)
                 val dupes = group.filter { it.id != keeper.id }
@@ -85,6 +125,42 @@ object DuplicateDetector {
                 )
             }
             .sortedBy { it.title.lowercase() }
+    }
+
+    /**
+     * Split an artist string into individual artist names.
+     * Handles common separators:
+     *   - Comma: "Chase Atlantic, Mitchell Cave"
+     *   - Ampersand: "A & B"
+     *   - " and ": "A and B"
+     *   - "feat." / "ft." / "featuring": "A feat. B"
+     *   - "with": "A with B"
+     *   - "x": "Ax B" (e.g. "A x B" collabs)
+     *   - Semicolon: "A; B"
+     *   - Slash: "A / B"
+     *
+     * Returns normalized (lowercase, trimmed) artist names.
+     * Empty list if input is blank.
+     */
+    private fun splitArtists(artist: String): Set<String> {
+        val normalized = artist.trim().lowercase()
+        if (normalized.isBlank()) return emptySet()
+        // Split on any of: comma, &, "and", "feat.", "ft.", "featuring", "with", "x" (with spaces), ";", "/"
+        val parts = normalized
+            .replace(",", "|")
+            .replace("&", "|")
+            .replace(";", "|")
+            .replace("/", "|")
+            .replace(Regex("\\s+feat\\."), "|")
+            .replace(Regex("\\s+ft\\."), "|")
+            .replace(Regex("\\s+featuring\\s+"), "|")
+            .replace(Regex("\\s+with\\s+"), "|")
+            .replace(Regex("\\s+and\\s+"), "|")
+            .replace(Regex("\\s+x\\s+"), "|")  // collab "A x B"
+            .split("|")
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+        return parts.toSet()
     }
 
     /**
