@@ -641,12 +641,11 @@ private fun PlaylistWheel(
                     onDragEnd = {
                         val velocity = velocityTracker.calculateVelocity().y
                         coroutineScope.launch {
-                            // ★ SMOOTH WHEEL: reduced velocity multiplier 0.35 → 0.20
-                            //   (less sensitive to flicks) + higher friction 0.9 → 1.2
-                            //   (decelerates faster, doesn't spin too far)
-                            // ★ DIRECTION FIX: negate velocity so swipe-up = forward
+                            // ★ NO negation — fractionalOffset negation handles the visual flip.
+                            //   Drag UP → scrollOffset decreases → below playlist rises to center.
+                            //   Drag DOWN → scrollOffset increases → above playlist descends to center.
                             scrollOffset.animateDecay(
-                                initialVelocity = -velocity * 0.20f,
+                                initialVelocity = velocity * 0.20f,
                                 animationSpec = androidx.compose.animation.core.exponentialDecay(
                                     frictionMultiplier = 1.2f
                                 )
@@ -665,9 +664,10 @@ private fun PlaylistWheel(
                     },
                     onVerticalDrag = { change, dragAmount ->
                         coroutineScope.launch {
-                            // ★ DIRECTION FIX: negate dragAmount so swipe-up = forward
-                            //   (user wants the playlist BELOW to come to center on swipe up)
-                            scrollOffset.snapTo(scrollOffset.value - dragAmount)
+                            // ★ NO negation — natural drag direction.
+                            //   fractionalOffset negation handles the visual flip,
+                            //   so the array index and visual position stay in sync.
+                            scrollOffset.snapTo(scrollOffset.value + dragAmount)
                         }
                         velocityTracker.addPosition(change.uptimeMillis, change.position)
                         val currentIdx = indexAtOffset(scrollOffset.value)
