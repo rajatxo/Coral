@@ -161,7 +161,7 @@ fun PlaylistsScreen(
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 80.dp)
+                .padding(horizontal = 20.dp, vertical = 56.dp)
                 .zIndex(1f),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -296,7 +296,7 @@ fun PlaylistsScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .statusBarsPadding()
-                        .padding(top = 140.dp, bottom = 16.dp)
+                        .padding(top = 110.dp, bottom = 16.dp)
                 ) {
                     // ─── Left: 48dp vertical labels column (same as old nav rail) ───
                     val labels = listOf("Quick picks", "Discover", "Songs", "Playlists", "Artists", "Albums", "Folders")
