@@ -339,6 +339,7 @@ fun PlaylistsScreen(
                         onRotationStart = { isRotating = true },
                         onRotationEnd = { isRotating = false },
                         onCenterPlaylistChange = { centerPlaylist = it },
+                        onAutoOpen = { onPlaylistClick(it) },
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
@@ -418,7 +419,8 @@ private fun PlaylistWheel(
     accentColor: Color = Color(0xFFF4B400),
     onRotationStart: () -> Unit = {},
     onRotationEnd: () -> Unit = {},
-    onCenterPlaylistChange: (Playlist) -> Unit = {}
+    onCenterPlaylistChange: (Playlist) -> Unit = {},
+    onAutoOpen: (Playlist) -> Unit = {}
 ) {
     if (playlists.isEmpty()) return
 
@@ -544,6 +546,14 @@ private fun PlaylistWheel(
     // Index of the item currently at the apex (selected).
     var lastSnappedIndex by remember { mutableStateOf(0) }
 
+    // ★ AUTO-OPEN ON FLING (#21):
+    //   If the user flings the wheel HARD (velocity exceeds threshold),
+    //   after the wheel snaps to a playlist, auto-open that playlist.
+    //   Gentle scroll = just browsing (no auto-open).
+    //   Hard fling = "I definitely want this one" → opens automatically.
+    val FLING_VELOCITY_THRESHOLD = 1500f  // px/s — gentle scroll is ~300-800
+    var autoOpenOnSnap by remember { mutableStateOf(false) }
+
     // --- Selection helper ---
     // ★ DIRECTION FIX: user reports swipe-up shows the WRONG playlist.
     //   Easiest fix: invert the dragAmount in the full-screen drag handler
@@ -640,6 +650,11 @@ private fun PlaylistWheel(
                     },
                     onDragEnd = {
                         val velocity = velocityTracker.calculateVelocity().y
+                        // ★ AUTO-OPEN ON FLING: check if this is a hard fling
+                        val absVelocity = kotlin.math.abs(velocity)
+                        if (absVelocity > FLING_VELOCITY_THRESHOLD) {
+                            autoOpenOnSnap = true
+                        }
                         coroutineScope.launch {
                             // ★ NO negation — fractionalOffset negation handles the visual flip.
                             //   Drag UP → scrollOffset decreases → below playlist rises to center.
@@ -658,6 +673,17 @@ private fun PlaylistWheel(
                                     stiffness = Spring.StiffnessMedium
                                 )
                             )
+                            // ★ AUTO-OPEN ON FLING: after snap, if this was a hard fling,
+                            //   open the playlist that's now at center.
+                            if (autoOpenOnSnap) {
+                                autoOpenOnSnap = false
+                                val centerIdx = indexAtOffset(scrollOffset.value)
+                                val centerPl = playlists.getOrNull(centerIdx)
+                                if (centerPl != null) {
+                                    kotlinx.coroutines.delay(200L)  // brief pause so snap settles visually
+                                    onAutoOpen(centerPl)
+                                }
+                            }
                             kotlinx.coroutines.delay(1500L)
                             onRotationEnd()
                         }
