@@ -587,10 +587,28 @@ fun CynthiaHomeScreen(
                         miniPlayerDismissed = true
                     },
                     isFullPlayerOpen = showFullPlayer,
-                    onShowCustomizationPanel = { showMiniPlayerCustomization = true },
+                    onShowCustomizationPanel = {
+                        // ★ 5-second hold → show mini player customization panel
+                        showMiniPlayerCustomization = true
+                    },
                     backdrop = glassBackdrop
                 )
             }
+        }
+
+        // ★ Sleep timer capsule — shown when miniplayer customization panel is open
+        //   (5-second hold on miniplayer triggers it)
+        if (showMiniPlayerCustomization) {
+            val timerState = com.rajatxo.coral.data.premium.SleepTimer.state.collectAsState().value
+            val remainingMs = timerState.endAtMs?.let { it - System.currentTimeMillis() } ?: 0L
+            com.rajatxo.coral.ui.components.SleepTimerCapsule(
+                visible = true,
+                remainingMs = remainingMs.coerceAtLeast(0L),
+                onExtend = { },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 200.dp)
+            )
         }
 
         // ★ Full player overlay — simple fade transition (like Astra)

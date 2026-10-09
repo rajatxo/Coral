@@ -35,6 +35,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -110,11 +111,15 @@ fun PlaylistsScreen(
     var centerPlaylist by remember { mutableStateOf<Playlist?>(null) }
 
     // ★ COLORS:
-    //   Background = same as Quick Picks (song's dominant color from existing palette)
-    //   Text color = user-selected (default #F5EBD0 cream when no song)
-    //   When no song: background = #7F011F (wine red), text = #F5EBD0 (cream)
+    //   Background = same as Quick Picks (song's dominant color)
+    //   Text color = user-selected from TextColorPalette (default #F5EBD0 cream)
+    //   When no song playing: background = #7F011F (wine red), text = #F5EBD0 (cream)
     val context = androidx.compose.ui.platform.LocalContext.current
     var palette by remember { mutableStateOf(com.rajatxo.coral.util.CoralPalette.Default) }
+
+    // ★ No-song detection: check both currentSongArt AND currentSongId
+    val isSongPlaying = currentSongArt != null
+
     androidx.compose.runtime.LaunchedEffect(currentSongArt) {
         if (currentSongArt != null) {
             com.rajatxo.coral.util.PaletteCache.get(currentSongArt)?.let { palette = it }
@@ -125,8 +130,8 @@ fun PlaylistsScreen(
         }
     }
 
-    // ★ Background: uses palette.primary (same as Quick Picks), or #7F011F when no song
-    val bgTopTarget = if (currentSongArt != null) palette.primary else com.rajatxo.coral.util.DEFAULT_BG_COLOR
+    // ★ Background: palette.primary when song playing, #7F011F wine red when not
+    val bgTopTarget = if (isSongPlaying) palette.primary else com.rajatxo.coral.util.DEFAULT_BG_COLOR
     val animatedTop by animateColorAsState(
         targetValue = bgTopTarget.copy(alpha = 0.85f),
         animationSpec = tween(800),
@@ -138,14 +143,17 @@ fun PlaylistsScreen(
         label = "plBgB"
     )
 
-    // ★ Text color: user-selected from palette picker, default #F5EBD0 cream
-    //   (Palette picker + prefs will be added next — for now uses default)
-    val textColor by remember { mutableStateOf(com.rajatxo.coral.util.DEFAULT_TEXT_COLOR) }
+    // ★ Text color: user-selected from TextColorPalette
+    val textColorIndex by com.rajatxo.coral.data.prefs.TextColorPalette.selectedIndex.collectAsState()
+    val textColor = com.rajatxo.coral.data.prefs.TextColorPalette.colors[textColorIndex]
     val animatedAccent by animateColorAsState(
         targetValue = textColor,
-        animationSpec = tween(800),
+        animationSpec = tween(400),
         label = "plAccent"
     )
+
+    // ★ Palette picker state
+    var showPalettePicker by remember { mutableStateOf(false) }
 
     // ★ LOCAL kyant backdrop (same pattern as SettingsScreen).
     val bgGradient = Brush.verticalGradient(
@@ -289,6 +297,51 @@ fun PlaylistsScreen(
                     fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
                 )
             }
+
+            // ★ Palette capsule — opens the color picker for text color
+            Row(
+                modifier = Modifier
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .then(
+                        Modifier.drawBackdrop(
+                            backdrop = localBackdrop,
+                            shape = { RoundedCornerShape(20.dp) },
+                            effects = {
+                                vibrancy()
+                                colorControls(
+                                    brightness = 0f,
+                                    contrast = 1f,
+                                    saturation = 1.1f
+                                )
+                                blur(20f.dp.toPx())
+                            }
+                        )
+                    )
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { showPalettePicker = !showPalettePicker }
+                    )
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // 3-dot menu icon
+                Icon(
+                    imageVector = CoralIcons.MoreVertical,
+                    contentDescription = "Palette",
+                    tint = textColor,
+                    modifier = Modifier.size(14.dp)
+                )
+                Text(
+                    text = "Color",
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
+                )
+            }
         }
 
         // --- Content: Wheel or Grid ---
@@ -391,10 +444,82 @@ fun PlaylistsScreen(
             }
         )
     }
-}
 
-// =============================================================================
-// PLAYLIST WHEEL v4 — Paris-style curved vertical rotary picker
+    // ★ Palette picker overlay — shows 24 color options as a glass grid
+    if (showPalettePicker) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.7f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { showPalettePicker = false }
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(horizontal = 24.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Color(0xFF1A1A1A).copy(alpha = 0.95f))
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Text Color",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                // 4 columns × 6 rows = 24 colors
+                val rows = 6
+                val cols = 4
+                for (row in 0 until rows) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    ) {
+                        for (col in 0 until cols) {
+                            val index = row * cols + col
+                            if (index < com.rajatxo.coral.data.prefs.TextColorPalette.colors.size) {
+                                val color = com.rajatxo.coral.data.prefs.TextColorPalette.colors[index]
+                                val isSelected = index == textColorIndex
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .clip(CircleShape)
+                                        .background(color)
+                                        .then(
+                                            if (isSelected) Modifier.border(3.dp, Color.White, CircleShape)
+                                            else Modifier.border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+                                        )
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null,
+                                            onClick = {
+                                                com.rajatxo.coral.data.prefs.TextColorPalette.setSelectedIndex(index)
+                                            }
+                                        )
+                                )
+                            }
+                        }
+                    }
+                }
+                Text(
+                    text = com.rajatxo.coral.data.prefs.TextColorPalette.colorNames[textColorIndex],
+                    color = textColor,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+        }
+    }
+}
 // =============================================================================
 // Geometry (per spec):
 //   - Pivot Center: anchored OFF-SCREEN to the LEFT at (x = -40% screen width,

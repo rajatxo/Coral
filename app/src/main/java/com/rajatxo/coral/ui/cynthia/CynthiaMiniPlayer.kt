@@ -238,9 +238,30 @@ fun CynthiaMiniPlayer(
                 .border(1.dp, Color.White.copy(alpha = 0.18f), miniShape)
                 .pointerInput(Unit) {
                     detectTapGestures(
-                        onTap = { onClick() },
-                        onLongPress = { onShowCustomizationPanel() }
+                        onTap = { onClick() }
                     )
+                }
+                .pointerInput(Unit) {
+                    kotlinx.coroutines.coroutineScope {
+                        var holdJob: kotlinx.coroutines.Job? = null
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull() ?: continue
+                                if (change.pressed) {
+                                    if (holdJob == null) {
+                                        holdJob = launch {
+                                            kotlinx.coroutines.delay(5000L)
+                                            onShowCustomizationPanel()
+                                        }
+                                    }
+                                } else {
+                                    holdJob?.cancel()
+                                    holdJob = null
+                                }
+                            }
+                        }
+                    }
                 }
         } else {
             Modifier
@@ -251,9 +272,30 @@ fun CynthiaMiniPlayer(
                 .border(1.dp, Color.White.copy(alpha = 0.18f), miniShape)
                 .pointerInput(Unit) {
                     detectTapGestures(
-                        onTap = { onClick() },
-                        onLongPress = { onShowCustomizationPanel() }
+                        onTap = { onClick() }
                     )
+                }
+                .pointerInput(Unit) {
+                    kotlinx.coroutines.coroutineScope {
+                        var holdJob: kotlinx.coroutines.Job? = null
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull() ?: continue
+                                if (change.pressed) {
+                                    if (holdJob == null) {
+                                        holdJob = launch {
+                                            kotlinx.coroutines.delay(5000L)
+                                            onShowCustomizationPanel()
+                                        }
+                                    }
+                                } else {
+                                    holdJob?.cancel()
+                                    holdJob = null
+                                }
+                            }
+                        }
+                    }
                 }
         }
         Box(modifier = bodyModifier) {
