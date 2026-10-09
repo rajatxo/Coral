@@ -100,6 +100,11 @@ fun PlaylistDetailScreen(
     // Cover art: custom cover (from gallery) or first song's album art
     val coverArtUri = livePlaylist.coverUri ?: songsInPlaylist.firstOrNull()?.albumArtUri?.toString()
 
+    // ★ COLLAGE: first 4 songs' album art for the detail screen cover
+    val collageThumbs = remember(songsInPlaylist) {
+        songsInPlaylist.take(4).mapNotNull { it.albumArtUri?.toString() }
+    }
+
     val dateFormat = remember { SimpleDateFormat("HH:mm – dd MMMM yyyy", Locale.getDefault()) }
     val createdText = remember(livePlaylist.createdAtMs) {
         dateFormat.format(Date(livePlaylist.createdAtMs))
@@ -186,6 +191,9 @@ fun PlaylistDetailScreen(
     Box(modifier = Modifier.fillMaxSize().background(immersiveColor)) {
 
         // --- Layer 1: Cover image at the top (fixed) ---
+        // ★ ViTune-style: if custom cover → single image. If no custom cover →
+        //   use first song's art. The background is always a single image for
+        //   the blur effect (collage would look messy when blurred).
         if (coverArtUri != null) {
             AsyncImage(
                 model = coverArtUri,
