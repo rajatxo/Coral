@@ -5,6 +5,8 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -93,7 +95,8 @@ fun PlaylistsScreen(
     capsuleRemaining: Long = 0L,
     onExtend: () -> Unit = {},
     accentColor: Color = Color(0xFFF4B400),
-    backdrop: LayerBackdrop? = null  // ignored — we create our own local backdrop
+    backdrop: LayerBackdrop? = null,  // ignored — we create our own local backdrop
+    currentSongArt: android.net.Uri? = null  // ★ NEW: for dominant-color background
 ) {
     val playlists by PlaylistStore.playlists.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
@@ -105,21 +108,38 @@ fun PlaylistsScreen(
     var isRotating by remember { mutableStateOf(false) }
     var centerPlaylist by remember { mutableStateOf<Playlist?>(null) }
 
+    // ★ DOMINANT COLOR BACKGROUND (like Quick Picks):
+    //   Extract palette from currently-playing song's album art.
+    //   Blends with black at the bottom — same look as Quick Picks.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var palette by remember { mutableStateOf(com.rajatxo.coral.util.CoralPalette.Default) }
+    androidx.compose.runtime.LaunchedEffect(currentSongArt) {
+        if (currentSongArt != null) {
+            com.rajatxo.coral.util.PaletteCache.get(currentSongArt)?.let { palette = it }
+            com.rajatxo.coral.util.extractPalette(context, currentSongArt)?.let {
+                palette = it
+                com.rajatxo.coral.util.PaletteCache.put(currentSongArt, it)
+            }
+        }
+    }
+    val vibrantTop by animateColorAsState(
+        targetValue = palette.primary.copy(alpha = 0.85f),
+        animationSpec = tween(800),
+        label = "plBgVT"
+    )
+    val animatedBottom by animateColorAsState(
+        targetValue = Color(0xFF05050A),
+        animationSpec = tween(800),
+        label = "plBgB"
+    )
+
     // ★ LOCAL kyant backdrop (same pattern as SettingsScreen).
-    //   We do NOT use the parent's glassBackdrop — that creates a circular
-    //   blur dependency (backdrop captures content that includes the
-    //   drawBackdrop call itself) → crash.
-    //   Instead: create our own backdrop that captures our own background
-    //   gradient. Structure:
-    //     Layer 1: Solid gradient background (visible, NOT clickable)
-    //     Layer 2: layerBackdrop Box (transparent, captures gradient)
-    //     Layer 3: Content with drawBackdrop (capsules blur the gradient)
     val bgGradient = Brush.verticalGradient(
         colorStops = arrayOf(
-            0.0f  to accentColor.copy(alpha = 0.85f),
-            0.30f to accentColor.copy(alpha = 0.28f),
-            0.55f to accentColor.copy(alpha = 0.08f),
-            1.0f  to Color(0xFF05050A)
+            0.0f  to vibrantTop,           // dominant color at top (like Quick Picks)
+            0.30f to vibrantTop.copy(alpha = 0.28f),
+            0.55f to vibrantTop.copy(alpha = 0.08f),
+            1.0f  to animatedBottom        // blend to black at bottom
         )
     )
     val localGraphicsLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
@@ -161,7 +181,7 @@ fun PlaylistsScreen(
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 56.dp)
+                .padding(horizontal = 20.dp, vertical = 16.dp)
                 .zIndex(1f),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -296,7 +316,7 @@ fun PlaylistsScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .statusBarsPadding()
-                        .padding(top = 110.dp, bottom = 16.dp)
+                        .padding(top = 72.dp, bottom = 16.dp)
                 ) {
                     // ─── Left: 48dp vertical labels column (same as old nav rail) ───
                     val labels = listOf("Quick picks", "Discover", "Songs", "Playlists", "Artists", "Albums", "Folders")
@@ -525,9 +545,13 @@ private fun PlaylistWheel(
     var lastSnappedIndex by remember { mutableStateOf(0) }
 
     // --- Selection helper ---
-    // Scroll DOWN = clockwise (items move DOWN). Scroll UP = anticlockwise (items move UP).
+    // ★ DIRECTION FIX (user reported scroll-up shows wrong playlist):
+    //   Before: scroll UP → scrollOffset decreased → index went BACKWARDS
+    //   User expects: scroll UP → NEXT playlist shows (forward in list)
+    //   Fix: NEGATE the offset in indexAtOffset so scroll-up = forward.
+    //   Now: scroll UP → scrollOffset decreases → -offset increases → index moves FORWARD.
     fun indexAtOffset(offset: Float): Int {
-        val raw = (offset / pxPerItem).roundToInt()
+        val raw = (-offset / pxPerItem).roundToInt()  // NEGATED = correct direction
         val mod = raw % playlists.size
         return if (mod < 0) mod + playlists.size else mod
     }
@@ -617,10 +641,13 @@ private fun PlaylistWheel(
                     onDragEnd = {
                         val velocity = velocityTracker.calculateVelocity().y
                         coroutineScope.launch {
+                            // ★ SMOOTH WHEEL: reduced velocity multiplier 0.35 → 0.20
+                            //   (less sensitive to flicks) + higher friction 0.9 → 1.2
+                            //   (decelerates faster, doesn't spin too far)
                             scrollOffset.animateDecay(
-                                initialVelocity = velocity * 0.35f,
+                                initialVelocity = velocity * 0.20f,
                                 animationSpec = androidx.compose.animation.core.exponentialDecay(
-                                    frictionMultiplier = 0.9f
+                                    frictionMultiplier = 1.2f
                                 )
                             )
                             val nearest = (scrollOffset.value / pxPerItem).roundToInt()
