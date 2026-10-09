@@ -781,8 +781,12 @@ private fun PlaylistWheel(
                 if (absOffset > visibleSpan) continue
 
                 // Angular position: apex = 0°, items above go negative, below positive.
-                // Negative angle = upper arc; positive = lower arc.
-                val itemAngleDeg = fractionalOffset * angleStepDeg
+                // ★ SWAP DIRECTION: negate so that when scrolling up, items visually
+                //   come FROM BELOW to center (not from center going up).
+                //   Before: fractionalOffset > 0 → below center (items move UP to center)
+                //   After:  fractionalOffset > 0 → above center (items come DOWN to center from below)
+                //   This makes the below playlist feel like it's rising up to center.
+                val itemAngleDeg = -fractionalOffset * angleStepDeg
                 val itemAngleRad = (itemAngleDeg * PI / 180f).toFloat()
 
                 // Position on the arc (Cartesian from pivot)
@@ -846,7 +850,7 @@ private fun PlaylistWheel(
                 // Balls on the first arc (arcRadius) rotate in the OPPOSITE
                 // direction. Pully coupling — like two meshed gears.
                 // ALWAYS WHITE — dynamic accent color is only for the second arc.
-                val firstArcFractionalOffset = -fractionalOffset  // NEGATED = opposite
+                val firstArcFractionalOffset = fractionalOffset  // SWAPPED (was -fractionalOffset) — text is now negated, so this keeps the pully coupling
                 val firstArcAngleDeg = firstArcFractionalOffset * angleStepDeg
                 val firstArcAngleRad = (firstArcAngleDeg * PI / 180f).toFloat()
                 val firstArcBallX = pivotX + arcRadius * cos(firstArcAngleRad)
