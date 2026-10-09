@@ -153,12 +153,15 @@ fun PlaylistsScreen(
         // ─── Layer 3: Content (capsules use drawBackdrop to blur Layer 2) ──
         // ═══ TOP ROW: 2 kyant backdrop capsules (New + Grid/Wheel toggle) ═══
         // Replaces the old big capsule. Just 2 small glass capsules at the top.
+        // ★ Moved DOWN (vertical padding 16 → 80) so they sit BELOW the top blur
+        //   header (which shows the "Playlists" title from the parent CynthiaHomeScreen).
+        //   Without this offset, the capsules hide under the blur overlay.
         Row(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 16.dp)
+                .padding(horizontal = 20.dp, vertical = 80.dp)
                 .zIndex(1f),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -293,7 +296,7 @@ fun PlaylistsScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .statusBarsPadding()
-                        .padding(top = 80.dp, bottom = 16.dp)
+                        .padding(top = 140.dp, bottom = 16.dp)
                 ) {
                     // ─── Left: 48dp vertical labels column (same as old nav rail) ───
                     val labels = listOf("Quick picks", "Discover", "Songs", "Playlists", "Artists", "Albums", "Folders")
@@ -858,18 +861,7 @@ private fun PlaylistWheel(
                 val maxTextWidthPx = with(density) { 173.dp.toPx() }
 
                 // Base font size (active=42sp, inactive=16sp, interpolated by scale)
-                // ★ ANTI-JITTER FIX: round to nearest integer sp.
-                //   Without rounding, baseFontSp changes by sub-pixel amounts every
-                //   frame as the wheel rotates. Each distinct font size produces a
-                //   slightly different text layout (kerning, letter spacing, hinting).
-                //   The text measurer re-layouts every frame → letters appear to
-                //   "arrange themselves" / jiggle.
-                //   Rounding to 1sp steps limits text to ~27 discrete layouts
-                //   (42, 41, 40, ... 16) instead of hundreds. The size transition
-                //   is still smooth visually (1sp steps are small enough), but
-                //   the layout is stable within each step.
                 val baseFontSp = lerp(activeFontSp, inactiveFontSp, (1f - scale).coerceIn(0f, 1f))
-                    .roundToInt().toFloat()
 
                 // Font family + weight depends on active/inactive state
                 val textFontFamily = if (isActive) {
@@ -981,31 +973,19 @@ private fun PlaylistWheel(
 
                 drawContext.canvas.save()
                 // Translate to text center, rotate radially, draw text centered.
-                // ★ VIBRATING TEXT FIX: round positions to integers.
-                //   When scrollOffset.value changes every frame, textCenterX/Y
-                //   are Float values that vary by sub-pixel amounts. Text
-                //   rendering then wobbles between sub-pixel positions →
-                //   looks like the text is "slowly vibrating".
-                //   Fix: round to nearest pixel before translating.
-                val textCenterXRounded = textCenterX.roundToInt().toFloat()
-                val textCenterYRounded = textCenterY.roundToInt().toFloat()
-                val textWRounded = (textW / 2f).roundToInt().toFloat()
-                val textHRounded = (textH / 2f).roundToInt().toFloat()
-                // Round rotation to 0.1 degree to prevent micro-jitter
-                val radialDegRounded = (radialDeg * 10f).roundToInt() / 10f
-                drawContext.canvas.translate(textCenterXRounded, textCenterYRounded)
-                drawContext.canvas.rotate(radialDegRounded)
+                drawContext.canvas.translate(textCenterX, textCenterY)
+                drawContext.canvas.rotate(radialDeg)
                 if (textBrush != null) {
                     drawText(
                         textLayoutResult = textLayout,
-                        topLeft = Offset(-textWRounded, -textHRounded),
+                        topLeft = Offset(-textW / 2f, -textH / 2f),
                         alpha = alpha,
                         brush = textBrush
                     )
                 } else {
                     drawText(
                         textLayoutResult = textLayout,
-                        topLeft = Offset(-textWRounded, -textHRounded),
+                        topLeft = Offset(-textW / 2f, -textH / 2f),
                         alpha = alpha
                     )
                 }
