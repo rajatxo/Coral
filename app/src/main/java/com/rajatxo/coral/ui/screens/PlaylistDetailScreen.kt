@@ -82,7 +82,14 @@ fun PlaylistDetailScreen(
     onDeletePlaylist: () -> Unit
 ) {
     val playlists by PlaylistStore.playlists.collectAsState()
-    val livePlaylist = playlists.firstOrNull { it.id == playlist.id } ?: playlist
+    // ★ CRASH FIX: if playlist was deleted, return immediately (don't access .id/.name)
+    val livePlaylist = playlists.firstOrNull { it.id == playlist.id }
+    if (livePlaylist == null) {
+        // Playlist no longer exists — call onDeletePlaylist to dismiss this screen
+        // Use LaunchedEffect to avoid calling during composition
+        androidx.compose.runtime.LaunchedEffect(Unit) { onDeletePlaylist() }
+        return
+    }
 
     val songsInPlaylist = remember(livePlaylist, allSongs) {
         val songMap = allSongs.associateBy { it.id }
@@ -559,8 +566,11 @@ fun PlaylistDetailScreen(
                     androidx.compose.material3.TextButton(
                         onClick = {
                             showDeleteConfirm = false
-                            PlaylistStore.deletePlaylist(livePlaylist.id)
+                            // ★ CRASH FIX: dismiss THIS screen FIRST, then delete from store.
+                            //   If we delete first, livePlaylist becomes null during
+                            //   recomposition → crash accessing .id/.name.
                             onDeletePlaylist()
+                            PlaylistStore.deletePlaylist(livePlaylist.id)
                         }
                     ) {
                         Text("Delete", color = Color(0xFFFF6B6B), fontWeight = FontWeight.SemiBold)
