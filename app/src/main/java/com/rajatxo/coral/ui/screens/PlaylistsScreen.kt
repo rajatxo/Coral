@@ -109,33 +109,26 @@ fun PlaylistsScreen(
     var isRotating by remember { mutableStateOf(false) }
     var centerPlaylist by remember { mutableStateOf<Playlist?>(null) }
 
-    // ★ VIBRANT PALETTE: custom text color extraction for the wheel.
-    //   Scans every pixel of album art, finds most-used + most-bright colors,
-    //   mixes them → vibrant, saturated, always-readable on dark backgrounds.
-    //   When no song is playing: uses #F5EBD0 (warm cream) as text color,
-    //   #7F011F (deep wine red) as background top.
+    // ★ COLORS:
+    //   Background = same as Quick Picks (song's dominant color from existing palette)
+    //   Text color = user-selected (default #F5EBD0 cream when no song)
+    //   When no song: background = #7F011F (wine red), text = #F5EBD0 (cream)
     val context = androidx.compose.ui.platform.LocalContext.current
-    var vibrantAccent by remember { mutableStateOf(com.rajatxo.coral.util.DEFAULT_TEXT_COLOR) }
-    var vibrantBgTop by remember { mutableStateOf(com.rajatxo.coral.util.DEFAULT_BG_COLOR) }
+    var palette by remember { mutableStateOf(com.rajatxo.coral.util.CoralPalette.Default) }
     androidx.compose.runtime.LaunchedEffect(currentSongArt) {
         if (currentSongArt != null) {
-            // Extract the vibrant text color (most-used + most-bright mixed)
-            val textColor = com.rajatxo.coral.util.extractVibrantTextColor(context, currentSongArt)
-            vibrantAccent = textColor
-            // For background top: use the same color at 85% alpha (blends with black)
-            vibrantBgTop = textColor
-        } else {
-            vibrantAccent = com.rajatxo.coral.util.DEFAULT_TEXT_COLOR
-            vibrantBgTop = com.rajatxo.coral.util.DEFAULT_BG_COLOR
+            com.rajatxo.coral.util.PaletteCache.get(currentSongArt)?.let { palette = it }
+            com.rajatxo.coral.util.extractPalette(context, currentSongArt)?.let {
+                palette = it
+                com.rajatxo.coral.util.PaletteCache.put(currentSongArt, it)
+            }
         }
     }
-    val animatedAccent by animateColorAsState(
-        targetValue = vibrantAccent,
-        animationSpec = tween(800),
-        label = "plAccent"
-    )
+
+    // ★ Background: uses palette.primary (same as Quick Picks), or #7F011F when no song
+    val bgTopTarget = if (currentSongArt != null) palette.primary else com.rajatxo.coral.util.DEFAULT_BG_COLOR
     val animatedTop by animateColorAsState(
-        targetValue = vibrantBgTop.copy(alpha = 0.85f),
+        targetValue = bgTopTarget.copy(alpha = 0.85f),
         animationSpec = tween(800),
         label = "plBgVT"
     )
@@ -143,6 +136,15 @@ fun PlaylistsScreen(
         targetValue = Color(0xFF05050A),
         animationSpec = tween(800),
         label = "plBgB"
+    )
+
+    // ★ Text color: user-selected from palette picker, default #F5EBD0 cream
+    //   (Palette picker + prefs will be added next — for now uses default)
+    val textColor by remember { mutableStateOf(com.rajatxo.coral.util.DEFAULT_TEXT_COLOR) }
+    val animatedAccent by animateColorAsState(
+        targetValue = textColor,
+        animationSpec = tween(800),
+        label = "plAccent"
     )
 
     // ★ LOCAL kyant backdrop (same pattern as SettingsScreen).
