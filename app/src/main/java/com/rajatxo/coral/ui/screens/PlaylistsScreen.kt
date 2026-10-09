@@ -98,7 +98,8 @@ fun PlaylistsScreen(
     onExtend: () -> Unit = {},
     accentColor: Color = Color(0xFFF4B400),
     backdrop: LayerBackdrop? = null,  // ignored — we create our own local backdrop
-    currentSongArt: android.net.Uri? = null  // ★ NEW: for dominant-color background
+    currentSongArt: android.net.Uri? = null,
+    allSongs: List<com.rajatxo.coral.domain.model.Song> = emptyList()
 ) {
     val playlists by PlaylistStore.playlists.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
@@ -421,22 +422,48 @@ fun PlaylistsScreen(
                     )
                 }
             } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
+                // ═══ GRID MODE: Row(vertical labels column + grid) ═══
+                // ★ Same vertical labels column as wheel mode (not clickable)
+                Row(
                     modifier = Modifier
                         .fillMaxSize()
-                        .statusBarsPadding(),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        start = 16.dp, end = 16.dp, top = 160.dp, bottom = 16.dp
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        .statusBarsPadding()
+                        .padding(top = 72.dp, bottom = 16.dp)
                 ) {
-                    items(playlists, key = { it.id }) { playlist ->
-                        PlaylistCard(
-                            playlist = playlist,
-                            onClick = { onPlaylistClick(playlist) }
-                        )
+                    // ─── Left: 48dp vertical labels column (same as wheel mode) ───
+                    val labels = listOf("Quick picks", "Discover", "Songs", "Playlists", "Artists", "Albums", "Folders")
+                    Column(
+                        modifier = Modifier
+                            .width(48.dp)
+                            .fillMaxHeight(),
+                        verticalArrangement = Arrangement.spacedBy(23.dp, Alignment.CenterVertically),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        labels.forEach { label ->
+                            VerticalRailLabel(label = label)
+                        }
+                    }
+
+                    // ─── Right: grid (fills remaining width) ───
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                            start = 12.dp, end = 16.dp, top = 0.dp, bottom = 16.dp
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        items(playlists, key = { it.id }) { playlist ->
+                            PlaylistCard(
+                                playlist = playlist,
+                                allSongs = allSongs,
+                                backdrop = localBackdrop,
+                                onClick = { onPlaylistClick(playlist) }
+                            )
+                        }
                     }
                 }
             }
@@ -1417,24 +1444,58 @@ private fun TagWheel(
 @Composable
 private fun PlaylistCard(
     playlist: Playlist,
+    allSongs: List<com.rajatxo.coral.domain.model.Song> = emptyList(),
+    backdrop: LayerBackdrop? = null,
     onClick: () -> Unit
 ) {
+    // ★ Cover art: custom cover OR first song's album art
+    val coverUri = playlist.coverUri ?: run {
+        val firstSongId = playlist.songIds.firstOrNull()
+        val firstSong = allSongs.find { it.id == firstSongId }
+        firstSong?.albumArtUri?.toString()
+    }
+
+    val cardShape = RoundedCornerShape(16.dp)
     Column(
         modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
+            .clip(cardShape)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
     ) {
+        // ★ Glass card with cover art
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(120.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(CoralColors.SurfaceVariant),
+                .clip(cardShape)
+                .then(
+                    if (backdrop != null) {
+                        Modifier.drawBackdrop(
+                            backdrop = backdrop,
+                            shape = { cardShape },
+                            effects = {
+                                vibrancy()
+                                colorControls(
+                                    brightness = 0f,
+                                    contrast = 1f,
+                                    saturation = 1.1f
+                                )
+                                blur(20f.dp.toPx())
+                            }
+                        )
+                    } else {
+                        Modifier.background(Color.White.copy(alpha = 0.08f))
+                    }
+                )
+                .border(1.dp, Color.White.copy(alpha = 0.15f), cardShape),
             contentAlignment = Alignment.Center
         ) {
-            if (playlist.coverUri != null) {
+            if (coverUri != null) {
                 AsyncImage(
-                    model = playlist.coverUri,
+                    model = coverUri,
                     contentDescription = "Cover for ${playlist.name}",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()

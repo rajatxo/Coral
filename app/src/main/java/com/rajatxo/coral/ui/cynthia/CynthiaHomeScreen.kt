@@ -253,7 +253,8 @@ fun CynthiaHomeScreen(
                     capsuleRemaining = 0L,
                     onExtend = { },
                     accentColor = Color(0xFFF4B400),
-                    currentSongArt = currentSongArt
+                    currentSongArt = currentSongArt,
+                    allSongs = songs
                 )
                 else -> Box(
                     modifier = Modifier.fillMaxSize(),
