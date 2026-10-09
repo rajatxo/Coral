@@ -1,6 +1,7 @@
 package com.rajatxo.coral.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -121,6 +122,19 @@ fun PlaylistDetailScreen(
     // 3-dot menu popup state
     var showMenu by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var isSearching by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    // ★ Search filter
+    val displaySongs = remember(songsInPlaylist, searchQuery, isSearching) {
+        if (isSearching && searchQuery.isNotBlank()) {
+            songsInPlaylist.filter {
+                it.title.contains(searchQuery, ignoreCase = true) ||
+                it.artist.contains(searchQuery, ignoreCase = true)
+            }
+        } else songsInPlaylist
+    }
 
     // Image picker for custom playlist cover
     val coverPicker = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -252,14 +266,44 @@ fun PlaylistDetailScreen(
                             )
                         }
 
-                        // Dropdown menu — small rounded square
+                        // Dropdown menu — glass card
                         androidx.compose.material3.DropdownMenu(
                             expanded = showMenu,
                             onDismissRequest = { showMenu = false },
                             modifier = Modifier
                                 .clip(RoundedCornerShape(16.dp))
-                                .background(Color(0xFF1A1A1A))
+                                .background(Color(0xFF1A1A1A).copy(alpha = 0.95f))
+                                .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
                         ) {
+                            // Rename option
+                            Row(
+                                modifier = Modifier
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = {
+                                            showMenu = false
+                                            showRenameDialog = true
+                                        }
+                                    )
+                                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = CoralIcons.Cog,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = "Rename",
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+
                             // Playlist cover option
                             Row(
                                 modifier = Modifier
@@ -457,17 +501,46 @@ fun PlaylistDetailScreen(
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
-                                    onClick = onAddSongsClick
+                                    onClick = {
+                                        isSearching = !isSearching
+                                        if (!isSearching) searchQuery = ""
+                                    }
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = CoralIcons.Search,
-                                contentDescription = "Add songs",
+                                imageVector = if (isSearching) CoralIcons.Close else CoralIcons.Search,
+                                contentDescription = if (isSearching) "Close search" else "Search",
                                 tint = Color.White,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
+                    }
+                }
+
+                // ★ Search bar (visible only when searching)
+                if (isSearching) {
+                    item {
+                        androidx.compose.material3.TextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clip(RoundedCornerShape(24.dp)),
+                            placeholder = { Text("Search in playlist...", color = Color.White.copy(alpha = 0.4f), fontSize = 14.sp) },
+                            singleLine = true,
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                imeAction = androidx.compose.ui.text.input.ImeAction.Search
+                            ),
+                            colors = androidx.compose.material3.TextFieldDefaults.colors(
+                                focusedContainerColor = Color.White.copy(alpha = 0.12f),
+                                unfocusedContainerColor = Color.White.copy(alpha = 0.08f),
+                                cursorColor = Color.White,
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
+                            )
+                        )
                     }
                 }
 
@@ -502,7 +575,7 @@ fun PlaylistDetailScreen(
                                     .padding(horizontal = 8.dp, vertical = 2.dp)
                             ) {
                                 Text(
-                                    text = "${songsInPlaylist.size}",
+                                    text = "${displaySongs.size}",
                                     color = Color.White.copy(alpha = 0.7f),
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold
@@ -513,7 +586,7 @@ fun PlaylistDetailScreen(
                 }
 
                 // Song list
-                if (songsInPlaylist.isEmpty()) {
+                if (displaySongs.isEmpty()) {
                     item {
                         Column(
                             modifier = Modifier
@@ -524,21 +597,23 @@ fun PlaylistDetailScreen(
                             Text(text = "🎵", fontSize = 48.sp)
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
-                                text = "No songs yet",
+                                text = if (isSearching && searchQuery.isNotBlank()) "No results" else "No songs yet",
                                 color = Color.White,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Tap the search icon to add songs.",
-                                color = Color.White.copy(alpha = 0.6f),
-                                fontSize = 13.sp
-                            )
+                            if (!isSearching) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Tap the search icon to add songs.",
+                                    color = Color.White.copy(alpha = 0.6f),
+                                    fontSize = 13.sp
+                                )
+                            }
                         }
                     }
                 } else {
-                    items(songsInPlaylist, key = { it.id }) { song ->
+                    items(displaySongs, key = { it.id }) { song ->
                         PlaylistSongRow(
                             song = song,
                             isCurrent = currentSongTitle == song.title,
@@ -548,7 +623,51 @@ fun PlaylistDetailScreen(
                 }
             }
 
-            // Delete confirmation dialog
+    // ★ Rename dialog
+    if (showRenameDialog) {
+        var renameText by remember { mutableStateOf(livePlaylist.name) }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            containerColor = CoralColors.SurfaceVariant,
+            titleContentColor = Color.White,
+            title = { Text("Rename playlist") },
+            text = {
+                androidx.compose.material3.OutlinedTextField(
+                    value = renameText,
+                    onValueChange = { renameText = it },
+                    singleLine = true,
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        cursorColor = Color.White,
+                        focusedBorderColor = Color.White.copy(alpha = 0.5f),
+                        unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
+                    )
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        if (renameText.isNotBlank()) {
+                            PlaylistStore.renamePlaylist(livePlaylist.id, renameText.trim())
+                        }
+                        showRenameDialog = false
+                    }
+                ) {
+                    Text("Rename", color = Color.White, fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { showRenameDialog = false }
+                ) {
+                    Text("Cancel", color = Color(0xFF888888))
+                }
+            }
+        )
+    }
+
+    // Delete confirmation dialog
         if (showDeleteConfirm) {
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { showDeleteConfirm = false },
