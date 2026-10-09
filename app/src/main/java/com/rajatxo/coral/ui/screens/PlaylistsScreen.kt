@@ -181,7 +181,7 @@ fun PlaylistsScreen(
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 16.dp)
+                .padding(horizontal = 20.dp, vertical = 64.dp)
                 .zIndex(1f),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -546,12 +546,14 @@ private fun PlaylistWheel(
 
     // --- Selection helper ---
     // ★ DIRECTION FIX (user reported scroll-up shows wrong playlist):
-    //   Before: scroll UP → scrollOffset decreased → index went BACKWARDS
-    //   User expects: scroll UP → NEXT playlist shows (forward in list)
-    //   Fix: NEGATE the offset in indexAtOffset so scroll-up = forward.
-    //   Now: scroll UP → scrollOffset decreases → -offset increases → index moves FORWARD.
+    //   The wheel's drawing uses rotationItems = scrollOffset / pxPerItem.
+    //   When user scrolls UP (dragAmount negative), scrollOffset decreases.
+    //   With raw = (offset / pxPerItem), index goes BACKWARDS.
+    //   User expects: scroll UP → NEXT playlist (forward in array).
+    //   Fix: NEGATE scrollOffset in BOTH indexAtOffset AND the drag handler,
+    //   so the sign convention is consistent everywhere.
     fun indexAtOffset(offset: Float): Int {
-        val raw = (-offset / pxPerItem).roundToInt()  // NEGATED = correct direction
+        val raw = (-offset / pxPerItem).roundToInt()  // NEGATED = forward on scroll up
         val mod = raw % playlists.size
         return if (mod < 0) mod + playlists.size else mod
     }
@@ -755,9 +757,10 @@ private fun PlaylistWheel(
             )
 
             // === 4. TEXT ITEMS on the outer (invisible) text orbit ===
-            // scrollOffset / pxPerItem = how many "items" the wheel has rotated.
-            // Scroll DOWN = clockwise (items move DOWN). Scroll UP = anticlockwise (items move UP).
-            val rotationItems = scrollOffset.value / pxPerItem
+            // ★ DIRECTION FIX: negate rotationItems to match indexAtOffset.
+            //   Both now use the SAME sign convention → drawn center matches
+            //   the index reported via onCenterPlaylistChange.
+            val rotationItems = -scrollOffset.value / pxPerItem
 
             // Playfair Display Italic — premium high-contrast editorial serif.
             val activeFontSp = 42f
