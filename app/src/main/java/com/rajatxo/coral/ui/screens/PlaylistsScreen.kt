@@ -143,9 +143,17 @@ fun PlaylistsScreen(
         label = "plBgB"
     )
 
-    // ★ Text color: user-selected from TextColorPalette
-    val textColorIndex by com.rajatxo.coral.data.prefs.TextColorPalette.selectedIndex.collectAsState()
-    val textColor = com.rajatxo.coral.data.prefs.TextColorPalette.colors[textColorIndex]
+    // ★ TEXT COLOR: dynamic extraction from album art using user-selected style
+    //   22 different algorithms — each produces a different color from the same art
+    val textColorStyle by com.rajatxo.coral.data.prefs.TextColorStyleManager.selectedStyle.collectAsState()
+    var textColor by remember { mutableStateOf(Color(0xFFF5EBD0)) }
+    androidx.compose.runtime.LaunchedEffect(currentSongArt, textColorStyle) {
+        textColor = if (currentSongArt != null) {
+            com.rajatxo.coral.data.prefs.extractTextColor(context, currentSongArt, textColorStyle)
+        } else {
+            Color(0xFFF5EBD0)
+        }
+    }
     val animatedAccent by animateColorAsState(
         targetValue = textColor,
         animationSpec = tween(400),
@@ -445,7 +453,7 @@ fun PlaylistsScreen(
         )
     }
 
-    // ★ Palette picker overlay — shows 24 color options as a glass grid
+    // ★ Palette picker overlay — shows 22 color extraction styles
     if (showPalettePicker) {
         Box(
             modifier = Modifier
@@ -467,55 +475,59 @@ fun PlaylistsScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Text Color",
+                    text = "Text Color Style",
                     color = Color.White,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
-                // 4 columns × 6 rows = 24 colors
-                val rows = 6
-                val cols = 4
+                // 3 columns × 8 rows = 24 (22 styles + 2 padding)
+                val styles = com.rajatxo.coral.data.prefs.TextColorStyle.entries
+                val cols = 3
+                val rows = (styles.size + cols - 1) / cols
                 for (row in 0 until rows) {
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.padding(bottom = 12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(bottom = 8.dp)
                     ) {
                         for (col in 0 until cols) {
                             val index = row * cols + col
-                            if (index < com.rajatxo.coral.data.prefs.TextColorPalette.colors.size) {
-                                val color = com.rajatxo.coral.data.prefs.TextColorPalette.colors[index]
-                                val isSelected = index == textColorIndex
+                            if (index < styles.size) {
+                                val style = styles[index]
+                                val isSelected = style == textColorStyle
                                 Box(
                                     modifier = Modifier
-                                        .size(44.dp)
-                                        .clip(CircleShape)
-                                        .background(color)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(
+                                            if (isSelected) animatedAccent.copy(alpha = 0.3f)
+                                            else Color.White.copy(alpha = 0.08f)
+                                        )
                                         .then(
-                                            if (isSelected) Modifier.border(3.dp, Color.White, CircleShape)
-                                            else Modifier.border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+                                            if (isSelected) Modifier.border(2.dp, animatedAccent, RoundedCornerShape(12.dp))
+                                            else Modifier
                                         )
                                         .clickable(
                                             interactionSource = remember { MutableInteractionSource() },
                                             indication = null,
                                             onClick = {
-                                                com.rajatxo.coral.data.prefs.TextColorPalette.setSelectedIndex(index)
+                                                com.rajatxo.coral.data.prefs.TextColorStyleManager.setStyle(style)
                                             }
                                         )
-                                )
+                                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                                ) {
+                                    Text(
+                                        text = style.label,
+                                        color = if (isSelected) animatedAccent else Color.White.copy(alpha = 0.7f),
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                        fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
+                                    )
+                                }
                             }
                         }
                     }
                 }
-                Text(
-                    text = com.rajatxo.coral.data.prefs.TextColorPalette.colorNames[textColorIndex],
-                    color = textColor,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
             }
         }
     }

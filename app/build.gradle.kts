@@ -26,8 +26,8 @@ android {
         applicationId = "com.rajatxo.coral"
         minSdk = 24
         targetSdk = 35
-        versionCode = 37
-        versionName = "1.5.1"
+        versionCode = 38
+        versionName = "1.5.2"
     }
 
     // ─── Signing config — uses the permanent keystore for BOTH debug and release ───

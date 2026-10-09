@@ -607,7 +607,7 @@ fun CynthiaHomeScreen(
                 onExtend = { },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 200.dp)
+                    .padding(bottom = 280.dp)  // ★ moved higher — above miniplayer + nav bar
             )
         }
 
@@ -750,11 +750,15 @@ fun CynthiaHomeScreen(
             backdrop = glassBackdrop
         )
 
-        // ═══ Playlist detail overlay — simple slide up/down ═══
+        // ═══ Playlist detail overlay — smooth fade in/out ═══
         androidx.compose.animation.AnimatedVisibility(
             visible = selectedPlaylist != null,
-            enter = androidx.compose.animation.slideInVertically { it },
-            exit = androidx.compose.animation.slideOutVertically { it }
+            enter = androidx.compose.animation.fadeIn(
+                animationSpec = androidx.compose.animation.core.tween(400)
+            ),
+            exit = androidx.compose.animation.fadeOut(
+                animationSpec = androidx.compose.animation.core.tween(300)
+            )
         ) {
             selectedPlaylist?.let { playlist ->
                 com.rajatxo.coral.ui.screens.PlaylistDetailScreen(
