@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -59,6 +60,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -277,17 +279,69 @@ fun PlaylistsScreen(
             }
         } else {
             if (useWheel) {
-                PlaylistWheel(
-                    playlists = playlists,
-                    accentColor = accentColor,
-                    onRotationStart = { isRotating = true },
-                    onRotationEnd = { isRotating = false },
-                    onCenterPlaylistChange = { centerPlaylist = it },
+                // ═══ WHEEL MODE: Row(tag column + wheel) ═══
+                // ★ The 48dp tag column on the left replaces the old nav rail's
+                //   space. This narrows the wheel's Canvas to screenWidth - 48dp,
+                //   matching the old layout's geometry exactly.
+                //   Tags use the SAME text size (16sp) and spacing (23dp) as the
+                //   old nav rail labels. Clicking a tag will filter the wheel
+                //   (filtering logic comes later — for now just visual).
+                Row(
                     modifier = Modifier
                         .fillMaxSize()
                         .statusBarsPadding()
                         .padding(top = 80.dp, bottom = 16.dp)
-                )
+                ) {
+                    // ─── Left: 48dp tag column ───
+                    val allTags = remember(playlists) {
+                        val tags = playlists.flatMap { it.tags }.distinct().sorted()
+                        listOf("All") + tags
+                    }
+                    var selectedTag by remember { mutableStateOf("All") }
+
+                    Column(
+                        modifier = Modifier
+                            .width(48.dp)
+                            .fillMaxHeight(),
+                        verticalArrangement = Arrangement.spacedBy(23.dp, Alignment.CenterVertically),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        allTags.take(10).forEach { tag ->
+                            val isSelected = tag == selectedTag
+                            val textColor = if (isSelected) accentColor
+                                else Color.White.copy(alpha = 0.5f)
+                            Text(
+                                text = tag,
+                                color = textColor,
+                                fontSize = 16.sp,
+                                fontWeight = if (isSelected) FontWeight.SemiBold
+                                    else FontWeight.Light,
+                                fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = { selectedTag = tag }
+                                    )
+                                    .padding(vertical = 4.dp, horizontal = 4.dp)
+                            )
+                        }
+                    }
+
+                    // ─── Right: wheel (fills remaining width) ───
+                    PlaylistWheel(
+                        playlists = playlists,
+                        accentColor = accentColor,
+                        onRotationStart = { isRotating = true },
+                        onRotationEnd = { isRotating = false },
+                        onCenterPlaylistChange = { centerPlaylist = it },
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                    )
+                }
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
