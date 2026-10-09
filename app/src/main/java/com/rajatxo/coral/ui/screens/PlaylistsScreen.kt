@@ -52,6 +52,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
@@ -279,26 +280,23 @@ fun PlaylistsScreen(
             }
         } else {
             if (useWheel) {
-                // ═══ WHEEL MODE: Row(tag column + wheel) ═══
-                // ★ The 48dp tag column on the left replaces the old nav rail's
-                //   space. This narrows the wheel's Canvas to screenWidth - 48dp,
-                //   matching the old layout's geometry exactly.
-                //   Tags use the SAME text size (16sp) and spacing (23dp) as the
-                //   old nav rail labels. Clicking a tag will filter the wheel
-                //   (filtering logic comes later — for now just visual).
+                // ═══ WHEEL MODE: Row(vertical labels column + wheel) ═══
+                // ★ Recreating the OLD nav rail's exact look (build 62a8b02):
+                //   - 48dp wide column on the left
+                //   - Vertical text labels (rotated -90°), 16sp, Bold
+                //   - Labels: Quick picks, Discover, Songs, Playlists, Artists, Albums, Folders
+                //   - 23dp gap between labels, vertically centered
+                //   - NOT clickable (user said "just a text, we will work on this later")
+                //   - This narrows the wheel's Canvas to screenWidth - 48dp,
+                //     restoring the OLD geometry → no jitter
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
                         .statusBarsPadding()
                         .padding(top = 80.dp, bottom = 16.dp)
                 ) {
-                    // ─── Left: 48dp tag column ───
-                    val allTags = remember(playlists) {
-                        val tags = playlists.flatMap { it.tags }.distinct().sorted()
-                        listOf("All") + tags
-                    }
-                    var selectedTag by remember { mutableStateOf("All") }
-
+                    // ─── Left: 48dp vertical labels column (same as old nav rail) ───
+                    val labels = listOf("Quick picks", "Discover", "Songs", "Playlists", "Artists", "Albums", "Folders")
                     Column(
                         modifier = Modifier
                             .width(48.dp)
@@ -306,27 +304,8 @@ fun PlaylistsScreen(
                         verticalArrangement = Arrangement.spacedBy(23.dp, Alignment.CenterVertically),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        allTags.take(10).forEach { tag ->
-                            val isSelected = tag == selectedTag
-                            val textColor = if (isSelected) accentColor
-                                else Color.White.copy(alpha = 0.5f)
-                            Text(
-                                text = tag,
-                                color = textColor,
-                                fontSize = 16.sp,
-                                fontWeight = if (isSelected) FontWeight.SemiBold
-                                    else FontWeight.Light,
-                                fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                        onClick = { selectedTag = tag }
-                                    )
-                                    .padding(vertical = 4.dp, horizontal = 4.dp)
-                            )
+                        labels.forEach { label ->
+                            VerticalRailLabel(label = label)
                         }
                     }
 
@@ -1431,4 +1410,66 @@ private fun CreatePlaylistDialog(
             }
         }
     )
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// VERTICAL RAIL LABEL — exact copy of old CoralNavRail's RailLabel (build 62a8b02)
+// ═══════════════════════════════════════════════════════════════════════
+// Draws a vertical (rotated -90°) text label, 16sp Bold white.
+// NOT clickable (just visual — user wants the look, not functionality yet).
+// Same Canvas + TextMeasurer + rotate approach as the old nav rail, so the
+// text rendering is identical to the old build (no jitter from Compose's
+// text layout system).
+@Composable
+private fun VerticalRailLabel(
+    label: String
+) {
+    val textMeasurer = rememberTextMeasurer()
+    val layoutResult = remember(label) {
+        textMeasurer.measure(
+            text = AnnotatedString(label),
+            style = TextStyle(
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
+            ),
+            overflow = TextOverflow.Clip,
+            softWrap = false,
+            maxLines = 1,
+            constraints = androidx.compose.ui.unit.Constraints(
+                minWidth = 0,
+                minHeight = 0,
+                maxWidth = Int.MAX_VALUE,
+                maxHeight = Int.MAX_VALUE
+            )
+        )
+    }
+
+    val density = LocalDensity.current
+    val textWidthDp = with(density) { layoutResult.size.width.toDp() }
+    val textHeightPx = layoutResult.size.height.toFloat()
+
+    Box(
+        modifier = Modifier
+            .width(48.dp)
+            .height(textWidthDp)
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val canvasWidth = size.width
+            val canvasHeight = size.height
+            val textWidthPx = layoutResult.size.width.toFloat()
+            val textHeight = textHeightPx
+
+            // Rotate the canvas -90° around its center, then draw the text centered.
+            rotate(degrees = -90f, pivot = Offset(canvasWidth / 2f, canvasHeight / 2f)) {
+                drawText(
+                    textLayoutResult = layoutResult,
+                    topLeft = Offset(
+                        x = (canvasWidth - textWidthPx) / 2f,
+                        y = (canvasHeight - textHeight) / 2f
+                    )
+                )
+            }
+        }
+    }
 }
