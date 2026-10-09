@@ -217,29 +217,10 @@ fun CynthiaHomeScreen(
             .background(Color.Black)
     ) {
         // ═══ INNER BOX — layerBackdrop captures page content ═══
-        // ★ ViTune-style transition: when playlist detail opens, content
-        //   scales DOWN to 0.9 + fades (like ViTune's defaultStacking).
-        //   When closing, content scales back UP to 1.0 + fades in
-        //   (like ViTune's defaultUnstacking in reverse).
-        val contentScale by androidx.compose.animation.core.animateFloatAsState(
-            targetValue = if (selectedPlaylist != null) 0.9f else 1f,
-            animationSpec = androidx.compose.animation.core.tween(300),
-            label = "contentScale"
-        )
-        val contentAlpha by androidx.compose.animation.core.animateFloatAsState(
-            targetValue = if (selectedPlaylist != null) 0f else 1f,
-            animationSpec = androidx.compose.animation.core.tween(300),
-            label = "contentAlpha"
-        )
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .layerBackdrop(glassBackdrop)
-                .graphicsLayer {
-                    scaleX = contentScale
-                    scaleY = contentScale
-                    alpha = contentAlpha
-                }
         ) {
             when (selectedTab) {
                 CoralTab.QuickPicks -> com.rajatxo.coral.ui.screens.QuickPicksScreen(
@@ -751,20 +732,11 @@ fun CynthiaHomeScreen(
             backdrop = glassBackdrop
         )
 
-        // ═══ Playlist detail overlay — ViTune-style transitions ═══
-        // ★ Stacking (opening): detail fades in while content scales down to 0.9
-        // ★ Unstacking (closing): detail scales UP to 1.1 + fades out
+        // ═══ Playlist detail overlay — simple slide up/down ═══
         androidx.compose.animation.AnimatedVisibility(
             visible = selectedPlaylist != null,
-            enter = androidx.compose.animation.fadeIn(
-                animationSpec = androidx.compose.animation.core.tween(300)
-            ),
-            exit = androidx.compose.animation.scaleOut(
-                targetScale = 1.1f,
-                animationSpec = androidx.compose.animation.core.tween(300)
-            ) + androidx.compose.animation.fadeOut(
-                animationSpec = androidx.compose.animation.core.tween(300)
-            )
+            enter = androidx.compose.animation.slideInVertically { it },
+            exit = androidx.compose.animation.slideOutVertically { it }
         ) {
             selectedPlaylist?.let { playlist ->
                 com.rajatxo.coral.ui.screens.PlaylistDetailScreen(
