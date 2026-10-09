@@ -545,15 +545,13 @@ private fun PlaylistWheel(
     var lastSnappedIndex by remember { mutableStateOf(0) }
 
     // --- Selection helper ---
-    // ★ DIRECTION FIX (user reported scroll-up shows wrong playlist):
-    //   The wheel's drawing uses rotationItems = scrollOffset / pxPerItem.
-    //   When user scrolls UP (dragAmount negative), scrollOffset decreases.
-    //   With raw = (offset / pxPerItem), index goes BACKWARDS.
-    //   User expects: scroll UP → NEXT playlist (forward in array).
-    //   Fix: NEGATE scrollOffset in BOTH indexAtOffset AND the drag handler,
-    //   so the sign convention is consistent everywhere.
+    // ★ DIRECTION FIX: user reports swipe-up shows the WRONG playlist.
+    //   Easiest fix: invert the dragAmount in the full-screen drag handler
+    //   so swipe-up behaves like swipe-down. indexAtOffset + rotationItems
+    //   use the ORIGINAL 62a8b02 sign convention (no negation) so they
+    //   stay in sync.
     fun indexAtOffset(offset: Float): Int {
-        val raw = (-offset / pxPerItem).roundToInt()  // NEGATED = forward on scroll up
+        val raw = (offset / pxPerItem).roundToInt()
         val mod = raw % playlists.size
         return if (mod < 0) mod + playlists.size else mod
     }
@@ -646,8 +644,9 @@ private fun PlaylistWheel(
                             // ★ SMOOTH WHEEL: reduced velocity multiplier 0.35 → 0.20
                             //   (less sensitive to flicks) + higher friction 0.9 → 1.2
                             //   (decelerates faster, doesn't spin too far)
+                            // ★ DIRECTION FIX: negate velocity so swipe-up = forward
                             scrollOffset.animateDecay(
-                                initialVelocity = velocity * 0.20f,
+                                initialVelocity = -velocity * 0.20f,
                                 animationSpec = androidx.compose.animation.core.exponentialDecay(
                                     frictionMultiplier = 1.2f
                                 )
@@ -666,7 +665,9 @@ private fun PlaylistWheel(
                     },
                     onVerticalDrag = { change, dragAmount ->
                         coroutineScope.launch {
-                            scrollOffset.snapTo(scrollOffset.value + dragAmount)
+                            // ★ DIRECTION FIX: negate dragAmount so swipe-up = forward
+                            //   (user wants the playlist BELOW to come to center on swipe up)
+                            scrollOffset.snapTo(scrollOffset.value - dragAmount)
                         }
                         velocityTracker.addPosition(change.uptimeMillis, change.position)
                         val currentIdx = indexAtOffset(scrollOffset.value)
@@ -757,10 +758,8 @@ private fun PlaylistWheel(
             )
 
             // === 4. TEXT ITEMS on the outer (invisible) text orbit ===
-            // ★ DIRECTION FIX: negate rotationItems to match indexAtOffset.
-            //   Both now use the SAME sign convention → drawn center matches
-            //   the index reported via onCenterPlaylistChange.
-            val rotationItems = -scrollOffset.value / pxPerItem
+            // scrollOffset / pxPerItem = how many "items" the wheel has rotated.
+            val rotationItems = scrollOffset.value / pxPerItem
 
             // Playfair Display Italic — premium high-contrast editorial serif.
             val activeFontSp = 42f
