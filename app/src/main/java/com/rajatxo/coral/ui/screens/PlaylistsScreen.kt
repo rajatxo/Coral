@@ -770,15 +770,28 @@ private fun PlaylistWheel(
 
             for (offset in -visibleSpan..visibleSpan) {
                 // Index in playlist array for this slot
-                val rawIdx = (rotationItems.roundToInt() + offset)
+                // ★ THE REAL FIX (after deep thinking):
+                //   At rest with [PL1, PL2, PL3]:
+                //     - Visual below (offset=+1) should be PL3 (most recent, ready to rise up)
+                //     - Visual above (offset=-1) should be PL2
+                //   To achieve this: negate offset in the array index calculation.
+                //     rawIdx = rotationItems.roundToInt() - offset
+                //   At rest (rotationItems=0):
+                //     - offset=+1 (below) → rawIdx = 0-1 = -1 → wraps to 2 → PL3 ✓
+                //     - offset=-1 (above) → rawIdx = 0-(-1) = 1 → PL2 ✓
+                //   Drag UP (rotationItems decreases to -1):
+                //     - offset=0 (center) → rawIdx = -1 → PL3 (rises from below) ✓
+                //     - offset=+1 (below) → rawIdx = -2 → PL2 ✓
+                //     - offset=-1 (above) → rawIdx = 0 → PL1 ✓
+                val rawIdx = (rotationItems.roundToInt() - offset)  // NEGATED offset
                 val modIdx = ((rawIdx % playlists.size) + playlists.size) % playlists.size
                 val playlist = playlists[modIdx]
 
                 // Fractional offset from center (0 = apex). Negative = above.
-                // ★ REVERTED to exact 62a8b02 behavior — NO negation.
-                //   Drag UP → scrollOffset decreases → rotationItems negative
-                //   → big arc text moves UP (content follows finger, natural)
-                //   → PL3 (next in array, was below) comes to center
+                // ★ Original 62a8b02 behavior — NO negation.
+                //   offset=+1 → fractionalOffset=+1 → positive angle → BELOW center (lower arc)
+                //   offset=-1 → fractionalOffset=-1 → negative angle → ABOVE center (upper arc)
+                //   This means big arc text moves UP when dragging UP (follows finger).
                 val fractionalOffset = rotationItems - rotationItems.roundToInt() + offset
                 val absOffset = abs(fractionalOffset)
 
