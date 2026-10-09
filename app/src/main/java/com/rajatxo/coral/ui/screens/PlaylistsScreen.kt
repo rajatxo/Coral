@@ -825,7 +825,18 @@ private fun PlaylistWheel(
                 val maxTextWidthPx = with(density) { 173.dp.toPx() }
 
                 // Base font size (active=42sp, inactive=16sp, interpolated by scale)
+                // ★ ANTI-JITTER FIX: round to nearest integer sp.
+                //   Without rounding, baseFontSp changes by sub-pixel amounts every
+                //   frame as the wheel rotates. Each distinct font size produces a
+                //   slightly different text layout (kerning, letter spacing, hinting).
+                //   The text measurer re-layouts every frame → letters appear to
+                //   "arrange themselves" / jiggle.
+                //   Rounding to 1sp steps limits text to ~27 discrete layouts
+                //   (42, 41, 40, ... 16) instead of hundreds. The size transition
+                //   is still smooth visually (1sp steps are small enough), but
+                //   the layout is stable within each step.
                 val baseFontSp = lerp(activeFontSp, inactiveFontSp, (1f - scale).coerceIn(0f, 1f))
+                    .roundToInt().toFloat()
 
                 // Font family + weight depends on active/inactive state
                 val textFontFamily = if (isActive) {
