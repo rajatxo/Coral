@@ -775,18 +775,17 @@ private fun PlaylistWheel(
                 val playlist = playlists[modIdx]
 
                 // Fractional offset from center (0 = apex). Negative = above.
-                // ★ VISUAL FLIP: negate fractionalOffset so items visually
-                //   come FROM BELOW when scrolling up. The array index stays
-                //   in sync (rawIdx uses +offset, not negated), so the correct
-                //   playlist still shows at center.
-                val fractionalOffset = -(rotationItems - rotationItems.roundToInt() + offset)
+                // ★ REVERTED to exact 62a8b02 behavior — NO negation.
+                //   Drag UP → scrollOffset decreases → rotationItems negative
+                //   → big arc text moves UP (content follows finger, natural)
+                //   → PL3 (next in array, was below) comes to center
+                val fractionalOffset = rotationItems - rotationItems.roundToInt() + offset
                 val absOffset = abs(fractionalOffset)
 
                 if (absOffset > visibleSpan) continue
 
                 // Angular position: apex = 0°, items above go negative, below positive.
-                // fractionalOffset is already negated above (for visual flip), so
-                // this uses the negated value directly.
+                // Negative angle = upper arc; positive = lower arc.
                 val itemAngleDeg = fractionalOffset * angleStepDeg
                 val itemAngleRad = (itemAngleDeg * PI / 180f).toFloat()
 
