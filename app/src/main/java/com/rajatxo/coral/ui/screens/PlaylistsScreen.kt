@@ -65,6 +65,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.drawText
 import coil3.compose.AsyncImage
 import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorControls
@@ -88,7 +90,7 @@ fun PlaylistsScreen(
     capsuleRemaining: Long = 0L,
     onExtend: () -> Unit = {},
     accentColor: Color = Color(0xFFF4B400),
-    backdrop: LayerBackdrop? = null
+    backdrop: LayerBackdrop? = null  // ignored — we create our own local backdrop
 ) {
     val playlists by PlaylistStore.playlists.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
@@ -100,20 +102,52 @@ fun PlaylistsScreen(
     var isRotating by remember { mutableStateOf(false) }
     var centerPlaylist by remember { mutableStateOf<Playlist?>(null) }
 
+    // ★ LOCAL kyant backdrop (same pattern as SettingsScreen).
+    //   We do NOT use the parent's glassBackdrop — that creates a circular
+    //   blur dependency (backdrop captures content that includes the
+    //   drawBackdrop call itself) → crash.
+    //   Instead: create our own backdrop that captures our own background
+    //   gradient. Structure:
+    //     Layer 1: Solid gradient background (visible, NOT clickable)
+    //     Layer 2: layerBackdrop Box (transparent, captures gradient)
+    //     Layer 3: Content with drawBackdrop (capsules blur the gradient)
+    val bgGradient = Brush.verticalGradient(
+        colorStops = arrayOf(
+            0.0f  to accentColor.copy(alpha = 0.85f),
+            0.30f to accentColor.copy(alpha = 0.28f),
+            0.55f to accentColor.copy(alpha = 0.08f),
+            1.0f  to Color(0xFF05050A)
+        )
+    )
+    val localGraphicsLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
+    val localBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop(
+        graphicsLayer = localGraphicsLayer
+    ) {
+        drawContent()
+    }
+
     Box(modifier = Modifier
         .fillMaxSize()
         .background(Color(0xFF05050A))  // darkBase
-        .background(
-            Brush.verticalGradient(
-                colorStops = arrayOf(
-                    0.0f  to accentColor.copy(alpha = 0.85f),
-                    0.30f to accentColor.copy(alpha = 0.28f),
-                    0.55f to accentColor.copy(alpha = 0.08f),
-                    1.0f  to Color(0xFF05050A)
-                )
-            )
-        )
     ) {
+        // ─── Layer 1: Solid gradient background (visible, NOT clickable) ──
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(bgGradient)
+        )
+
+        // ─── Layer 2: Transparent capture layer (NOT scrollable, NOT clickable)
+        //   Has the SAME gradient drawn inside it so layerBackdrop captures it.
+        //   Zero interactivity — just exists to be captured by kyant.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(bgGradient)
+                .layerBackdrop(localBackdrop)
+        )
+
+        // ─── Layer 3: Content (capsules use drawBackdrop to blur Layer 2) ──
         // ═══ TOP ROW: 2 kyant backdrop capsules (New + Grid/Wheel toggle) ═══
         // Replaces the old big capsule. Just 2 small glass capsules at the top.
         Row(
@@ -132,9 +166,9 @@ fun PlaylistsScreen(
                     .height(40.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .then(
-                        if (backdrop != null) {
+                        if (true) {
                             Modifier.drawBackdrop(
-                                backdrop = backdrop,
+                                backdrop = localBackdrop,
                                 shape = { RoundedCornerShape(20.dp) },
                                 effects = {
                                     vibrancy()
@@ -180,9 +214,9 @@ fun PlaylistsScreen(
                     .height(40.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .then(
-                        if (backdrop != null) {
+                        if (true) {
                             Modifier.drawBackdrop(
-                                backdrop = backdrop,
+                                backdrop = localBackdrop,
                                 shape = { RoundedCornerShape(20.dp) },
                                 effects = {
                                     vibrancy()

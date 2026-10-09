@@ -250,8 +250,7 @@ fun CynthiaHomeScreen(
                     capsuleVisible = false,
                     capsuleRemaining = 0L,
                     onExtend = { },
-                    accentColor = Color(0xFFF4B400),
-                    backdrop = glassBackdrop
+                    accentColor = Color(0xFFF4B400)
                 )
                 else -> Box(
                     modifier = Modifier.fillMaxSize(),
