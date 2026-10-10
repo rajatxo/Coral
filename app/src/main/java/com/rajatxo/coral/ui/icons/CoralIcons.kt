@@ -1285,6 +1285,68 @@ object CoralIcons {
         horizontalLineToRelative(-6f)
     }
 
+    /** Lucide file-pen-line (MIT) — used for "Rename" in playlist detail menu. */
+    val FilePenLine: ImageVector = stroke("FilePenLine") {
+        // M14.364 13.634a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506l4.013-4.009a1 1 0 0 0-3.004-3.004z
+        moveTo(14.364f, 13.634f)
+        arcToRelative(2f, 2f, 0f, false, false, -0.506f, 0.854f)
+        lineToRelative(-0.837f, 2.87f)
+        arcToRelative(0.5f, 0.5f, 0f, false, false, 0.62f, 0.62f)
+        lineToRelative(2.87f, -0.837f)
+        arcToRelative(2f, 2f, 0f, false, false, 0.854f, -0.506f)
+        lineToRelative(4.013f, -4.009f)
+        arcToRelative(1f, 1f, 0f, false, false, -3.004f, -3.004f)
+        close()
+        // M14.487 7.858A1 1 0 0 1 14 7V2
+        moveTo(14.487f, 7.858f)
+        arcToRelative(1f, 1f, 0f, false, true, -0.487f, -0.858f)
+        lineTo(14f, 2f)
+        // M20 19.645V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l2.516 2.516
+        moveTo(20f, 19.645f)
+        verticalLineTo(20f)
+        arcToRelative(2f, 2f, 0f, false, true, -2f, 2f)
+        horizontalLineTo(6f)
+        arcToRelative(2f, 2f, 0f, false, true, -2f, -2f)
+        verticalLineTo(4f)
+        arcToRelative(2f, 2f, 0f, false, true, 2f, -2f)
+        horizontalLineToRelative(8f)
+        arcToRelative(2.4f, 2.4f, 0f, false, true, 1.704f, 0.706f)
+        lineToRelative(2.516f, 2.516f)
+        // M8 18h1
+        moveTo(8f, 18f)
+        horizontalLineToRelative(1f)
+    }
+
+    /** Lucide wallpaper (MIT) — used for "Playlist cover" in playlist detail menu. */
+    val Wallpaper: ImageVector = stroke("Wallpaper") {
+        // M12 17v4
+        moveTo(12f, 17f)
+        verticalLineToRelative(4f)
+        // M8 21h8
+        moveTo(8f, 21f)
+        horizontalLineToRelative(8f)
+        // m9 17 6.1-6.1a2 2 0 0 1 2.81.01L22 15
+        moveTo(9f, 17f)
+        lineToRelative(6.1f, -6.1f)
+        arcToRelative(2f, 2f, 0f, false, true, 2.81f, 0.01f)
+        lineTo(22f, 15f)
+        // circle cx=8 cy=9 r=2
+        moveTo(10f, 9f)
+        arcToRelative(2f, 2f, 0f, true, false, -4f, 0f)
+        arcToRelative(2f, 2f, 0f, true, false, 4f, 0f)
+        // rect x=2 y=3 width=20 height=14 rx=2
+        moveTo(4f, 3f)
+        horizontalLineTo(20f)
+        arcToRelative(2f, 2f, 0f, false, true, 2f, 2f)
+        verticalLineTo(15f)
+        arcToRelative(2f, 2f, 0f, false, true, -2f, 2f)
+        horizontalLineTo(4f)
+        arcToRelative(2f, 2f, 0f, false, true, -2f, -2f)
+        verticalLineTo(5f)
+        arcToRelative(2f, 2f, 0f, false, true, 2f, -2f)
+        close()
+    }
+
     val Trash: ImageVector = stroke("Trash") {
         // Two vertical lines inside the can (the "lids")
         moveTo(10f, 11f)

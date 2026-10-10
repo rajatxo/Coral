@@ -607,7 +607,7 @@ fun PlaylistDetailScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Icon(imageVector = CoralIcons.Cog, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        Icon(imageVector = CoralIcons.FilePenLine, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                         Text(text = "Rename", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                     }
                     // Playlist cover option
@@ -626,7 +626,7 @@ fun PlaylistDetailScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Icon(imageVector = CoralIcons.Music, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        Icon(imageVector = CoralIcons.Wallpaper, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                         Text(text = "Playlist cover", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                     }
                     // Delete playlist option
