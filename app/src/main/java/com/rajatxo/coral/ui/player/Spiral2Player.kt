@@ -434,21 +434,46 @@ fun Spiral2Player(
     var showLyrics by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
     var showCoverOptions by remember { mutableStateOf(false) }
+    var showCoverChoice by remember { mutableStateOf(false) }  // app-only vs metadata
+    var pendingCoverUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    // ★ Drag state for the cover options card
+    var coverCardOffsetX by remember { mutableStateOf(0f) }
+    var coverCardOffsetY by remember { mutableStateOf(0f) }
 
-    // ★ Image picker for custom song cover (app-only)
+    // ★ Image picker for custom song cover
     val playerContext = androidx.compose.ui.platform.LocalContext.current
     val coverPicker = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
     ) { uri ->
-        if (uri != null && songId != null) {
-            try {
-                val flag = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-                playerContext.contentResolver.takePersistableUriPermission(uri, flag)
-            } catch (_: Exception) { }
-            val prefs = playerContext.getSharedPreferences("song_covers", android.content.Context.MODE_PRIVATE)
-            prefs.edit().putString("cover_$songId", uri.toString()).apply()
+        if (uri != null) {
+            // ★ Don't apply immediately — show the choice dialog first
+            pendingCoverUri = uri
+            showCoverChoice = true
         }
         showCoverOptions = false
+    }
+
+    // ★ Apply cover (app-only)
+    val applyCoverAppOnly = {
+        pendingCoverUri?.let { uri ->
+            if (songId != null) {
+                try {
+                    val flag = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    playerContext.contentResolver.takePersistableUriPermission(uri, flag)
+                } catch (_: Exception) { }
+                val prefs = playerContext.getSharedPreferences("song_covers", android.content.Context.MODE_PRIVATE)
+                prefs.edit().putString("cover_$songId", uri.toString()).apply()
+            }
+        }
+        pendingCoverUri = null
+        showCoverChoice = false
+    }
+
+    // ★ Apply cover (metadata — TODO: needs JAudioTagger library)
+    val applyCoverMetadata = {
+        // TODO: embed in song's ID3/FLAC metadata using JAudioTagger library
+        // For now, same as app-only
+        applyCoverAppOnly()
     }
     var showHeartPop by remember { mutableStateOf(false) }
     // ─── Embedded lyrics (extracted from audio metadata) ───────────
@@ -1322,12 +1347,17 @@ fun Spiral2Player(
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                        onClick = { showCoverOptions = false }
+                        onClick = {
+                            showCoverOptions = false
+                            coverCardOffsetX = 0f
+                            coverCardOffsetY = 0f
+                        }
                     ),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
                     modifier = Modifier
+                        .offset { androidx.compose.ui.unit.IntOffset(coverCardOffsetX.toInt(), coverCardOffsetY.toInt()) }
                         .padding(horizontal = 40.dp)
                         .width(240.dp)
                         .clip(RoundedCornerShape(20.dp))
@@ -1345,6 +1375,22 @@ fun Spiral2Player(
                         .padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    // ★ Drag handle bar — hold + drag to move the card anywhere
+                    Box(
+                        modifier = Modifier
+                            .width(40.dp)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(Color.White.copy(alpha = 0.3f))
+                            .pointerInput(Unit) {
+                                detectDragGestures { change, dragAmount ->
+                                    change.consume()
+                                    coverCardOffsetX += dragAmount.x
+                                    coverCardOffsetY += dragAmount.y
+                                }
+                            }
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
                     Text(
                         text = "Change Cover Art",
                         color = Color.White,
@@ -1425,6 +1471,148 @@ fun Spiral2Player(
                             Text(
                                 text = "Coming soon",
                                 color = Color.White.copy(alpha = 0.3f),
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // ─── Cover choice dialog (app-only vs metadata) ─────────────
+        if (showCoverChoice) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.6f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { showCoverChoice = false; pendingCoverUri = null }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(horizontal = 40.dp)
+                        .width(260.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .drawBackdrop(
+                            backdrop = glassBackdrop,
+                            shape = { RoundedCornerShape(20.dp) },
+                            effects = {
+                                vibrancy()
+                                colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.3f)
+                                blur(20f.dp.toPx())
+                            },
+                            onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.4f)) }
+                        )
+                        .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Drag handle
+                    Box(
+                        modifier = Modifier
+                            .width(40.dp)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(Color.White.copy(alpha = 0.3f))
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Apply Cover Art",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    // Preview of the selected image
+                    if (pendingCoverUri != null) {
+                        Box(
+                            modifier = Modifier
+                                .size(80.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color.White.copy(alpha = 0.1f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            coil3.compose.AsyncImage(
+                                model = pendingCoverUri,
+                                contentDescription = "Preview",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+                    // Option 1: App only
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.White.copy(alpha = 0.08f))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { applyCoverAppOnly() }
+                            )
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = CoralIcons.Wallpaper,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Column {
+                            Text(
+                                text = "App only",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "Changes cover in Coral only",
+                                color = Color.White.copy(alpha = 0.5f),
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    // Option 2: Embed in metadata
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.White.copy(alpha = 0.05f))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { applyCoverMetadata() }
+                            )
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = CoralIcons.FilePenLine,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.7f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Column {
+                            Text(
+                                text = "Embed in metadata",
+                                color = Color.White.copy(alpha = 0.8f),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "Permanent — shows in all apps",
+                                color = Color.White.copy(alpha = 0.4f),
                                 fontSize = 12.sp
                             )
                         }
