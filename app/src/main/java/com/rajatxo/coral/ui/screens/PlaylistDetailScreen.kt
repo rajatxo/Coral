@@ -213,10 +213,8 @@ fun PlaylistDetailScreen(
                 .layerBackdrop(detailBackdrop)
         ) {
         // --- Layer 1: Cover image at the top (fixed) ---
-        // ★ ViTune-style: if custom cover → single image. If no custom cover →
-        //   use first song's art. The background is always a single image for
-        //   the blur effect (collage would look messy when blurred).
-        if (coverArtUri != null) {
+        // ★ HIDDEN when searching — search bar replaces the immersive layout
+        if (!isSearching && coverArtUri != null) {
             AsyncImage(
                 model = coverArtUri,
                 contentDescription = null,
@@ -228,14 +226,14 @@ fun PlaylistDetailScreen(
         }
 
         // --- Layer 2: Full-screen smoothstep scrim ---
-        // Ramp: 5% → 42% (covers most of the image, fully opaque at image edge).
-        // The image's bottom edge at 42% is completely hidden under the opaque
-        // gradient. The smoothstep curve ensures no visible transition.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(smoothScrimBrush(immersiveColor, 0.05f, 0.42f, 32))
-        )
+        // ★ HIDDEN when searching — solid immersive color background instead
+        if (!isSearching) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(smoothScrimBrush(immersiveColor, 0.05f, 0.42f, 32))
+            )
+        }
 
         // --- Layer 3: Content (everything scrolls, including top bar) ---
         // No statusBarsPadding/navigationBarsPadding here — the LazyColumn
@@ -296,6 +294,8 @@ fun PlaylistDetailScreen(
                         }
                 }
             }
+                // ★ HIDE header items when searching — just show search bar + results
+                if (!isSearching) {
                 // Cover box removed — cover image is the immersive background
                 // (top 42% of screen). Spacer pushes title below the cover area.
                 item {
@@ -448,6 +448,7 @@ fun PlaylistDetailScreen(
                         }
                     }
                 }
+                } // ← closes if (!isSearching) — header items hidden during search
 
                 // ★ Search bar (visible only when searching)
                 if (isSearching) {
