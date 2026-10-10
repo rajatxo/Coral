@@ -26,8 +26,8 @@ android {
         applicationId = "com.rajatxo.coral"
         minSdk = 24
         targetSdk = 35
-        versionCode = 62
-        versionName = "2.4.0"
+        versionCode = 63
+        versionName = "2.4.1"
 
         // ★ TagLib native library only ships arm64-v8a (the AAR from Lyricify
         //   only contains jni/arm64-v8a/libtaglib_jni.so). Filter to that ABI

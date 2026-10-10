@@ -211,6 +211,17 @@ fun SettingsScreen(
             }
         }
 
+        // ═══════════════════════════════════════════════════════════════
+        // ★ DEV INFO CARD — premium glass card with Telegram links + Made in India.
+        //   Placed at the TOP of the settings scroll (right after the title),
+        //   so users see it immediately when they open Settings — no need to
+        //   scroll to the About section.
+        // ═══════════════════════════════════════════════════════════════
+        Spacer(modifier = Modifier.height(20.dp))
+        DevInfoCard(settingsBackdrop = settingsBackdrop)
+
+        Spacer(modifier = Modifier.height(20.dp))
+
         // Premium section — always at the top so the user knows about it
         SettingsSection(title = "Premium", settingsBackdrop = settingsBackdrop) {
             SettingsRow(
@@ -550,6 +561,316 @@ fun SettingsScreen(
         }
     }
     }  // ← closes the outer Box (layerBackdrop wrapper)
+}
+
+/**
+ * ★ DevInfoCard — premium glass card showing the developer's Telegram links
+ *   and a "Made with love in India" badge.
+ *
+ * Placed at the TOP of the settings scroll (before the Premium section) so
+ * users see it immediately when they open Settings.
+ *
+ * Layout:
+ *   ┌─────────────────────────────────────────────────┐
+ *   │  👤  Coral                                      │
+ *   │      Crafted by Rajat                           │
+ *   │                                                 │
+ *   │  ┌──────────────┐  ┌──────────────────────────┐ │
+ *   │  │ ✈ Telegram    │  │ 💬 Support Group          │ │
+ *   │  │ @rajat_xo     │  │ @coralmusicsupport        │ │
+ *   │  └──────────────┘  └──────────────────────────┘ │
+ *   │                                                 │
+ *   │            Made with ❤ in India 🇮🇳              │
+ *   └─────────────────────────────────────────────────┘
+ *
+ * The card uses kyant glass (drawBackdrop) for a premium frosted-glass look.
+ * Telegram links open externally via Intent.ACTION_VIEW.
+ */
+@Composable
+private fun DevInfoCard(settingsBackdrop: LayerBackdrop?) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val cardShape = RoundedCornerShape(20.dp)
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .clip(cardShape)
+            .then(
+                if (settingsBackdrop != null) {
+                    Modifier.drawBackdrop(
+                        backdrop = settingsBackdrop,
+                        shape = { cardShape },
+                        effects = {
+                            vibrancy()
+                            colorControls(
+                                brightness = 0.05f,
+                                contrast = 1f,
+                                saturation = 1.4f
+                            )
+                            blur(20f.dp.toPx())
+                        },
+                        onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.35f)) }
+                    )
+                } else {
+                    Modifier.background(Color(0xFF1A1A1A).copy(alpha = 0.85f))
+                }
+            )
+            .border(1.dp, Color.White.copy(alpha = 0.15f), cardShape)
+            .padding(20.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // ─── Header: Coral logo circle + name + tagline ────────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Coral logo circle (gradient)
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(
+                                    Color(0xFFFF6B6B),
+                                    Color(0xFFFF8FAB),
+                                    Color(0xFFFFD166)
+                                )
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "C",
+                        color = Color.White,
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = CalSansFamily
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Coral",
+                        color = Color.White,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = CalSansFamily
+                    )
+                    Text(
+                        text = "Crafted by Rajat",
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 13.sp,
+                        fontFamily = CalSansFamily
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // ─── Telegram buttons row ───────────────────────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Telegram personal link
+                TelegramButton(
+                    label = "Telegram",
+                    handle = "@rajat_xo",
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        openUrl(context, "https://t.me/rajat_xo")
+                    }
+                )
+                // Support group link
+                TelegramButton(
+                    label = "Support Group",
+                    handle = "@coralmusicsupport",
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        openUrl(context, "https://t.me/coralmusicsupport")
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ─── Made in India badge ────────────────────────────────────
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.White.copy(alpha = 0.06f))
+                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(20.dp))
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = "Made with",
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 12.sp,
+                    fontFamily = CalSansFamily
+                )
+                // Heart icon (coral red)
+                Icon(
+                    imageVector = CoralIcons.HeartFilled,
+                    contentDescription = null,
+                    tint = Color(0xFFFF6B6B),
+                    modifier = Modifier.size(12.dp)
+                )
+                Text(
+                    text = "in India",
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 12.sp,
+                    fontFamily = CalSansFamily
+                )
+                // India flag (rendered via Canvas — tricolor)
+                IndiaFlag(
+                    modifier = Modifier
+                        .size(20.dp, 13.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                )
+            }
+        }
+    }
+}
+
+/**
+ * A single Telegram link button — glass pill with paper-plane icon.
+ */
+@Composable
+private fun TelegramButton(
+    label: String,
+    handle: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val pillShape = RoundedCornerShape(14.dp)
+    Row(
+        modifier = modifier
+            .clip(pillShape)
+            .background(Color.White.copy(alpha = 0.06f))
+            .border(1.dp, Color.White.copy(alpha = 0.1f), pillShape)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // Telegram paper-plane icon (drawn via Canvas)
+        TelegramIcon(
+            modifier = Modifier.size(18.dp),
+            tint = Color(0xFF29A9EB)
+        )
+        Column {
+            Text(
+                text = label,
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = CalSansFamily
+            )
+            Text(
+                text = handle,
+                color = Color.White.copy(alpha = 0.5f),
+                fontSize = 10.sp,
+                fontFamily = CalSansFamily
+            )
+        }
+    }
+}
+
+/**
+ * Telegram paper-plane icon (simplified, drawn via Canvas path).
+ */
+@Composable
+private fun TelegramIcon(
+    modifier: Modifier = Modifier,
+    tint: Color
+) {
+    androidx.compose.foundation.Canvas(
+        modifier = modifier
+    ) {
+        val w = size.width
+        val h = size.height
+        // Simplified paper-plane shape
+        val path = androidx.compose.ui.graphics.Path().apply {
+            moveTo(w * 0.9f, h * 0.1f)
+            lineTo(w * 0.1f, h * 0.45f)
+            lineTo(w * 0.4f, h * 0.55f)
+            lineTo(w * 0.75f, h * 0.25f)
+            lineTo(w * 0.5f, h * 0.75f)
+            lineTo(w * 0.9f, h * 0.9f)
+            close()
+        }
+        drawPath(
+            path = path,
+            color = tint,
+            style = androidx.compose.ui.graphics.drawscope.Fill
+        )
+    }
+}
+
+/**
+ * India flag — tricolor (saffron / white / green) with navy chakra dot.
+ * Rendered via Canvas so we don't need an image asset.
+ */
+@Composable
+private fun IndiaFlag(modifier: Modifier = Modifier) {
+    androidx.compose.foundation.Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val bandH = h / 3f
+        // Saffron (top)
+        drawRect(
+            color = Color(0xFFFF9933),
+            topLeft = androidx.compose.ui.geometry.Offset(0f, 0f),
+            size = androidx.compose.ui.geometry.Size(w, bandH)
+        )
+        // White (middle)
+        drawRect(
+            color = Color.White,
+            topLeft = androidx.compose.ui.geometry.Offset(0f, bandH),
+            size = androidx.compose.ui.geometry.Size(w, bandH)
+        )
+        // Green (bottom)
+        drawRect(
+            color = Color(0xFF138808),
+            topLeft = androidx.compose.ui.geometry.Offset(0f, bandH * 2f),
+            size = androidx.compose.ui.geometry.Size(w, bandH)
+        )
+        // Navy chakra dot (center)
+        drawCircle(
+            color = Color(0xFF000080),
+            radius = bandH * 0.28f,
+            center = androidx.compose.ui.geometry.Offset(w / 2f, h / 2f),
+            style = androidx.compose.ui.graphics.drawscope.Stroke(
+                width = bandH * 0.08f
+            )
+        )
+    }
+}
+
+/**
+ * Open a URL in the system browser (or Telegram app if installed).
+ */
+private fun openUrl(context: android.content.Context, url: String) {
+    try {
+        val intent = android.content.Intent(
+            android.content.Intent.ACTION_VIEW,
+            android.net.Uri.parse(url)
+        ).apply {
+            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+    } catch (_: Exception) { }
 }
 
 @androidx.compose.foundation.ExperimentalFoundationApi
