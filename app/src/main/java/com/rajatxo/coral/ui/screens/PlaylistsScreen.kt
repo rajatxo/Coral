@@ -202,53 +202,46 @@ fun PlaylistsScreen(
         )
 
         // ─── Layer 3: Content (capsules use drawBackdrop to blur Layer 2) ──
-        // ═══ TOP ROW: 2 kyant backdrop capsules (New + Grid/Wheel toggle) ═══
-        // Replaces the old big capsule. Just 2 small glass capsules at the top.
-        // ★ Moved DOWN (vertical padding 16 → 80) so they sit BELOW the top blur
-        //   header (which shows the "Playlists" title from the parent CynthiaHomeScreen).
-        //   Without this offset, the capsules hide under the blur overlay.
+        // ═══ ONE unified glass pill: New | Grid/Wheel | Color ═══
+        // All 3 sections share the same glass backdrop, same shape, same height.
+        // Each section takes equal width (weight 1f). Separated by thin dividers.
         Row(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .statusBarsPadding()
                 .padding(horizontal = 20.dp, vertical = 64.dp)
-                .zIndex(1f),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                .zIndex(1f)
+                .height(44.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .drawBackdrop(
+                    backdrop = localBackdrop,
+                    shape = { RoundedCornerShape(22.dp) },
+                    effects = {
+                        vibrancy()
+                        colorControls(
+                            brightness = 0f,
+                            contrast = 1f,
+                            saturation = 1.1f
+                        )
+                        blur(20f.dp.toPx())
+                    }
+                )
+                .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(22.dp)),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // ★ "New" capsule — opens the create playlist dialog
+            // ★ Section 1: New playlist
             Row(
                 modifier = Modifier
-                    .height(40.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .then(
-                        if (true) {
-                            Modifier.drawBackdrop(
-                                backdrop = localBackdrop,
-                                shape = { RoundedCornerShape(20.dp) },
-                                effects = {
-                                    vibrancy()
-                                    colorControls(
-                                        brightness = 0f,
-                                        contrast = 1f,
-                                        saturation = 1.1f
-                                    )
-                                    blur(20f.dp.toPx())
-                                }
-                            )
-                        } else {
-                            Modifier.background(Color.White.copy(alpha = 0.15f))
-                        }
-                    )
+                    .weight(1f)
+                    .fillMaxHeight()
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = { showCreateDialog = true }
-                    )
-                    .padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
                     imageVector = CoralIcons.Play,
@@ -256,6 +249,7 @@ fun PlaylistsScreen(
                     tint = Color.White,
                     modifier = Modifier.size(12.dp)
                 )
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = "New",
                     color = Color.White,
@@ -265,38 +259,26 @@ fun PlaylistsScreen(
                 )
             }
 
-            // ★ Grid/Wheel toggle capsule
+            // Divider
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(24.dp)
+                    .background(Color.White.copy(alpha = 0.15f))
+            )
+
+            // ★ Section 2: Grid/Wheel toggle
             Row(
                 modifier = Modifier
-                    .height(40.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .then(
-                        if (true) {
-                            Modifier.drawBackdrop(
-                                backdrop = localBackdrop,
-                                shape = { RoundedCornerShape(20.dp) },
-                                effects = {
-                                    vibrancy()
-                                    colorControls(
-                                        brightness = 0f,
-                                        contrast = 1f,
-                                        saturation = 1.1f
-                                    )
-                                    blur(20f.dp.toPx())
-                                }
-                            )
-                        } else {
-                            Modifier.background(Color.White.copy(alpha = 0.15f))
-                        }
-                    )
+                    .weight(1f)
+                    .fillMaxHeight()
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = { useWheel = !useWheel }
-                    )
-                    .padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = if (useWheel) "Grid" else "Wheel",
@@ -307,42 +289,34 @@ fun PlaylistsScreen(
                 )
             }
 
-            // ★ Palette capsule — opens the color picker for text color
+            // Divider
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(24.dp)
+                    .background(Color.White.copy(alpha = 0.15f))
+            )
+
+            // ★ Section 3: Color palette
             Row(
                 modifier = Modifier
-                    .height(40.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .then(
-                        Modifier.drawBackdrop(
-                            backdrop = localBackdrop,
-                            shape = { RoundedCornerShape(20.dp) },
-                            effects = {
-                                vibrancy()
-                                colorControls(
-                                    brightness = 0f,
-                                    contrast = 1f,
-                                    saturation = 1.1f
-                                )
-                                blur(20f.dp.toPx())
-                            }
-                        )
-                    )
+                    .weight(1f)
+                    .fillMaxHeight()
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = { showPalettePicker = !showPalettePicker }
-                    )
-                    .padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // 3-dot menu icon
                 Icon(
                     imageVector = CoralIcons.MoreVertical,
-                    contentDescription = "Palette",
+                    contentDescription = "Color",
                     tint = textColor,
                     modifier = Modifier.size(14.dp)
                 )
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = "Color",
                     color = Color.White,
