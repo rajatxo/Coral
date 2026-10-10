@@ -14,10 +14,18 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,38 +49,42 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.rajatxo.coral.ui.icons.CoralIcons
 import com.rajatxo.coral.ui.theme.CalSansFamily
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.max
-import kotlin.math.min
 
 /**
- * ★ CoverCropOverlay — square crop UI for custom album covers.
+ * ★ CoverCropOverlay — multi-ratio crop UI for custom album covers.
  *
  * Shown after the user picks an image from the gallery but BEFORE the
  * "Apply Cover Art" choice dialog (app-only vs metadata).
  *
  * Flow:
  *   1. User picks image via GetContent launcher
- *   2. [CoverCropOverlay] appears — shows the image with a square crop
- *      frame. User can pan/zoom the image to position the square.
- *   3. User taps "Done" → the visible square region is decoded, cropped,
- *      and written to a temp file in the app's cache dir.
+ *   2. [CoverCropOverlay] appears — shows the image inside a crop frame
+ *      at the selected aspect ratio. User can pan/zoom the image.
+ *   3. User taps "Done" → the visible crop region is decoded, cropped,
+ *      and written to a temp JPEG in the app's cache dir.
  *   4. The temp file Uri is passed to [onCropComplete], which sets it as
  *      `pendingCoverUri` and shows the choice dialog.
  *   5. User taps "Cancel" → dismisses with no changes.
+ *
+ * Aspect ratios (cycled via the row of pills below the crop box):
+ *   - 1:1  (square — album art default)
+ *   - 3:4  (portrait — vertical wallpaper style)
+ *   - 4:3  (landscape)
+ *   - 9:16 (tall portrait — phone wallpaper style)
+ *   - 16:9 (cinematic landscape)
+ *   - 2:3  (portrait — classic photo)
+ *   - Free (no constraint — uses the image's own ratio)
  *
  * Why a temp file (instead of passing the cropped Bitmap directly):
  *   - SongCoverManager stores URIs as strings in SharedPreferences.
  *   - The choice dialog's preview uses AsyncImage(model = uri).
  *   - The metadata embedder needs bytes from a Uri anyway.
  *   - A cache file works with all of these without special-casing.
- *
- * Crop is always square (1:1 aspect ratio) because album art is square
- * everywhere in Coral (mini player, cards, player cover).
  */
 @Composable
 fun CoverCropOverlay(
@@ -95,7 +107,12 @@ fun CoverCropOverlay(
         }
     }
 
-    // Pan + zoom state. Default zoom: fit the image inside the crop frame.
+    // ★ Aspect ratio state — defaults to 1:1 (square) since album covers
+    //   are square everywhere in Coral.
+    var selectedRatio by remember { mutableStateOf(CropRatio.SQUARE) }
+
+    // Pan + zoom state. Reset whenever the ratio changes so the image
+    // re-fits to the new frame shape.
     var zoom by remember { mutableFloatStateOf(1f) }
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
@@ -106,10 +123,15 @@ fun CoverCropOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.95f))
+            .background(Color.Black.copy(alpha = 0.97f))
     ) {
         Column(
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                // ★ Push the whole column below the status bar so Cancel /
+                //   Done / Crop title don't get clipped by the system bar.
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .windowInsetsPadding(WindowInsets.navigationBars)
         ) {
             // ─── Top bar: Cancel | Crop title | Done ────────────────────
             Row(
@@ -151,12 +173,12 @@ fun CoverCropOverlay(
                         indication = null,
                         enabled = !isSaving && sourceBitmap != null,
                         onClick = {
-                            if (sourceBitmap != null) {
+                            sourceBitmap?.let { bmp ->
                                 isSaving = true
-                                val bmp = sourceBitmap!!
                                 val z = zoom
                                 val ox = offsetX
                                 val oy = offsetY
+                                val ratio = selectedRatio
                                 scope.launch {
                                     val croppedUri = withContext(Dispatchers.IO) {
                                         cropToCacheFile(
@@ -164,7 +186,9 @@ fun CoverCropOverlay(
                                             source = bmp,
                                             zoom = z,
                                             offsetX = ox,
-                                            offsetY = oy
+                                            offsetY = oy,
+                                            aspectWidth = ratio.width,
+                                            aspectHeight = ratio.height
                                         )
                                     }
                                     isSaving = false
@@ -178,7 +202,7 @@ fun CoverCropOverlay(
                 )
             }
 
-            // ─── Crop area (square, centered) ──────────────────────────
+            // ─── Crop area (centered, sized to selected ratio) ──────────
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -188,8 +212,35 @@ fun CoverCropOverlay(
                 androidx.compose.foundation.layout.BoxWithConstraints(
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    val maxSize = minOf(maxWidth, maxHeight)
-                    val cropSizeDp = maxSize * 0.85f
+                    // ★ Compute crop frame dimensions for the selected ratio.
+                    //   - Limit the frame to 85% of the available space on
+                    //     BOTH axes so it fits even when the ratio is tall
+                    //     (9:16) or wide (16:9).
+                    //   - For portrait ratios (h > w), the height is the
+                    //     limiting axis. For landscape ratios (w > h), the
+                    //     width is the limiting axis.
+                    val maxWidthPx = maxWidth
+                    val maxHeightPx = maxHeight
+                    val frameMaxW = maxWidthPx * 0.88f
+                    val frameMaxH = maxHeightPx * 0.88f
+
+                    val ratioValue = if (selectedRatio.height == 0) {
+                        // Free ratio — use the source bitmap's ratio
+                        val bmp = sourceBitmap
+                        if (bmp != null && bmp.height > 0) {
+                            bmp.width.toFloat() / bmp.height.toFloat()
+                        } else 1f
+                    } else {
+                        selectedRatio.width.toFloat() / selectedRatio.height.toFloat()
+                    }
+
+                    // Try fitting by width first, then check if height fits.
+                    var frameW = frameMaxW
+                    var frameH = frameW / ratioValue
+                    if (frameH > frameMaxH) {
+                        frameH = frameMaxH
+                        frameW = frameH * ratioValue
+                    }
 
                     // The crop frame holds the image. Image is transformed
                     // via graphicsLayer (zoom + pan). Gestures are detected
@@ -197,11 +248,11 @@ fun CoverCropOverlay(
                     // even when the image is smaller than the frame.
                     Box(
                         modifier = Modifier
-                            .size(cropSizeDp)
+                            .size(frameW, frameH)
                             .clip(RoundedCornerShape(4.dp))
                             .background(Color.Black)
                             .border(2.dp, Color.White, RoundedCornerShape(4.dp))
-                            .pointerInput(Unit) {
+                            .pointerInput(selectedRatio) {
                                 detectTransformGestures { _, pan, gestureZoom, _ ->
                                     val newZoom = (zoom * gestureZoom).coerceIn(0.5f, 5f)
                                     zoom = newZoom
@@ -212,15 +263,24 @@ fun CoverCropOverlay(
                         contentAlignment = Alignment.Center
                     ) {
                         if (sourceBitmap != null) {
-                            // Compute initial fit-zoom so the image fills the
-                            // crop frame on its shortest side.
                             val bmp = sourceBitmap!!
                             val density = androidx.compose.ui.platform.LocalDensity.current
-                            val frameSizePx = with(density) { cropSizeDp.toPx() }
-                            val fitZoom = maxOf(
-                                frameSizePx / bmp.width,
-                                frameSizePx / bmp.height
-                            )
+                            val frameWpx = with(density) { frameW.toPx() }
+                            val frameHpx = with(density) { frameH.toPx() }
+                            // fitZoom = scale that makes the image JUST cover the frame
+                            //   on its shorter side (so no empty bands show).
+                            val fitZoomX = frameWpx / bmp.width
+                            val fitZoomY = frameHpx / bmp.height
+                            val fitZoom = max(fitZoomX, fitZoomY)
+
+                            // ★ When the ratio changes, reset pan/zoom so the
+                            //   image re-fits cleanly to the new frame shape.
+                            LaunchedEffect(selectedRatio) {
+                                zoom = 1f
+                                offsetX = 0f
+                                offsetY = 0f
+                            }
+
                             // Apply: fitZoom * user zoom (zoom starts at 1 → image starts fit).
                             val effectiveScale = fitZoom * zoom
 
@@ -238,7 +298,7 @@ fun CoverCropOverlay(
                             )
                         }
 
-                        // Center crosshair + grid lines (rule-of-thirds helper)
+                        // Rule-of-thirds grid overlay
                         CropGridOverlay(modifier = Modifier.fillMaxSize())
 
                         // Saving spinner overlay
@@ -257,19 +317,93 @@ fun CoverCropOverlay(
                             }
                         }
                     }
-
-                    // Hint text below the crop frame
-                    Text(
-                        text = "Pinch to zoom · Drag to position",
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 12.sp,
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 16.dp)
-                    )
                 }
             }
+
+            // ─── Aspect ratio selector + hint (below the crop box) ──────
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Horizontal scrollable row of ratio pills
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                        horizontal = 8.dp
+                    )
+                ) {
+                    items(CropRatio.ALL) { ratio ->
+                        val isSelected = ratio == selectedRatio
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(
+                                    if (isSelected) Color.White
+                                    else Color.White.copy(alpha = 0.08f)
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isSelected) Color.White
+                                            else Color.White.copy(alpha = 0.15f),
+                                    shape = RoundedCornerShape(20.dp)
+                                )
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = { selectedRatio = ratio }
+                                )
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = ratio.label,
+                                color = if (isSelected) Color.Black else Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold
+                                             else FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                // Hint text
+                Text(
+                    text = "Pinch to zoom · Drag to position",
+                    color = Color.White.copy(alpha = 0.45f),
+                    fontSize = 11.sp
+                )
+            }
         }
+    }
+}
+
+/**
+ * Available crop ratios.
+ *
+ * `height == 0` means "Free" — the image keeps its own aspect ratio.
+ */
+enum class CropRatio(val label: String, val width: Int, val height: Int) {
+    SQUARE("1:1", 1, 1),
+    PORTRAIT_3_4("3:4", 3, 4),
+    PORTRAIT_2_3("2:3", 2, 3),
+    PORTRAIT_9_16("9:16", 9, 16),
+    LANDSCAPE_4_3("4:3", 4, 3),
+    LANDSCAPE_3_2("3:2", 3, 2),
+    LANDSCAPE_16_9("16:9", 16, 9),
+    FREE("Free", 0, 0);
+
+    companion object {
+        val ALL = listOf(
+            SQUARE,
+            PORTRAIT_3_4,
+            PORTRAIT_2_3,
+            PORTRAIT_9_16,
+            LANDSCAPE_4_3,
+            LANDSCAPE_3_2,
+            LANDSCAPE_16_9,
+            FREE
+        )
     }
 }
 
@@ -312,109 +446,118 @@ private fun CropGridOverlay(modifier: Modifier = Modifier) {
 }
 
 /**
- * Crops the source bitmap based on the user's zoom/pan gestures.
+ * Crops the source bitmap based on the user's zoom/pan + selected ratio.
  *
  * Strategy:
  *   - The image is rendered at fitZoom * userZoom scale.
- *   - The visible frame is cropSizePx square.
- *   - We need to figure out which region of the ORIGINAL bitmap is visible.
- *   - Then create a new bitmap from that region at a reasonable output size.
+ *   - The visible frame is frameWpx × frameHpx (in screen px).
+ *   - We compute which region of the ORIGINAL bitmap is visible inside
+ *     that frame, accounting for the user's pan offsets.
+ *   - That region is extracted via [Bitmap.createBitmap] and scaled
+ *     down if larger than 1024px on any side.
  *
  * Output is written to a JPEG file in the app's cache dir.
  * Returns the Uri of the temp file, or null on failure.
+ *
+ * @param aspectWidth ratio width (0 means "use source's own ratio")
+ * @param aspectHeight ratio height (0 means "use source's own ratio")
  */
 private fun cropToCacheFile(
     context: Context,
     source: Bitmap,
     zoom: Float,
     offsetX: Float,
-    offsetY: Float
+    offsetY: Float,
+    aspectWidth: Int,
+    aspectHeight: Int
 ): Uri? {
     return try {
-        // Density conversion: zoom/offset are in Compose px (already in px).
-        // Source bitmap dimensions
         val srcW = source.width
         val srcH = source.height
 
-        // We need the crop frame size in px. We saved it as a side-effect
-        // when the user picked the image — but we don't have access here.
-        // Approach: compute the effective source rectangle directly.
-        //
-        // The image is displayed at fitZoom * userZoom scale.
-        // At fitZoom alone, the image just fits the frame on its long side.
-        //   - If landscape (srcW > srcH): frame height = srcH * fitZoom,
-        //     and frame width = srcW * fitZoom (but visible frame is square,
-        //     so cropSizePx = srcH * fitZoom → srcH = cropSizePx / fitZoom).
-        //   - Similar for portrait.
-        //
-        // At userZoom * fitZoom, the image is userZoom × the fit size.
-        // The visible source region in the displayed frame is:
-        //   srcVisibleW = cropSizePx / (fitZoom * userZoom)
-        //   srcVisibleH = cropSizePx / (fitZoom * userZoom)  [square frame]
-        //
-        // Since we don't have cropSizePx here, we use a simpler approach:
-        //   - The crop frame is square.
-        //   - At fitZoom (userZoom=1, offsets=0), the image fills the frame
-        //     on its short side. The visible source region's short side
-        //     equals min(srcW, srcH).
-        //   - As userZoom increases, the visible region shrinks by 1/userZoom.
-        //   - Pan offsets shift the visible region.
-        //
-        // Concretely:
-        val srcShortSide = min(srcW, srcH).toFloat()
-        // Visible source region (square):
-        val visibleSrcSize = srcShortSide / max(zoom, 0.5f)  // don't go below 0.5x
+        // ★ Compute the target output aspect ratio.
+        //   If aspectHeight == 0 (Free), use the source bitmap's own ratio.
+        val targetRatio = if (aspectWidth == 0 || aspectHeight == 0) {
+            srcW.toFloat() / srcH.toFloat()
+        } else {
+            aspectWidth.toFloat() / aspectHeight.toFloat()
+        }
 
-        // Pan offsets are in display px. Convert to source px by dividing by
-        // the effective scale (fitZoom * userZoom). fitZoom here is approximated
-        // as (frameSize / srcShortSide), but we can express the source-space
-        // pan as: panSrcX = offsetX * visibleSrcSize / frameSize.
-        // Since visibleSrcSize / frameSize = 1 / (fitZoom * userZoom) = srcShortSide / (frameSize * userZoom)
-        // and frameSize / srcShortSide = fitZoom, we have:
-        //   visibleSrcSize / frameSize = 1 / (fitZoom * userZoom)
-        // But we don't have frameSize here directly.
+        // ★ The visible region in source coords has the SAME ratio as the
+        //   crop frame (which is set to the selected ratio). So we compute
+        //   the visible region's width based on the visible height, using
+        //   the target ratio.
         //
-        // Simpler: assume pan offsets are roughly proportional to the visible
-        // region. Multiply offsetX/Y by (visibleSrcSize / assumedFrameSize).
-        // Without frameSize, we can use: panSrcFactor = visibleSrcSize / srcShortSide
-        // This gives a small pan effect proportional to the zoom. Imperfect
-        // but visually correct for the crop preview.
+        // First: compute the "short" fit — how much of the source's shorter
+        // side is visible at zoom=1 (the default fit-to-cover state).
         //
-        // Better: use a coordinate-system conversion that doesn't need frameSize.
-        // The center of the visible region in source space is:
-        //   centerX = srcW / 2 - (offsetX / (fitZoom * userZoom))
-        //   centerY = srcH / 2 - (offsetY / (fitZoom * userZoom))
-        // Where fitZoom = frameSize / srcShortSide.
-        // So: offsetX / (fitZoom * userZoom) = offsetX * srcShortSide / (frameSize * userZoom)
-        // But we know visibleSrcSize = srcShortSide / userZoom = frameSize / fitZoom / userZoom
-        // → frameSize = srcShortSide * fitZoom / userZoom * userZoom = srcShortSide * fitZoom
-        // Hmm, that's circular.
+        // At fitZoom, the image just covers the frame on its shorter side.
+        //   - If the image is landscape (srcW > srcH) and the frame is portrait,
+        //     the image fills the frame's height. Visible src height = srcH.
+        //   - In general, the visible region's shorter side at zoom=1 equals
+        //     min(srcW, srcH). At higher zoom, it shrinks by 1/zoom.
+        //
+        // For the ratio-aware crop, we need the visible region to have the
+        // target ratio. The crop frame itself has the target ratio, so the
+        // visible source region (which matches the frame) also has the target
+        // ratio.
+        //
+        // Computing the visible region:
+        //   - Visible width (in source px) = frameWpx / (fitZoom * userZoom)
+        //   - Visible height (in source px) = frameHpx / (fitZoom * userZoom)
+        //   - Visible width / visible height = frameWpx / frameHpx = target ratio ✓
+        //
+        // We need fitZoom. fitZoom = max(frameWpx / srcW, frameHpx / srcH).
+        // We don't know frameWpx/frameHpx directly, but we know their RATIO
+        // (targetRatio), and we can compute their absolute values from the
+        // screen size (assuming the frame is at most 88% of the smaller
+        // screen dimension, like the UI code does).
+        //
+        // We'll approximate the frame size using the screen dimensions.
 
-        // Practical approach: use a reasonable approximation. The pan offsets
-        // we got are in screen px. A 100px pan on a 1080px-wide screen is
-        // ~10% of the screen. So translate to source space as a fraction of
-        // the visible region: panSrcFactor = (offsetX / 1080f) * visibleSrcSize.
-        // Use the screen width as the assumed frame size. This isn't exact,
-        // but since the user adjusts visually, the result matches what they
-        // see in the preview.
         val displayMetrics = context.resources.displayMetrics
         val screenWidthPx = displayMetrics.widthPixels.toFloat()
-        val frameSizeApprox = screenWidthPx * 0.85f  // matches cropSizeDp = 0.85 of maxWidth
+        val screenHeightPx = displayMetrics.heightPixels.toFloat()
 
-        val fitZoom = frameSizeApprox / srcShortSide
+        // Match the UI logic: frame fits in 88% of available width/height.
+        // For portrait ratios, height is the limiting axis. For landscape,
+        // width is the limiting axis. We compute both candidates and pick
+        // the one that fits.
+        val frameMaxW = screenWidthPx * 0.88f
+        val frameMaxH = screenHeightPx * 0.55f  // crop area is roughly half the screen tall (rest is for top bar + ratios)
+
+        // Try fitting by width first, then check if height fits.
+        var frameWpx = frameMaxW
+        var frameHpx = frameWpx / targetRatio
+        if (frameHpx > frameMaxH) {
+            frameHpx = frameMaxH
+            frameWpx = frameHpx * targetRatio
+        }
+
+        // fitZoom = scale that makes the image cover the frame (larger axis).
+        val fitZoomX = frameWpx / srcW
+        val fitZoomY = frameHpx / srcH
+        val fitZoom = max(fitZoomX, fitZoomY)
         val effectiveScale = fitZoom * max(zoom, 0.5f)
 
-        val srcVisibleSize = frameSizeApprox / effectiveScale
+        // ★ Visible source region dimensions (in source px).
+        val srcVisibleW = frameWpx / effectiveScale
+        val srcVisibleH = frameHpx / effectiveScale
+
+        // ★ Visible region center in source coords.
+        //   offsetX/Y are in screen px. Convert to source px by dividing by
+        //   effectiveScale. Positive offset = image moved right/down, which
+        //   means the visible region center moves LEFT/UP in source space.
         val srcCenterX = (srcW / 2f) - (offsetX / effectiveScale)
         val srcCenterY = (srcH / 2f) - (offsetY / effectiveScale)
 
-        // Compute the crop rectangle in source coords, clamped to the bitmap.
-        var left = srcCenterX - srcVisibleSize / 2f
-        var top = srcCenterY - srcVisibleSize / 2f
-        var right = srcCenterX + srcVisibleSize / 2f
-        var bottom = srcCenterY + srcVisibleSize / 2f
+        // Compute the crop rectangle in source coords.
+        var left = srcCenterX - srcVisibleW / 2f
+        var top = srcCenterY - srcVisibleH / 2f
+        var right = srcCenterX + srcVisibleW / 2f
+        var bottom = srcCenterY + srcVisibleH / 2f
 
-        // Clamp to source bounds
+        // Clamp to source bounds (shift the rectangle if it sticks out).
         if (left < 0) { right -= left; left = 0f }
         if (top < 0) { bottom -= top; top = 0f }
         if (right > srcW) { left -= (right - srcW); right = srcW.toFloat() }
