@@ -13,3 +13,5 @@ gradlew.bat
 *.keystore
 keystore.properties
 Record_2026-10-09-12-04-10.mp4
+coral-release.jks
+keystore.properties
