@@ -461,9 +461,6 @@ fun Spiral2Player(
     // ★ Embedding progress + result state for the metadata option.
     var isEmbedding by remember { mutableStateOf(false) }
     var embedResult by remember { mutableStateOf<com.rajatxo.coral.util.MetadataEmbedder.Result?>(null) }
-    // ★ Crop overlay state — shown between image pick and choice dialog.
-    //   User picks an image → crop overlay → cropped Uri → choice dialog.
-    var showCropOverlay by remember { mutableStateOf(false) }
 
     val playerContext = context
     val coverDragPrefs = remember { playerContext.getSharedPreferences("card_positions", android.content.Context.MODE_PRIVATE) }
@@ -493,9 +490,7 @@ fun Spiral2Player(
     ) { uri ->
         if (uri != null) {
             pendingCoverUri = uri
-            // ★ Route to crop overlay first — user adjusts the square crop
-            //   before choosing app-only vs metadata embedding.
-            showCropOverlay = true
+            showCoverChoice = true
         }
         showCoverOptions = false
     }
@@ -1410,26 +1405,6 @@ fun Spiral2Player(
                     }
                 }
             }
-        }
-
-        // ─── Cover crop overlay ───────────────────────────────────────
-        // Square crop UI — shown after the user picks an image but BEFORE
-        // the "Apply Cover Art" choice dialog. Lets the user pan/zoom to
-        // pick the square region they want as the album cover.
-        if (showCropOverlay && pendingCoverUri != null) {
-            CoverCropOverlay(
-                imageUri = pendingCoverUri!!,
-                onCancel = {
-                    showCropOverlay = false
-                    pendingCoverUri = null
-                },
-                onCropComplete = { croppedUri ->
-                    // Replace the original picked URI with the cropped version.
-                    pendingCoverUri = croppedUri
-                    showCropOverlay = false
-                    showCoverChoice = true
-                }
-            )
         }
 
         // ─── Cover options card (Clover button) ──────────────────────

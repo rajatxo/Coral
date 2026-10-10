@@ -103,6 +103,16 @@ fun PermissionScreen(
             }
         )
     }
+    // ★ All files access (MANAGE_EXTERNAL_STORAGE) — OPTIONAL permission
+    //   for embedding cover art into audio file metadata. Not required for
+    //   basic playback or app-only custom covers. Only relevant on Android 11+.
+    var allFilesGranted by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                android.os.Environment.isExternalStorageManager()
+            } else true  // pre-Android 11: legacy storage grants full access
+        )
+    }
 
     // Hint state: shows when user denies a permission
     var showHint by remember { mutableStateOf(false) }
@@ -116,7 +126,8 @@ fun PermissionScreen(
         label = "permissionFade"
     )
 
-    // When all granted, wait 800ms then trigger fade-out, then call onGranted
+    // When required permissions granted (NOT including allFilesGranted — that
+    // one is optional for metadata embedding), wait 800ms then fade out + proceed.
     LaunchedEffect(notifGranted, musicGranted) {
         if (notifGranted && musicGranted) {
             delay(800)
@@ -172,12 +183,64 @@ fun PermissionScreen(
         musicLauncher.launch(perms)
     }
 
+    /**
+     * ★ Request "All files access" (MANAGE_EXTERNAL_STORAGE).
+     *   This is a special permission that can't be requested via the normal
+     *   permission dialog — the user must toggle it in Android Settings.
+     *   We launch the system settings page directly.
+     *
+     *   This permission is OPTIONAL — it's only needed for embedding cover
+     *   art into audio file metadata (the "Embed in metadata" option in the
+     *   player's cover art picker). Without it, app-only custom covers still
+     *   work fine.
+     */
+    fun requestAllFiles() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                }
+                context.startActivity(intent)
+            } catch (_: Exception) {
+                // Fallback: open the general "All files access" page
+                try {
+                    val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                    context.startActivity(intent)
+                } catch (_: Exception) {
+                    // Final fallback: open the app's details settings page
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.fromParts("package", context.packageName, null)
+                    }
+                    context.startActivity(intent)
+                }
+            }
+        } else {
+            // Pre-Android 11: not needed, legacy storage grants full access
+            allFilesGranted = true
+        }
+    }
+
     /** Open the app's system settings page. */
     fun openAppSettings() {
         val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
             data = Uri.fromParts("package", context.packageName, null)
         }
         context.startActivity(intent)
+    }
+
+    // ★ Re-check allFilesGranted when the user returns from the system
+    //   settings page (they might have toggled the permission while away).
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                allFilesGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    android.os.Environment.isExternalStorageManager()
+                } else true
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     Box(
@@ -273,6 +336,30 @@ fun PermissionScreen(
                         else requestMusic()
                     }
                 )
+
+                // ★ All files access — optional card for metadata embedding.
+                //   Shows an "Optional" label so the user knows it's not required.
+                //   Only shown on Android 11+ (pre-R has legacy storage).
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    GlassPermissionCard(
+                        icon = {
+                            Icon(
+                                imageVector = CoralIcons.Wallpaper,
+                                contentDescription = null,
+                                tint = Color.Black,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        },
+                        title = "All files access",
+                        subtitle = "Embed covers into file metadata",
+                        isOn = allFilesGranted,
+                        isOptional = true,
+                        onClick = {
+                            if (allFilesGranted) openAppSettings()
+                            else requestAllFiles()
+                        }
+                    )
+                }
             }
 
             // --- Hint (shown briefly when a permission is denied) ---
@@ -341,7 +428,8 @@ private fun GlassPermissionCard(
     title: String,
     subtitle: String,
     isOn: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    isOptional: Boolean = false
 ) {
     // FIXED: use IntrinsicSize.Min on the Box so it measures its children's
     // minimum height (the content Row) before laying out the overlay layers.
@@ -409,12 +497,33 @@ private fun GlassPermissionCard(
 
             // Title + subtitle (always black for max contrast against frosted glass)
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    color = Color.Black,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = title,
+                        color = Color.Black,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    // ★ "Optional" badge for the All files access card
+                    if (isOptional) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color.Black.copy(alpha = 0.12f))
+                                .padding(horizontal = 5.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                text = "Optional",
+                                color = Color.Black.copy(alpha = 0.6f),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
                 Text(
                     text = subtitle,
                     color = Color.Black.copy(alpha = 0.6f),

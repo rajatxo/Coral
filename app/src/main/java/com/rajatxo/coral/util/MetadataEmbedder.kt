@@ -2,6 +2,7 @@ package com.rajatxo.coral.util
 
 import android.content.Context
 import android.net.Uri
+import android.os.Environment
 import android.provider.MediaStore
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.audio.exceptions.CannotReadException
@@ -10,6 +11,7 @@ import org.jaudiotagger.audio.exceptions.InvalidAudioFrameException
 import org.jaudiotagger.audio.exceptions.ReadOnlyFileException
 import org.jaudiotagger.tag.images.AndroidArtwork
 import java.io.File
+import java.io.FileOutputStream
 
 /**
  * MetadataEmbedder — embeds cover art directly into an audio file's metadata.
@@ -17,19 +19,23 @@ import java.io.File
  * Supports MP3 (ID3 APIC frame), M4A/AAC (MP4 covr atom), FLAC (PICTURE block),
  * OGG (METADATA_BLOCK_PICTURE), and other formats JAudioTagger handles.
  *
- * Uses JAudioTagger's Android-compatible fork (AdrienPoupa:jaudiotagger:2.2.3-PRE2).
+ * ★ Android scoped storage strategy:
+ *   On Android 11+, JAudioTagger's `java.io.File` access to shared-storage
+ *   music files fails even with READ_MEDIA_AUDIO — the file appears to exist
+ *   but the underlying `FileInputStream` can't read the bytes (EACCES).
+ *   ExoPlayer works because it uses ContentResolver.openInputStream(), but
+ *   JAudioTagger only uses java.io.File.
  *
- * Android scoped storage notes:
- *   - On Android 10+, audio files in shared storage (Music, Download, etc.)
- *     are accessible via file paths IF the app has READ_MEDIA_AUDIO.
- *   - For WRITE access without MANAGE_EXTERNAL_STORAGE, the file must be
- *     one the app created OR the user must have granted access via SAF.
- *   - For files the app didn't create (most user music files), this will
- *     work on most devices because media files are NOT subject to the
- *     scoped-storage write restrictions — they can be modified via their
- *     file path as long as the app has READ_MEDIA_AUDIO + WRITE permissions.
- *   - If write fails, the user is informed via the result callback so they
- *     can retry or grant additional permissions.
+ *   To work around this, we:
+ *     1. Copy the audio file to a TEMP file in cacheDir (always accessible).
+ *     2. Run JAudioTagger on the temp file.
+ *     3. Write the modified temp file back to the original location via
+ *        ContentResolver.openOutputStream(songUri) — this works with
+ *        READ_MEDIA_AUDIO for app-created files, or MANAGE_EXTERNAL_STORAGE
+ *        for any file.
+ *
+ *   If the write-back fails, we return needsPermission=true so the UI can
+ *   prompt the user to grant "All files access" (MANAGE_EXTERNAL_STORAGE).
  */
 object MetadataEmbedder {
 
@@ -48,6 +54,16 @@ object MetadataEmbedder {
     )
 
     /**
+     * Check if the app has "All files access" (MANAGE_EXTERNAL_STORAGE).
+     * On Android < 11, this always returns true (legacy storage grants full access).
+     */
+    fun hasAllFilesAccess(): Boolean {
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            Environment.isExternalStorageManager()
+        } else true
+    }
+
+    /**
      * Embed the given cover image into the song file's metadata.
      *
      * Must be called on a background thread (IO dispatcher).
@@ -62,38 +78,7 @@ object MetadataEmbedder {
         songUri: Uri,
         coverUri: Uri
     ): Result {
-        // Step 1: Resolve songUri → file path
-        val filePath = resolveFilePath(context, songUri)
-            ?: return Result(
-                success = false,
-                message = "Could not resolve file path for this song. " +
-                         "If it's in cloud storage or an SD card, embedding won't work."
-            )
-
-        val audioFile = File(filePath)
-        if (!audioFile.exists() || !audioFile.canWrite()) {
-            // Try to make it writable via MediaStore (sometimes fixes perms on Android 11+)
-            try {
-                audioFile.setWritable(true, false)
-            } catch (_: Exception) { }
-            if (!audioFile.exists()) {
-                return Result(
-                    success = false,
-                    message = "Audio file no longer exists at: $filePath",
-                    needsPermission = false
-                )
-            }
-            if (!audioFile.canWrite()) {
-                return Result(
-                    success = false,
-                    message = "Coral doesn't have write permission for this file. " +
-                             "Grant \"All files access\" in Android Settings to embed metadata.",
-                    needsPermission = true
-                )
-            }
-        }
-
-        // Step 2: Copy cover image bytes into memory
+        // Step 1: Read cover image bytes
         val coverBytes = try {
             context.contentResolver.openInputStream(coverUri)?.use { input ->
                 input.readBytes()
@@ -109,142 +94,248 @@ object MetadataEmbedder {
         }
 
         if (coverBytes.isEmpty()) {
-            return Result(
-                success = false,
-                message = "Cover image file is empty."
-            )
+            return Result(success = false, message = "Cover image file is empty.")
         }
 
-        // Step 3: Detect cover image MIME type from the first bytes
         val mimeType = detectMimeType(coverBytes)
 
-        // Step 4: Open the audio file with JAudioTagger
-        val audioTagFile = try {
-            AudioFileIO.read(audioFile)
-        } catch (e: CannotReadException) {
-            return Result(
-                success = false,
-                message = "JAudioTagger cannot read this file format. " +
-                         "It may be DRM-protected or an unusual codec."
-            )
-        } catch (e: ReadOnlyFileException) {
-            return Result(
-                success = false,
-                message = "File is on read-only storage (some SD cards). " +
-                         "Move the file to internal storage and retry.",
-                needsPermission = false
-            )
-        } catch (e: InvalidAudioFrameException) {
-            return Result(
-                success = false,
-                message = "Audio file has corrupted metadata frames. " +
-                         "Cannot embed cover art safely."
-            )
+        // Step 2: Copy the audio file to a temp file in cacheDir.
+        //   ★ This is the KEY fix for the "JAudioTagger cannot read this
+        //   file format" error on Android 11+.
+        //
+        //   JAudioTagger uses java.io.File + FileInputStream, which on
+        //   Android 11+ scoped storage fails with EACCES for files the
+        //   app didn't create — even though the file "exists" and
+        //   canRead() might return true. By copying to cacheDir first,
+        //   we guarantee JAudioTagger can read AND write the temp file.
+        val tempAudioFile = File.createTempFile(
+            "coral_embed_${System.currentTimeMillis()}",
+            ".audio",
+            context.cacheDir
+        )
+        try {
+            val copied = copyAudioToTemp(context, songUri, tempAudioFile)
+            if (!copied) {
+                tempAudioFile.delete()
+                return Result(
+                    success = false,
+                    message = "Could not read the audio file. " +
+                             "The file may be on storage Coral can't access directly."
+                )
+            }
         } catch (e: Exception) {
-            // Permission errors on Android 11+ manifest as generic IOException
-            // — detect write-permission failures and prompt the user.
-            val msg = e.message ?: ""
-            val needsPermission = msg.contains("Permission denied", true) ||
-                                  msg.contains("EACCES", true) ||
-                                  msg.contains("Read-only", true)
+            tempAudioFile.delete()
             return Result(
                 success = false,
-                message = if (needsPermission)
-                    "Coral doesn't have write permission for this file. " +
-                    "Grant \"All files access\" in Android Settings to embed metadata."
-                else "Unexpected error reading audio: $msg",
-                needsPermission = needsPermission
+                message = "Failed to copy audio file for editing: ${e.message}"
             )
         }
 
-        // Step 5: Create an Artwork object and set it on the tag
+        // Step 3: Run JAudioTagger on the temp file
         try {
-            // ★ getTagOrCreateAndSetDefault() — returns the existing tag, or
-            //   creates a format-appropriate default tag (ID3v2 for MP3,
-            //   VorbisComment for FLAC/OGG, MP4 tag for M4A/AAC) AND sets it
-            //   on the AudioFile so commit() will persist it.
+            val audioTagFile = AudioFileIO.read(tempAudioFile)
             val tag = audioTagFile.tagOrCreateAndSetDefault
 
             val artwork = AndroidArtwork()
             artwork.setBinaryData(coverBytes)
             artwork.setMimeType(mimeType)
-            // Picture type 0 = "Other". JAudioTagger expects an Int here.
-            // PictureTypes.DEFAULT_ID == 0 → cover art (front) is 3, but
-            // some formats (FLAC) ignore this field entirely.
             artwork.setPictureType(0)
             artwork.setWidth(0)
             artwork.setHeight(0)
             artwork.setLinked(false)
 
-            // Remove existing artwork (otherwise MP3 ends up with multiple APIC frames)
             try {
                 tag.deleteArtworkField()
-            } catch (_: Exception) {
-                // Some tag types throw — that's fine, we'll just add the new field.
-            }
+            } catch (_: Exception) { }
 
             tag.setField(artwork)
-
-            // Step 6: Save the modified file
             audioTagFile.commit()
-
-            // Step 7: Tell MediaStore to refresh the file so other apps see new art
-            try {
-                val intent = android.content.Intent(
-                    android.content.Intent.ACTION_MEDIA_SCANNER_SCAN_FILE
-                )
-                intent.data = Uri.fromFile(audioFile)
-                context.sendBroadcast(intent)
-            } catch (_: Exception) { }
-
-            // Also use the modern MediaScannerConnection for Android Q+
-            try {
-                android.media.MediaScannerConnection.scanFile(
-                    context,
-                    arrayOf(filePath),
-                    arrayOf("audio/*")
-                ) { _, _ -> }
-            } catch (_: Exception) { }
-
-            return Result(
-                success = true,
-                message = "Cover art embedded into file metadata."
-            )
-        } catch (e: CannotWriteException) {
+        } catch (e: CannotReadException) {
+            tempAudioFile.delete()
             return Result(
                 success = false,
-                message = "Cannot write to this file. " +
-                         "It may be read-only or in use by another app. " +
-                         "Grant \"All files access\" in Android Settings.",
-                needsPermission = true
+                message = "The audio format isn't supported for metadata editing. " +
+                         "JAudioTagger couldn't parse the file structure. " +
+                         "Supported: MP3, M4A/AAC, FLAC, OGG."
+            )
+        } catch (e: ReadOnlyFileException) {
+            tempAudioFile.delete()
+            return Result(
+                success = false,
+                message = "Temp file is read-only (internal error)."
+            )
+        } catch (e: InvalidAudioFrameException) {
+            tempAudioFile.delete()
+            return Result(
+                success = false,
+                message = "Audio file has corrupted metadata frames. " +
+                         "Cannot embed cover art safely."
+            )
+        } catch (e: CannotWriteException) {
+            tempAudioFile.delete()
+            return Result(
+                success = false,
+                message = "Failed to write metadata to temp file: ${e.message}"
             )
         } catch (e: Exception) {
+            tempAudioFile.delete()
             return Result(
                 success = false,
                 message = "Failed to embed cover: ${e.message}"
             )
         }
+
+        // Step 4: Write the modified temp file back to the original location.
+        //   We try multiple approaches in order:
+        //   a. ContentResolver.openOutputStream(songUri) — works for
+        //      app-created files or with MANAGE_EXTERNAL_STORAGE.
+        //   b. Direct file copy via java.io.File — works with
+        //      MANAGE_EXTERNAL_STORAGE.
+        val writeBackResult = writeBackToOriginal(context, songUri, tempAudioFile)
+        tempAudioFile.delete()
+
+        if (!writeBackResult.success) {
+            return Result(
+                success = false,
+                message = writeBackResult.message,
+                needsPermission = writeBackResult.needsPermission
+            )
+        }
+
+        // Step 5: Refresh MediaStore so other apps see the new art
+        refreshMediaStore(context, songUri)
+
+        return Result(
+            success = true,
+            message = "Cover art embedded into file metadata."
+        )
+    }
+
+    /**
+     * Copy the audio file from its content:// URI to a temp file in cacheDir.
+     * Returns true on success, false on failure.
+     */
+    private fun copyAudioToTemp(
+        context: Context,
+        songUri: Uri,
+        tempFile: File
+    ): Boolean {
+        return try {
+            context.contentResolver.openInputStream(songUri)?.use { input ->
+                FileOutputStream(tempFile).use { output ->
+                    input.copyTo(output)
+                }
+            } ?: return false
+            tempFile.exists() && tempFile.length() > 0
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Write the modified temp file back to the original audio file location.
+     *
+     * Tries two approaches:
+     *   1. ContentResolver.openOutputStream(songUri) — works for app-created
+     *      files or with MANAGE_EXTERNAL_STORAGE.
+     *   2. Direct file copy via java.io.File — works with MANAGE_EXTERNAL_STORAGE
+     *      when we can resolve the file path.
+     *
+     * @return WriteBackResult with success status + needsPermission flag
+     */
+    private fun writeBackToOriginal(
+        context: Context,
+        songUri: Uri,
+        tempFile: File
+    ): WriteBackResult {
+        // Approach 1: ContentResolver.openOutputStream
+        //   This works for app-created files on Android 10+, and for ALL
+        //   files if the app has MANAGE_EXTERNAL_STORAGE.
+        try {
+            context.contentResolver.openOutputStream(songUri, "wt")?.use { output ->
+                tempFile.inputStream().use { input ->
+                    input.copyTo(output)
+                }
+            } ?: return WriteBackResult(
+                success = false,
+                message = "Could not open the audio file for writing.",
+                needsPermission = true
+            )
+            return WriteBackResult(success = true)
+        } catch (e: Exception) {
+            // openOutputStream failed — likely needs MANAGE_EXTERNAL_STORAGE.
+            // Fall through to approach 2.
+        }
+
+        // Approach 2: Direct file copy via java.io.File path.
+        //   Only works if the app has MANAGE_EXTERNAL_STORAGE AND we can
+        //   resolve the content:// URI to a file path.
+        val filePath = resolveFilePath(context, songUri)
+        if (filePath != null) {
+            try {
+                val targetFile = File(filePath)
+                if (targetFile.canWrite()) {
+                    tempFile.copyTo(targetFile, overwrite = true)
+                    return WriteBackResult(success = true)
+                }
+            } catch (e: Exception) {
+                // File copy failed too.
+            }
+        }
+
+        // Both approaches failed — the user needs to grant MANAGE_EXTERNAL_STORAGE.
+        return WriteBackResult(
+            success = false,
+            message = "Coral doesn't have permission to write to this file. " +
+                     "Grant \"All files access\" in Android Settings to embed metadata " +
+                     "into audio files.",
+            needsPermission = true
+        )
+    }
+
+    /**
+     * Result of the write-back attempt.
+     */
+    private data class WriteBackResult(
+        val success: Boolean,
+        val message: String = "",
+        val needsPermission: Boolean = false
+    )
+
+    /**
+     * Tell MediaStore to re-scan the file so other apps pick up the new art.
+     */
+    private fun refreshMediaStore(context: Context, songUri: Uri) {
+        try {
+            // Modern API: MediaScannerConnection.scanFile needs a file path.
+            val path = resolveFilePath(context, songUri)
+            if (path != null) {
+                android.media.MediaScannerConnection.scanFile(
+                    context,
+                    arrayOf(path),
+                    arrayOf("audio/*")
+                ) { _, _ -> }
+            }
+        } catch (_: Exception) { }
+
+        try {
+            // Also notify via the legacy broadcast (pre-Q)
+            @Suppress("DEPRECATION")
+            val intent = android.content.Intent(
+                android.content.Intent.ACTION_MEDIA_SCANNER_SCAN_FILE
+            ).apply { data = songUri }
+            context.sendBroadcast(intent)
+        } catch (_: Exception) { }
     }
 
     /**
      * Resolve a content:// URI to an absolute file path.
-     *
-     * Strategy:
-     *   1. Try MediaStore DATA column (works for all MediaStore-tracked files)
-     *   2. Fall back to SAF document ID parsing (for SAF-granted URIs)
-     *   3. Fall back to file:// URI path (for direct file URIs)
-     *
      * Returns null if no file path can be resolved (e.g. cloud URIs).
      */
     private fun resolveFilePath(context: Context, uri: Uri): String? {
-        // Direct file:// URI
-        if (uri.scheme == "file") {
-            return uri.path
-        }
+        if (uri.scheme == "file") return uri.path
 
-        // MediaStore content:// URI
         if (uri.scheme == "content") {
-            // Try MediaStore.DATA first (most reliable for audio files)
             try {
                 context.contentResolver.query(
                     uri,
@@ -261,7 +352,6 @@ object MetadataEmbedder {
                 }
             } catch (_: Exception) { }
 
-            // Try splitting the document ID and reconstructing the path
             try {
                 val docId = android.provider.DocumentsContract.getDocumentId(uri)
                 val split = docId.split(":")
@@ -269,7 +359,7 @@ object MetadataEmbedder {
                     val type = split[0]
                     val relativePath = split[1]
                     val basePath = when (type) {
-                        "primary" -> android.os.Environment.getExternalStorageDirectory().absolutePath
+                        "primary" -> Environment.getExternalStorageDirectory().absolutePath
                         else -> "/storage/$type"
                     }
                     val candidate = "$basePath/$relativePath"
@@ -288,14 +378,11 @@ object MetadataEmbedder {
     private fun detectMimeType(bytes: ByteArray): String {
         if (bytes.size < 4) return "image/jpeg"
         return when {
-            // JPEG: FF D8 FF
             bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() && bytes[2] == 0xFF.toByte() ->
                 "image/jpeg"
-            // PNG: 89 50 4E 47
             bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() &&
             bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte() ->
                 "image/png"
-            // WebP: "RIFF" + skip 4 + "WEBP"
             bytes.size >= 12 &&
             bytes[0] == 0x52.toByte() && bytes[1] == 0x49.toByte() &&
             bytes[2] == 0x46.toByte() && bytes[3] == 0x46.toByte() &&
