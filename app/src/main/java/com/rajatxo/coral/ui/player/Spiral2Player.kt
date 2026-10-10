@@ -522,6 +522,24 @@ fun Spiral2Player(
                                 }
                                 isEmbedding = false
                                 embedResult = result
+                                // ★ After a successful metadata embed, ALSO set
+                                //   the app-only cover. This is CRITICAL because:
+                                //   1. The miniplayer's cover comes from
+                                //      rememberEffectiveCover(currentSongId, currentSongArt).
+                                //      currentSongArt is the MediaItem's artworkUri,
+                                //      which was set at MediaItem creation time and
+                                //      doesn't update after embedding. Without this
+                                //      setCustomCover call, the miniplayer would keep
+                                //      showing the OLD cover until the song changes.
+                                //   2. The full player's outgoing cover layer also
+                                //      uses effectiveAlbumArtUri, which needs this.
+                                //   This doesn't "override" the metadata embed — it
+                                //   just caches the cover for Coral's own UI. The
+                                //   metadata is already permanently in the file.
+                                if (result.success && !applyToApp) {
+                                    com.rajatxo.coral.util.SongCoverManager
+                                        .setCustomCover(songId, uri)
+                                }
                             }
                         } else {
                             // No song URI available — can't embed.
