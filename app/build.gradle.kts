@@ -26,8 +26,16 @@ android {
         applicationId = "com.rajatxo.coral"
         minSdk = 24
         targetSdk = 35
-        versionCode = 59
-        versionName = "2.2.0"
+        versionCode = 60
+        versionName = "2.3.0"
+
+        // ★ TagLib native library only ships arm64-v8a (the AAR from Lyricify
+        //   only contains jni/arm64-v8a/libtaglib_jni.so). Filter to that ABI
+        //   so Gradle doesn't try to package missing .so files for x86 etc.
+        //   arm64-v8a covers all modern Android phones (since 2019).
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
     }
 
     // ─── Signing config — uses the permanent keystore for BOTH debug and release ───
@@ -123,9 +131,12 @@ dependencies {
     implementation("dev.chrisbanes.haze:haze:1.6.9")
     // ★ Lottie — animated cat (tiny JSON, renders natively in Compose)
     implementation("com.airbnb.android:lottie-compose:6.6.2")
-    // ★ JAudioTagger (AdrienPoupa Android fork) — embeds cover art into
-    //   MP3 (APIC frame), M4A/AAC (covr atom), FLAC (PICTURE block), OGG.
-    //   Used by MetadataEmbedder for the "Embed in metadata" option in
-    //   Spiral2Player's cover art picker.
-    implementation("com.github.AdrienPoupa:jaudiotagger:2.2.3")
+    // ★ TagLib — native C++ audio tag library (via JNI).
+    //   Used by MetadataEmbedder to embed cover art into MP3/M4A/FLAC/OGG.
+    //   Way more reliable than JAudioTagger (pure Java) because:
+    //     - TagLib reads file format from magic bytes, NOT the file extension
+    //     - No "CannotReadException" on unusual codec variants (M4A ALAC, etc.)
+    //     - Used by Strawberry, Clementine, MPD, and Lyricify.
+    //   The AAR contains libtaglib_jni.so (arm64-v8a only — see ndk.abiFilters).
+    implementation(files("libs/taglib.aar"))
 }

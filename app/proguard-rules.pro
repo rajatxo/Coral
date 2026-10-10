@@ -47,11 +47,22 @@
 # --- JAudioTagger (metadata embedding) ---
 # Uses heavy reflection to instantiate format-specific tag readers/writers.
 # Without these, R8 strips the tag classes and embedding fails at runtime.
+# ★ REPLACED with native TagLib (libs/taglib.aar) — see below. Keeping these
+#   rules is harmless in case any reference lingers in unused code paths.
 -keep class org.jaudiotagger.** { *; }
 -keep class org.jaudiotagger.tag.** { *; }
 -keep class org.jaudiotagger.audio.** { *; }
 -keep class org.jaudiotagger.audio.exceptions.** { *; }
 -dontwarn org.jaudiotagger.**
+
+# --- TagLib (native C++ audio tag library via JNI) ---
+# The Java wrapper class aman.taglib.TagLib declares native methods that
+# call into libtaglib_jni.so. R8 must keep the class + native method names
+# intact so JNI can find them at runtime.
+-keep class aman.taglib.** { *; }
+-keepclassmembers class aman.taglib.** {
+    native <methods>;
+}
 -dontwarn java.lang.invoke.StringConcatFactory
 
 # --- Font resources (Poppins) ---

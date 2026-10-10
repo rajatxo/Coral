@@ -4,38 +4,36 @@ import android.content.Context
 import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
-import org.jaudiotagger.audio.AudioFileIO
-import org.jaudiotagger.audio.exceptions.CannotReadException
-import org.jaudiotagger.audio.exceptions.CannotWriteException
-import org.jaudiotagger.audio.exceptions.InvalidAudioFrameException
-import org.jaudiotagger.audio.exceptions.ReadOnlyFileException
-import org.jaudiotagger.tag.images.AndroidArtwork
+import aman.taglib.TagLib
 import java.io.File
 import java.io.FileOutputStream
 
 /**
  * MetadataEmbedder — embeds cover art directly into an audio file's metadata.
  *
- * Supports MP3 (ID3 APIC frame), M4A/AAC (MP4 covr atom), FLAC (PICTURE block),
- * OGG (METADATA_BLOCK_PICTURE), and other formats JAudioTagger handles.
+ * Uses **TagLib** (native C++ library via JNI) instead of JAudioTagger.
+ * TagLib is the de-facto standard audio tagging library (used by
+ * Strawberry, Clementine, MPD, and Lyricify). Key advantages over
+ * JAudioTagger:
  *
- * ★ Android scoped storage strategy:
- *   On Android 11+, JAudioTagger's `java.io.File` access to shared-storage
- *   music files fails even with READ_MEDIA_AUDIO — the file appears to exist
- *   but the underlying `FileInputStream` can't read the bytes (EACCES).
- *   ExoPlayer works because it uses ContentResolver.openInputStream(), but
- *   JAudioTagger only uses java.io.File.
+ *   - Reads file format from **magic bytes**, not the file extension.
+ *     JAudioTagger's `AudioFileIO.read(file)` dispatches to a format-specific
+ *     reader based on the file extension — temp files with `.audio` extension
+ *     failed with CannotReadException.
+ *   - No "CannotReadException" on unusual codec variants (M4A ALAC, M4A AAC,
+ *     MP3 with ID3v2.4 + APEv2, etc.)
+ *   - Handles MP3 (ID3v2 APIC), M4A (MP4 covr atom), FLAC (PICTURE block),
+ *     OGG (METADATA_BLOCK_PICTURE), WMA, WAV uniformly.
  *
- *   To work around this, we:
- *     1. Copy the audio file to a TEMP file in cacheDir (always accessible).
- *     2. Run JAudioTagger on the temp file.
- *     3. Write the modified temp file back to the original location via
- *        ContentResolver.openOutputStream(songUri) — this works with
- *        READ_MEDIA_AUDIO for app-created files, or MANAGE_EXTERNAL_STORAGE
- *        for any file.
- *
- *   If the write-back fails, we return needsPermission=true so the UI can
- *   prompt the user to grant "All files access" (MANAGE_EXTERNAL_STORAGE).
+ * Android scoped storage strategy (same as Lyricify's EmbeddingManager):
+ *   1. Copy the audio file from its content:// URI to a temp file in cacheDir
+ *      (always accessible to the app).
+ *   2. Run TagLib on the temp file (reads + writes the temp file).
+ *   3. Write the modified temp file back to the original location via
+ *      ContentResolver.openOutputStream(songUri, "wt") — this works with
+ *      MANAGE_EXTERNAL_STORAGE for any file.
+ *   4. If write-back fails, return needsPermission=true so the UI prompts
+ *      the user to grant All files access.
  */
 object MetadataEmbedder {
 
@@ -101,16 +99,21 @@ object MetadataEmbedder {
 
         // Step 2: Copy the audio file to a temp file in cacheDir.
         //   ★ This is the KEY fix for the "JAudioTagger cannot read this
-        //   file format" error on Android 11+.
+        //   file format" error on Android 11+ scoped storage.
         //
-        //   JAudioTagger uses java.io.File + FileInputStream, which on
-        //   Android 11+ scoped storage fails with EACCES for files the
-        //   app didn't create — even though the file "exists" and
-        //   canRead() might return true. By copying to cacheDir first,
-        //   we guarantee JAudioTagger can read AND write the temp file.
+        //   TagLib uses java.io.File internally — on Android 11+ scoped
+        //   storage, FileInputStream fails with EACCES for files the app
+        //   didn't create. By copying to cacheDir first, we guarantee
+        //   TagLib can read AND write the temp file.
+        //
+        //   ★★ CRITICAL: We preserve the original file extension on the
+        //   temp file. TagLib reads magic bytes so it doesn't strictly need
+        //   this, BUT it's a safety net in case TagLib's format detection
+        //   has edge cases (and it matches Lyricify's approach).
+        val originalExtension = detectAudioExtension(context, songUri)
         val tempAudioFile = File.createTempFile(
             "coral_embed_${System.currentTimeMillis()}",
-            ".audio",
+            ".$originalExtension",
             context.cacheDir
         )
         try {
@@ -131,51 +134,30 @@ object MetadataEmbedder {
             )
         }
 
-        // Step 3: Run JAudioTagger on the temp file
+        // Step 3: Run TagLib on the temp file
         try {
-            val audioTagFile = AudioFileIO.read(tempAudioFile)
-            val tag = audioTagFile.tagOrCreateAndSetDefault
-
-            val artwork = AndroidArtwork()
-            artwork.setBinaryData(coverBytes)
-            artwork.setMimeType(mimeType)
-            artwork.setPictureType(0)
-            artwork.setWidth(0)
-            artwork.setHeight(0)
-            artwork.setLinked(false)
-
-            try {
-                tag.deleteArtworkField()
-            } catch (_: Exception) { }
-
-            tag.setField(artwork)
-            audioTagFile.commit()
-        } catch (e: CannotReadException) {
-            tempAudioFile.delete()
-            return Result(
-                success = false,
-                message = "The audio format isn't supported for metadata editing. " +
-                         "JAudioTagger couldn't parse the file structure. " +
-                         "Supported: MP3, M4A/AAC, FLAC, OGG."
+            val tagLib = TagLib()
+            val success = tagLib.setArtwork(
+                tempAudioFile.absolutePath,
+                coverBytes,
+                mimeType,
+                "Cover (front)"
             )
-        } catch (e: ReadOnlyFileException) {
+
+            if (!success) {
+                tempAudioFile.delete()
+                return Result(
+                    success = false,
+                    message = "TagLib failed to set artwork on the file. " +
+                             "This format may not support embedded artwork."
+                )
+            }
+        } catch (e: UnsatisfiedLinkError) {
             tempAudioFile.delete()
             return Result(
                 success = false,
-                message = "Temp file is read-only (internal error)."
-            )
-        } catch (e: InvalidAudioFrameException) {
-            tempAudioFile.delete()
-            return Result(
-                success = false,
-                message = "Audio file has corrupted metadata frames. " +
-                         "Cannot embed cover art safely."
-            )
-        } catch (e: CannotWriteException) {
-            tempAudioFile.delete()
-            return Result(
-                success = false,
-                message = "Failed to write metadata to temp file: ${e.message}"
+                message = "TagLib native library failed to load. " +
+                         "This may be an unsupported device architecture."
             )
         } catch (e: Exception) {
             tempAudioFile.delete()
@@ -186,11 +168,6 @@ object MetadataEmbedder {
         }
 
         // Step 4: Write the modified temp file back to the original location.
-        //   We try multiple approaches in order:
-        //   a. ContentResolver.openOutputStream(songUri) — works for
-        //      app-created files or with MANAGE_EXTERNAL_STORAGE.
-        //   b. Direct file copy via java.io.File — works with
-        //      MANAGE_EXTERNAL_STORAGE.
         val writeBackResult = writeBackToOriginal(context, songUri, tempAudioFile)
         tempAudioFile.delete()
 
@@ -236,8 +213,9 @@ object MetadataEmbedder {
      * Write the modified temp file back to the original audio file location.
      *
      * Tries two approaches:
-     *   1. ContentResolver.openOutputStream(songUri) — works for app-created
-     *      files or with MANAGE_EXTERNAL_STORAGE.
+     *   1. ContentResolver.openOutputStream(songUri, "wt") — works for
+     *      app-created files on Android 10+, and for ALL files if the app
+     *      has MANAGE_EXTERNAL_STORAGE.
      *   2. Direct file copy via java.io.File — works with MANAGE_EXTERNAL_STORAGE
      *      when we can resolve the file path.
      *
@@ -248,14 +226,16 @@ object MetadataEmbedder {
         songUri: Uri,
         tempFile: File
     ): WriteBackResult {
-        // Approach 1: ContentResolver.openOutputStream
-        //   This works for app-created files on Android 10+, and for ALL
-        //   files if the app has MANAGE_EXTERNAL_STORAGE.
+        // Approach 1: ContentResolver.openOutputStream with "wt" (write truncate)
+        //   "wt" mode tells the content provider to truncate the existing file
+        //   before writing — required because otherwise the old bytes stay and
+        //   the new content might be shorter, leaving garbage at the end.
         try {
             context.contentResolver.openOutputStream(songUri, "wt")?.use { output ->
                 tempFile.inputStream().use { input ->
                     input.copyTo(output)
                 }
+                output.flush()
             } ?: return WriteBackResult(
                 success = false,
                 message = "Could not open the audio file for writing.",
@@ -307,7 +287,6 @@ object MetadataEmbedder {
      */
     private fun refreshMediaStore(context: Context, songUri: Uri) {
         try {
-            // Modern API: MediaScannerConnection.scanFile needs a file path.
             val path = resolveFilePath(context, songUri)
             if (path != null) {
                 android.media.MediaScannerConnection.scanFile(
@@ -316,15 +295,6 @@ object MetadataEmbedder {
                     arrayOf("audio/*")
                 ) { _, _ -> }
             }
-        } catch (_: Exception) { }
-
-        try {
-            // Also notify via the legacy broadcast (pre-Q)
-            @Suppress("DEPRECATION")
-            val intent = android.content.Intent(
-                android.content.Intent.ACTION_MEDIA_SCANNER_SCAN_FILE
-            ).apply { data = songUri }
-            context.sendBroadcast(intent)
         } catch (_: Exception) { }
     }
 
@@ -351,25 +321,89 @@ object MetadataEmbedder {
                     }
                 }
             } catch (_: Exception) { }
-
-            try {
-                val docId = android.provider.DocumentsContract.getDocumentId(uri)
-                val split = docId.split(":")
-                if (split.size >= 2) {
-                    val type = split[0]
-                    val relativePath = split[1]
-                    val basePath = when (type) {
-                        "primary" -> Environment.getExternalStorageDirectory().absolutePath
-                        else -> "/storage/$type"
-                    }
-                    val candidate = "$basePath/$relativePath"
-                    if (File(candidate).exists()) return candidate
-                }
-            } catch (_: Exception) { }
         }
 
         return null
     }
+
+    /**
+     * Detect the audio file extension from its content:// URI.
+     *
+     * TagLib reads magic bytes so it doesn't strictly need the extension,
+     * but we preserve it as a safety net (matches Lyricify's approach).
+     *
+     * Returns the extension WITHOUT the leading dot (e.g. "mp3", "m4a").
+     */
+    private fun detectAudioExtension(context: Context, songUri: Uri): String {
+        // Strategy 1: MediaStore.DISPLAY_NAME
+        try {
+            context.contentResolver.query(
+                songUri,
+                arrayOf(MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.MIME_TYPE),
+                null, null, null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val nameIdx = cursor.getColumnIndex(MediaStore.MediaColumns.DISPLAY_NAME)
+                    if (nameIdx >= 0) {
+                        val name = cursor.getString(nameIdx) ?: ""
+                        val dotIdx = name.lastIndexOf('.')
+                        if (dotIdx >= 0 && dotIdx < name.length - 1) {
+                            val ext = name.substring(dotIdx + 1).lowercase()
+                            if (ext in SUPPORTED_EXTENSIONS) return ext
+                        }
+                    }
+                    val mimeIdx = cursor.getColumnIndex(MediaStore.MediaColumns.MIME_TYPE)
+                    if (mimeIdx >= 0) {
+                        val mime = cursor.getString(mimeIdx) ?: ""
+                        val mapped = mimeTypeToExtension(mime)
+                        if (mapped != null) return mapped
+                    }
+                }
+            }
+        } catch (_: Exception) { }
+
+        // Strategy 2: content:// URI's last path segment
+        try {
+            val lastSeg = songUri.lastPathSegment ?: ""
+            val dotIdx = lastSeg.lastIndexOf('.')
+            if (dotIdx >= 0 && dotIdx < lastSeg.length - 1) {
+                val ext = lastSeg.substring(dotIdx + 1).lowercase()
+                if (ext in SUPPORTED_EXTENSIONS) return ext
+            }
+        } catch (_: Exception) { }
+
+        // Strategy 3: ContentResolver.getType(uri) → MIME type → extension
+        try {
+            val mime = context.contentResolver.getType(songUri)
+            if (mime != null) {
+                val mapped = mimeTypeToExtension(mime)
+                if (mapped != null) return mapped
+            }
+        } catch (_: Exception) { }
+
+        // Fallback: mp3 (most common format)
+        return "mp3"
+    }
+
+    /** Map an audio MIME type to a TagLib-supported extension. */
+    private fun mimeTypeToExtension(mime: String): String? {
+        return when {
+            mime.contains("mpeg", true) -> "mp3"
+            mime.contains("mp4", true) || mime.contains("m4a", true) ||
+            mime.contains("aac", true) || mime.contains("apple", true) -> "m4a"
+            mime.contains("flac", true) -> "flac"
+            mime.contains("ogg", true) || mime.contains("vorbis", true) -> "ogg"
+            mime.contains("wav", true) || mime.contains("x-wav", true) -> "wav"
+            mime.contains("wma", true) || mime.contains("x-ms-wma", true) -> "wma"
+            mime.contains("aiff", true) || mime.contains("x-aiff", true) -> "aif"
+            else -> null
+        }
+    }
+
+    /** Extensions TagLib supports. */
+    private val SUPPORTED_EXTENSIONS = setOf(
+        "mp3", "m4a", "m4b", "m4p", "flac", "ogg", "wma", "wav", "ra", "rm", "aif"
+    )
 
     /**
      * Detect image MIME type from the first few bytes (magic numbers).

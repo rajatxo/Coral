@@ -774,9 +774,15 @@ private fun PlaylistSongRow(
                 .background(CoralColors.SurfaceVariant),
             contentAlignment = Alignment.Center
         ) {
-            if (song.albumArtUri != null) {
+            // ★ Custom cover override — rememberEffectiveCover() observes
+            //   SongCoverManager.revision so this song's tile recomposes
+            //   immediately when the user sets/resets a custom cover.
+            val effectiveArt = com.rajatxo.coral.util.rememberEffectiveCover(
+                song.id, song.albumArtUri
+            )
+            if (effectiveArt != null) {
                 AsyncImage(
-                    model = song.albumArtUri,
+                    model = effectiveArt,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
