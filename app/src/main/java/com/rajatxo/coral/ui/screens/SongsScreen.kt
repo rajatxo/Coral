@@ -314,9 +314,9 @@ private fun SongCapsule(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                if (song.albumArtUri != null) {
+                if (com.rajatxo.coral.util.SongCoverManager.getEffectiveCover(song.id, song.albumArtUri) != null) {
                     AsyncImage(
-                        model = song.albumArtUri,
+                        model = com.rajatxo.coral.util.SongCoverManager.getEffectiveCover(song.id, song.albumArtUri),
                         contentDescription = "Album art",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier

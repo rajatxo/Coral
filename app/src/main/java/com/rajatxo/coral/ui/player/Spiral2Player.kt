@@ -436,6 +436,8 @@ fun Spiral2Player(
     var showCoverOptions by remember { mutableStateOf(false) }
     var showCoverChoice by remember { mutableStateOf(false) }
     var pendingCoverUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var applyToApp by remember { mutableStateOf(true) }
+    var applyToMetadata by remember { mutableStateOf(false) }
 
     val playerContext = androidx.compose.ui.platform.LocalContext.current
     val coverPrefs = remember { playerContext.getSharedPreferences("song_covers", android.content.Context.MODE_PRIVATE) }
@@ -456,6 +458,20 @@ fun Spiral2Player(
     var choiceCardOffsetX by remember { mutableStateOf(coverDragPrefs.getFloat("choice_card_x", 0f)) }
     var choiceCardOffsetY by remember { mutableStateOf(coverDragPrefs.getFloat("choice_card_y", 0f)) }
 
+    // ★ Force re-read of prefs when cards reopen
+    androidx.compose.runtime.LaunchedEffect(showCoverOptions) {
+        if (showCoverOptions) {
+            coverCardOffsetX = coverDragPrefs.getFloat("cover_card_x", 0f)
+            coverCardOffsetY = coverDragPrefs.getFloat("cover_card_y", 0f)
+        }
+    }
+    androidx.compose.runtime.LaunchedEffect(showCoverChoice) {
+        if (showCoverChoice) {
+            choiceCardOffsetX = coverDragPrefs.getFloat("choice_card_x", 0f)
+            choiceCardOffsetY = coverDragPrefs.getFloat("choice_card_y", 0f)
+        }
+    }
+
     val coverPicker = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
     ) { uri ->
@@ -466,23 +482,32 @@ fun Spiral2Player(
         showCoverOptions = false
     }
 
-    val applyCoverAppOnly = {
-        pendingCoverUri?.let { uri ->
-            if (songId != null) {
-                try {
-                    val flag = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    playerContext.contentResolver.takePersistableUriPermission(uri, flag)
-                } catch (_: Exception) { }
-                coverPrefs.edit().putString("cover_$songId", uri.toString()).apply()
+    val applySelected = {
+        if (applyToApp || applyToMetadata) {
+            pendingCoverUri?.let { uri ->
+                if (songId != null) {
+                    try {
+                        val flag = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        playerContext.contentResolver.takePersistableUriPermission(uri, flag)
+                    } catch (_: Exception) { }
+                    if (applyToApp) {
+                        com.rajatxo.coral.util.SongCoverManager.setCustomCover(songId, uri)
+                    }
+                    // TODO: if applyToMetadata, embed in song's ID3/FLAC tags
+                }
             }
         }
         pendingCoverUri = null
         showCoverChoice = false
+        applyToApp = true
+        applyToMetadata = false
     }
 
-    val applyCoverMetadata = {
-        // TODO: embed in song's ID3/FLAC metadata using JAudioTagger library
-        applyCoverAppOnly()
+    val resetCover = {
+        if (songId != null) {
+            com.rajatxo.coral.util.SongCoverManager.resetCover(songId)
+        }
+        showCoverOptions = false
     }
     var showHeartPop by remember { mutableStateOf(false) }
     // ─── Embedded lyrics (extracted from audio metadata) ───────────
@@ -1230,7 +1255,7 @@ fun Spiral2Player(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = CoralIcons.PlayingCardsFan,
+                            imageVector = CoralIcons.ImagePlus,
                             contentDescription = "Change cover art",
                             tint = Color.White,
                             modifier = Modifier.size(22.dp)
@@ -1447,7 +1472,45 @@ fun Spiral2Player(
                         }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
-                    // Option 2: Animated album art (coming soon)
+                    // Option 2: Reset cover art (only if custom cover is set)
+                    if (com.rajatxo.coral.util.SongCoverManager.hasCustomCover(songId)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color.White.copy(alpha = 0.05f))
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = { resetCover() }
+                                )
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = CoralIcons.Trash,
+                                contentDescription = null,
+                                tint = Color(0xFFFF6B6B),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = "Reset cover art",
+                                    color = Color(0xFFFF6B6B),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = "Restore original album art",
+                                    color = Color.White.copy(alpha = 0.4f),
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                    // Option 3: Animated album art (coming soon)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1466,7 +1529,7 @@ fun Spiral2Player(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Icon(
-                            imageVector = CoralIcons.PlayingCardsFan,
+                            imageVector = CoralIcons.ImagePlus,
                             contentDescription = null,
                             tint = Color.White.copy(alpha = 0.5f),
                             modifier = Modifier.size(20.dp)
@@ -1565,28 +1628,38 @@ fun Spiral2Player(
                         }
                         Spacer(modifier = Modifier.height(16.dp))
                     }
-                    // Option 1: App only
+                    // Toggle 1: App only
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color.White.copy(alpha = 0.08f))
+                            .background(if (applyToApp) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.05f))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
-                                onClick = { applyCoverAppOnly() }
+                                onClick = { applyToApp = !applyToApp }
                             )
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Icon(
-                            imageVector = CoralIcons.Wallpaper,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Column {
+                        Box(
+                            modifier = Modifier
+                                .size(22.dp)
+                                .clip(CircleShape)
+                                .background(if (applyToApp) Color.White else Color.White.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (applyToApp) {
+                                Icon(
+                                    imageVector = CoralIcons.Play,
+                                    contentDescription = null,
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "App only",
                                 color = Color.White,
@@ -1601,28 +1674,38 @@ fun Spiral2Player(
                         }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
-                    // Option 2: Embed in metadata
+                    // Toggle 2: Embed in metadata
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color.White.copy(alpha = 0.05f))
+                            .background(if (applyToMetadata) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.05f))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
-                                onClick = { applyCoverMetadata() }
+                                onClick = { applyToMetadata = !applyToMetadata }
                             )
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Icon(
-                            imageVector = CoralIcons.FilePenLine,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.7f),
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Column {
+                        Box(
+                            modifier = Modifier
+                                .size(22.dp)
+                                .clip(CircleShape)
+                                .background(if (applyToMetadata) Color.White else Color.White.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (applyToMetadata) {
+                                Icon(
+                                    imageVector = CoralIcons.Play,
+                                    contentDescription = null,
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "Embed in metadata",
                                 color = Color.White.copy(alpha = 0.8f),
@@ -1635,6 +1718,28 @@ fun Spiral2Player(
                                 fontSize = 12.sp
                             )
                         }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    // Apply button
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .clip(RoundedCornerShape(22.dp))
+                            .background(Color.White)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { applySelected() }
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Apply",
+                            color = Color.Black,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }

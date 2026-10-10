@@ -470,9 +470,9 @@ private fun EditorialCard(
         //
         // Layer 1 (bottom): BLURRED album art — fills the entire card.
         // This is the "down" part. Heavy blur so it's just soft colors.
-        if (song.albumArtUri != null) {
+        if (com.rajatxo.coral.util.SongCoverManager.getEffectiveCover(song.id, song.albumArtUri) != null) {
             AsyncImage(
-                model = song.albumArtUri,
+                model = com.rajatxo.coral.util.SongCoverManager.getEffectiveCover(song.id, song.albumArtUri),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
@@ -499,7 +499,7 @@ private fun EditorialCard(
         // A DstIn gradient at its bottom edge dissolves the sharp image
         // into the blurred layer behind it (the "blend point").
         // Smaller blend height = less gap, more of the sharp cover shows.
-        if (song.albumArtUri != null) {
+        if (com.rajatxo.coral.util.SongCoverManager.getEffectiveCover(song.id, song.albumArtUri) != null) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -526,7 +526,7 @@ private fun EditorialCard(
                     }
             ) {
                 AsyncImage(
-                    model = song.albumArtUri,
+                    model = com.rajatxo.coral.util.SongCoverManager.getEffectiveCover(song.id, song.albumArtUri),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -611,10 +611,10 @@ private fun SquareCard(
         // ═══ Spiral 2.0-style album art blur-blend ═══
         // Layer 1 (bottom): BLURRED album art — pre-computed via Coil
         // BlurTransformation (cached in memory) for smooth scrolling.
-        if (song.albumArtUri != null) {
-            val blurredRequest = remember(song.albumArtUri) {
+        if (com.rajatxo.coral.util.SongCoverManager.getEffectiveCover(song.id, song.albumArtUri) != null) {
+            val blurredRequest = remember(com.rajatxo.coral.util.SongCoverManager.getEffectiveCover(song.id, song.albumArtUri)) {
                 ImageRequest.Builder(context)
-                    .data(song.albumArtUri)
+                    .data(com.rajatxo.coral.util.SongCoverManager.getEffectiveCover(song.id, song.albumArtUri))
                     .transformations(BlurTransformation(36.dp))
                     .build()
             }
@@ -641,7 +641,7 @@ private fun SquareCard(
         }
 
         // Layer 2 (top): SHARP album art — top 75%, DstIn blend at bottom
-        if (song.albumArtUri != null) {
+        if (com.rajatxo.coral.util.SongCoverManager.getEffectiveCover(song.id, song.albumArtUri) != null) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -666,7 +666,7 @@ private fun SquareCard(
                     }
             ) {
                 AsyncImage(
-                    model = song.albumArtUri,
+                    model = com.rajatxo.coral.util.SongCoverManager.getEffectiveCover(song.id, song.albumArtUri),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -744,10 +744,10 @@ private fun LandscapeCard(
         // ═══ Spiral 2.0-style album art blur-blend ═══
         // Layer 1 (bottom): BLURRED album art — pre-computed via Coil
         // BlurTransformation (cached in memory) for smooth scrolling.
-        if (song.albumArtUri != null) {
-            val blurredRequest = remember(song.albumArtUri) {
+        if (com.rajatxo.coral.util.SongCoverManager.getEffectiveCover(song.id, song.albumArtUri) != null) {
+            val blurredRequest = remember(com.rajatxo.coral.util.SongCoverManager.getEffectiveCover(song.id, song.albumArtUri)) {
                 ImageRequest.Builder(context)
-                    .data(song.albumArtUri)
+                    .data(com.rajatxo.coral.util.SongCoverManager.getEffectiveCover(song.id, song.albumArtUri))
                     .transformations(BlurTransformation(36.dp))
                     .build()
             }
@@ -774,7 +774,7 @@ private fun LandscapeCard(
         }
 
         // Layer 2 (top): SHARP album art — top 75%, DstIn blend at bottom
-        if (song.albumArtUri != null) {
+        if (com.rajatxo.coral.util.SongCoverManager.getEffectiveCover(song.id, song.albumArtUri) != null) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -799,7 +799,7 @@ private fun LandscapeCard(
                     }
             ) {
                 AsyncImage(
-                    model = song.albumArtUri,
+                    model = com.rajatxo.coral.util.SongCoverManager.getEffectiveCover(song.id, song.albumArtUri),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -1298,10 +1298,10 @@ private fun SpeedDialCard(
         // Layer 1 (bottom): BLURRED album art — pre-computed via Coil
         // BlurTransformation (cached in memory) for smooth scrolling.
         // Reduced blur (20dp, was 36dp) so the cover isn't cropped too much.
-        if (song.albumArtUri != null) {
-            val blurredRequest = remember(song.albumArtUri) {
+        if (com.rajatxo.coral.util.SongCoverManager.getEffectiveCover(song.id, song.albumArtUri) != null) {
+            val blurredRequest = remember(com.rajatxo.coral.util.SongCoverManager.getEffectiveCover(song.id, song.albumArtUri)) {
                 ImageRequest.Builder(context)
-                    .data(song.albumArtUri)
+                    .data(com.rajatxo.coral.util.SongCoverManager.getEffectiveCover(song.id, song.albumArtUri))
                     .transformations(BlurTransformation(20.dp))
                     .build()
             }
@@ -1329,7 +1329,7 @@ private fun SpeedDialCard(
 
         // Layer 2 (top): SHARP album art — top 85%, DstIn blend at bottom.
         // The blend is only behind the text area (bottom 15%).
-        if (song.albumArtUri != null) {
+        if (com.rajatxo.coral.util.SongCoverManager.getEffectiveCover(song.id, song.albumArtUri) != null) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1354,7 +1354,7 @@ private fun SpeedDialCard(
                     }
             ) {
                 AsyncImage(
-                    model = song.albumArtUri,
+                    model = com.rajatxo.coral.util.SongCoverManager.getEffectiveCover(song.id, song.albumArtUri),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()

@@ -1268,32 +1268,28 @@ object CoralIcons {
      *  M16 5H3 / M11 12H3 / M16 19H3 / M18 9v6 / M21 12h-6
      */
     /** Lucide Clover (MIT) — used in Spiral2 player menu for cover/art options. */
-    val PlayingCardsFan: ImageVector = stroke("PlayingCardsFan") {
-        // M12.65 7.65a2 2 0 012.629-1.046l5.51 2.374a2 2 0 011.046 2.628l-3.957 9.184a2 2 0 01-2.628 1.046l-5.51-2.374a2 2 0 01-1.046-2.628z
-        moveTo(12.65f, 7.65f)
-        arcTo(2f, 2f, 0f, false, true, 2.629f, -1.046f)
-        lineToRelative(5.51f, 2.374f)
-        arcTo(2f, 2f, 0f, false, true, 1.046f, 2.628f)
-        lineToRelative(-3.957f, 9.184f)
-        arcTo(2f, 2f, 0f, false, true, -2.628f, 1.046f)
-        lineToRelative(-5.51f, -2.374f)
-        arcTo(2f, 2f, 0f, false, true, -1.046f, -2.628f)
+    /** ImagePlus — clean icon for "change cover art" in player menu. */
+    val ImagePlus: ImageVector = stroke("ImagePlus") {
+        // Simple image frame with a plus — clean, no arcs to mangle
+        // Rect: M3 5h18v14H3z
+        moveTo(3f, 5f)
+        horizontalLineToRelative(18f)
+        verticalLineToRelative(14f)
+        horizontalLineToRelative(-18f)
+        verticalLineToRelative(-14f)
         close()
-        // M18 7.777V4a2 2 0 00-2-2h-6a2 2 0 00-2 2v10a2 2 0 001.137 1.805
-        moveTo(18f, 7.777f)
-        verticalLineTo(4f)
-        arcTo(2f, 2f, 0f, false, false, -2f, -2f)
-        horizontalLineToRelative(-6f)
-        arcTo(2f, 2f, 0f, false, false, -2f, 0f)
-        verticalLineToRelative(10f)
-        arcTo(2f, 2f, 0f, false, false, 1.137f, 1.805f)
-        // m8 4.389-4.364.809a2 2 0 00-1.602 2.33l1.822 9.833a2 2 0 002.331 1.602l2.542-.47
-        moveToRelative(0f, 0f)
-        lineToRelative(-4.364f, 0.809f)
-        arcTo(2f, 2f, 0f, false, false, -1.602f, 2.33f)
-        lineToRelative(1.822f, 9.833f)
-        arcTo(2f, 2f, 0f, false, false, 2.331f, 1.602f)
-        lineToRelative(2.542f, -0.47f)
+        // Mountain: M21 15l-5-5L5 21
+        moveTo(21f, 15f)
+        lineToRelative(-5f, -5f)
+        lineTo(5f, 21f)
+        // Circle (sun): M8.5 10a1.5 1.5 0 100 3 1.5 1.5 0 000-3z
+        moveTo(8.5f, 10f)
+        arcTo(1.5f, 1.5f, 0f, true, false, 0.001f, 0f)
+        // Plus: M16 16v4 M18 18h-4
+        moveTo(16f, 16f)
+        verticalLineToRelative(4f)
+        moveTo(18f, 18f)
+        horizontalLineToRelative(-4f)
     }
 
     val ListPlus: ImageVector = stroke("ListPlus") {
