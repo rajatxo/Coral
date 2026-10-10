@@ -797,6 +797,14 @@ fun Spiral2Player(
         //   edge fades into the blurred bg (NOT a black gradient) using a
         //   DstIn mask — the sharp cover dissolves into the blur smoothly.
 
+        // ★ KYANT FIX: wrap the background content in a Box with layerBackdrop
+        //   so glassBackdrop can CAPTURE the album art. Without this, drawBackdrop
+        //   on the menu capsule has nothing to blur → shows as dark glass.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .layerBackdrop(glassBackdrop)
+        ) {
         // ─── Outgoing blurred bg (96dp) ──────────────────────────────
         if (albumArtUri != null) {
             AsyncImage(
@@ -902,6 +910,7 @@ fun Spiral2Player(
                 )
             }
         }
+        } // ← closes layerBackdrop Box (kyant capture layer)
 
         // Heart pop overlay (double-tap to favorite)
         if (showHeartPop) {
