@@ -434,26 +434,38 @@ fun Spiral2Player(
     var showLyrics by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
     var showCoverOptions by remember { mutableStateOf(false) }
-    var showCoverChoice by remember { mutableStateOf(false) }  // app-only vs metadata
+    var showCoverChoice by remember { mutableStateOf(false) }
     var pendingCoverUri by remember { mutableStateOf<android.net.Uri?>(null) }
-    // ★ Drag state for the cover options card
-    var coverCardOffsetX by remember { mutableStateOf(0f) }
-    var coverCardOffsetY by remember { mutableStateOf(0f) }
 
-    // ★ Image picker for custom song cover
     val playerContext = androidx.compose.ui.platform.LocalContext.current
+    val coverPrefs = remember { playerContext.getSharedPreferences("song_covers", android.content.Context.MODE_PRIVATE) }
+    val coverDragPrefs = remember { playerContext.getSharedPreferences("card_positions", android.content.Context.MODE_PRIVATE) }
+
+    // ★ Read custom cover from prefs (overrides albumArtUri)
+    val customCoverUri = remember(songId) {
+        songId?.let { id ->
+            coverPrefs.getString("cover_$id", null)?.let { android.net.Uri.parse(it) }
+        }
+    }
+    // ★ Effective album art: custom cover if set, otherwise original
+    val effectiveAlbumArtUri = customCoverUri ?: albumArtUri
+
+    // ★ Persist drag positions
+    var coverCardOffsetX by remember { mutableStateOf(coverDragPrefs.getFloat("cover_card_x", 0f)) }
+    var coverCardOffsetY by remember { mutableStateOf(coverDragPrefs.getFloat("cover_card_y", 0f)) }
+    var choiceCardOffsetX by remember { mutableStateOf(coverDragPrefs.getFloat("choice_card_x", 0f)) }
+    var choiceCardOffsetY by remember { mutableStateOf(coverDragPrefs.getFloat("choice_card_y", 0f)) }
+
     val coverPicker = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
-            // ★ Don't apply immediately — show the choice dialog first
             pendingCoverUri = uri
             showCoverChoice = true
         }
         showCoverOptions = false
     }
 
-    // ★ Apply cover (app-only)
     val applyCoverAppOnly = {
         pendingCoverUri?.let { uri ->
             if (songId != null) {
@@ -461,18 +473,15 @@ fun Spiral2Player(
                     val flag = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
                     playerContext.contentResolver.takePersistableUriPermission(uri, flag)
                 } catch (_: Exception) { }
-                val prefs = playerContext.getSharedPreferences("song_covers", android.content.Context.MODE_PRIVATE)
-                prefs.edit().putString("cover_$songId", uri.toString()).apply()
+                coverPrefs.edit().putString("cover_$songId", uri.toString()).apply()
             }
         }
         pendingCoverUri = null
         showCoverChoice = false
     }
 
-    // ★ Apply cover (metadata — TODO: needs JAudioTagger library)
     val applyCoverMetadata = {
         // TODO: embed in song's ID3/FLAC metadata using JAudioTagger library
-        // For now, same as app-only
         applyCoverAppOnly()
     }
     var showHeartPop by remember { mutableStateOf(false) }
@@ -851,7 +860,7 @@ fun Spiral2Player(
         // ─── Outgoing blurred bg (96dp) ──────────────────────────────
         if (albumArtUri != null) {
             AsyncImage(
-                model = albumArtUri,
+                model = effectiveAlbumArtUri,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 colorFilter = bgSatFilter,
@@ -901,7 +910,7 @@ fun Spiral2Player(
             ) {
                 if (albumArtUri != null) {
                     AsyncImage(
-                        model = albumArtUri,
+                        model = effectiveAlbumArtUri,
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
@@ -1221,7 +1230,7 @@ fun Spiral2Player(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = CoralIcons.Clover,
+                            imageVector = CoralIcons.PlayingCardsFan,
                             contentDescription = "Change cover art",
                             tint = Color.White,
                             modifier = Modifier.size(22.dp)
@@ -1387,10 +1396,11 @@ fun Spiral2Player(
                                     change.consume()
                                     coverCardOffsetX += dragAmount.x
                                     coverCardOffsetY += dragAmount.y
+                                    coverDragPrefs.edit().putFloat("cover_card_x", coverCardOffsetX).putFloat("cover_card_y", coverCardOffsetY).apply()
                                 }
                             }
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = "Change Cover Art",
                         color = Color.White,
@@ -1456,7 +1466,7 @@ fun Spiral2Player(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Icon(
-                            imageVector = CoralIcons.Clover,
+                            imageVector = CoralIcons.PlayingCardsFan,
                             contentDescription = null,
                             tint = Color.White.copy(alpha = 0.5f),
                             modifier = Modifier.size(20.dp)
@@ -1494,6 +1504,7 @@ fun Spiral2Player(
             ) {
                 Column(
                     modifier = Modifier
+                        .offset { androidx.compose.ui.unit.IntOffset(choiceCardOffsetX.toInt(), choiceCardOffsetY.toInt()) }
                         .padding(horizontal = 40.dp)
                         .width(260.dp)
                         .clip(RoundedCornerShape(20.dp))
@@ -1511,15 +1522,23 @@ fun Spiral2Player(
                         .padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Drag handle
+                    // ★ Draggable handle bar — closer to top (6dp gap)
                     Box(
                         modifier = Modifier
                             .width(40.dp)
                             .height(4.dp)
                             .clip(RoundedCornerShape(2.dp))
                             .background(Color.White.copy(alpha = 0.3f))
+                            .pointerInput(Unit) {
+                                detectDragGestures { change, dragAmount ->
+                                    change.consume()
+                                    choiceCardOffsetX += dragAmount.x
+                                    choiceCardOffsetY += dragAmount.y
+                                    coverDragPrefs.edit().putFloat("choice_card_x", choiceCardOffsetX).putFloat("choice_card_y", choiceCardOffsetY).apply()
+                                }
+                            }
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = "Apply Cover Art",
                         color = Color.White,
