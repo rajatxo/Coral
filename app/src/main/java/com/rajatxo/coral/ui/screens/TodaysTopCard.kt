@@ -192,11 +192,12 @@ fun TodaysTopCard(
 
                 // ★ Custom cover override — if the song has a custom cover
                 //   set in SongCoverManager, show THAT instead of the file's
-                //   original album art. This is the same override that
-                //   QuickPicks, Songs, Search, and the player UI use, so
-                //   the cover stays consistent across all screens.
-                val effectiveArt = com.rajatxo.coral.util.SongCoverManager
-                    .getEffectiveCover(song.id, song.albumArtUri)
+                //   original album art. rememberEffectiveCover() observes the
+                //   revision StateFlow so the card recomposes immediately
+                //   when a cover is set/reset for this song.
+                val effectiveArt = com.rajatxo.coral.util.rememberEffectiveCover(
+                    song.id, song.albumArtUri
+                )
 
                 Box(
                     modifier = Modifier

@@ -334,14 +334,16 @@ fun Spiral2Player(
     // ★ Read custom cover from prefs (overrides albumArtUri).
     //   Must be defined here — BEFORE albumArtCaughtUp — so the crossfade
     //   release logic can use it.
-    val coverPrefs = remember { context.getSharedPreferences("song_covers", android.content.Context.MODE_PRIVATE) }
-    val customCoverUri = remember(songId) {
-        songId?.let { id ->
-            coverPrefs.getString("cover_$id", null)?.let { android.net.Uri.parse(it) }
-        }
-    }
-    // ★ Effective album art: custom cover if set, otherwise original
-    val effectiveAlbumArtUri = customCoverUri ?: albumArtUri
+    //
+    //   ★★ CRITICAL: rememberEffectiveCover() observes SongCoverManager.revision
+    //   so the player recomposes immediately when the user sets/resets a
+    //   custom cover for the CURRENTLY PLAYING song. Without this, remember(songId)
+    //   wouldn't re-execute (songId is unchanged), and the player would
+    //   keep showing the old cover until the song changed.
+    val effectiveAlbumArtUri = com.rajatxo.coral.util.rememberEffectiveCover(
+        songId, albumArtUri
+    )
+    val customCoverUri = effectiveAlbumArtUri?.let { if (it != albumArtUri) it else null }
 
     val albumArtCaughtUp = xfIncomingArt != null && effectiveAlbumArtUri == xfIncomingArt
     val outAlpha = when {
@@ -1534,7 +1536,10 @@ fun Spiral2Player(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     // Option 2: Reset cover art (only if custom cover is set)
-                    if (com.rajatxo.coral.util.SongCoverManager.hasCustomCover(songId)) {
+                    // ★ Uses coverRevision so the button appears/disappears
+                    //   immediately when a cover is set or reset.
+                    if (com.rajatxo.coral.util.SongCoverManager.hasCustomCover(songId) ||
+                        customCoverUri != null) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()

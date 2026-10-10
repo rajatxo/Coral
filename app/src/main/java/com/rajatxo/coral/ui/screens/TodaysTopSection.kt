@@ -72,7 +72,13 @@ fun TodaysTopSection(
         List(6) { index -> topSongs.getOrNull(index) }
     }
 
-    LaunchedEffect(topSongs) {
+    // ★ Re-extract dominant colors when topSongs OR coverRevision changes.
+    //   coverRevision bumps when the user sets/resets a custom cover —
+    //   without it, the capsule border colors would stay based on the
+    //   old (original) album art.
+    val coverRevisionForColors by com.rajatxo.coral.util.SongCoverManager
+        .revision.collectAsState()
+    LaunchedEffect(topSongs, coverRevisionForColors) {
         try {
             val colors = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 val colors = mutableListOf<Color>()
@@ -207,12 +213,12 @@ private fun CoverSlot(
 ) {
     val coverSize = 40.dp
 
-    // ★ Custom cover override — if the song has a custom cover set in
-    //   SongCoverManager, show THAT instead of the file's original art.
-    val effectiveArt = if (song != null) {
-        com.rajatxo.coral.util.SongCoverManager
-            .getEffectiveCover(song.id, song.albumArtUri)
-    } else null
+    // ★ Custom cover override — rememberEffectiveCover() observes the
+    //   revision StateFlow so the slot recomposes immediately when a
+    //   cover is set/reset for this song.
+    val effectiveArt = com.rajatxo.coral.util.rememberEffectiveCover(
+        song?.id, song?.albumArtUri
+    )
 
     Box(
         modifier = Modifier

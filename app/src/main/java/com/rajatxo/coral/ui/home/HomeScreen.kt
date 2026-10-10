@@ -334,15 +334,22 @@ fun HomeScreen(
     // read it INSTANTLY when opened (no black flash).
     val homeContext = androidx.compose.ui.platform.LocalContext.current
     var capsuleAccentColor by remember { mutableStateOf<Color>(Color(0xFFF4B400)) }
-    androidx.compose.runtime.LaunchedEffect(currentSongArt) {
+    // ★ Re-extract palette when the effective cover changes.
+    //   rememberEffectiveCover() bumps when the user sets/resets a custom
+    //   cover for the current song — without this, the capsule accent color
+    //   would stay based on the old (original) album art.
+    val effectiveCurrentSongArt = com.rajatxo.coral.util.rememberEffectiveCover(
+        currentSongId, currentSongArt
+    )
+    androidx.compose.runtime.LaunchedEffect(effectiveCurrentSongArt) {
         com.rajatxo.coral.util.extractPalette(
             context = homeContext,
-            artUri = currentSongArt
+            artUri = effectiveCurrentSongArt
         )?.let {
             capsuleAccentColor = it.accent
             // Cache the full palette so the full player opens with no flash
-            if (currentSongArt != null) {
-                com.rajatxo.coral.util.PaletteCache.put(currentSongArt, it)
+            if (effectiveCurrentSongArt != null) {
+                com.rajatxo.coral.util.PaletteCache.put(effectiveCurrentSongArt, it)
             }
         }
     }
@@ -1306,11 +1313,16 @@ private fun MiniPlayer(
 ) {
     // ★ Custom cover override — if the song has a custom cover set in
     //   SongCoverManager, show THAT in the mini player instead of the
-    //   file's original album art. This is what the user means by
-    //   "the cover is only showing on cards, player ui, speed dial cards,
-    //   still it's not showing in miniplayer".
-    val effectiveAlbumArtUri = com.rajatxo.coral.util.SongCoverManager
-        .getEffectiveCover(songId, albumArtUri)
+    //   file's original album art.
+    //
+    //   ★★ CRITICAL: rememberEffectiveCover() observes SongCoverManager.revision
+    //   so the mini player recomposes immediately when the user sets/resets
+    //   a custom cover for the CURRENTLY PLAYING song. Without this, the
+    //   mini player wouldn't update (songId stays the same, so plain
+    //   remember(songId) wouldn't re-execute).
+    val effectiveAlbumArtUri = com.rajatxo.coral.util.rememberEffectiveCover(
+        songId, albumArtUri
+    )
 
     // Notched mini player — pill with a U-shaped concave notch at the
     // bottom-center, and the search capsule nested inside that notch.
