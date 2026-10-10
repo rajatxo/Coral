@@ -693,10 +693,19 @@ private fun PlaylistWheel(
     // Scroll offset (in pixels). Each pxPerItem corresponds to angleStepDeg
     // of rotation. Positive = wheel rotates so items move DOWN visually
     // (finger swiped down); negative = items move UP.
-    val scrollOffset = remember { Animatable(0f) }
+    // ★ PERSIST WHEEL POSITION: save/restore the last centered playlist index
+    //   so switching tabs and coming back keeps the wheel where it was.
+    val wheelContext = androidx.compose.ui.platform.LocalContext.current
+    val wheelPrefs = remember { wheelContext.getSharedPreferences("coral_wheel", android.content.Context.MODE_PRIVATE) }
+    val savedIndex = remember { wheelPrefs.getInt("wheel_center_index", 0) }
+
+    val scrollOffset = remember {
+        // ★ Restore from saved index — convert index back to scrollOffset
+        Animatable(savedIndex * pxPerItem)
+    }
 
     // Index of the item currently at the apex (selected).
-    var lastSnappedIndex by remember { mutableStateOf(0) }
+    var lastSnappedIndex by remember { mutableStateOf(savedIndex) }
 
     // --- Selection helper ---
     // ★ DIRECTION FIX: user reports swipe-up shows the WRONG playlist.
@@ -716,6 +725,9 @@ private fun PlaylistWheel(
     androidx.compose.runtime.LaunchedEffect(centerIndex, playlists) {
         if (playlists.isNotEmpty()) {
             onCenterPlaylistChange(playlists[centerIndex])
+            // ★ PERSIST: save the center index so switching tabs + coming back
+            //   keeps the wheel on the same playlist
+            wheelPrefs.edit().putInt("wheel_center_index", centerIndex).apply()
         }
     }
 
