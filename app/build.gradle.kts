@@ -26,8 +26,8 @@ android {
         applicationId = "com.rajatxo.coral"
         minSdk = 24
         targetSdk = 35
-        versionCode = 55
-        versionName = "2.0.1"
+        versionCode = 56
+        versionName = "2.1.0"
     }
 
     // ─── Signing config — uses the permanent keystore for BOTH debug and release ───
@@ -123,4 +123,9 @@ dependencies {
     implementation("dev.chrisbanes.haze:haze:1.6.9")
     // ★ Lottie — animated cat (tiny JSON, renders natively in Compose)
     implementation("com.airbnb.android:lottie-compose:6.6.2")
+    // ★ JAudioTagger (AdrienPoupa Android fork) — embeds cover art into
+    //   MP3 (APIC frame), M4A/AAC (covr atom), FLAC (PICTURE block), OGG.
+    //   Used by MetadataEmbedder for the "Embed in metadata" option in
+    //   Spiral2Player's cover art picker.
+    implementation("com.github.AdrienPoupa:jaudiotagger:2.2.3")
 }

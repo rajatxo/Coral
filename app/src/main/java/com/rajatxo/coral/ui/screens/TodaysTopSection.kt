@@ -78,8 +78,15 @@ fun TodaysTopSection(
                 val colors = mutableListOf<Color>()
                 for (i in 0 until 6) {
                     val song = topSongs.getOrNull(i)
-                    if (song != null && song.albumArtUri != null) {
-                        val color = extractDominantColor(context, song.albumArtUri)
+                    // ★ Use EFFECTIVE cover (custom override if set) — covers
+                    //   the case where the song originally had no art but the
+                    //   user added a custom cover.
+                    val effectiveArt = if (song != null) {
+                        com.rajatxo.coral.util.SongCoverManager
+                            .getEffectiveCover(song.id, song.albumArtUri)
+                    } else null
+                    if (effectiveArt != null) {
+                        val color = extractDominantColor(context, effectiveArt)
                         colors.add(color)
                     } else {
                         colors.add(getVibrantFallbackColor(i))
@@ -200,6 +207,13 @@ private fun CoverSlot(
 ) {
     val coverSize = 40.dp
 
+    // ★ Custom cover override — if the song has a custom cover set in
+    //   SongCoverManager, show THAT instead of the file's original art.
+    val effectiveArt = if (song != null) {
+        com.rajatxo.coral.util.SongCoverManager
+            .getEffectiveCover(song.id, song.albumArtUri)
+    } else null
+
     Box(
         modifier = Modifier
             .size(coverSize)
@@ -217,10 +231,10 @@ private fun CoverSlot(
             ),
         contentAlignment = Alignment.Center
     ) {
-        if (song != null && song.albumArtUri != null) {
+        if (effectiveArt != null) {
             AsyncImage(
-                model = song.albumArtUri,
-                contentDescription = song.title,
+                model = effectiveArt,
+                contentDescription = song?.title,
                 modifier = Modifier.size(coverSize)
             )
         } else if (song != null) {

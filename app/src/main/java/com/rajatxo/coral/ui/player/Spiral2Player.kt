@@ -323,19 +323,37 @@ fun Spiral2Player(
     }
 
     // ─── Cover flash fix ───────────────────────────────────────────
-    // Keep outgoing hidden / incoming visible until albumArtUri ACTUALLY
-    // matches xfIncomingArt. Derived state — no timer, no race condition.
-    val albumArtCaughtUp = xfIncomingArt != null && albumArtUri == xfIncomingArt
+    // Keep outgoing hidden / incoming visible until the EFFECTIVE cover
+    // (custom override if set, otherwise the original) actually matches
+    // xfIncomingArt. We use the EFFECTIVE cover here — not the raw
+    // albumArtUri parameter — because CrossfadeVisualState now broadcasts
+    // the effective cover (see SimpleCrossfadeController). If we compared
+    // against the raw albumArtUri, the match would never succeed when a
+    // custom cover is set, leaving the player stuck on the incoming layer.
+    //
+    // ★ Read custom cover from prefs (overrides albumArtUri).
+    //   Must be defined here — BEFORE albumArtCaughtUp — so the crossfade
+    //   release logic can use it.
+    val coverPrefs = remember { context.getSharedPreferences("song_covers", android.content.Context.MODE_PRIVATE) }
+    val customCoverUri = remember(songId) {
+        songId?.let { id ->
+            coverPrefs.getString("cover_$id", null)?.let { android.net.Uri.parse(it) }
+        }
+    }
+    // ★ Effective album art: custom cover if set, otherwise original
+    val effectiveAlbumArtUri = customCoverUri ?: albumArtUri
+
+    val albumArtCaughtUp = xfIncomingArt != null && effectiveAlbumArtUri == xfIncomingArt
     val outAlpha = when {
         xfActive -> kotlin.math.cos(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
-        // After crossfade ends: keep outgoing hidden until albumArtUri catches up
+        // After crossfade ends: keep outgoing hidden until effective cover catches up
         (xfIncomingArt != null && !albumArtCaughtUp) -> 0f
         else -> 1f
     }
     val showIncoming = xfIncomingArt != null && (xfActive || !albumArtCaughtUp)
     val inAlpha = when {
         xfActive -> kotlin.math.sin(xfProgress * kotlin.math.PI / 2).toFloat().coerceIn(0f, 1f)
-        // After crossfade ends: keep incoming at full until albumArtUri catches up
+        // After crossfade ends: keep incoming at full until effective cover catches up
         !albumArtCaughtUp -> 1f
         else -> 0f
     }
@@ -438,19 +456,15 @@ fun Spiral2Player(
     var pendingCoverUri by remember { mutableStateOf<android.net.Uri?>(null) }
     var applyToApp by remember { mutableStateOf(true) }
     var applyToMetadata by remember { mutableStateOf(false) }
+    // ★ Embedding progress + result state for the metadata option.
+    var isEmbedding by remember { mutableStateOf(false) }
+    var embedResult by remember { mutableStateOf<com.rajatxo.coral.util.MetadataEmbedder.Result?>(null) }
+    // ★ Crop overlay state — shown between image pick and choice dialog.
+    //   User picks an image → crop overlay → cropped Uri → choice dialog.
+    var showCropOverlay by remember { mutableStateOf(false) }
 
-    val playerContext = androidx.compose.ui.platform.LocalContext.current
-    val coverPrefs = remember { playerContext.getSharedPreferences("song_covers", android.content.Context.MODE_PRIVATE) }
+    val playerContext = context
     val coverDragPrefs = remember { playerContext.getSharedPreferences("card_positions", android.content.Context.MODE_PRIVATE) }
-
-    // ★ Read custom cover from prefs (overrides albumArtUri)
-    val customCoverUri = remember(songId) {
-        songId?.let { id ->
-            coverPrefs.getString("cover_$id", null)?.let { android.net.Uri.parse(it) }
-        }
-    }
-    // ★ Effective album art: custom cover if set, otherwise original
-    val effectiveAlbumArtUri = customCoverUri ?: albumArtUri
 
     // ★ Persist drag positions
     var coverCardOffsetX by remember { mutableStateOf(coverDragPrefs.getFloat("cover_card_x", 0f)) }
@@ -477,7 +491,9 @@ fun Spiral2Player(
     ) { uri ->
         if (uri != null) {
             pendingCoverUri = uri
-            showCoverChoice = true
+            // ★ Route to crop overlay first — user adjusts the square crop
+            //   before choosing app-only vs metadata embedding.
+            showCropOverlay = true
         }
         showCoverOptions = false
     }
@@ -493,7 +509,32 @@ fun Spiral2Player(
                     if (applyToApp) {
                         com.rajatxo.coral.util.SongCoverManager.setCustomCover(songId, uri)
                     }
-                    // TODO: if applyToMetadata, embed in song's ID3/FLAC tags
+                    // ★ Embed in metadata (file tags) — runs in background.
+                    //   UI shows a spinner; result dialog appears when done.
+                    if (applyToMetadata) {
+                        val songUri = mediaController?.currentMediaItem?.localConfiguration?.uri
+                        if (songUri != null) {
+                            isEmbedding = true
+                            coroutineScope.launch {
+                                val result = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    com.rajatxo.coral.util.MetadataEmbedder.embedCover(
+                                        context = playerContext,
+                                        songUri = songUri,
+                                        coverUri = uri
+                                    )
+                                }
+                                isEmbedding = false
+                                embedResult = result
+                            }
+                        } else {
+                            // No song URI available — can't embed.
+                            embedResult = com.rajatxo.coral.util.MetadataEmbedder.Result(
+                                success = false,
+                                message = "Couldn't determine the song's file location. " +
+                                         "Try playing the song first, then retry."
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -1369,6 +1410,26 @@ fun Spiral2Player(
             }
         }
 
+        // ─── Cover crop overlay ───────────────────────────────────────
+        // Square crop UI — shown after the user picks an image but BEFORE
+        // the "Apply Cover Art" choice dialog. Lets the user pan/zoom to
+        // pick the square region they want as the album cover.
+        if (showCropOverlay && pendingCoverUri != null) {
+            CoverCropOverlay(
+                imageUri = pendingCoverUri!!,
+                onCancel = {
+                    showCropOverlay = false
+                    pendingCoverUri = null
+                },
+                onCropComplete = { croppedUri ->
+                    // Replace the original picked URI with the cropped version.
+                    pendingCoverUri = croppedUri
+                    showCropOverlay = false
+                    showCoverChoice = true
+                }
+            )
+        }
+
         // ─── Cover options card (Clover button) ──────────────────────
         // ★ Floating kyant glass card with two options:
         //   1. Upload album cover (image from gallery)
@@ -1730,16 +1791,160 @@ fun Spiral2Player(
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
+                                enabled = !isEmbedding,
                                 onClick = { applySelected() }
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "Apply",
-                            color = Color.Black,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold
+                        if (isEmbedding) {
+                            androidx.compose.material3.CircularProgressIndicator(
+                                color = Color.Black,
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        } else {
+                            Text(
+                                text = "Apply",
+                                color = Color.Black,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // ─── Embedding result dialog ─────────────────────────────────
+        // Shown when the metadata embed completes (success or failure).
+        // For permission failures, includes an "Open Settings" button that
+        // launches the system "All files access" screen.
+        embedResult?.let { result ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.7f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { embedResult = null }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(horizontal = 40.dp)
+                        .width(280.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0xFF1A1A1A))
+                        .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Icon: check or warning
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (result.success) Color(0xFF51CF66)
+                                else Color(0xFFFF6B6B)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (result.success) CoralIcons.Check
+                                          else CoralIcons.AlertTriangle,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
                         )
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = if (result.success) "Cover embedded" else "Couldn't embed",
+                        color = Color.White,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = result.message,
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 13.sp,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (result.needsPermission) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(40.dp)
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(Color.White.copy(alpha = 0.1f))
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = {
+                                            try {
+                                                val intent = android.content.Intent(
+                                                    android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION
+                                                ).apply {
+                                                    data = android.net.Uri.parse(
+                                                        "package:${playerContext.packageName}"
+                                                    )
+                                                }
+                                                playerContext.startActivity(intent)
+                                            } catch (_: Exception) {
+                                                try {
+                                                    val intent = android.content.Intent(
+                                                        android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+                                                    ).apply {
+                                                        data = android.net.Uri.parse(
+                                                            "package:${playerContext.packageName}"
+                                                        )
+                                                    }
+                                                    playerContext.startActivity(intent)
+                                                } catch (_: Exception) { }
+                                            }
+                                            embedResult = null
+                                        }
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Open Settings",
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(40.dp)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Color.White)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = { embedResult = null }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "OK",
+                                color = Color.Black,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }

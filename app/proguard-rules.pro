@@ -44,9 +44,18 @@
 -keep class com.rajatxo.coral.data.prefs.** { *; }
 -keep class com.rajatxo.coral.data.premium.** { *; }
 
+# --- JAudioTagger (metadata embedding) ---
+# Uses heavy reflection to instantiate format-specific tag readers/writers.
+# Without these, R8 strips the tag classes and embedding fails at runtime.
+-keep class org.jaudiotagger.** { *; }
+-keep class org.jaudiotagger.tag.** { *; }
+-keep class org.jaudiotagger.audio.** { *; }
+-keep class org.jaudiotagger.audio.exceptions.** { *; }
+-dontwarn org.jaudiotagger.**
+-dontwarn java.lang.invoke.StringConcatFactory
+
 # --- Font resources (Poppins) ---
 -keep class com.rajatxo.coral.R$font { *; }
 
 # --- Generic safe fallbacks ---
--dontwarn java.lang.invoke.StringConcatFactory
 -dontwarn javax.lang.model.**

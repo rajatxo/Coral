@@ -171,9 +171,29 @@ class SimpleCrossfadeController(
             val incomingArtist = incomingMeta?.artist?.toString() ?: ""
             val incomingAlbum = incomingMeta?.albumTitle?.toString()
 
-            // Broadcast: tell the UI a visual crossfade is starting
+            // ★ Custom cover override — if the incoming song has a custom
+            //   cover set in SongCoverManager (app-only override), use THAT
+            //   instead of the file's metadata artwork URI. Otherwise the
+            //   crossfade transition shows the ORIGINAL cover for the entire
+            //   fade duration (6s by default), then snaps to the custom cover
+            //   only after the song changes.
+            //
+            //   This is what the user means by "in player ui when the song
+            //   is using crossfade the ending moment where the actual
+            //   transition is happening, there the original cover is coming".
+            val incomingSongId = incomingItem?.mediaId?.toLongOrNull()
+            val effectiveIncomingArt =
+                com.rajatxo.coral.util.SongCoverManager.getEffectiveCover(
+                    incomingSongId,
+                    incomingArt
+                )
+
+            // Broadcast: tell the UI a visual crossfade is starting.
+            // ★ Pass the EFFECTIVE cover (custom override if set) so the
+            //   incoming overlay shows the user's chosen cover art during
+            //   the entire crossfade window.
             CrossfadeVisualState.beginTransition(
-                artUri = incomingArt,
+                artUri = effectiveIncomingArt,
                 title = incomingTitle,
                 artist = incomingArtist,
                 album = incomingAlbum

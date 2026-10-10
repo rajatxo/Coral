@@ -1535,4 +1535,68 @@ object CoralIcons {
         quadTo(641f, -267f, 480f, -267f)
         close()
     }
+
+    /** Check / tick (Lucide-style, 24×24, 2dp stroke). */
+    val Check: ImageVector = stroke("Check") {
+        moveTo(20f, 6f)
+        lineTo(9f, 17f)
+        lineTo(4f, 12f)
+    }
+
+    /** Alert triangle (Lucide-style, 24×24, 2dp stroke). */
+    val AlertTriangle: ImageVector = stroke("AlertTriangle") {
+        // Outline: M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z
+        moveTo(10.29f, 3.86f)
+        lineTo(1.82f, 18f)
+        arcTo(
+            horizontalEllipseRadius = 2f,
+            verticalEllipseRadius = 2f,
+            theta = 0f,
+            isMoreThanHalf = true,
+            isPositiveArc = false,
+            x1 = 3.53f,
+            y1 = 21f
+        )
+        lineTo(20.47f, 21f)
+        arcTo(
+            horizontalEllipseRadius = 2f,
+            verticalEllipseRadius = 2f,
+            theta = 0f,
+            isMoreThanHalf = true,
+            isPositiveArc = false,
+            x1 = 22.18f,
+            y1 = 18f
+        )
+        lineTo(13.71f, 3.86f)
+        arcTo(
+            horizontalEllipseRadius = 2f,
+            verticalEllipseRadius = 2f,
+            theta = 0f,
+            isMoreThanHalf = true,
+            isPositiveArc = false,
+            x1 = 10.29f,
+            y1 = 3.86f
+        )
+        close()
+        // Vertical line: M12 9v4
+        moveTo(12f, 9f)
+        lineTo(12f, 13f)
+        // Dot: M12 17h.01
+        moveTo(12f, 17f)
+        lineToRelative(0.01f, 0f)
+    }
+
+    /** Crop icon (Lucide-style, 24×24, 2dp stroke). */
+    val Crop: ImageVector = stroke("Crop") {
+        // M6 2v14a2 2 0 0 0 2 2h14
+        moveTo(6f, 2f)
+        lineToRelative(0f, 14f)
+        arcToRelative(2f, 2f, 0f, false, false, 2f, 2f)
+        lineToRelative(14f, 0f)
+        // M18 22V8a2 2 0 0 0-2-2H2
+        moveTo(18f, 22f)
+        lineToRelative(0f, -14f)
+        arcToRelative(2f, 2f, 0f, false, false, -2f, -2f)
+        lineToRelative(-14f, 0f)
+    }
 }

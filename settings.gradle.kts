@@ -11,6 +11,9 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // ★ JitPack — required for JAudioTagger (AdrienPoupa Android fork).
+        //   Used by MetadataEmbedder to write cover art into MP3/M4A/FLAC tags.
+        maven { url = uri("https://jitpack.io") }
     }
 }
 

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Allows FileProvider to share temp files from the app's cache dir.
+         Used by CoverCropOverlay to write the cropped cover image and
+         pass its Uri to the in-app image loader. -->
+    <cache-path name="cache_covers" path="." />
+    <files-path name="files_covers" path="." />
+    <external-cache-path name="ext_cache_covers" path="." />
+    <external-files-path name="ext_files_covers" path="." />
+</paths>

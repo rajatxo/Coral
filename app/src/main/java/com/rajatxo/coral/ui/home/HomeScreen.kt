@@ -1304,6 +1304,14 @@ private fun MiniPlayer(
     isFullPlayerOpen: Boolean = false,
     backdrop: LayerBackdrop? = null
 ) {
+    // ★ Custom cover override — if the song has a custom cover set in
+    //   SongCoverManager, show THAT in the mini player instead of the
+    //   file's original album art. This is what the user means by
+    //   "the cover is only showing on cards, player ui, speed dial cards,
+    //   still it's not showing in miniplayer".
+    val effectiveAlbumArtUri = com.rajatxo.coral.util.SongCoverManager
+        .getEffectiveCover(songId, albumArtUri)
+
     // Notched mini player — pill with a U-shaped concave notch at the
     // bottom-center, and the search capsule nested inside that notch.
     //
@@ -1600,9 +1608,9 @@ private fun MiniPlayer(
                         modifier = Modifier.size(46.dp).clip(CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (albumArtUri != null) {
+                        if (effectiveAlbumArtUri != null) {
                             AsyncImage(
-                                model = albumArtUri,
+                                model = effectiveAlbumArtUri,
                                 contentDescription = "Album art",
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize()

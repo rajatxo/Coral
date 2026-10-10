@@ -190,6 +190,14 @@ fun TodaysTopCard(
                     .collectAsState()
                 val isSongPinned = song.id in pinnedIds
 
+                // ★ Custom cover override — if the song has a custom cover
+                //   set in SongCoverManager, show THAT instead of the file's
+                //   original album art. This is the same override that
+                //   QuickPicks, Songs, Search, and the player UI use, so
+                //   the cover stays consistent across all screens.
+                val effectiveArt = com.rajatxo.coral.util.SongCoverManager
+                    .getEffectiveCover(song.id, song.albumArtUri)
+
                 Box(
                     modifier = Modifier
                         .padding(start = 8.dp)
@@ -202,9 +210,9 @@ fun TodaysTopCard(
                             .clip(CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (song.albumArtUri != null) {
+                        if (effectiveArt != null) {
                             AsyncImage(
-                                model = song.albumArtUri,
+                                model = effectiveArt,
                                 contentDescription = song.title,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize()
