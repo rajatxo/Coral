@@ -1109,7 +1109,7 @@ fun Spiral2Player(
                             androidx.compose.ui.unit.IntOffset(
                                 x = 0,
                                 y = with(density) {
-                                    (screenHeightDp * 0.65f - 232.dp).toPx().toInt()
+                                    (screenHeightDp * 0.65f - 280.dp).toPx().toInt()
                                 }
                             )
                         }
@@ -1130,7 +1130,29 @@ fun Spiral2Player(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // ★ Delete this song (Trash icon, top of menu)
+                    // ★ Add to Playlist (ListPlus icon, top of menu)
+                    //    Calls onAddToPlaylist with the current song ID.
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = androidx.compose.material3.ripple(bounded = false)
+                            ) {
+                                songId?.let { onAddToPlaylist(it) }
+                                toggleMenu()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = CoralIcons.ListPlus,
+                            contentDescription = "Add to playlist",
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    // ★ Delete this song (Trash icon, second in menu)
                     //    Uses MediaStore.createDeleteRequest via HomeScreen's
                     //    onSongDelete callback. System shows a confirmation
                     //    dialog before the file is actually removed.

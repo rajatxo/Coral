@@ -1263,6 +1263,28 @@ object CoralIcons {
      * A trash can with two vertical lines inside (the "lids").
      * Used by the player 3-dot menu to delete the current song.
      */
+    /** ListPlus icon — used in player 3-dot menu to add song to playlist.
+     *  Source: lucide.dev (MIT), path from user-provided SVG.
+     *  M16 5H3 / M11 12H3 / M16 19H3 / M18 9v6 / M21 12h-6
+     */
+    val ListPlus: ImageVector = stroke("ListPlus") {
+        // M16 5H3
+        moveTo(16f, 5f)
+        lineTo(3f, 5f)
+        // M11 12H3
+        moveTo(11f, 12f)
+        lineTo(3f, 12f)
+        // M16 19H3
+        moveTo(16f, 19f)
+        lineTo(3f, 19f)
+        // M18 9v6
+        moveTo(18f, 9f)
+        verticalLineToRelative(6f)
+        // M21 12h-6
+        moveTo(21f, 12f)
+        horizontalLineToRelative(-6f)
+    }
+
     val Trash: ImageVector = stroke("Trash") {
         // Two vertical lines inside the can (the "lids")
         moveTo(10f, 11f)
