@@ -3,6 +3,7 @@ package com.rajatxo.coral.ui.cynthia
 import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -86,6 +87,7 @@ fun CynthiaHomeScreen(
     var selectedTab by remember { mutableStateOf(CoralTab.QuickPicks) }
     var showSettings by remember { mutableStateOf(false) }
     var selectedPlaylist by remember { mutableStateOf<com.rajatxo.coral.data.model.Playlist?>(null) }
+    var songToAddToPlaylist by remember { mutableStateOf<Long?>(null) }
     // ★ Customization panel state — shown when user holds nav bar or search
     //   FAB for 5 seconds. `customizationPanelIsNavBar` = true → nav bar held,
     //   false → search FAB held. Controls which section the panel shows.
@@ -134,10 +136,12 @@ fun CynthiaHomeScreen(
         enabled = showFullPlayer || showSearch || showSettings ||
                   showCustomizationPanel || showProfilePanel ||
                   showTopCard || showTopCardCustomization || showSpeedDialCard ||
-                  showMiniPlayerCustomization || selectedPlaylist != null
+                  showMiniPlayerCustomization || selectedPlaylist != null ||
+                  songToAddToPlaylist != null
     ) {
         when {
             showFullPlayer -> onFullPlayerDismiss()
+            songToAddToPlaylist != null -> { songToAddToPlaylist = null }
             selectedPlaylist != null -> { selectedPlaylist = null }
             showSearch -> { showSearch = false }
             showSettings -> { showSettings = false }
@@ -633,7 +637,7 @@ fun CynthiaHomeScreen(
                         onPrevClick = onPrevClick,
                         onSeek = onSeek,
                         onDismiss = onFullPlayerDismiss,
-                        onAddToPlaylist = { }
+                        onAddToPlaylist = { songToAddToPlaylist = it }
                     )
                 } else if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.CORAL) {
                     com.rajatxo.coral.ui.player.CoralPlayer(
@@ -649,7 +653,7 @@ fun CynthiaHomeScreen(
                         onPrevClick = onPrevClick,
                         onSeek = onSeek,
                         onDismiss = onFullPlayerDismiss,
-                        onAddToPlaylist = { }
+                        onAddToPlaylist = { songToAddToPlaylist = it }
                     )
                 } else if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.SPIRAL) {
                     com.rajatxo.coral.ui.player.SpiralPlayer(
@@ -665,7 +669,7 @@ fun CynthiaHomeScreen(
                         onPrevClick = onPrevClick,
                         onSeek = onSeek,
                         onDismiss = onFullPlayerDismiss,
-                        onAddToPlaylist = { },
+                        onAddToPlaylist = { songToAddToPlaylist = it },
                         onSongDelete = { }
                     )
                 } else if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.SPIRAL_2) {
@@ -682,7 +686,7 @@ fun CynthiaHomeScreen(
                         onPrevClick = onPrevClick,
                         onSeek = onSeek,
                         onDismiss = onFullPlayerDismiss,
-                        onAddToPlaylist = { },
+                        onAddToPlaylist = { songToAddToPlaylist = it },
                         onSongDelete = { }
                     )
                 } else if (playerStyle == com.rajatxo.coral.data.prefs.PlayerStyleManager.SPIRAL_3) {
@@ -699,7 +703,7 @@ fun CynthiaHomeScreen(
                         onPrevClick = onPrevClick,
                         onSeek = onSeek,
                         onDismiss = onFullPlayerDismiss,
-                        onAddToPlaylist = { },
+                        onAddToPlaylist = { songToAddToPlaylist = it },
                         onSongDelete = { }
                     )
                 } else {
@@ -716,7 +720,7 @@ fun CynthiaHomeScreen(
                         onPrevClick = onPrevClick,
                         onSeek = onSeek,
                         onDismiss = onFullPlayerDismiss,
-                        onAddToPlaylist = { }
+                        onAddToPlaylist = { songToAddToPlaylist = it }
                     )
                 }
         }
@@ -782,6 +786,94 @@ fun CynthiaHomeScreen(
                     onAddSongsClick = { },
                     onDeletePlaylist = { selectedPlaylist = null }
                 )
+            }
+        }
+
+        // ═══ Add to playlist picker overlay ═══
+        // Shown when user taps "Add to playlist" in any player's 3-dot menu.
+        // Lists all playlists — tap one to add the song to it.
+        if (songToAddToPlaylist != null) {
+            val playlists by com.rajatxo.coral.data.store.PlaylistStore.playlists.collectAsState()
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.7f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { songToAddToPlaylist = null }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(horizontal = 24.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0xFF1A1A1A).copy(alpha = 0.95f))
+                        .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(20.dp))
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Add to playlist",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = CalSansFamily,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    if (playlists.isEmpty()) {
+                        Text(
+                            text = "No playlists yet.\nCreate one first.",
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 14.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    } else {
+                        playlists.forEach { playlist ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = {
+                                            songToAddToPlaylist?.let { songId ->
+                                                com.rajatxo.coral.data.store.PlaylistStore.addSongToPlaylist(
+                                                    playlist.id, songId
+                                                )
+                                            }
+                                            songToAddToPlaylist = null
+                                        }
+                                    )
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = CoralIcons.ListMusic,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = playlist.name,
+                                        color = Color.White,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        text = "${playlist.songIds.size} songs",
+                                        color = Color.White.copy(alpha = 0.5f),
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

@@ -3,6 +3,12 @@ package com.rajatxo.coral.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur as kyantBlur
+import com.kyant.backdrop.effects.colorControls
+import com.kyant.backdrop.effects.vibrancy
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -190,6 +196,22 @@ fun PlaylistDetailScreen(
 
     Box(modifier = Modifier.fillMaxSize().background(immersiveColor)) {
 
+        // ★ LOCAL kyant backdrop (same pattern as SettingsScreen)
+        //   Captures the cover image + gradient so the 3-dot menu card
+        //   can blur it with drawBackdrop.
+        val detailGraphicsLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
+        val detailBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop(
+            graphicsLayer = detailGraphicsLayer
+        ) {
+            drawContent()
+        }
+
+        // ★ Layer 1+2 wrapped in layerBackdrop Box for kyant capture
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .layerBackdrop(detailBackdrop)
+        ) {
         // --- Layer 1: Cover image at the top (fixed) ---
         // ★ ViTune-style: if custom cover → single image. If no custom cover →
         //   use first song's art. The background is always a single image for
@@ -254,15 +276,14 @@ fun PlaylistDetailScreen(
                             modifier = Modifier.size(24.dp)
                         )
                     }
-                    // 3-dot menu — no circle background, Ellipsis icon
-                    Box {
+                        // ★ 3-dot menu button
                         Box(
                             modifier = Modifier
                                 .size(40.dp)
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
-                                    onClick = { showMenu = true }
+                                    onClick = { showMenu = !showMenu }
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
@@ -273,104 +294,6 @@ fun PlaylistDetailScreen(
                                 modifier = Modifier.size(24.dp)
                             )
                         }
-
-                        // Dropdown menu — glass card
-                        androidx.compose.material3.DropdownMenu(
-                            expanded = showMenu,
-                            onDismissRequest = { showMenu = false },
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(Color(0xFF1A1A1A).copy(alpha = 0.95f))
-                                .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
-                        ) {
-                            // Rename option
-                            Row(
-                                modifier = Modifier
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                        onClick = {
-                                            showMenu = false
-                                            showRenameDialog = true
-                                        }
-                                    )
-                                    .padding(horizontal = 20.dp, vertical = 14.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Icon(
-                                    imageVector = CoralIcons.Cog,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Text(
-                                    text = "Rename",
-                                    color = Color.White,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-
-                            // Playlist cover option
-                            Row(
-                                modifier = Modifier
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                        onClick = {
-                                            showMenu = false
-                                            coverPicker.launch("image/*")
-                                        }
-                                    )
-                                    .padding(horizontal = 20.dp, vertical = 14.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Icon(
-                                    imageVector = CoralIcons.Music,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Text(
-                                    text = "Playlist cover",
-                                    color = Color.White,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-
-                            // Delete playlist option
-                            Row(
-                                modifier = Modifier
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                        onClick = {
-                                            showMenu = false
-                                            showDeleteConfirm = true
-                                        }
-                                    )
-                                    .padding(horizontal = 20.dp, vertical = 14.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Icon(
-                                    imageVector = CoralIcons.Heart,
-                                    contentDescription = null,
-                                    tint = Color(0xFFFF6B6B),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Text(
-                                    text = "Delete playlist",
-                                    color = Color(0xFFFF6B6B),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                        }
-                    }
                 }
             }
                 // Cover box removed — cover image is the immersive background
@@ -630,6 +553,106 @@ fun PlaylistDetailScreen(
                     }
                 }
             }
+        } // ← closes layerBackdrop Box
+
+        // ★ Glass menu card (kyant backdrop) — shown when showMenu is true
+        //   Positioned at top-right, below the 3-dot button.
+        //   Uses drawBackdrop to blur the album art behind it.
+        if (showMenu) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { showMenu = false }
+                    )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 60.dp, end = 16.dp)
+                        .width(180.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .drawBackdrop(
+                            backdrop = detailBackdrop,
+                            shape = { RoundedCornerShape(16.dp) },
+                            effects = {
+                                vibrancy()
+                                colorControls(
+                                    brightness = 0.05f,
+                                    contrast = 1f,
+                                    saturation = 1.2f
+                                )
+                                kyantBlur(20f.dp.toPx())
+                            },
+                            onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.4f)) }
+                        )
+                        .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+                        .padding(vertical = 8.dp)
+                ) {
+                    // Rename option
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = {
+                                    showMenu = false
+                                    showRenameDialog = true
+                                }
+                            )
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(imageVector = CoralIcons.Cog, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        Text(text = "Rename", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    }
+                    // Playlist cover option
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = {
+                                    showMenu = false
+                                    coverPicker.launch("image/*")
+                                }
+                            )
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(imageVector = CoralIcons.Music, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        Text(text = "Playlist cover", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    }
+                    // Delete playlist option
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = {
+                                    showMenu = false
+                                    showDeleteConfirm = true
+                                }
+                            )
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(imageVector = CoralIcons.Heart, contentDescription = null, tint = Color(0xFFFF6B6B), modifier = Modifier.size(18.dp))
+                        Text(text = "Delete playlist", color = Color(0xFFFF6B6B), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+        }
+
+    } // ← closes outer Box
 
     // ★ Rename dialog
     if (showRenameDialog) {
@@ -712,7 +735,6 @@ fun PlaylistDetailScreen(
                 }
             )
         }
-    }
 }
 
 @Composable
