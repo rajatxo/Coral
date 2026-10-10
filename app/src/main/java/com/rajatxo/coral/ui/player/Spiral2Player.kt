@@ -503,13 +503,43 @@ fun Spiral2Player(
                         val flag = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
                         playerContext.contentResolver.takePersistableUriPermission(uri, flag)
                     } catch (_: Exception) { }
+
+                    // ★ SMART APPROACH: Copy the picked gallery image to the app's
+                    //   private storage (filesDir/song_covers/cover_<songId>.jpg)
+                    //   and store the FileProvider URI.
+                    //
+                    //   WHY: Gallery URIs from GetContent() are TEMPORARY — they
+                    //   expire after the process dies, and takePersistableUriPermission
+                    //   silently fails for MediaStore URIs. By copying to private
+                    //   storage, the cover URI is:
+                    //     - Always readable by our app (our own FileProvider)
+                    //     - Survives app restarts and process death
+                    //     - Loadable by Coil3's AsyncImage in the miniplayer
+                    //
+                    //   This runs in a background coroutine because file I/O
+                    //   shouldn't block the main thread. Both "app-only" and
+                    //   "metadata" paths use the same copied file.
+                    val theSongId = songId
+                    val theCoverUri = uri
+                    val songUri = mediaController?.currentMediaItem?.localConfiguration?.uri
+
                     if (applyToApp) {
-                        com.rajatxo.coral.util.SongCoverManager.setCustomCover(songId, uri)
+                        // Copy to private storage immediately (async)
+                        coroutineScope.launch {
+                            val storedUri = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                com.rajatxo.coral.util.SongCoverManager
+                                    .copyAndStoreCover(theSongId, theCoverUri)
+                            }
+                            // If copy failed, fall back to the raw gallery URI
+                            // (better than nothing — works for current session)
+                            if (storedUri == null) {
+                                com.rajatxo.coral.util.SongCoverManager
+                                    .setCustomCover(theSongId, theCoverUri)
+                            }
+                        }
                     }
-                    // ★ Embed in metadata (file tags) — runs in background.
-                    //   UI shows a spinner; result dialog appears when done.
+
                     if (applyToMetadata) {
-                        val songUri = mediaController?.currentMediaItem?.localConfiguration?.uri
                         if (songUri != null) {
                             isEmbedding = true
                             coroutineScope.launch {
@@ -517,32 +547,24 @@ fun Spiral2Player(
                                     com.rajatxo.coral.util.MetadataEmbedder.embedCover(
                                         context = playerContext,
                                         songUri = songUri,
-                                        coverUri = uri
+                                        coverUri = theCoverUri
                                     )
                                 }
                                 isEmbedding = false
                                 embedResult = result
-                                // ★ After a successful metadata embed, ALSO set
-                                //   the app-only cover. This is CRITICAL because:
-                                //   1. The miniplayer's cover comes from
-                                //      rememberEffectiveCover(currentSongId, currentSongArt).
-                                //      currentSongArt is the MediaItem's artworkUri,
-                                //      which was set at MediaItem creation time and
-                                //      doesn't update after embedding. Without this
-                                //      setCustomCover call, the miniplayer would keep
-                                //      showing the OLD cover until the song changes.
-                                //   2. The full player's outgoing cover layer also
-                                //      uses effectiveAlbumArtUri, which needs this.
-                                //   This doesn't "override" the metadata embed — it
-                                //   just caches the cover for Coral's own UI. The
-                                //   metadata is already permanently in the file.
-                                if (result.success && !applyToApp) {
-                                    com.rajatxo.coral.util.SongCoverManager
-                                        .setCustomCover(songId, uri)
+                                // ★ After a successful metadata embed, ALSO copy
+                                //   the cover to private storage for Coral's own UI.
+                                //   This is CRITICAL because the miniplayer's cover
+                                //   comes from rememberEffectiveCover, which needs
+                                //   a persistent URI — not the temporary gallery URI.
+                                if (result.success) {
+                                    withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                        com.rajatxo.coral.util.SongCoverManager
+                                            .copyAndStoreCover(theSongId, theCoverUri)
+                                    }
                                 }
                             }
                         } else {
-                            // No song URI available — can't embed.
                             embedResult = com.rajatxo.coral.util.MetadataEmbedder.Result(
                                 success = false,
                                 message = "Couldn't determine the song's file location. " +
