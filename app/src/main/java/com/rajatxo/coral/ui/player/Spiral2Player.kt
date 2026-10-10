@@ -21,6 +21,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -432,6 +433,23 @@ fun Spiral2Player(
     val isFavorite = songId != null && songId in favorites.songIds
     var showLyrics by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
+    var showCoverOptions by remember { mutableStateOf(false) }
+
+    // ★ Image picker for custom song cover (app-only)
+    val playerContext = androidx.compose.ui.platform.LocalContext.current
+    val coverPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null && songId != null) {
+            try {
+                val flag = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                playerContext.contentResolver.takePersistableUriPermission(uri, flag)
+            } catch (_: Exception) { }
+            val prefs = playerContext.getSharedPreferences("song_covers", android.content.Context.MODE_PRIVATE)
+            prefs.edit().putString("cover_$songId", uri.toString()).apply()
+        }
+        showCoverOptions = false
+    }
     var showHeartPop by remember { mutableStateOf(false) }
     // ─── Embedded lyrics (extracted from audio metadata) ───────────
     // Extracted in the background when albumArtUri changes. Passed to
@@ -1118,7 +1136,7 @@ fun Spiral2Player(
                             androidx.compose.ui.unit.IntOffset(
                                 x = 0,
                                 y = with(density) {
-                                    (screenHeightDp * 0.65f - 280.dp).toPx().toInt()
+                                    (screenHeightDp * 0.65f - 328.dp).toPx().toInt()
                                 }
                             )
                         }
@@ -1140,7 +1158,6 @@ fun Spiral2Player(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     // ★ Add to Playlist (ListPlus icon, top of menu)
-                    //    Calls onAddToPlaylist with the current song ID.
                     Box(
                         modifier = Modifier
                             .size(32.dp)
@@ -1161,7 +1178,31 @@ fun Spiral2Player(
                             modifier = Modifier.size(22.dp)
                         )
                     }
-                    // ★ Delete this song (Trash icon, second in menu)
+                    // ★ Change Cover/Art (Clover icon, second in menu)
+                    //    Opens a floating kyant card with two options:
+                    //    1. Upload album cover (image from gallery)
+                    //    2. Upload animated album art (video from gallery)
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = androidx.compose.material3.ripple(bounded = false)
+                            ) {
+                                showCoverOptions = true
+                                toggleMenu()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = CoralIcons.Clover,
+                            contentDescription = "Change cover art",
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    // ★ Delete this song (Trash icon, third in menu)
                     //    Uses MediaStore.createDeleteRequest via HomeScreen's
                     //    onSongDelete callback. System shows a confirmation
                     //    dialog before the file is actually removed.
@@ -1264,6 +1305,129 @@ fun Spiral2Player(
                             tint = if (repeatMode != androidx.media3.common.Player.REPEAT_MODE_OFF) adaptiveAccent else Color.White,
                             modifier = Modifier.size(22.dp)
                         )
+                    }
+                }
+            }
+        }
+
+        // ─── Cover options card (Clover button) ──────────────────────
+        // ★ Floating kyant glass card with two options:
+        //   1. Upload album cover (image from gallery)
+        //   2. Upload animated album art (video — coming soon)
+        if (showCoverOptions) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { showCoverOptions = false }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(horizontal = 40.dp)
+                        .width(240.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .drawBackdrop(
+                            backdrop = glassBackdrop,
+                            shape = { RoundedCornerShape(20.dp) },
+                            effects = {
+                                vibrancy()
+                                colorControls(brightness = 0.05f, contrast = 1f, saturation = 1.3f)
+                                blur(20f.dp.toPx())
+                            },
+                            onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.4f)) }
+                        )
+                        .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Change Cover Art",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    // Option 1: Upload album cover
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.White.copy(alpha = 0.08f))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = {
+                                    coverPicker.launch("image/*")
+                                }
+                            )
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = CoralIcons.Wallpaper,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Column {
+                            Text(
+                                text = "Upload album cover",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "Choose image from gallery",
+                                color = Color.White.copy(alpha = 0.5f),
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    // Option 2: Animated album art (coming soon)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.White.copy(alpha = 0.05f))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = {
+                                    // TODO: video picker for animated art
+                                    showCoverOptions = false
+                                }
+                            )
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = CoralIcons.Clover,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.5f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Column {
+                            Text(
+                                text = "Animated album art",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "Coming soon",
+                                color = Color.White.copy(alpha = 0.3f),
+                                fontSize = 12.sp
+                            )
+                        }
                     }
                 }
             }

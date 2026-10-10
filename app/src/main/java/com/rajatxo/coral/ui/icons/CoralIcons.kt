@@ -1267,6 +1267,25 @@ object CoralIcons {
      *  Source: lucide.dev (MIT), path from user-provided SVG.
      *  M16 5H3 / M11 12H3 / M16 19H3 / M18 9v6 / M21 12h-6
      */
+    /** Lucide Clover (MIT) — used in Spiral2 player menu for cover/art options. */
+    val Clover: ImageVector = stroke("Clover") {
+        // M16.17 7.83 2 22
+        moveTo(16.17f, 7.83f)
+        lineTo(2f, 22f)
+        // M4.02 12a2.827 2.827 0 1 1 3.81-4.17A2.827 2.827 0 1 1 12 4.02a2.827 2.827 0 1 1 4.17 3.81A2.827 2.827 0 1 1 19.98 12a2.827 2.827 0 1 1-3.81 4.17A2.827 2.827 0 1 1 12 19.98a2.827 2.827 0 1 1-4.17-3.81A1 1 0 1 1 4 12
+        moveTo(4.02f, 12f)
+        arcToRelative(2.827f, 2.827f, 0f, true, true, 3.81f, -4.17f)
+        arcToRelative(2.827f, 2.827f, 0f, true, true, 4.17f, -3.81f)
+        arcToRelative(2.827f, 2.827f, 0f, true, true, 3.81f, 4.17f)
+        arcToRelative(2.827f, 2.827f, 0f, true, true, -3.81f, 4.17f)
+        arcToRelative(2.827f, 2.827f, 0f, true, true, -4.17f, 3.81f)
+        arcToRelative(2.827f, 2.827f, 0f, true, true, -4.17f, -3.81f)
+        arcToRelative(1f, 1f, 0f, true, true, 0f, -4.17f)
+        // m7.83 7.83 8.34 8.34
+        moveTo(7.83f, 7.83f)
+        lineToRelative(8.34f, 8.34f)
+    }
+
     val ListPlus: ImageVector = stroke("ListPlus") {
         // M16 5H3
         moveTo(16f, 5f)

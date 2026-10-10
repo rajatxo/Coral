@@ -3,6 +3,7 @@ package com.rajatxo.coral.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.focus.focusRequester
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
@@ -136,6 +137,15 @@ fun PlaylistDetailScreen(
     var showRenameDialog by remember { mutableStateOf(false) }
     var isSearching by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    val searchFocusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+
+    // ★ Auto-open keyboard when search is activated
+    androidx.compose.runtime.LaunchedEffect(isSearching) {
+        if (isSearching) {
+            kotlinx.coroutines.delay(100)
+            searchFocusRequester.requestFocus()
+        }
+    }
 
     // ★ Search filter
     val displaySongs = remember(songsInPlaylist, searchQuery, isSearching) {
@@ -459,7 +469,8 @@ fun PlaylistDetailScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp)
-                                .clip(RoundedCornerShape(24.dp)),
+                                .clip(RoundedCornerShape(24.dp))
+                                .focusRequester(searchFocusRequester),
                             placeholder = { Text("Search in playlist...", color = Color.White.copy(alpha = 0.4f), fontSize = 14.sp) },
                             singleLine = true,
                             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
