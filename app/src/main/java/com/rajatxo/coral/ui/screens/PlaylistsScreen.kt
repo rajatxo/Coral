@@ -203,33 +203,38 @@ fun PlaylistsScreen(
 
         // ─── Layer 3: Content (capsules use drawBackdrop to blur Layer 2) ──
         // ═══ ONE unified glass pill: New | Grid/Wheel | Color ═══
-        // All 3 sections share the same glass backdrop, same shape, same height.
-        // Each section takes equal width (weight 1f). Separated by thin dividers.
-        Row(
+        // ★ KYANT FIX: the drawBackdrop must be applied DIRECTLY on the clip
+        //   shape, with NO padding in between. The padding goes OUTSIDE
+        //   (on the parent Box that aligns the pill), not on the pill itself.
+        Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .statusBarsPadding()
                 .padding(horizontal = 20.dp, vertical = 64.dp)
                 .zIndex(1f)
-                .height(44.dp)
-                .clip(RoundedCornerShape(22.dp))
-                .drawBackdrop(
-                    backdrop = localBackdrop,
-                    shape = { RoundedCornerShape(22.dp) },
-                    effects = {
-                        vibrancy()
-                        colorControls(
-                            brightness = 0f,
-                            contrast = 1f,
-                            saturation = 1.1f
-                        )
-                        blur(20f.dp.toPx())
-                    }
-                )
-                .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(22.dp)),
-            verticalAlignment = Alignment.CenterVertically
         ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .clip(RoundedCornerShape(22.dp))
+                    .drawBackdrop(
+                        backdrop = localBackdrop,
+                        shape = { RoundedCornerShape(22.dp) },
+                        effects = {
+                            vibrancy()
+                            colorControls(
+                                brightness = 0f,
+                                contrast = 1f,
+                                saturation = 1.1f
+                            )
+                            blur(20f.dp.toPx())
+                        }
+                    )
+                    .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(22.dp)),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
             // ★ Section 1: New playlist
             Row(
                 modifier = Modifier
@@ -324,6 +329,7 @@ fun PlaylistsScreen(
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = com.rajatxo.coral.ui.theme.CalSansFamily
                 )
+            }
             }
         }
 
